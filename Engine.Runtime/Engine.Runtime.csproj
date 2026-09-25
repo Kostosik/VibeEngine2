@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<RootNamespace>Engine.Runtime</RootNamespace>
+		<AssemblyName>Engine.Runtime</AssemblyName>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Engine.Audio\Engine.Audio.csproj" />
+		<ProjectReference Include="..\Engine.Core\Engine.Core.csproj" />
+		<ProjectReference Include="..\Engine.ECS\Engine.ECS.csproj" />
+		<ProjectReference Include="..\Engine.Simulations\Engine.Simulations.csproj" />
+		<ProjectReference Include="..\Engine.World\Engine.Worlds.csproj" />
+		<ProjectReference Include="..\Engine.Physics\Engine.Physics.csproj" />
+		<ProjectReference Include="..\Engine.Graphics\Engine.Graphics.csproj" />
+		<ProjectReference Include="..\Engine.Input\Engine.Input.csproj" />
+		<ProjectReference Include="..\Engine.Tooling\Engine.Tooling.csproj" />
+	</ItemGroup>
+
+</Project>

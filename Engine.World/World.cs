@@ -10,10 +10,69 @@ public sealed class World
         new();
 
     private readonly Engine.ECS.World _ecsWorld;
+    public Engine.ECS.World EcsWorld =>
+    _ecsWorld;
 
+    internal void RestoreChunk(
+    Persistence.ChunkSaveState state)
+    {
+        ArgumentNullException.ThrowIfNull(
+            state);
+
+        var expectedTileCount =
+            checked(
+                ChunkSize.Width *
+                ChunkSize.Height);
+
+        if (state.Tiles.Length !=
+            expectedTileCount)
+        {
+            throw new InvalidDataException(
+                $"Chunk '{state.Position}' contains " +
+                $"'{state.Tiles.Length}' tiles, expected " +
+                $"'{expectedTileCount}'.");
+        }
+
+        var record =
+            _chunks.RegisterUnloaded(
+                state.Position);
+
+        record.Lifecycle.BeginLoading();
+
+        var chunk =
+            new Chunk(
+                state.Position,
+                ChunkSize);
+
+        state.Tiles
+            .AsSpan()
+            .CopyTo(
+                chunk.Tiles.AsSpan());
+
+        try
+        {
+            record.Attach(
+                chunk);
+
+            record.Lifecycle.SetSimulation(
+                state.Simulation);
+
+            record.Lifecycle.SetPresentation(
+                state.Presentation);
+        }
+        catch
+        {
+            chunk.Dispose();
+
+            throw;
+        }
+    }
     public IEnumerable<Chunk> GetChunks() =>
         _chunks.LoadedChunks;
-
+    public IEnumerable<ChunkRecord> GetChunkRecords()
+    {
+        return _chunks.Records;
+    }
     public SpatialIndex SpatialIndex { get; }
 
     public SpatialEntityManager SpatialEntities { get; }

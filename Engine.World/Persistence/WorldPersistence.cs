@@ -15,11 +15,16 @@ public static class WorldPersistence
             world
                 .GetChunkRecords()
                 .OrderBy(
-                    record => record.Lifecycle.Position.X)
+                    record =>
+                        record.Lifecycle.Position.X)
                 .ThenBy(
-                    record => record.Lifecycle.Position.Y)
+                    record =>
+                        record.Lifecycle.Position.Y)
                 .Select(
-                    CaptureChunk)
+                    record =>
+                        CaptureChunk(
+                            world,
+                            record))
                 .ToArray();
 
         return new WorldSaveState(
@@ -28,17 +33,40 @@ public static class WorldPersistence
             chunks);
     }
 
-    private static ChunkSaveState CaptureChunk(
+    internal static ChunkSaveState CaptureChunk(
+        World world,
         ChunkRecord record)
     {
+        ArgumentNullException.ThrowIfNull(
+            world);
+
+        ArgumentNullException.ThrowIfNull(
+            record);
+
         var lifecycle =
             record.Lifecycle;
+
+        if (lifecycle.Residency ==
+            ChunkResidencyState.Unloaded)
+        {
+            if (world.ChunkPersistence.TryLoad(
+                    lifecycle.Position,
+                    out var persisted) &&
+                persisted is not null)
+            {
+                return persisted;
+            }
+
+            throw new InvalidOperationException(
+                $"Unloaded chunk '{lifecycle.Position}' has no persisted state.");
+        }
 
         if (lifecycle.Residency !=
             ChunkResidencyState.Loaded)
         {
             throw new InvalidOperationException(
-                $"Chunk '{lifecycle.Position}' must be loaded before saving.");
+                $"Chunk '{lifecycle.Position}' cannot be saved while " +
+                $"its residency state is '{lifecycle.Residency}'.");
         }
 
         var chunk =
@@ -50,16 +78,27 @@ public static class WorldPersistence
                 $"Loaded chunk '{lifecycle.Position}' has no runtime data.");
         }
 
+        var values =
+            chunk.Tiles.AsValueReadOnlySpan();
+
+        var tiles =
+            new Tile[values.Length];
+
+        for (var i = 0;
+             i < values.Length;
+             i++)
+        {
+            tiles[i] =
+                new Tile(
+                    values[i]);
+        }
+
         return new ChunkSaveState(
             lifecycle.Position,
+            ChunkResidencyState.Loaded,
             lifecycle.Simulation,
             lifecycle.Presentation,
-            chunk.Tiles
-                .AsValueReadOnlySpan()
-                .ToArray()
-                .Select(
-                    value => new Tile(value))
-                .ToArray());
+            tiles);
     }
 
     public static void Restore(
@@ -79,7 +118,8 @@ public static class WorldPersistence
                 "World chunk size does not match the saved world.");
         }
 
-        if (world.ChunkCount != 0)
+        if (world.ChunkCount != 0 ||
+            world.GetChunkRecords().Any())
         {
             throw new InvalidOperationException(
                 "World must not contain chunks when restoring a save state.");

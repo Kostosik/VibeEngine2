@@ -1,5 +1,6 @@
 ﻿using Engine.ECS;
 using Engine.Worlds.Chunks;
+using Engine.Worlds.Persistence;
 using Engine.Worlds.Spatial;
 
 namespace Engine.Worlds;
@@ -8,16 +9,31 @@ public sealed class World
 {
     private readonly ChunkRegistry _chunks =
         new();
+    private readonly IChunkPersistence _chunkPersistence;
+    public IChunkPersistence ChunkPersistence =>
+    _chunkPersistence;
 
     private readonly Engine.ECS.World _ecsWorld;
     public Engine.ECS.World EcsWorld =>
     _ecsWorld;
 
     internal void RestoreChunk(
-    Persistence.ChunkSaveState state)
+       Persistence.ChunkSaveState state)
     {
         ArgumentNullException.ThrowIfNull(
             state);
+
+        if (state.Residency ==
+            ChunkResidencyState.Unloaded)
+        {
+            _chunks.RegisterUnloaded(
+                state.Position);
+
+            _chunkPersistence.Save(
+                state);
+
+            return;
+        }
 
         var expectedTileCount =
             checked(
@@ -82,7 +98,8 @@ public sealed class World
 
     public World(
         ChunkSize chunkSize,
-        Engine.ECS.World ecsWorld)
+        Engine.ECS.World ecsWorld,
+        IChunkPersistence? chunkPersistence = null)
     {
         ArgumentNullException.ThrowIfNull(
             ecsWorld);
@@ -92,6 +109,9 @@ public sealed class World
 
         _ecsWorld =
             ecsWorld;
+        _chunkPersistence =
+    chunkPersistence ??
+    new MemoryChunkPersistence();
 
         SpatialIndex =
             new SpatialIndex();
@@ -196,8 +216,62 @@ public sealed class World
             record.Detach();
         }
 
-        return _chunks.Remove(
-            position);
+        var removed =
+            _chunks.Remove(
+                position);
+
+        if (removed)
+        {
+            _chunkPersistence.Remove(
+                position);
+        }
+
+        return removed;
+    }
+
+    public bool UnloadChunk(
+    ChunkPosition position)
+    {
+        if (!_chunks.TryGet(
+                position,
+                out var record))
+        {
+            return false;
+        }
+
+        if (record.Chunk is null)
+        {
+            return false;
+        }
+
+        if (!SpatialIndex
+                .GetEntities(position)
+                .IsEmpty)
+        {
+            throw new InvalidOperationException(
+                $"Chunk '{position}' cannot be unloaded while it contains indexed entities.");
+        }
+
+        var state =
+            Persistence.WorldPersistence.CaptureChunk(
+                this,
+                record);
+
+        _chunkPersistence.Save(
+            state);
+
+        if (record.Lifecycle.Simulation !=
+            ChunkSimulationState.Suspended)
+        {
+            record.Lifecycle.SetSimulation(
+                ChunkSimulationState.Suspended);
+        }
+
+        record.Lifecycle.BeginUnloading();
+
+        record.Detach();
+
+        return true;
     }
 
     public ChunkPosition GetChunkPosition(

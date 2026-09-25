@@ -1,6 +1,8 @@
 ﻿using Engine.Core.Math;
 using Engine.Core.Time;
 
+namespace Engine.Core.Time;
+
 public readonly record struct SimulationRate
 {
     public SimulationRate(

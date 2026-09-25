@@ -11,7 +11,7 @@ public sealed class UiInputRouter
     private readonly ITextInput _textInput;
     private readonly UiFocusManager _focus;
     private readonly ICursorService? _cursor;
-
+    private UiWidget? _middlePressedWidget;
     private UiWidget? _hoveredWidget;
     private UiWidget? _pressedWidget;
     private UiWidget? _capturedWidget;
@@ -66,14 +66,15 @@ public sealed class UiInputRouter
             hovered,
             position);
 
-        var pointerEvent =
-            new UiPointerEvent(
-                position,
-                _pointer.ScrollDelta);
-
         if (_pointer.IsPressed(
                 InputMouseButton.Left))
         {
+            var pointerEvent =
+                new UiPointerEvent(
+                    position,
+                    InputMouseButton.Left,
+                    _pointer.ScrollDelta);
+
             _pressedWidget =
                 hovered;
 
@@ -102,13 +103,51 @@ public sealed class UiInputRouter
             }
         }
 
-        pointerEvent =
-            new UiPointerEvent(
-                position,
-                _pointer.ScrollDelta);
+        if (_pointer.IsPressed(
+                InputMouseButton.Middle))
+        {
+            var pointerEvent =
+                new UiPointerEvent(
+                    position,
+                    InputMouseButton.Middle,
+                    _pointer.ScrollDelta);
+
+            _middlePressedWidget =
+                hovered;
+
+            if (_middlePressedWidget is not null)
+            {
+                RoutePointerEvent(
+                    _middlePressedWidget,
+                    pointerEvent,
+                    static (
+                        widget,
+                        @event) =>
+                    {
+                        widget.RaisePointerDown(
+                            @event);
+                    });
+
+                ApplyCaptureRequest(
+                    pointerEvent);
+            }
+        }
 
         if (_capturedWidget is not null)
         {
+            var button =
+                ReferenceEquals(
+                    _middlePressedWidget,
+                    _capturedWidget)
+                        ? InputMouseButton.Middle
+                        : InputMouseButton.Left;
+
+            var pointerEvent =
+                new UiPointerEvent(
+                    position,
+                    button,
+                    _pointer.ScrollDelta);
+
             RoutePointerEvent(
                 _capturedWidget,
                 pointerEvent,
@@ -123,13 +162,36 @@ public sealed class UiInputRouter
             ApplyCaptureRequest(
                 pointerEvent);
         }
+        else if (_middlePressedWidget is not null)
+        {
+            var pointerEvent =
+                new UiPointerEvent(
+                    position,
+                    InputMouseButton.Middle,
+                    _pointer.ScrollDelta);
+
+            _middlePressedWidget.RaisePointerMove(
+                pointerEvent);
+        }
         else if (_pressedWidget is not null)
         {
+            var pointerEvent =
+                new UiPointerEvent(
+                    position,
+                    InputMouseButton.Left,
+                    _pointer.ScrollDelta);
+
             _pressedWidget.RaisePointerMove(
                 pointerEvent);
         }
         else if (_hoveredWidget is not null)
         {
+            var pointerEvent =
+                new UiPointerEvent(
+                    position,
+                    InputMouseButton.Left,
+                    _pointer.ScrollDelta);
+
             _hoveredWidget.RaisePointerMove(
                 pointerEvent);
         }
@@ -138,15 +200,22 @@ public sealed class UiInputRouter
                 InputMouseButton.Left))
         {
             var releaseTarget =
-                _capturedWidget ??
-                _pressedWidget;
+                _capturedWidget is not null &&
+                ReferenceEquals(
+                    _middlePressedWidget,
+                    _capturedWidget)
+                    ? _pressedWidget
+                    : _capturedWidget ??
+                      _pressedWidget;
 
             if (releaseTarget is not null &&
-                IsAttachedToRoot(releaseTarget))
+                IsAttachedToRoot(
+                    releaseTarget))
             {
-                pointerEvent =
+                var pointerEvent =
                     new UiPointerEvent(
                         position,
+                        InputMouseButton.Left,
                         _pointer.ScrollDelta);
 
                 RoutePointerEvent(
@@ -166,14 +235,67 @@ public sealed class UiInputRouter
 
             if (_pressedWidget is not null)
             {
-                _pressedWidget.IsPressed = false;
+                _pressedWidget.IsPressed =
+                    false;
             }
 
             _pressedWidget =
                 null;
 
-            _capturedWidget =
+            if (_capturedWidget is not null &&
+                !ReferenceEquals(
+                    _capturedWidget,
+                    _middlePressedWidget))
+            {
+                _capturedWidget =
+                    null;
+            }
+        }
+
+        if (_pointer.IsReleased(
+                InputMouseButton.Middle))
+        {
+            var releaseTarget =
+                _capturedWidget is not null &&
+                ReferenceEquals(
+                    _capturedWidget,
+                    _middlePressedWidget)
+                    ? _capturedWidget
+                    : _middlePressedWidget;
+
+            if (releaseTarget is not null &&
+                IsAttachedToRoot(
+                    releaseTarget))
+            {
+                var pointerEvent =
+                    new UiPointerEvent(
+                        position,
+                        InputMouseButton.Middle,
+                        _pointer.ScrollDelta);
+
+                RoutePointerEvent(
+                    releaseTarget,
+                    pointerEvent,
+                    static (
+                        widget,
+                        @event) =>
+                    {
+                        widget.RaisePointerUp(
+                            @event);
+                    });
+
+                ApplyCaptureRequest(
+                    pointerEvent);
+            }
+
+            _middlePressedWidget =
                 null;
+
+            if (_capturedWidget is not null)
+            {
+                _capturedWidget =
+                    null;
+            }
         }
 
         if (_hoveredWidget is not null &&
@@ -181,9 +303,10 @@ public sealed class UiInputRouter
                 _pointer.ScrollDelta) >
             0.0001f)
         {
-            pointerEvent =
+            var pointerEvent =
                 new UiPointerEvent(
                     position,
+                    InputMouseButton.Middle,
                     _pointer.ScrollDelta);
 
             RoutePointerEvent(
@@ -216,7 +339,13 @@ public sealed class UiInputRouter
             _pressedWidget.IsPressed = false;
             _pressedWidget = null;
         }
-
+        if (_middlePressedWidget is not null &&
+    !IsAttachedToRoot(
+        _middlePressedWidget))
+        {
+            _middlePressedWidget =
+                null;
+        }
         if (_capturedWidget is not null &&
             !IsAttachedToRoot(_capturedWidget))
         {

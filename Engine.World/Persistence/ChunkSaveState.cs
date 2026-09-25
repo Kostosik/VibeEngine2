@@ -8,6 +8,7 @@ public sealed class ChunkSaveState
 {
     public ChunkSaveState(
         ChunkPosition position,
+        ChunkResidencyState residency,
         ChunkSimulationState simulation,
         ChunkPresentationState presentation,
         Tile[] tiles)
@@ -15,13 +16,35 @@ public sealed class ChunkSaveState
         ArgumentNullException.ThrowIfNull(
             tiles);
 
-        Position = position;
-        Simulation = simulation;
-        Presentation = presentation;
-        Tiles = tiles.ToArray();
+        if (residency !=
+                ChunkResidencyState.Loaded &&
+            residency !=
+                ChunkResidencyState.Unloaded)
+        {
+            throw new ArgumentException(
+                "Only loaded or unloaded chunks can be saved.",
+                nameof(residency));
+        }
+
+        Position =
+            position;
+
+        Residency =
+            residency;
+
+        Simulation =
+            simulation;
+
+        Presentation =
+            presentation;
+
+        Tiles =
+            tiles.ToArray();
     }
 
     public ChunkPosition Position { get; }
+
+    public ChunkResidencyState Residency { get; }
 
     public ChunkSimulationState Simulation { get; }
 

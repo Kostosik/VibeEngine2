@@ -342,6 +342,8 @@ runtime.Services.Camera.Zoom =
 
 gameLoop.Initialize();
 
+
+
 try
 {
     window.Run(

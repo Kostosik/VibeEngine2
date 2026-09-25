@@ -71,8 +71,47 @@ public sealed class ChunkStreamingService
 
         ApplyPresentation(
             request);
+        UnloadNonResident(
+    request);
 
         return request;
+    }
+
+    private void UnloadNonResident(
+    ChunkStreamingRequest request)
+    {
+        var resident =
+            new HashSet<ChunkPosition>(
+                request.ResidentChunks);
+
+        foreach (var record in
+                 _world.Chunks.Records.ToArray())
+        {
+            if (record.Lifecycle.Residency !=
+                ChunkResidencyState.Loaded)
+            {
+                continue;
+            }
+
+            var position =
+                record.Lifecycle.Position;
+
+            if (resident.Contains(
+                    position))
+            {
+                continue;
+            }
+
+            if (!_world.SpatialIndex
+                    .GetEntities(position)
+                    .IsEmpty)
+            {
+                continue;
+            }
+
+            _world.UnloadChunk(
+                position);
+        }
     }
 
     public void FlushLoads()
@@ -140,11 +179,12 @@ public sealed class ChunkStreamingService
             new ChunkLoadResult();
 
         var job =
-            new ChunkLoadJob(
-                _loader,
-                position,
-                _world.ChunkSize,
-                result);
+new ChunkLoadJob(
+    _loader,
+    _world.ChunkPersistence,
+    position,
+    _world.ChunkSize,
+    result);
 
         var handle =
             _scheduler.Schedule(
@@ -197,6 +237,12 @@ public sealed class ChunkStreamingService
 
                 pending.Record.Attach(
                     chunk);
+
+                pending.Record.Lifecycle.SetSimulation(
+    pending.Result.Simulation);
+
+                pending.Record.Lifecycle.SetPresentation(
+                    pending.Result.Presentation);
 
                 pending.Result.Data =
                     null;

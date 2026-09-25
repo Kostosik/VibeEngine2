@@ -67,13 +67,14 @@ public sealed class WorldSaveStateSerializerTests
                 ecs,
                 new[]
                 {
-                    new ChunkSaveState(
-                        new ChunkPosition(
-                            -2,
-                            3),
-                        ChunkSimulationState.Simulating,
-                        ChunkPresentationState.Irrelevant,
-                        tiles)
+new ChunkSaveState(
+    new ChunkPosition(
+        -2,
+        3),
+    ChunkResidencyState.Loaded,
+    ChunkSimulationState.Simulating,
+    ChunkPresentationState.Irrelevant,
+    tiles)
                 });
 
         var path =

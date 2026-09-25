@@ -58,6 +58,9 @@ public sealed class WorldSaveStateSerializer :
                 chunk.Position.Y);
 
             writer.WriteInt32(
+                (int)chunk.Residency);
+
+            writer.WriteInt32(
                 (int)chunk.Simulation);
 
             writer.WriteInt32(
@@ -116,6 +119,10 @@ public sealed class WorldSaveStateSerializer :
                     reader.ReadInt32(),
                     reader.ReadInt32());
 
+            var residency =
+                ReadResidencyState(
+                    ref reader);
+
             var simulation =
                 ReadSimulationState(
                     ref reader);
@@ -143,6 +150,7 @@ public sealed class WorldSaveStateSerializer :
             chunks.Add(
                 new ChunkSaveState(
                     position,
+                    residency,
                     simulation,
                     presentation,
                     tiles));
@@ -175,6 +183,25 @@ public sealed class WorldSaveStateSerializer :
         }
 
         return count;
+    }
+
+    private static ChunkResidencyState ReadResidencyState(
+        ref SerializationReader reader)
+    {
+        var value =
+            reader.ReadInt32();
+
+        return value switch
+        {
+            (int)ChunkResidencyState.Loaded =>
+                ChunkResidencyState.Loaded,
+
+            (int)ChunkResidencyState.Unloaded =>
+                ChunkResidencyState.Unloaded,
+
+            _ => throw new InvalidDataException(
+                $"Invalid chunk residency state '{value}'.")
+        };
     }
 
     private static ChunkSimulationState ReadSimulationState(

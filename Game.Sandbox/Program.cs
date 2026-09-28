@@ -377,17 +377,11 @@ runtime.Services.Camera.Zoom =
 
 gameLoop.Initialize();
 
+window.Resized +=
+    gameplayState.Resize;
 
-
-try
-{
-    window.Run(
-        gameLoop);
-}
-finally
-{
-    gameLoop.Shutdown();
-}
+window.Run(
+    gameLoop);
 
 
 static EntityId CreateStaticWall(

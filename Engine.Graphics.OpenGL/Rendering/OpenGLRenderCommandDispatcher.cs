@@ -14,7 +14,7 @@ internal sealed class OpenGLRenderCommandDispatcher
         Debug,
         Font
     }
-
+    private readonly OpenGLRenderTargetManager _renderTargetManager;
     private readonly OpenGLTextureManager _textureManager;
     private readonly OpenGLTextureRenderer _textureRenderer;
     private readonly OpenGLDebugRenderer _debugRenderer;
@@ -26,7 +26,9 @@ internal sealed class OpenGLRenderCommandDispatcher
         OpenGLTextureManager textureManager,
         OpenGLTextureRenderer textureRenderer,
         OpenGLDebugRenderer debugRenderer,
-        OpenGLFontRenderer fontRenderer,OpenGLRenderState renderState)
+        OpenGLFontRenderer fontRenderer,
+        OpenGLRenderState renderState,
+        OpenGLRenderTargetManager renderTargetManager)
     {
         ArgumentNullException.ThrowIfNull(textureManager);
 
@@ -37,6 +39,8 @@ internal sealed class OpenGLRenderCommandDispatcher
         ArgumentNullException.ThrowIfNull(fontRenderer);
 
         ArgumentNullException.ThrowIfNull(renderState);
+        ArgumentNullException.ThrowIfNull(
+    renderTargetManager);
 
         _renderState = renderState;
 
@@ -49,6 +53,7 @@ internal sealed class OpenGLRenderCommandDispatcher
 
         _fontRenderer =
             fontRenderer;
+        _renderTargetManager = renderTargetManager;
     }
 
     public void SetRenderSize(
@@ -96,6 +101,36 @@ internal sealed class OpenGLRenderCommandDispatcher
 
                 _textureRenderer.Draw(
                     drawTexture);
+
+                return;
+
+            case DrawRenderTargetCommand drawRenderTarget:
+
+                BeginTextureRenderer();
+
+                if (!_renderTargetManager.Exists(
+                        drawRenderTarget.Target))
+                {
+                    return;
+                }
+
+                var texture =
+                    _renderTargetManager.GetColorTexture(
+                        drawRenderTarget.Target);
+
+                if (!_textureManager.Exists(
+                        texture))
+                {
+                    return;
+                }
+
+                _textureRenderer.Draw(
+                    new DrawTextureCommand(
+                        texture,
+                        drawRenderTarget.Position,
+                        drawRenderTarget.Size,
+                        drawRenderTarget.UV,
+                        drawRenderTarget.Layer));
 
                 return;
 

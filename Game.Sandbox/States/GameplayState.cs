@@ -5,6 +5,8 @@ using Engine.ECS.Components;
 using Engine.ECS.Entities;
 using Engine.Graphics;
 using Engine.Graphics.Cameras;
+using Engine.Graphics.Commands;
+using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Engine.Graphics.Sprites;
 using Engine.Graphics.Tilemaps;
@@ -28,6 +30,9 @@ public sealed class GameplayState :
     private readonly IInput _input;
     private readonly Engine.Graphics.Cameras.Camera _camera;
     private readonly IGraphicsDevice _graphics;
+    private readonly RenderTargetHandle _worldRenderTarget;
+    private int _renderWidth = 1280;
+    private int _renderHeight = 720;
     private readonly World _world;
     private readonly DebugConsoleOverlay? _consoleOverlay;
     private readonly TilemapRenderer _tilemapRenderer;
@@ -113,16 +118,46 @@ public sealed class GameplayState :
         _input = input;
         _camera = camera;
         _graphics = graphics;
+
+        _worldRenderTarget =
+            _graphics.RenderTargets.Create(
+                new RenderTargetDescription(
+                    1280,
+                    720));
+
+        _graphics.Pipeline.Clear();
+
+        _graphics.Pipeline.AddPass(
+            new RenderPass(
+                "World",
+                _worldRenderTarget,
+                RenderState.Default2D,
+                true,
+                new RenderPassLayerRange(
+                    RenderLayers.World,
+                    RenderLayers.Present - 1)));
+
+        _graphics.Pipeline.AddPass(
+            RenderPass.Present2D);
+
+        _graphics.Pipeline.AddPass(
+            RenderPass.Ui);
+
+        _graphics.Pipeline.AddPass(
+            RenderPass.Debug);
+
         _ecsWorld = ecsWorld;
         _world = world;
         _player = player;
+
         _interact =
-    interact;
+            interact;
 
         _interactionResolver =
             new InteractionResolver(
                 _ecsWorld,
                 interactionTargets);
+
         _ui = ui;
         _textInput = textInput;
         _pauseGame = pauseGame;
@@ -255,8 +290,8 @@ public sealed class GameplayState :
             time.Delta.TotalSeconds);
 
         var interactionTarget =
-    _interactionResolver.FindTarget(
-        _player);
+            _interactionResolver.FindTarget(
+                _player);
 
         if (interactionTarget.HasValue)
         {
@@ -309,7 +344,7 @@ public sealed class GameplayState :
                 direction +=
                     new FixedVector2(
                         Fixed32.Zero,
-                        -Fixed32.One);
+                        Fixed32.One);
             }
 
             if (_input.IsDown(
@@ -318,7 +353,7 @@ public sealed class GameplayState :
                 direction +=
                     new FixedVector2(
                         Fixed32.Zero,
-                        Fixed32.One);
+                        -Fixed32.One);
             }
 
             if (_input.IsDown(
@@ -450,6 +485,21 @@ public sealed class GameplayState :
         {
             RenderWall(wall);
         }
+
+        _graphics.Submit(
+            new DrawRenderTargetCommand(
+                _worldRenderTarget,
+                new Vector2(
+                    0.0f,
+                    0.0f),
+                new Vector2(
+                    _renderWidth,
+                    _renderHeight),
+                new Rectangle(
+                    0.0f,
+                    0.0f,
+                    1.0f,
+                    1.0f)));
 
         _runtime.RenderDebugVisualization();
 
@@ -596,8 +646,36 @@ public sealed class GameplayState :
             alpha);
     }
 
+    public void Resize(
+    int width,
+    int height)
+    {
+        if (width <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(width));
+        }
+
+        if (height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(height));
+        }
+
+        _renderWidth = width;
+        _renderHeight = height;
+
+        _graphics.RenderTargets.Resize(
+            _worldRenderTarget,
+            width,
+            height);
+    }
+
     public override void Shutdown()
     {
+        _graphics.RenderTargets.Destroy(
+            _worldRenderTarget);
+
         _playerMoveSource.Dispose();
 
         base.Shutdown();

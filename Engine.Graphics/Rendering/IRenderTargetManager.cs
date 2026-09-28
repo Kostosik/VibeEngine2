@@ -16,4 +16,9 @@ public interface IRenderTargetManager
 
     void Destroy(
         RenderTargetHandle target);
+
+    void Resize(
+    RenderTargetHandle target,
+    int width,
+    int height);
 }

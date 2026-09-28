@@ -113,7 +113,8 @@ public sealed class OpenGLGraphicsDevice
                 _textureRenderer,
                 _debugRenderer,
                 _fontRenderer,
-                _renderState);
+                _renderState,
+                _renderTargetManager);
 
         _passExecutor =
             new OpenGLRenderPassExecutor(
@@ -125,9 +126,6 @@ public sealed class OpenGLGraphicsDevice
 
         _renderPipeline =
             new RenderPipeline();
-
-        _renderPipeline.AddPass(
-            RenderPass.Default2D);
 
         _renderPipeline.AddPass(
     RenderPass.World2D);
@@ -173,11 +171,11 @@ public sealed class OpenGLGraphicsDevice
     {
         _debugRenderer.Dispose();
         _textureRenderer.Dispose();
-        _textureManager.Dispose();
         _fontManager.Dispose();
+        _renderTargetManager.Dispose();
+        _textureManager.Dispose();
         _bufferManager.Dispose();
         _shaderManager.Dispose();
-        _renderTargetManager.Dispose();
     }
 
     private void Configure()

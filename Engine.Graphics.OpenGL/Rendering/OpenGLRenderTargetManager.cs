@@ -163,6 +163,110 @@ internal sealed class OpenGLRenderTargetManager :
             .ColorTexture;
     }
 
+    public void Resize(
+    RenderTargetHandle target,
+    int width,
+    int height)
+    {
+        ThrowIfDisposed();
+
+        if (width <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(width));
+        }
+
+        if (height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(height));
+        }
+
+        var entry =
+            GetEntry(target);
+
+        if (entry.Description.Width == width &&
+            entry.Description.Height == height)
+        {
+            return;
+        }
+
+        var description =
+            new RenderTargetDescription(
+                width,
+                height,
+                entry.Description.Format);
+
+        var newColorTexture =
+            _textures.Create(
+                new TextureDescription(
+                    description.Width,
+                    description.Height,
+                    description.Format));
+
+        var newFramebuffer =
+            _gl.GenFramebuffer();
+
+        if (newFramebuffer == 0)
+        {
+            _textures.Destroy(
+                newColorTexture);
+
+            throw new InvalidOperationException(
+                "OpenGL failed to create a framebuffer.");
+        }
+
+        _gl.BindFramebuffer(
+            FramebufferTarget.Framebuffer,
+            newFramebuffer);
+
+        _gl.FramebufferTexture2D(
+            FramebufferTarget.Framebuffer,
+            FramebufferAttachment.ColorAttachment0,
+            TextureTarget.Texture2D,
+            newColorTexture.Value,
+            0);
+
+        var status =
+            _gl.CheckFramebufferStatus(
+                FramebufferTarget.Framebuffer);
+
+        _gl.BindFramebuffer(
+            FramebufferTarget.Framebuffer,
+            0);
+
+        if (status !=
+            GLEnum.FramebufferComplete)
+        {
+            _gl.DeleteFramebuffer(
+                newFramebuffer);
+
+            _textures.Destroy(
+                newColorTexture);
+
+            throw new InvalidOperationException(
+                $"OpenGL framebuffer is incomplete: {status}.");
+        }
+
+        _targets[target] =
+            new Entry
+            {
+                Framebuffer =
+                    newFramebuffer,
+
+                ColorTexture =
+                    newColorTexture,
+
+                Description =
+                    description
+            };
+
+        _gl.DeleteFramebuffer(
+            entry.Framebuffer);
+
+        _textures.Destroy(
+            entry.ColorTexture);
+    }
     public void Destroy(
         RenderTargetHandle target)
     {

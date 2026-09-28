@@ -58,6 +58,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Editor.Sandbox", "Editor.Sa
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Engine.Content", "Engine.Content\Engine.Content.csproj", "{A376DB2A-17CD-4991-AB6B-E1A23591A406}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Engine.Navigation", "Engine.Navigation\Engine.Navigation.csproj", "{0C5270CA-6802-462C-845F-62C16872F56F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Engine.Localization", "Engine.Localization\Engine.Localization.csproj", "{8B653CFC-2E9B-4517-9B6B-C68C486BD5AA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -160,6 +164,14 @@ Global
 		{A376DB2A-17CD-4991-AB6B-E1A23591A406}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A376DB2A-17CD-4991-AB6B-E1A23591A406}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A376DB2A-17CD-4991-AB6B-E1A23591A406}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0C5270CA-6802-462C-845F-62C16872F56F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0C5270CA-6802-462C-845F-62C16872F56F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0C5270CA-6802-462C-845F-62C16872F56F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0C5270CA-6802-462C-845F-62C16872F56F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8B653CFC-2E9B-4517-9B6B-C68C486BD5AA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8B653CFC-2E9B-4517-9B6B-C68C486BD5AA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8B653CFC-2E9B-4517-9B6B-C68C486BD5AA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8B653CFC-2E9B-4517-9B6B-C68C486BD5AA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

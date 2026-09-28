@@ -29,7 +29,9 @@
     <ProjectReference Include="..\Engine.Graphics\Engine.Graphics.csproj" />
     <ProjectReference Include="..\Engine.Input\Engine.Input.csproj" />
     <ProjectReference Include="..\Engine.Jobs\Engine.Jobs.csproj" />
+    <ProjectReference Include="..\Engine.Localization\Engine.Localization.csproj" />
     <ProjectReference Include="..\Engine.Memory\Engine.Memory.csproj" />
+    <ProjectReference Include="..\Engine.Navigation\Engine.Navigation.csproj" />
     <ProjectReference Include="..\Engine.Networking\Engine.Networking.csproj" />
     <ProjectReference Include="..\Engine.Runtime\Engine.Runtime.csproj" />
     <ProjectReference Include="..\Engine.Serialization\Engine.Serialization.csproj" />

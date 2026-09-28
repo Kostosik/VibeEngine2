@@ -1,4 +1,7 @@
-﻿using Engine.Core.Assets;
+﻿using Engine.Content;
+using Engine.Content.Assets;
+using Engine.Content.Loading;
+using Engine.Core.Assets;
 using Engine.Graphics.Resources;
 
 namespace Engine.Tests.Graphics;
@@ -8,20 +11,15 @@ public sealed class TextureResourceManagerTests
     [Fact]
     public void Load_SameAssetTwice_ReturnsSameTexture()
     {
-        var assets =
-            new MemoryAssetSource(
-                new Dictionary<string, byte[]>
-                {
-                    ["Textures/test.png"] =
-                        CreatePng()
-                });
+        var content =
+            CreateContent();
 
         var textures =
             new FakeTextureManager();
 
         using var resources =
             new TextureResourceManager(
-                assets,
+                content,
                 textures);
 
         var path =
@@ -41,6 +39,72 @@ public sealed class TextureResourceManagerTests
         Assert.Equal(
             1,
             textures.CreateCount);
+    }
+
+    [Fact]
+    public void LoadAtlas_SameParameters_ReturnsSameAtlas()
+    {
+        var content =
+            CreateContent();
+
+        var textures =
+            new FakeTextureManager();
+
+        using var resources =
+            new TextureResourceManager(
+                content,
+                textures);
+
+        var path =
+            new AssetPath(
+                "Textures/test.png");
+
+        var first =
+            resources.LoadAtlas(
+                path,
+                1,
+                1);
+
+        var second =
+            resources.LoadAtlas(
+                path,
+                1,
+                1);
+
+        Assert.Same(
+            first,
+            second);
+
+        Assert.Equal(
+            1,
+            textures.CreateCount);
+    }
+
+    private static IContentManager CreateContent()
+    {
+        var assets =
+            new MemoryAssetSource(
+                new Dictionary<string, byte[]>
+                {
+                    ["Textures/test.png"] =
+                        CreatePng()
+                });
+
+        var catalog =
+            new MemoryContentCatalog(
+                new AssetPath(
+                    "Textures/test.png"));
+
+        var loaders =
+            new ContentLoaderRegistry();
+
+        loaders.Register(
+            new ImageTextureContentLoader());
+
+        return new ContentManager(
+            assets,
+            catalog,
+            loaders);
     }
 
     private static byte[] CreatePng()
@@ -63,15 +127,16 @@ public sealed class TextureResourceManagerTests
         ];
     }
 
-    private sealed class MemoryAssetSource
-        : IAssetSource
+    private sealed class MemoryAssetSource :
+        IAssetSource
     {
         private readonly IReadOnlyDictionary<string, byte[]> _assets;
 
         public MemoryAssetSource(
             IReadOnlyDictionary<string, byte[]> assets)
         {
-            _assets = assets;
+            _assets =
+                assets;
         }
 
         public ReadOnlyMemory<byte> Load(
@@ -81,15 +146,67 @@ public sealed class TextureResourceManagerTests
         }
     }
 
-    private sealed class FakeTextureManager
-        : ITextureManager
+    private sealed class MemoryContentCatalog :
+        IContentCatalog
     {
-        private readonly Dictionary<TextureHandle, TextureDescription>
-            _textures = new();
+        private readonly Dictionary<
+            AssetPath,
+            ContentAsset> _assets =
+            new();
+
+        public MemoryContentCatalog(
+            params AssetPath[] paths)
+        {
+            foreach (var path in paths)
+            {
+                _assets.Add(
+                    path,
+                    new ContentAsset(
+                        path,
+                        Path.GetExtension(
+                            path.Value),
+                        0,
+                        DateTime.UnixEpoch));
+            }
+        }
+
+        public IReadOnlyList<ContentAsset> GetAssets()
+        {
+            return _assets.Values.ToArray();
+        }
+
+        public bool Contains(
+            AssetPath path)
+        {
+            return _assets.ContainsKey(
+                path);
+        }
+
+        public bool TryGet(
+            AssetPath path,
+            out ContentAsset? asset)
+        {
+            return _assets.TryGetValue(
+                path,
+                out asset);
+        }
+    }
+
+    private sealed class FakeTextureManager :
+        ITextureManager
+    {
+        private readonly Dictionary<
+            TextureHandle,
+            TextureDescription> _textures =
+            new();
 
         private uint _nextId = 1;
 
-        public int CreateCount { get; private set; }
+        public int CreateCount
+        {
+            get;
+            private set;
+        }
 
         public TextureHandle Create(
             TextureDescription description)
@@ -130,52 +247,8 @@ public sealed class TextureResourceManagerTests
         public void Destroy(
             TextureHandle texture)
         {
-           _textures.Remove(
+            _textures.Remove(
                 texture);
         }
-    }
-
-    [Fact]
-    public void LoadAtlas_SameParameters_ReturnsSameAtlas()
-    {
-        var assets =
-            new MemoryAssetSource(
-                new Dictionary<string, byte[]>
-                {
-                    ["Textures/test.png"] =
-                        CreatePng()
-                });
-
-        var textures =
-            new FakeTextureManager();
-
-        using var resources =
-            new TextureResourceManager(
-                assets,
-                textures);
-
-        var path =
-            new AssetPath(
-                "Textures/test.png");
-
-        var first =
-            resources.LoadAtlas(
-                path,
-                1,
-                1);
-
-        var second =
-            resources.LoadAtlas(
-                path,
-                1,
-                1);
-
-        Assert.Same(
-            first,
-            second);
-
-        Assert.Equal(
-            1,
-            textures.CreateCount);
     }
 }

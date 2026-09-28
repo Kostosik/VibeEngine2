@@ -1,9 +1,11 @@
-﻿namespace Engine.Content.Loading;
+﻿using Engine.Content.Assets;
+
+namespace Engine.Content.Loading;
 
 public sealed class ContentLoaderRegistry :
     IContentLoaderRegistry
 {
-    private readonly Dictionary<Type, object> _loaders =
+    private readonly List<IContentLoader> _loaders =
         new();
 
     public void Register<T>(
@@ -13,35 +15,49 @@ public sealed class ContentLoaderRegistry :
         ArgumentNullException.ThrowIfNull(
             loader);
 
-        var type =
-            typeof(T);
-
-        if (!_loaders.TryAdd(
-                type,
-                loader))
-        {
-            throw new InvalidOperationException(
-                $"A content loader for '{type.Name}' is already registered.");
-        }
+        _loaders.Add(
+            loader);
     }
 
     public bool TryGet<T>(
+        ContentAsset asset,
         out IContentLoader<T>? loader)
         where T : class
     {
-        if (_loaders.TryGetValue(
-                typeof(T),
-                out var value))
-        {
-            loader =
-                (IContentLoader<T>)value;
+        ArgumentNullException.ThrowIfNull(
+            asset);
 
-            return true;
+        IContentLoader<T>? match =
+            null;
+
+        foreach (var candidate in _loaders)
+        {
+            if (candidate.AssetType !=
+                typeof(T))
+            {
+                continue;
+            }
+
+            if (!candidate.CanLoad(
+                    asset))
+            {
+                continue;
+            }
+
+            if (match is not null)
+            {
+                throw new InvalidOperationException(
+                    $"Multiple content loaders can load '{asset.Path}' as '{typeof(T).Name}'.");
+            }
+
+            match =
+                (IContentLoader<T>)candidate;
         }
 
-        loader = null;
+        loader =
+            match;
 
-        return false;
+        return match is not null;
     }
 
     public void Clear()

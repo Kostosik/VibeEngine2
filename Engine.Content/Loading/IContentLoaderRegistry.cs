@@ -1,4 +1,6 @@
-﻿namespace Engine.Content.Loading;
+﻿using Engine.Content.Assets;
+
+namespace Engine.Content.Loading;
 
 public interface IContentLoaderRegistry
 {
@@ -7,6 +9,7 @@ public interface IContentLoaderRegistry
         where T : class;
 
     bool TryGet<T>(
+        ContentAsset asset,
         out IContentLoader<T>? loader)
         where T : class;
 

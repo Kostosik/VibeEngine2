@@ -1,4 +1,5 @@
-﻿using Engine.Content.Loading;
+﻿using Engine.Content.Assets;
+using Engine.Content.Loading;
 using Engine.Core.Assets;
 using Engine.Serialization.Binary;
 
@@ -10,27 +11,42 @@ public sealed class BinaryContentLoader<T> :
 {
     private readonly IBinarySerializer<T> _serializer;
     private readonly SerializationContext _serializationContext;
-
+    private readonly Func<ContentAsset, bool> _canLoad;
     public BinaryContentLoader(
-        IBinarySerializer<T> serializer)
+        IBinarySerializer<T> serializer,
+        Func<ContentAsset, bool> canLoad)
         : this(
             serializer,
+            canLoad,
             SerializationContext.Default)
     {
     }
 
     public BinaryContentLoader(
         IBinarySerializer<T> serializer,
+        Func<ContentAsset, bool> canLoad,
         SerializationContext serializationContext)
     {
         ArgumentNullException.ThrowIfNull(
             serializer);
 
+        ArgumentNullException.ThrowIfNull(
+            canLoad);
+
         _serializer =
             serializer;
 
+        _canLoad =
+            canLoad;
+
         _serializationContext =
             serializationContext;
+    }
+
+    public bool CanLoad(
+    ContentAsset asset)
+    {
+        return _canLoad(asset);
     }
 
     public T Load(

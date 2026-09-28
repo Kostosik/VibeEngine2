@@ -5,4 +5,5 @@ namespace Engine.Content.Assets;
 public sealed record ContentAsset(
     AssetPath Path,
     string Extension,
-    long SizeBytes);
+    long SizeBytes,
+    DateTime LastModifiedUtc);

@@ -43,10 +43,15 @@ public sealed class ContentPipelineTests
                 new FileContentCatalog(
                     root);
 
+            var loaders =
+                new ContentLoaderRegistry();
+
+
             using var content =
                 new ContentManager(
                     source,
-                    catalog);
+                    catalog,
+                    loaders);
 
             content.Register(
                 new TestAssetLoader());
@@ -104,12 +109,16 @@ public sealed class ContentPipelineTests
                     serializer,
                     SerializationContext.Default));
 
+            var loaders =
+    new ContentLoaderRegistry();
+
+
             using var content =
                 new ContentManager(
                     new FileAssetSource(
                         root),
                     new FileContentCatalog(
-                        root));
+                        root),loaders);
 
             content.Register(
                 new BinaryContentLoader<BinaryTestAsset>(
@@ -164,10 +173,15 @@ public sealed class ContentPipelineTests
                 new FileContentCatalog(
                     root);
 
+            var loaders =
+                new ContentLoaderRegistry();
+
+
             using var content =
                 new ContentManager(
                     source,
-                    catalog);
+                    catalog,
+                    loaders);
 
             content.Register(
                 new TextAssetLoader());

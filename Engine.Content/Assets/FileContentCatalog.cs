@@ -86,7 +86,8 @@ public sealed class FileContentCatalog :
                 new ContentAsset(
                     assetPath,
                     fileInfo.Extension,
-                    fileInfo.Length));
+                    fileInfo.Length,
+                    fileInfo.LastWriteTimeUtc));
         }
     }
 }

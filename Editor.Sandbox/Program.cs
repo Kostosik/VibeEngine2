@@ -1,4 +1,7 @@
-﻿using Engine.Core.Application;
+﻿using Engine.Content;
+using Engine.Content.Assets;
+using Engine.Content.Loading;
+using Engine.Core.Application;
 using Engine.Core.Assets;
 using Engine.Editor;
 using Engine.Editor.UI;
@@ -96,9 +99,27 @@ editor.InitializeAssetBrowser(
 
 editor.ComponentTypes.Register<EditorTestComponent>();
 
+var contentCatalog =
+    new FileContentCatalog(
+        Path.Combine(
+            AppContext.BaseDirectory,
+            "Assets"));
+
+var contentLoaders =
+    new ContentLoaderRegistry();
+
+contentLoaders.Register(
+    new Engine.Graphics.Resources.ImageTextureContentLoader());
+
+using var content =
+    new ContentManager(
+        assetSource,
+        contentCatalog,
+        contentLoaders);
+
 using var assetPreviewTextures =
     new Engine.Graphics.Resources.TextureResourceManager(
-        assetSource,
+        content,
         window.GraphicsDevice.Textures);
 
 var uiDocument =

@@ -13,6 +13,9 @@ public sealed class ContentManager :
     private readonly IContentCatalog _catalog;
     private readonly IContentLoaderRegistry _loaders;
 
+    private readonly HashSet<ContentLoadKey> _loading =
+    new();
+
     private readonly Dictionary<
         Type,
         Dictionary<AssetPath, object>> _cache =
@@ -22,7 +25,8 @@ public sealed class ContentManager :
 
     public ContentManager(
         IAssetSource source,
-        IContentCatalog catalog)
+        IContentCatalog catalog,
+        IContentLoaderRegistry loaders)
     {
         ArgumentNullException.ThrowIfNull(
             source);
@@ -30,11 +34,12 @@ public sealed class ContentManager :
         ArgumentNullException.ThrowIfNull(
             catalog);
 
+        ArgumentNullException.ThrowIfNull(
+            loaders);
+
         _source = source;
         _catalog = catalog;
-
-        _loaders =
-            new ContentLoaderRegistry();
+        _loaders = loaders;
     }
 
     public void Register<T>(
@@ -53,8 +58,10 @@ public sealed class ContentManager :
     {
         EnsureNotDisposed();
 
-        if (!_catalog.Contains(
-                path))
+        if (!_catalog.TryGet(
+         path,
+         out var contentAsset) ||
+     contentAsset is null)
         {
             throw new FileNotFoundException(
                 $"Content asset '{path}' is not registered.");
@@ -64,10 +71,11 @@ public sealed class ContentManager :
             typeof(T);
 
         if (!_loaders.TryGet<T>(
+                contentAsset,
                 out var loader))
         {
             throw new InvalidOperationException(
-                $"No content loader is registered for '{typeof(T).Name}'.");
+                $"No content loader is registered for asset '{path}' as '{type.Name}'.");
         }
 
         if (!_cache.TryGetValue(
@@ -89,19 +97,39 @@ public sealed class ContentManager :
             return (T)existing;
         }
 
-        var asset =
-            loader!.Load(
+        var loadKey =
+    new ContentLoadKey(
+        type,
+        path);
+
+        if (!_loading.Add(
+                loadKey))
+        {
+            throw new InvalidOperationException(
+                $"Cyclic content dependency detected for '{type.Name}' at '{path}'.");
+        }
+
+        try
+        {
+            var asset =
+                loader!.Load(
+                    path,
+                    this);
+
+            ArgumentNullException.ThrowIfNull(
+                asset);
+
+            typeCache.Add(
                 path,
-                this);
+                asset);
 
-        ArgumentNullException.ThrowIfNull(
-            asset);
-
-        typeCache.Add(
-            path,
-            asset);
-
-        return asset;
+            return asset;
+        }
+        finally
+        {
+            _loading.Remove(
+                loadKey);
+        }
     }
 
 
@@ -144,6 +172,7 @@ public sealed class ContentManager :
         }
 
         _cache.Clear();
+        _loading.Clear();
     }
 
     public bool Unload<T>(
@@ -200,5 +229,7 @@ public sealed class ContentManager :
             this);
     }
 
-
+    private readonly record struct ContentLoadKey(
+    Type Type,
+    AssetPath Path);
 }

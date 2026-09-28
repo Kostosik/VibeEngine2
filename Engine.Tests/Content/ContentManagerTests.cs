@@ -8,6 +8,39 @@ namespace Engine.Tests.Content;
 public sealed class ContentManagerTests
 {
     [Fact]
+    public void Load_ThrowsForCyclicDependency()
+    {
+        var pathA =
+            new AssetPath("a.asset");
+
+        var pathB =
+            new AssetPath("b.asset");
+
+        var content =
+            new ContentManager(
+                new TestAssetSource(),
+                new TestCatalog(
+                    pathA,
+                    pathB),
+                new ContentLoaderRegistry());
+
+        content.Register(
+            new CyclicLoaderA(
+                pathB));
+
+        content.Register(
+            new CyclicLoaderB(
+                pathA));
+
+        Assert.Throws<InvalidOperationException>(
+            () =>
+            {
+                content.Load<TestAssetA>(
+                    pathA);
+            });
+    }
+
+    [Fact]
     public void Load_CachesLoadedAsset()
     {
         var source =
@@ -17,10 +50,15 @@ public sealed class ContentManagerTests
             new TestCatalog(
                 new AssetPath("test.asset"));
 
+        var loaders =
+            new ContentLoaderRegistry();
+
+
         using var content =
             new ContentManager(
                 source,
-                catalog);
+                catalog,
+                loaders);
 
         var loader =
             new TestLoader();
@@ -57,10 +95,15 @@ public sealed class ContentManagerTests
         var catalog =
             new TestCatalog(path);
 
+        var loaders =
+            new ContentLoaderRegistry();
+
+
         using var content =
             new ContentManager(
                 source,
-                catalog);
+                catalog,
+                loaders);
 
         content.Register(
             new DisposableTestLoader());
@@ -141,43 +184,114 @@ public sealed class ContentManagerTests
     }
 
     private sealed class TestCatalog :
-        IContentCatalog
+    IContentCatalog
     {
-        private readonly ContentAsset _asset;
+        private readonly Dictionary<
+            AssetPath,
+            ContentAsset> _assets =
+            new();
 
         public TestCatalog(
-            AssetPath path)
+            params AssetPath[] paths)
         {
-            _asset =
-                new ContentAsset(
+            foreach (var path in paths)
+            {
+                _assets.Add(
                     path,
-                    ".asset",
-                    0);
+                    new ContentAsset(
+                        path,
+                        ".asset",
+                        0,
+                        DateTime.UnixEpoch));
+            }
         }
 
         public IReadOnlyList<ContentAsset> GetAssets()
         {
-            return new[] { _asset };
+            return _assets.Values.ToArray();
         }
 
         public bool Contains(
             AssetPath path)
         {
-            return path == _asset.Path;
+            return _assets.ContainsKey(path);
         }
 
         public bool TryGet(
             AssetPath path,
             out ContentAsset? asset)
         {
-            if (path == _asset.Path)
-            {
-                asset = _asset;
-                return true;
-            }
+            return _assets.TryGetValue(
+                path,
+                out asset);
+        }
+    }
 
-            asset = null;
-            return false;
+    private sealed class TestAssetA
+    {
+        public TestAssetA(TestAssetB dependency)
+        {
+            Dependency = dependency;
+        }
+
+        public TestAssetB Dependency
+        {
+            get;
+        }
+    }
+
+    private sealed class TestAssetB
+    {
+        public TestAssetB(TestAssetA dependency)
+        {
+            Dependency = dependency;
+        }
+
+        public TestAssetA Dependency
+        {
+            get;
+        }
+    }
+
+    private sealed class CyclicLoaderA :
+        IContentLoader<TestAssetA>
+    {
+        private readonly AssetPath _dependencyPath;
+
+        public CyclicLoaderA(
+            AssetPath dependencyPath)
+        {
+            _dependencyPath = dependencyPath;
+        }
+
+        public TestAssetA Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            return new TestAssetA(
+                context.Load<TestAssetB>(
+                    _dependencyPath));
+        }
+    }
+
+    private sealed class CyclicLoaderB :
+        IContentLoader<TestAssetB>
+    {
+        private readonly AssetPath _dependencyPath;
+
+        public CyclicLoaderB(
+            AssetPath dependencyPath)
+        {
+            _dependencyPath = dependencyPath;
+        }
+
+        public TestAssetB Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            return new TestAssetB(
+                context.Load<TestAssetA>(
+                    _dependencyPath));
         }
     }
 }

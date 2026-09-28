@@ -1,4 +1,5 @@
-﻿using Engine.Content.Loading;
+﻿using Engine.Content.Assets;
+using Engine.Content.Loading;
 using Engine.Core.Assets;
 
 namespace Engine.Graphics.Resources;
@@ -23,5 +24,25 @@ public sealed class ImageTextureContentLoader :
 
         return _loader.Load(
             context.ReadBytes(path));
+    }
+
+    public bool CanLoad(
+    ContentAsset asset)
+    {
+        return asset.Extension.Equals(
+                   ".png",
+                   StringComparison.OrdinalIgnoreCase) ||
+               asset.Extension.Equals(
+                   ".jpg",
+                   StringComparison.OrdinalIgnoreCase) ||
+               asset.Extension.Equals(
+                   ".jpeg",
+                   StringComparison.OrdinalIgnoreCase) ||
+               asset.Extension.Equals(
+                   ".bmp",
+                   StringComparison.OrdinalIgnoreCase) ||
+               asset.Extension.Equals(
+                   ".tga",
+                   StringComparison.OrdinalIgnoreCase);
     }
 }

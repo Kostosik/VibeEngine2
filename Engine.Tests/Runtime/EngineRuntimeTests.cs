@@ -1,4 +1,5 @@
 ﻿using Engine.Audio;
+using Engine.Content;
 using Engine.Core.Application;
 using Engine.Core.Assets;
 using Engine.Core.Diagnostics;
@@ -187,7 +188,7 @@ public sealed class EngineRuntimeTests
             new EngineRuntimeServices(
                 new FakeGraphicsDevice(),
                 new FakeInput(),
-                camera, new FakeAudioManager());
+                camera, new FakeAudioManager(), new ContentManager(null,null,null));
 
         return new EngineRuntime(
             new EngineRuntimeOptions(),

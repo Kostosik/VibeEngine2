@@ -2,6 +2,7 @@
 using Engine.Audio.OpenAL;
 using Engine.Content;
 using Engine.Content.Assets;
+using Engine.Content.Loading;
 using Engine.Core.Application;
 using Engine.Core.Assets;
 using Engine.Core.Math;
@@ -128,10 +129,21 @@ var contentCatalog =
             AppContext.BaseDirectory,
             "Assets"));
 
+var contentLoaders =
+    new ContentLoaderRegistry();
+
+contentLoaders.Register(
+    new ImageTextureContentLoader());
+
+contentLoaders.Register(
+    new BinaryContentLoader<UiAsset>(
+        new UiAssetSerializer()));
+
 using var content =
     new ContentManager(
         assetSource,
-        contentCatalog);
+        contentCatalog,
+        contentLoaders);
 
 content.Register(
     new ImageTextureContentLoader());
@@ -187,7 +199,8 @@ var runtimeServices =
         window.GraphicsDevice,
         input,
         window.Camera,
-        audio);
+        audio,
+        content);
 
 using var runtime =
     new EngineRuntime(

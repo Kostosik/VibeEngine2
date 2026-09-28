@@ -1,5 +1,7 @@
 ﻿using Engine.Audio;
 using Engine.Content;
+using Engine.Content.Assets;
+using Engine.Content.Loading;
 using Engine.Core.Application;
 using Engine.Core.Assets;
 using Engine.Core.Diagnostics;
@@ -11,6 +13,7 @@ using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Engine.Input;
 using Engine.Runtime;
+
 
 namespace Engine.Tests.Runtime;
 
@@ -188,11 +191,55 @@ public sealed class EngineRuntimeTests
             new EngineRuntimeServices(
                 new FakeGraphicsDevice(),
                 new FakeInput(),
-                camera, new FakeAudioManager(), new ContentManager(null,null,null));
+                camera,
+                new FakeAudioManager(),
+                new ContentManager(
+                    new EmptyAssetSource(),
+                    new EmptyContentCatalog(),
+                    new ContentLoaderRegistry()));
 
         return new EngineRuntime(
             new EngineRuntimeOptions(),
             services);
+    }
+
+    private sealed class EmptyAssetSource :
+    IAssetSource
+    {
+        public ReadOnlyMemory<byte> Load(
+            AssetPath path)
+        {
+            throw new FileNotFoundException(
+                $"Test asset '{path}' does not exist.");
+        }
+    }
+
+    private sealed class EmptyContentCatalog :
+        IContentCatalog
+    {
+        public IReadOnlyList<ContentAsset> GetAssets()
+        {
+            return Array.Empty<ContentAsset>();
+        }
+
+        public bool Contains(
+            AssetPath path)
+        {
+            return false;
+        }
+
+        public bool TryGet(
+            AssetPath path,
+            out ContentAsset? asset)
+        {
+            asset = null;
+
+            return false;
+        }
+
+        public void Refresh()
+        {
+        }
     }
 
     private sealed class FakeAudioManager : IAudioManager

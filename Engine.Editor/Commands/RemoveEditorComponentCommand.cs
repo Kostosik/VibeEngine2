@@ -22,6 +22,9 @@ public sealed class RemoveEditorComponentCommand : IEditorCommand
         ArgumentNullException.ThrowIfNull(reference);
         ArgumentNullException.ThrowIfNull(componentType);
 
+        reference.EnsureWorld(
+    world);
+
         if (!reference.IsAlive)
         {
             throw new ArgumentException(

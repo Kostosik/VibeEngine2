@@ -24,7 +24,9 @@ public sealed class EditorViewportState
     public void SetSize(
         Vector2 size)
     {
-        if (size.X < 0.0f ||
+        if (!float.IsFinite(size.X) ||
+            !float.IsFinite(size.Y) ||
+            size.X < 0.0f ||
             size.Y < 0.0f)
         {
             throw new ArgumentOutOfRangeException(
@@ -37,6 +39,13 @@ public sealed class EditorViewportState
     public void SetCenter(
         Vector2 center)
     {
+        if (!float.IsFinite(center.X) ||
+            !float.IsFinite(center.Y))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(center));
+        }
+
         _center = center;
     }
 
@@ -44,8 +53,7 @@ public sealed class EditorViewportState
         float zoom)
     {
         if (zoom <= 0.0f ||
-            float.IsNaN(zoom) ||
-            float.IsInfinity(zoom))
+            !float.IsFinite(zoom))
         {
             throw new ArgumentOutOfRangeException(
                 nameof(zoom));
@@ -57,6 +65,23 @@ public sealed class EditorViewportState
     public void Pan(
         Vector2 offset)
     {
-        _center += offset;
+        if (!float.IsFinite(offset.X) ||
+            !float.IsFinite(offset.Y))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(offset));
+        }
+
+        var center =
+            _center + offset;
+
+        if (!float.IsFinite(center.X) ||
+            !float.IsFinite(center.Y))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(offset));
+        }
+
+        _center = center;
     }
 }

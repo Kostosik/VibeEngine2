@@ -39,6 +39,9 @@ public sealed class EditorInspector
                 "Editor entity reference is not alive.");
         }
 
+        entity.EnsureWorld(
+    _world);
+
         if (!_worldInspector.TryGetComponent(
                 entity.Entity,
                 componentType,

@@ -20,6 +20,9 @@ public sealed class AddEditorComponentCommand : IEditorCommand
         ArgumentNullException.ThrowIfNull(reference);
         ArgumentNullException.ThrowIfNull(componentType);
 
+        reference.EnsureWorld(
+    world);
+
         if (!reference.IsAlive)
         {
             throw new ArgumentException(

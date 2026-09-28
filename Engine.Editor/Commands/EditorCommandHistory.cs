@@ -16,7 +16,7 @@ public sealed class EditorCommandHistory
         _position < _commands.Count;
 
     public bool IsDirty =>
-        _position != _savedPosition;
+        _savedPosition != _position;
 
     public int UndoCount =>
         _position;
@@ -29,14 +29,22 @@ public sealed class EditorCommandHistory
     {
         ArgumentNullException.ThrowIfNull(command);
 
+        // The command must succeed before the redo branch
+        // is discarded. Otherwise a failed command would
+        // corrupt the history.
+        command.Execute();
+
         if (_position < _commands.Count)
         {
             _commands.RemoveRange(
                 _position,
                 _commands.Count - _position);
-        }
 
-        command.Execute();
+            // The saved state belonged to the discarded
+            // branch and can no longer be identified by
+            // position alone.
+            _savedPosition = -1;
+        }
 
         _commands.Add(
             command);

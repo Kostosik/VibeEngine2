@@ -9,8 +9,10 @@ using Engine.Worlds;
 
 namespace Engine.Editor.Documents;
 
-public sealed class EditorDocument
+public sealed class EditorDocument : IDisposable
 {
+
+
     private readonly Dictionary<EntityId, EditorEntityReference>
     _entityReferences = new();
     public EditorViewport Viewport { get; }
@@ -22,7 +24,12 @@ public sealed class EditorDocument
         ArgumentNullException.ThrowIfNull(
             world);
 
+
+
         World = world;
+
+        World.EcsWorld.EntityDestroyed +=
+OnEntityDestroyed;
 
         EntitySelection =
             new SelectionSet<EntityId>();
@@ -79,7 +86,9 @@ public sealed class EditorDocument
         }
 
         var reference =
-            new EditorEntityReference(entity);
+            new EditorEntityReference(
+                World,
+                entity);
 
         _entityReferences.Add(
             entity,
@@ -157,5 +166,31 @@ public sealed class EditorDocument
     public void MarkSaved()
     {
         CommandHistory.MarkSaved();
+    }
+
+    private void OnEntityDestroyed(
+    EntityId entity)
+    {
+        EntitySelection.Remove(
+            entity);
+
+        if (!_entityReferences.Remove(
+                entity,
+                out var reference))
+        {
+            return;
+        }
+
+        reference.SetEntity(
+            EntityId.Invalid);
+    }
+
+    public void Dispose()
+    {
+        World.EcsWorld.EntityDestroyed -=
+            OnEntityDestroyed;
+
+        EntitySelection.Clear();
+        _entityReferences.Clear();
     }
 }

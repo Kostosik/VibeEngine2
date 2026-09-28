@@ -26,6 +26,14 @@ public sealed class EditorPanelLayout
     public void SetArea(
         EditorDockArea area)
     {
+        if (!Enum.IsDefined(
+                typeof(EditorDockArea),
+                area))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(area));
+        }
+
         Area = area;
     }
 

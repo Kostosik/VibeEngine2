@@ -21,6 +21,8 @@ public sealed class EcsComponentEditorTarget
                 "Editor entity reference is not alive.",
                 nameof(entity));
         }
+        entity.EnsureWorld(
+    world);
 
         if (!componentType.IsValueType ||
             componentType.IsPrimitive ||
@@ -42,7 +44,9 @@ public sealed class EcsComponentEditorTarget
         Type componentType)
         : this(
             world,
-            new EditorEntityReference(entity),
+            new EditorEntityReference(
+                world,
+                entity),
             componentType)
     {
     }

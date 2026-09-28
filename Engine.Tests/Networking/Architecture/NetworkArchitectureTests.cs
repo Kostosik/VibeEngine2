@@ -36,17 +36,17 @@ public sealed class NetworkArchitectureTests
         var server =
             CreateNode(
                 1,
-                1001);
+                2001);
 
         var firstClient =
             CreateNode(
                 2,
-                1002);
+                2002);
 
         var secondClient =
             CreateNode(
                 3,
-                1003);
+                2003);
 
         var nodes =
             new[]

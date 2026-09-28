@@ -38,6 +38,10 @@ public sealed class EditorSession
             return false;
         }
 
+        _documents.Remove(document);
+
+        document.Dispose();
+
         if (ReferenceEquals(
                 ActiveDocument,
                 document))
@@ -68,6 +72,11 @@ public sealed class EditorSession
 
     public void CloseAll()
     {
+        foreach (var document in _documents)
+        {
+            document.Dispose();
+        }
+
         _documents.Clear();
         ActiveDocument = null;
     }

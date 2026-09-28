@@ -20,6 +20,9 @@ public sealed class SetWorldPositionCommand : IEditorCommand
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(reference);
 
+        reference.EnsureWorld(
+    world);
+
         if (!reference.IsAlive)
         {
             throw new ArgumentException(

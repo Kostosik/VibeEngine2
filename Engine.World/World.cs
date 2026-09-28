@@ -230,7 +230,7 @@ public sealed class World
     }
 
     public bool UnloadChunk(
-    ChunkPosition position)
+        ChunkPosition position)
     {
         if (!_chunks.TryGet(
                 position,
@@ -257,9 +257,6 @@ public sealed class World
                 this,
                 record);
 
-        _chunkPersistence.Save(
-            state);
-
         if (record.Lifecycle.Simulation !=
             ChunkSimulationState.Suspended)
         {
@@ -267,9 +264,23 @@ public sealed class World
                 ChunkSimulationState.Suspended);
         }
 
+        var simulation =
+            record.Lifecycle.Simulation;
+
+        var presentation =
+            record.Lifecycle.Presentation;
+
         record.Lifecycle.BeginUnloading();
 
         record.Detach();
+
+        _chunkPersistence.Save(
+            new ChunkSaveState(
+                state.Position,
+                ChunkResidencyState.Unloaded,
+                simulation,
+                presentation,
+                state.Tiles));
 
         return true;
     }

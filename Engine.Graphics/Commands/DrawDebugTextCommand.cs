@@ -1,5 +1,6 @@
 ﻿using Engine.Core.Math;
 using Engine.Graphics.DebugGraphics;
+using Engine.Graphics.Rendering;
 
 namespace Engine.Graphics.Commands;
 
@@ -9,5 +10,5 @@ public readonly record struct DrawDebugTextCommand(
     DebugColor Color,
     float Scale = 2.0f,
     DebugRenderSpace Space = DebugRenderSpace.Screen,
-    int Layer = 10001) :
+    int Layer = RenderLayers.DebugText) :
     IRenderCommand;

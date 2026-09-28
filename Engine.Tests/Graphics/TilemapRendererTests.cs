@@ -1,6 +1,7 @@
 ﻿using Engine.Graphics;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
+using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Engine.Graphics.Tilemaps;
 
@@ -66,9 +67,10 @@ public sealed class TilemapRendererTests
     private sealed class TestGraphicsDevice :
         IGraphicsDevice
     {
-        public IFontManager Fonts =>
-            throw new NotSupportedException();
-
+        public IFontManager Fonts => throw new NotSupportedException();
+        public IRenderTargetManager RenderTargets => throw new NotSupportedException();
+        public IShaderManager Shaders => throw new NotSupportedException();
+        public IGraphicsBufferManager Buffers => throw new NotSupportedException();
         public ITextureManager Textures =>
             throw new NotSupportedException();
 

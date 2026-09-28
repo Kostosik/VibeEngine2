@@ -4,6 +4,7 @@ using Engine.Graphics.Fonts;
 using Engine.Graphics.OpenGL.Fonts;
 using Engine.Graphics.OpenGL.Rendering;
 using Engine.Graphics.OpenGL.Resources;
+using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Silk.NET.OpenGL;
 
@@ -13,32 +14,42 @@ public sealed class OpenGLGraphicsDevice
     : IGraphicsDevice, IDisposable
 {
     private readonly GL _gl;
+
     private readonly OpenGLDebugRenderer _debugRenderer;
     private readonly OpenGLTextureManager _textureManager;
     private readonly OpenGLTextureRenderer _textureRenderer;
+
     private readonly OpenGLFontManager _fontManager;
     private readonly OpenGLFontRenderer _fontRenderer;
-    public IFontManager Fonts =>
-    _fontManager;
-    private readonly List<QueuedCommand> _commands = new();
-    private readonly record struct QueuedCommand(
-    IRenderCommand Command,
-    int Layer,
-    long Order);
 
-    private long _commandOrder;
+    private readonly OpenGLGraphicsBufferManager _bufferManager;
+    private readonly OpenGLShaderManager _shaderManager;
 
-    private enum RendererKind
-    {
-        None,
-        Texture,
-        Debug,
-        Font
-    }
+    private readonly OpenGLRenderState _renderState;
+    private readonly OpenGLRenderTargetManager _renderTargetManager;
 
-    private RendererKind _activeRenderer;
+    private readonly OpenGLRenderCommandDispatcher _dispatcher;
+    private readonly OpenGLRenderPassExecutor _passExecutor;
+
+    private readonly RenderQueue _renderQueue = new();
+    private readonly RenderPipeline _renderPipeline;
+
+    public RenderPipeline Pipeline =>
+    _renderPipeline;
     public ITextureManager Textures =>
         _textureManager;
+
+    public IFontManager Fonts =>
+        _fontManager;
+
+    public IGraphicsBufferManager Buffers =>
+        _bufferManager;
+
+    public IShaderManager Shaders =>
+        _shaderManager;
+
+    public IRenderTargetManager RenderTargets =>
+        _renderTargetManager;
 
     public OpenGLGraphicsDevice(
         GL gl,
@@ -50,8 +61,21 @@ public sealed class OpenGLGraphicsDevice
 
         _gl = gl;
 
+        _renderState =
+            new OpenGLRenderState(
+                gl);
+
         _textureManager =
-            new OpenGLTextureManager(gl);
+            new OpenGLTextureManager(
+                gl);
+
+        _bufferManager =
+            new OpenGLGraphicsBufferManager(
+                gl);
+
+        _shaderManager =
+            new OpenGLShaderManager(
+                gl);
 
         _textureRenderer =
             new OpenGLTextureRenderer(
@@ -61,11 +85,11 @@ public sealed class OpenGLGraphicsDevice
                 camera);
 
         _debugRenderer =
-    new OpenGLDebugRenderer(
-        gl,
-        width,
-        height,
-        camera);
+            new OpenGLDebugRenderer(
+                gl,
+                width,
+                height,
+                camera);
 
         _fontManager =
             new OpenGLFontManager(
@@ -78,182 +102,71 @@ public sealed class OpenGLGraphicsDevice
                 height,
                 _fontManager);
 
+        _renderTargetManager =
+            new OpenGLRenderTargetManager(
+                gl,
+                _textureManager);
+
+        _dispatcher =
+            new OpenGLRenderCommandDispatcher(
+                _textureManager,
+                _textureRenderer,
+                _debugRenderer,
+                _fontRenderer,
+                _renderState);
+
+        _passExecutor =
+            new OpenGLRenderPassExecutor(
+                gl,
+                _renderTargetManager,
+                _dispatcher,
+                width,
+                height);
+
+        _renderPipeline =
+            new RenderPipeline();
+
+        _renderPipeline.AddPass(
+            RenderPass.Default2D);
+
+        _renderPipeline.AddPass(
+    RenderPass.World2D);
+
+        _renderPipeline.AddPass(
+            RenderPass.Ui);
+
+        _renderPipeline.AddPass(
+            RenderPass.Debug);
+
         Configure();
     }
 
     public void BeginFrame()
     {
-        _gl.Clear(
-            ClearBufferMask.ColorBufferBit);
-
-        _commands.Clear();
-
-        _commandOrder = 0;
-
-        _activeRenderer =
-            RendererKind.Texture;
-
-        _textureRenderer.Begin();
+        _renderQueue.Clear();
     }
 
     public void Submit(
         IRenderCommand command)
     {
-        ArgumentNullException.ThrowIfNull(
+        _renderQueue.Submit(
             command);
-
-        _commands.Add(
-            new QueuedCommand(
-                command,
-                command.Layer,
-                _commandOrder++));
     }
 
     public void EndFrame()
     {
-        _commands.Sort(
-            static (left, right) =>
-            {
-                var layerComparison =
-                    left.Layer.CompareTo(
-                        right.Layer);
-
-                if (layerComparison != 0)
-                {
-                    return layerComparison;
-                }
-
-                return left.Order.CompareTo(
-                    right.Order);
-            });
-
-        foreach (var queued in _commands)
-        {
-            switch (queued.Command)
-            {
-                case DrawTextureCommand drawTexture:
-
-                    BeginTextureRenderer();
-
-                    if (!_textureManager.Exists(
-                            drawTexture.Texture))
-                    {
-                        continue;
-                    }
-
-                    _textureRenderer.Draw(
-                        drawTexture);
-
-                    break;
-
-                case DrawUiTextureCommand drawUiTexture:
-
-                    BeginTextureRenderer();
-
-                    if (!_textureManager.Exists(
-                            drawUiTexture.Texture))
-                    {
-                        continue;
-                    }
-
-                    _textureRenderer.Draw(
-                        drawUiTexture);
-
-                    break;
-
-                case DrawUiTextCommand drawUiText:
-
-                    BeginFontRenderer();
-
-                    _fontRenderer.Draw(
-                        drawUiText);
-
-                    break;
-
-                case DrawUiRectangleCommand drawUiRectangle:
-
-                    BeginDebugRenderer();
-
-                    _debugRenderer.Draw(
-                        drawUiRectangle);
-
-                    break;
-
-                case DrawDebugTextCommand drawDebugText:
-
-                    BeginDebugRenderer();
-
-                    _debugRenderer.Draw(
-                        drawDebugText);
-
-                    break;
-
-                case DrawWorldTextureCommand drawWorldTexture:
-
-                    BeginTextureRenderer();
-
-                    if (!_textureManager.Exists(
-                            drawWorldTexture.Texture))
-                    {
-                        continue;
-                    }
-
-                    _textureRenderer.DrawWorld(
-                        drawWorldTexture);
-
-                    break;
-
-                case DrawDebugLineCommand debugLine:
-
-                    BeginDebugRenderer();
-
-                    _debugRenderer.Draw(
-                        debugLine);
-
-                    break;
-
-                case DrawDebugRectangleCommand debugRectangle:
-
-                    BeginDebugRenderer();
-
-                    _debugRenderer.Draw(
-                        debugRectangle);
-
-                    break;
-
-                case DrawDebugCircleCommand debugCircle:
-
-                    BeginDebugRenderer();
-
-                    _debugRenderer.Draw(
-                        debugCircle);
-
-                    break;
-
-                default:
-                    throw new NotSupportedException(
-                        $"Render command '{queued.Command.GetType().Name}' " +
-                        "is not supported.");
-            }
-        }
-
-        EndActiveRenderer();
+        _renderPipeline.Execute(
+            _renderQueue,
+            _passExecutor);
     }
 
     public void Resize(
         int width,
         int height)
     {
-        _textureRenderer.Resize(
+        _passExecutor.Resize(
             width,
             height);
-
-        _debugRenderer.Resize(
-            width,
-            height);
-        _fontRenderer.Resize(
-    width,
-    height);
     }
 
     public void Dispose()
@@ -262,22 +175,9 @@ public sealed class OpenGLGraphicsDevice
         _textureRenderer.Dispose();
         _textureManager.Dispose();
         _fontManager.Dispose();
-    }
-
-    private void BeginFontRenderer()
-    {
-        if (_activeRenderer ==
-            RendererKind.Font)
-        {
-            return;
-        }
-
-        EndActiveRenderer();
-
-        _fontRenderer.Begin();
-
-        _activeRenderer =
-            RendererKind.Font;
+        _bufferManager.Dispose();
+        _shaderManager.Dispose();
+        _renderTargetManager.Dispose();
     }
 
     private void Configure()
@@ -287,68 +187,5 @@ public sealed class OpenGLGraphicsDevice
             0.05f,
             0.05f,
             1.0f);
-
-        _gl.Disable(
-            EnableCap.DepthTest);
-
-        _gl.Enable(
-            EnableCap.Blend);
-
-        _gl.BlendFunc(
-            BlendingFactor.SrcAlpha,
-            BlendingFactor.OneMinusSrcAlpha);
-    }
-
-    private void BeginTextureRenderer()
-    {
-        if (_activeRenderer ==
-            RendererKind.Texture)
-        {
-            return;
-        }
-
-        EndActiveRenderer();
-
-        _textureRenderer.Begin();
-
-        _activeRenderer =
-            RendererKind.Texture;
-    }
-
-    private void BeginDebugRenderer()
-    {
-        if (_activeRenderer ==
-            RendererKind.Debug)
-        {
-            return;
-        }
-
-        EndActiveRenderer();
-
-        _debugRenderer.Begin();
-
-        _activeRenderer =
-            RendererKind.Debug;
-    }
-
-    private void EndActiveRenderer()
-    {
-        switch (_activeRenderer)
-        {
-            case RendererKind.Texture:
-                _textureRenderer.End();
-                break;
-
-            case RendererKind.Debug:
-                _debugRenderer.End();
-                break;
-
-            case RendererKind.Font:
-                _fontRenderer.End();
-                break;
-        }
-
-        _activeRenderer =
-            RendererKind.None;
     }
 }

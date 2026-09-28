@@ -1,5 +1,6 @@
 ﻿using Engine.Core.Math;
 using Engine.Graphics.DebugGraphics;
+using Engine.Graphics.Rendering;
 
 namespace Engine.Graphics.Commands;
 
@@ -10,4 +11,4 @@ public sealed record DrawDebugCircleCommand(
     bool Filled = false,
     int Segments = 16,
     DebugRenderSpace Space = DebugRenderSpace.World,
-    int Layer = 1000) : IRenderCommand;
+    int Layer = RenderLayers.Debug) : IRenderCommand;

@@ -219,6 +219,9 @@ public sealed class EngineRuntimeTests
     {
         public IFontManager Fonts =>
     throw new NotSupportedException();
+        public IRenderTargetManager RenderTargets => throw new NotSupportedException();
+        public IGraphicsBufferManager Buffers => throw new NotSupportedException();
+        public IShaderManager Shaders => throw new NotSupportedException();
         public ITextureManager Textures =>
             throw new NotSupportedException();
 

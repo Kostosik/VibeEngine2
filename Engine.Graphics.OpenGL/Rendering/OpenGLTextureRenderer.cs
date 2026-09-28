@@ -1,6 +1,7 @@
 ﻿using Engine.Core.Math;
 using Engine.Graphics.Cameras;
 using Engine.Graphics.Commands;
+using Engine.Graphics.Resources;
 using Silk.NET.OpenGL;
 
 namespace Engine.Graphics.OpenGL.Rendering;
@@ -85,6 +86,38 @@ internal sealed class OpenGLTextureRenderer : IDisposable
             height);
     }
 
+    private bool PrepareTextureBatch(
+    TextureHandle texture)
+    {
+        if (!texture.IsValid)
+        {
+            return false;
+        }
+
+        var value =
+            texture.Value;
+
+        if (_currentTexture != 0 &&
+            _currentTexture != value)
+        {
+            Flush();
+        }
+
+        if (_vertexCount + 6 >
+            _vertices.Length / 4)
+        {
+            Flush();
+        }
+
+        if (_currentTexture == 0)
+        {
+            _currentTexture =
+                value;
+        }
+
+        return true;
+    }
+
     public void Begin()
     {
         ThrowIfDisposed();
@@ -122,33 +155,12 @@ internal sealed class OpenGLTextureRenderer : IDisposable
     DrawUiTextureCommand command)
     {
         ThrowIfDisposed();
-
         EnsureFrameActive();
 
-        if (!command.Texture.IsValid)
+        if (!PrepareTextureBatch(
+                command.Texture))
         {
             return;
-        }
-
-        var texture =
-            command.Texture.Value;
-
-        if (_currentTexture != 0 &&
-            _currentTexture != texture)
-        {
-            Flush();
-        }
-
-        if (_vertexCount + 6 >
-            _vertices.Length / 4)
-        {
-            Flush();
-        }
-
-        if (_currentTexture == 0)
-        {
-            _currentTexture =
-                texture;
         }
 
         if (command.ClipRect.HasValue)
@@ -260,33 +272,12 @@ internal sealed class OpenGLTextureRenderer : IDisposable
         DrawTextureCommand command)
     {
         ThrowIfDisposed();
-
         EnsureFrameActive();
 
-        if (!command.Texture.IsValid)
+        if (!PrepareTextureBatch(
+                command.Texture))
         {
             return;
-        }
-
-        var texture =
-            command.Texture.Value;
-
-        if (_currentTexture != 0 &&
-            _currentTexture != texture)
-        {
-            Flush();
-        }
-
-        if (_vertexCount + 6 >
-            _vertices.Length / 4)
-        {
-            Flush();
-        }
-
-        if (_currentTexture == 0)
-        {
-            _currentTexture =
-                texture;
         }
 
         AddQuad(

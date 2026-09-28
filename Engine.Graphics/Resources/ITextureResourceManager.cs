@@ -19,6 +19,10 @@ public interface ITextureResourceManager : IDisposable
         AssetPath path,
         out TextureHandle texture);
 
+    bool TryGetDescription(
+        AssetPath path,
+        out TextureDescription description);
+
     bool Unload(
         AssetPath path);
 

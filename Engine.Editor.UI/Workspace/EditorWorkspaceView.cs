@@ -1,6 +1,7 @@
 ﻿using Engine.Core.Math;
 using Engine.Editor;
 using Engine.Graphics.Commands;
+using Engine.Graphics.Resources;
 using Engine.UI.Controls;
 using Engine.UI.Core;
 using Engine.UI.Layout;
@@ -13,9 +14,12 @@ public sealed class EditorWorkspaceView : UiPanel
     private readonly UiPanel _viewportHost;
     private readonly UiPanel _inspectorHost;
     private readonly AssetBrowserPanelView _assetBrowser;
-
+    private readonly AssetPreviewPanelView _assetPreview;
+    public AssetPreviewPanelView AssetPreview =>
+    _assetPreview;
     public EditorWorkspaceView(
-        EditorContext editor)
+        EditorContext editor,
+        ITextureResourceManager assetPreviewTextures)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -75,6 +79,14 @@ public sealed class EditorWorkspaceView : UiPanel
             new AssetBrowserPanelView(
                 editor);
 
+        _assetPreview =
+    new AssetPreviewPanelView(
+        editor,
+        assetPreviewTextures);
+
+        AddChild(
+            _assetPreview);
+
         AddChild(
             _assetBrowser);
     }
@@ -96,6 +108,7 @@ public sealed class EditorWorkspaceView : UiPanel
         Inspector.Refresh();
         Viewport.Refresh();
         _assetBrowser.Refresh();
+        _assetPreview.Refresh();
     }
 
     protected override Vector2 MeasureCore(
@@ -118,23 +131,28 @@ public sealed class EditorWorkspaceView : UiPanel
             context,
             availableSize);
 
+        _assetPreview.Measure(
+    context,
+    availableSize);
+
         return availableSize;
     }
 
     protected override void ArrangeCore(
-        UiRect finalRect)
+    UiRect finalRect)
     {
         const float hierarchyWidthRatio = 0.22f;
         const float inspectorWidthRatio = 0.22f;
-        const float assetBrowserHeightRatio = 0.25f;
+        const float assetAreaHeightRatio = 0.25f;
+        const float assetBrowserWidthRatio = 0.65f;
 
-        var assetBrowserHeight =
+        var assetAreaHeight =
             finalRect.Height *
-            assetBrowserHeightRatio;
+            assetAreaHeightRatio;
 
         var topHeight =
             finalRect.Height -
-            assetBrowserHeight;
+            assetAreaHeight;
 
         var hierarchyWidth =
             finalRect.Width *
@@ -172,13 +190,32 @@ public sealed class EditorWorkspaceView : UiPanel
                 inspectorWidth,
                 topHeight));
 
+        var assetBrowserWidth =
+            finalRect.Width *
+            assetBrowserWidthRatio;
+
+        var assetPreviewWidth =
+            finalRect.Width -
+            assetBrowserWidth;
+
+        var assetAreaY =
+            finalRect.Y +
+            topHeight;
+
         _assetBrowser.Arrange(
             new UiRect(
                 finalRect.X,
-                finalRect.Y +
-                topHeight,
-                finalRect.Width,
-                assetBrowserHeight));
+                assetAreaY,
+                assetBrowserWidth,
+                assetAreaHeight));
+
+        _assetPreview.Arrange(
+            new UiRect(
+                finalRect.X +
+                assetBrowserWidth,
+                assetAreaY,
+                assetPreviewWidth,
+                assetAreaHeight));
     }
 
     private static UiPanel CreateHost(

@@ -2,6 +2,7 @@
 using Engine.Editor;
 using Engine.Editor.UI.Workspace;
 using Engine.Graphics.Commands;
+using Engine.Graphics.Resources;
 using Engine.UI.Controls;
 using Engine.UI.Core;
 using Engine.UI.Layout;
@@ -17,10 +18,14 @@ public sealed class EditorMainShell : UiPanel
     private UiButton _undoButton;
     private UiButton _redoButton;
     public EditorMainShell(
-        EditorContext editor)
+     EditorContext editor,
+     ITextureResourceManager assetPreviewTextures)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
+
+        ArgumentNullException.ThrowIfNull(
+            assetPreviewTextures);
 
         Editor = editor;
 
@@ -57,8 +62,9 @@ public sealed class EditorMainShell : UiPanel
                     UiVerticalAlignment.Stretch
             };
         _workspaceView =
-    new EditorWorkspaceView(
-        editor);
+            new EditorWorkspaceView(
+                editor,
+                assetPreviewTextures);
 
         _workspace.AddChild(
             _workspaceView);

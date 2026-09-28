@@ -21,7 +21,6 @@
     <ProjectReference Include="..\Engine.Tooling\Engine.Tooling.csproj" />
     <ProjectReference Include="..\Engine.UI\Engine.UI.csproj" />
     <ProjectReference Include="..\Engine.World\Engine.Worlds.csproj" />
-    <ProjectReference Include="..\Engine\Engine.Runtime.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,5 +1,5 @@
 ﻿using Engine.Core.Math;
-using Engine.Graphics.Debug;
+using Engine.Graphics.DebugGraphics;
 
 namespace Engine.Graphics.Commands;
 

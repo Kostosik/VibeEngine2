@@ -1,6 +1,6 @@
 ﻿using Engine.Graphics.Cameras;
 using Engine.Graphics.Commands;
-using Engine.Graphics.Debug;
+using Engine.Graphics.DebugGraphics;
 using Engine.Core.Math;
 using Silk.NET.OpenGL;
 

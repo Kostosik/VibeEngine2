@@ -1,7 +1,7 @@
 ﻿using Engine.Core.Math;
 using Engine.Graphics;
 using Engine.Graphics.Commands;
-using Engine.Graphics.Debug;
+using Engine.Graphics.DebugGraphics;
 
 namespace Engine.Tooling.DebugVisualization;
 
@@ -69,10 +69,10 @@ public sealed class DebugVisualizationRenderer
             value.Y.ToFloat());
     }
 
-    private static Engine.Graphics.Debug.DebugColor ToGraphicsColor(
+    private static Engine.Graphics.DebugGraphics.DebugColor ToGraphicsColor(
         DebugColor color)
     {
-        return new Engine.Graphics.Debug.DebugColor(
+        return new Engine.Graphics.DebugGraphics.DebugColor(
             color.R,
             color.G,
             color.B,

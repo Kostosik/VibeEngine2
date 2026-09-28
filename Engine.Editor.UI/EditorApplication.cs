@@ -3,6 +3,7 @@ using Engine.Core.Time;
 using Engine.Editor;
 using Engine.Editor.Documents;
 using Engine.Editor.UI.Shell;
+using Engine.Graphics.Resources;
 using Engine.Input;
 using Engine.UI.Core;
 using Engine.Worlds;
@@ -17,7 +18,8 @@ public sealed class EditorApplication :
     public EditorApplication(
         EditorContext editor,
         UiSystem ui,
-        IInputBackend input)
+        IInputBackend input,
+        ITextureResourceManager assetPreviewTextures)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -28,9 +30,13 @@ public sealed class EditorApplication :
         ArgumentNullException.ThrowIfNull(
             input);
 
+        ArgumentNullException.ThrowIfNull(
+            assetPreviewTextures);
+
         Editor = editor;
         Ui = ui;
         Input = input;
+        AssetPreviewTextures = assetPreviewTextures;
 
         UiHost =
             new EditorUiHost(
@@ -39,10 +45,17 @@ public sealed class EditorApplication :
 
         MainShell =
             new EditorMainShell(
-                editor);
+                editor,
+                assetPreviewTextures);
 
         UiHost.Root.AddChild(
             MainShell);
+
+        if (editor.AssetBrowser is not null)
+        {
+            editor.AssetBrowser.Changed +=
+                MarkUiDirty;
+        }
     }
 
     public EditorContext Editor { get; }
@@ -50,6 +63,8 @@ public sealed class EditorApplication :
     public UiSystem Ui { get; }
 
     public IInputBackend Input { get; }
+
+    public ITextureResourceManager AssetPreviewTextures { get; }
 
     public EditorUiHost UiHost { get; }
 

@@ -81,28 +81,31 @@ ecsWorld.Add(
         100,
         42.5f));
 
-world.SpatialEntities.CreateEntity(
-    new WorldPosition(0, 0));
-
 var editor =
     new EditorContext();
 
-editor.InitializeAssetBrowser(
-    new Engine.Editor.Assets.FileSystemAssetSource(),
+var editorAssetRoot =
     Path.Combine(
         AppContext.BaseDirectory,
-        "Assets"));
+        "Assets");
+
+editor.InitializeAssetBrowser(
+    new Engine.Editor.Assets.FileSystemAssetSource(),
+    editorAssetRoot);
 
 editor.ComponentTypes.Register<EditorTestComponent>();
+
+using var assetPreviewTextures =
+    new Engine.Graphics.Resources.TextureResourceManager(
+        assetSource,
+        window.GraphicsDevice.Textures);
 
 var application =
     new EditorApplication(
         editor,
         ui,
-        window.InputBackend);
-
-application.OpenDocument(
-    world);
+        window.InputBackend,
+        assetPreviewTextures);
 
 var document =
     application.OpenDocument(

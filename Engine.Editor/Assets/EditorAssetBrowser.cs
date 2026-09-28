@@ -5,7 +5,7 @@ namespace Engine.Editor.Assets;
 public sealed class EditorAssetBrowser
 {
     private readonly IEditorAssetSource _source;
-
+    public event Action? Changed;
     public EditorAssetBrowser(
         IEditorAssetSource source,
         string rootPath)
@@ -83,12 +83,14 @@ public sealed class EditorAssetBrowser
     }
 
     public bool NavigateTo(
-        string path)
+    string path)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            path);
 
         var fullPath =
-            Path.GetFullPath(path);
+            Path.GetFullPath(
+                path);
 
         if (!IsWithinRoot(fullPath) ||
             !Directory.Exists(fullPath))
@@ -96,9 +98,22 @@ public sealed class EditorAssetBrowser
             return false;
         }
 
-        CurrentPath = fullPath;
+        if (string.Equals(
+                CurrentPath,
+                fullPath,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        CurrentPath =
+            fullPath;
+
         Selection.Clear();
+
         Refresh();
+
+        Changed?.Invoke();
 
         return true;
     }
@@ -127,9 +142,10 @@ public sealed class EditorAssetBrowser
     }
 
     public bool Select(
-        string path)
+    string path)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            path);
 
         var entry =
             Entries.FirstOrDefault(
@@ -139,13 +155,24 @@ public sealed class EditorAssetBrowser
                         path,
                         StringComparison.OrdinalIgnoreCase));
 
-        if (entry is null)
+        if (entry is null ||
+            entry.IsDirectory)
         {
             return false;
         }
 
+        var alreadySelected =
+            Selection.Count == 1 &&
+            Selection.Contains(
+                entry.Path);
+
         Selection.Set(
             entry.Path);
+
+        if (!alreadySelected)
+        {
+            Changed?.Invoke();
+        }
 
         return true;
     }

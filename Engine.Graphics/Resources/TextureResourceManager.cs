@@ -76,6 +76,28 @@ public sealed class TextureResourceManager
         return _textures.Exists(texture);
     }
 
+    public bool TryGetDescription(
+    AssetPath path,
+    out TextureDescription description)
+    {
+        EnsureNotDisposed();
+
+        if (!TryGet(
+                path,
+                out var texture))
+        {
+            description =
+                default;
+
+            return false;
+        }
+
+        description =
+            _textures.GetDescription(
+                texture);
+
+        return true;
+    }
     public bool TryGet(
         AssetPath path,
         out TextureHandle texture)

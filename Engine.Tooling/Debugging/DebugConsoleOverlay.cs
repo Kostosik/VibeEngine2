@@ -1,6 +1,6 @@
 ﻿using Engine.Graphics;
 using Engine.Graphics.Commands;
-using Engine.Graphics.Debug;
+using Engine.Graphics.DebugGraphics;
 using Engine.Input;
 
 namespace Engine.Tooling.Debugging;

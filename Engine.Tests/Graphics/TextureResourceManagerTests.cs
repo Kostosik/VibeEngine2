@@ -170,6 +170,9 @@ public sealed class TextureResourceManagerTests
             }
         }
 
+        public void Refresh()
+        { }
+
         public IReadOnlyList<ContentAsset> GetAssets()
         {
             return _assets.Values.ToArray();

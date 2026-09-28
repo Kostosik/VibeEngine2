@@ -3,8 +3,10 @@ using Engine.Networking.Packets;
 
 namespace Engine.Networking.Transport;
 
-public interface INetworkTransport : IDisposable
+public interface INetworkTransport :
+    IDisposable
 {
+    NetworkTransportCapabilities Capabilities { get; }
     bool IsRunning { get; }
 
     void Start(
@@ -21,6 +23,9 @@ public interface INetworkTransport : IDisposable
 
     void Disconnect(
         ConnectionId connection);
+
+    bool TryReceiveDisconnect(
+        out ConnectionId connection);
 
     bool Send(
         ConnectionId connection,

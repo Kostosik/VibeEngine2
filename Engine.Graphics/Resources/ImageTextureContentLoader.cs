@@ -26,6 +26,37 @@ public sealed class ImageTextureContentLoader :
             context.ReadBytes(path));
     }
 
+    public async ValueTask<TextureData> LoadAsync(
+    AssetPath path,
+    IContentLoadContext context,
+    CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(
+            context);
+
+        var data =
+            await context.ReadBytesAsync(
+                path,
+                cancellationToken);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return _loader.Load(
+            data);
+    }
+
+    public Type AssetType =>
+    typeof(TextureData);
+
+    object IContentLoader.Load(
+        AssetPath path,
+        IContentLoadContext context)
+    {
+        return Load(
+            path,
+            context);
+    }
+
     public bool CanLoad(
     ContentAsset asset)
     {

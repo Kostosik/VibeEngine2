@@ -12,4 +12,6 @@ public interface IContentCatalog
     bool TryGet(
         AssetPath path,
         out ContentAsset? asset);
+
+    void Refresh();
 }

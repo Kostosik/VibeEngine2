@@ -303,12 +303,12 @@ public sealed class NetworkDesyncDetectorTests
         var serverEndpoint =
             new NetworkEndpoint(
                 "server",
-                1000);
+                1200);
 
         var clientEndpoint =
             new NetworkEndpoint(
                 "client",
-                1001);
+                1201);
 
         serverSession.Start(
             serverEndpoint);

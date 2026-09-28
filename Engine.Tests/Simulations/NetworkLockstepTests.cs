@@ -95,6 +95,7 @@ public sealed class NetworkLockstepTests
         using var lockstep =
             new NetworkLockstep(
                 coordinator,
+                clientSession,
                 clientChannel,
                 hashChannel,
                 0);

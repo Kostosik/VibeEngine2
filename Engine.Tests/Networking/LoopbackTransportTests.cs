@@ -18,12 +18,12 @@ public sealed class LoopbackTransportTests
         var serverEndpoint =
             new NetworkEndpoint(
                 "server",
-                1000);
+                1900);
 
         var clientEndpoint =
             new NetworkEndpoint(
                 "client",
-                1001);
+                1901);
 
         server.Start(
             serverEndpoint);
@@ -80,5 +80,20 @@ public sealed class LoopbackTransportTests
         Assert.Equal(
             packet.Payload.ToArray(),
             received.Payload.ToArray());
+    }
+
+    [Fact]
+    public void Capabilities_SupportReliableAndUnreliable()
+    {
+        using var transport =
+            new LoopbackTransport();
+
+        Assert.True(
+            (transport.Capabilities &
+             NetworkTransportCapabilities.Reliable) != 0);
+
+        Assert.True(
+            (transport.Capabilities &
+             NetworkTransportCapabilities.Unreliable) != 0);
     }
 }

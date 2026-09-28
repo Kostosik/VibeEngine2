@@ -137,7 +137,11 @@ contentLoaders.Register(
 
 contentLoaders.Register(
     new BinaryContentLoader<UiAsset>(
-        new UiAssetSerializer()));
+        new UiAssetSerializer(),
+        asset =>
+            asset.Extension.Equals(
+                ".ui",
+                StringComparison.OrdinalIgnoreCase)));
 
 using var content =
     new ContentManager(
@@ -145,12 +149,6 @@ using var content =
         contentCatalog,
         contentLoaders);
 
-content.Register(
-    new ImageTextureContentLoader());
-
-content.Register(
-    new BinaryContentLoader<UiAsset>(
-        new UiAssetSerializer()));
 
 var uiTheme =
     new UiTheme

@@ -22,4 +22,15 @@ public interface IContentLoader<T> :
     new T Load(
         AssetPath path,
         IContentLoadContext context);
+
+    ValueTask<T> LoadAsync(
+        AssetPath path,
+        IContentLoadContext context,
+        CancellationToken cancellationToken = default)
+    {
+        return new ValueTask<T>(
+            Load(
+                path,
+                context));
+    }
 }

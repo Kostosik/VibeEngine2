@@ -56,8 +56,7 @@ public sealed class NetworkTopologyConnectorTests
             secondRemoteNode.Endpoint);
 
         var topology =
-            new StarTopology(
-                localNode.Id);
+            new FullMeshTopology();
 
         var plan =
             topology.Build(

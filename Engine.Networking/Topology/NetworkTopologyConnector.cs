@@ -23,8 +23,11 @@ public sealed class NetworkTopologyConnector
         NetworkNode localNode,
         IReadOnlyList<NetworkNode> nodes)
     {
-        ArgumentNullException.ThrowIfNull(session);
-        ArgumentNullException.ThrowIfNull(nodes);
+        ArgumentNullException.ThrowIfNull(
+            session);
+
+        ArgumentNullException.ThrowIfNull(
+            nodes);
 
         ValidateNodes(
             nodes,
@@ -52,11 +55,20 @@ public sealed class NetworkTopologyConnector
     public void Apply(
         NetworkTopologyPlan plan)
     {
-        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(
+            plan);
 
-        foreach (var peerId in
-                 plan.GetInitiatedPeers(
-                     _localNode.Id))
+        var initiatedPeers =
+            plan.GetInitiatedPeers(
+                _localNode.Id);
+
+        var desiredPeers =
+            initiatedPeers.ToHashSet();
+
+        RemoveUndesiredConnections(
+            desiredPeers);
+
+        foreach (var peerId in initiatedPeers)
         {
             if (!_nodes.TryGetValue(
                     peerId,
@@ -68,11 +80,16 @@ public sealed class NetworkTopologyConnector
 
             if (_connections.TryGetValue(
                     peerId,
-                    out var existing) &&
-                ContainsConnection(
-                    existing.Id))
+                    out var existing))
             {
-                continue;
+                if (ContainsConnection(
+                        existing.Id))
+                {
+                    continue;
+                }
+
+                _connections.Remove(
+                    peerId);
             }
 
             var connection =
@@ -91,13 +108,40 @@ public sealed class NetworkTopologyConnector
         }
     }
 
+    private void RemoveUndesiredConnections(
+        HashSet<NetworkNodeId> desiredPeers)
+    {
+        var trackedPeers =
+            _connections.Keys.ToArray();
+
+        foreach (var peerId in trackedPeers)
+        {
+            if (desiredPeers.Contains(
+                    peerId))
+            {
+                continue;
+            }
+
+            if (_connections.Remove(
+                    peerId,
+                    out var connection) &&
+                ContainsConnection(
+                    connection.Id))
+            {
+                _session.Disconnect(
+                    connection.Id);
+            }
+        }
+    }
+
     private bool ContainsConnection(
         ConnectionId connection)
     {
         foreach (var existing in
                  _session.Connections)
         {
-            if (existing.Id == connection)
+            if (existing.Id ==
+                connection)
             {
                 return true;
             }
@@ -141,7 +185,8 @@ public sealed class NetworkTopologyConnector
                     nameof(nodes));
             }
 
-            if (!ids.Add(node.Id))
+            if (!ids.Add(
+                    node.Id))
             {
                 throw new ArgumentException(
                     $"Topology contains duplicate node ID '{node.Id.Value}'.",
@@ -150,7 +195,8 @@ public sealed class NetworkTopologyConnector
 
             if (node.Id == localNodeId)
             {
-                localNodeFound = true;
+                localNodeFound =
+                    true;
             }
         }
 

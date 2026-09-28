@@ -27,12 +27,12 @@ public sealed class NetworkSessionTests
         var serverEndpoint =
             new NetworkEndpoint(
                 "server",
-                1000);
+                1500);
 
         var clientEndpoint =
             new NetworkEndpoint(
                 "client",
-                1001);
+                1501);
 
         serverSession.Start(
             serverEndpoint);
@@ -81,5 +81,57 @@ public sealed class NetworkSessionTests
         Assert.Equal(
             packet.Payload.ToArray(),
             received.Value.Payload.ToArray());
+    }
+
+    [Fact]
+    public void Disconnect_Update_RemoteSessionRemovesConnection()
+    {
+        using var serverTransport =
+            new LoopbackTransport();
+
+        using var clientTransport =
+            new LoopbackTransport();
+
+        using var serverSession =
+            new NetworkSession(
+                serverTransport);
+
+        using var clientSession =
+            new NetworkSession(
+                clientTransport);
+
+        var serverEndpoint =
+            new NetworkEndpoint(
+                "disconnect-server",
+                1300);
+
+        var clientEndpoint =
+            new NetworkEndpoint(
+                "disconnect-client",
+                1301);
+
+        serverSession.Start(
+            serverEndpoint);
+
+        clientSession.Start(
+            clientEndpoint);
+
+        var clientConnection =
+            clientSession.Connect(
+                serverEndpoint);
+
+        serverSession.Update();
+
+        Assert.Single(
+            serverSession.Connections);
+
+        Assert.True(
+            clientSession.Disconnect(
+                clientConnection.Id));
+
+        serverSession.Update();
+
+        Assert.Empty(
+            serverSession.Connections);
     }
 }

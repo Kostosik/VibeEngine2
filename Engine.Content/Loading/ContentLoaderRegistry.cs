@@ -60,6 +60,19 @@ public sealed class ContentLoaderRegistry :
         return match is not null;
     }
 
+    public IReadOnlyList<IContentLoader> FindLoaders(
+        ContentAsset asset)
+    {
+        ArgumentNullException.ThrowIfNull(
+            asset);
+
+        return _loaders
+            .Where(
+                loader => loader.CanLoad(
+                    asset))
+            .ToArray();
+    }
+
     public void Clear()
     {
         _loaders.Clear();

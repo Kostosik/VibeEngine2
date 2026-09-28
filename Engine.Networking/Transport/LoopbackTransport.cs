@@ -3,10 +3,15 @@ using Engine.Networking.Packets;
 
 namespace Engine.Networking.Transport;
 
-public sealed class LoopbackTransport : INetworkTransport
+public sealed class LoopbackTransport :
+    INetworkTransport
 {
     private static readonly object Sync =
         new();
+
+    public NetworkTransportCapabilities Capabilities =>
+    NetworkTransportCapabilities.Reliable |
+    NetworkTransportCapabilities.Unreliable;
 
     private static readonly Dictionary<
         NetworkEndpoint,
@@ -24,6 +29,9 @@ public sealed class LoopbackTransport : INetworkTransport
         new();
 
     private readonly Queue<PendingAccept> _accepts =
+        new();
+
+    private readonly Queue<ConnectionId> _disconnects =
         new();
 
     private ulong _nextConnectionId = 1;
@@ -62,7 +70,8 @@ public sealed class LoopbackTransport : INetworkTransport
             _endpoint =
                 endpoint;
 
-            _running = true;
+            _running =
+                true;
         }
     }
 
@@ -80,10 +89,14 @@ public sealed class LoopbackTransport : INetworkTransport
                 return;
             }
 
-            foreach (var pair in _peers.ToArray())
+            foreach (var pair in
+                     _peers.ToArray())
             {
                 var peer =
                     pair.Value;
+
+                peer.Transport._disconnects.Enqueue(
+                    peer.Connection);
 
                 peer.Transport._incoming.Remove(
                     peer.Connection);
@@ -98,6 +111,7 @@ public sealed class LoopbackTransport : INetworkTransport
             _incoming.Clear();
             _peers.Clear();
             _accepts.Clear();
+            _disconnects.Clear();
 
             if (_endpoint.HasValue &&
                 Transports.TryGetValue(
@@ -229,6 +243,9 @@ public sealed class LoopbackTransport : INetworkTransport
                 return;
             }
 
+            peer.Transport._disconnects.Enqueue(
+                peer.Connection);
+
             peer.Transport._incoming.Remove(
                 peer.Connection);
 
@@ -238,6 +255,26 @@ public sealed class LoopbackTransport : INetworkTransport
             peer.Transport.RemovePendingAccept(
                 peer.Connection);
         }
+    }
+
+    public bool TryReceiveDisconnect(
+        out ConnectionId connection)
+    {
+        EnsureRunning();
+
+        lock (Sync)
+        {
+            if (_disconnects.TryDequeue(
+                    out connection))
+            {
+                return true;
+            }
+        }
+
+        connection =
+            ConnectionId.Invalid;
+
+        return false;
     }
 
     public bool Send(
@@ -283,7 +320,8 @@ public sealed class LoopbackTransport : INetworkTransport
 
         lock (Sync)
         {
-            foreach (var pair in _incoming)
+            foreach (var pair in
+                     _incoming)
             {
                 if (pair.Value.TryDequeue(
                         out packet))
@@ -314,7 +352,8 @@ public sealed class LoopbackTransport : INetworkTransport
 
         Stop();
 
-        _disposed = true;
+        _disposed =
+            true;
     }
 
     private void RemovePendingAccept(

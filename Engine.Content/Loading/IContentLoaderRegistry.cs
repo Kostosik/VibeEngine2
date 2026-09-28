@@ -13,5 +13,8 @@ public interface IContentLoaderRegistry
         out IContentLoader<T>? loader)
         where T : class;
 
+    IReadOnlyList<IContentLoader> FindLoaders(
+        ContentAsset asset);
+
     void Clear();
 }

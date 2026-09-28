@@ -4,15 +4,18 @@ using Engine.Core.Simulations;
 using Engine.Core.Systems;
 using Engine.Core.Time;
 using Engine.Networking.Connections;
+using Engine.Networking.Sessions;
 using Engine.Networking.Simulation;
 
 namespace Engine.Simulations.Lockstep;
 
-public sealed class NetworkLockstep : IDisposable
+public sealed class NetworkLockstep :
+    IDisposable
 {
     private const int HashHistoryCapacity = 32;
 
     private readonly LockstepCoordinator _coordinator;
+    private readonly NetworkSession _session;
     private readonly NetworkCommandChannel _channel;
     private readonly NetworkStateHashChannel _hashChannel;
     private readonly NetworkDesyncDetector _desyncDetector;
@@ -21,22 +24,28 @@ public sealed class NetworkLockstep : IDisposable
 
     private readonly Dictionary<
         int,
-        ConnectionId> _connections = new();
+        ConnectionId> _connections =
+        new();
 
     private readonly Dictionary<
         Tick,
-        DeterministicStateHash> _localHashes = new();
+        DeterministicStateHash> _localHashes =
+        new();
 
     private bool _disposed;
 
     public NetworkLockstep(
         LockstepCoordinator coordinator,
+        NetworkSession session,
         NetworkCommandChannel channel,
         NetworkStateHashChannel hashChannel,
         int localParticipant)
     {
         ArgumentNullException.ThrowIfNull(
             coordinator);
+
+        ArgumentNullException.ThrowIfNull(
+            session);
 
         ArgumentNullException.ThrowIfNull(
             channel);
@@ -51,14 +60,27 @@ public sealed class NetworkLockstep : IDisposable
                 nameof(localParticipant));
         }
 
-        _coordinator = coordinator;
-        _channel = channel;
-        _hashChannel = hashChannel;
+        _coordinator =
+            coordinator;
+
+        _session =
+            session;
+
+        _channel =
+            channel;
+
+        _hashChannel =
+            hashChannel;
+
         _desyncDetector =
             new NetworkDesyncDetector(
                 hashChannel);
 
-        _localParticipant = localParticipant;
+        _localParticipant =
+            localParticipant;
+
+        _session.ConnectionDisconnected +=
+            OnConnectionDisconnected;
     }
 
     public int LocalParticipant =>
@@ -71,6 +93,10 @@ public sealed class NetworkLockstep : IDisposable
         DeterministicStateHash>?
         DesyncDetected;
 
+    public event Action<
+        ConnectionId>?
+        ConnectionDisconnected;
+
     public void AddConnection(
         int participant,
         ConnectionId connection)
@@ -78,13 +104,15 @@ public sealed class NetworkLockstep : IDisposable
         EnsureNotDisposed();
 
         if (participant < 0 ||
-            participant >= _coordinator.ParticipantCount)
+            participant >=
+            _coordinator.ParticipantCount)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(participant));
         }
 
-        if (participant == _localParticipant)
+        if (participant ==
+            _localParticipant)
         {
             throw new ArgumentException(
                 "Local participant cannot have a network connection.",
@@ -98,62 +126,81 @@ public sealed class NetworkLockstep : IDisposable
                 nameof(connection));
         }
 
-        if (!_connections.TryAdd(
+        if (_connections.TryGetValue(
                 participant,
-                connection))
+                out _))
         {
             throw new InvalidOperationException(
                 $"Participant '{participant}' already has a connection.");
         }
-    }
 
-    public void SubmitLocal(
-        Tick tick,
-        IReadOnlyList<ICommand> commands)
-    {
-        EnsureNotDisposed();
-
-        ArgumentNullException.ThrowIfNull(
-            commands);
-
-        _coordinator.Submit(
-            tick,
-            _localParticipant,
-            commands);
-
-        var batch =
-            new NetworkCommandBatch(
-                tick);
-
-        foreach (var command in commands)
+        foreach (var pair in
+                 _connections)
         {
-            batch.Add(command);
-        }
-
-        foreach (var connection in _connections.Values)
-        {
-            if (!_channel.Send(
-                    connection,
-                    batch))
+            if (pair.Value ==
+                connection)
             {
                 throw new InvalidOperationException(
-                    $"Failed to send commands for tick '{tick}'.");
+                    $"Connection '{connection.Value}' is already assigned to participant '{pair.Key}'.");
             }
         }
+
+        _connections.Add(
+            participant,
+            connection);
     }
 
-    public bool TryExecute(
-        Tick tick,
-        FixedSystemContext context)
+    public bool RemoveConnection(
+        int participant)
     {
         EnsureNotDisposed();
 
-        _channel.Update();
-        _hashChannel.Update();
+        return _connections.Remove(
+            participant);
+    }
 
-        CheckRemoteHashes();
+    public bool TryGetConnection(
+        int participant,
+        out ConnectionId connection)
+    {
+        EnsureNotDisposed();
 
-        foreach (var pair in _connections)
+        if (_connections.TryGetValue(
+                participant,
+                out connection))
+        {
+            return true;
+        }
+
+        connection =
+            ConnectionId.Invalid;
+
+        return false;
+    }
+
+    public void UpdateNetwork()
+    {
+        EnsureNotDisposed();
+
+        _session.Update();
+    }
+
+    public bool IsReady(
+        Tick tick)
+    {
+        EnsureNotDisposed();
+
+        return _coordinator.IsReady(
+            tick);
+    }
+
+    public bool TryPrepareTick(
+        Tick tick)
+    {
+        EnsureNotDisposed();
+
+        foreach (var pair in
+                 _connections)
         {
             var participant =
                 pair.Key;
@@ -179,6 +226,64 @@ public sealed class NetworkLockstep : IDisposable
                 tick);
         }
 
+        return _coordinator.IsReady(
+            tick);
+    }
+
+    public void SubmitLocal(
+        Tick tick,
+        IReadOnlyList<ICommand> commands)
+    {
+        EnsureNotDisposed();
+
+        ArgumentNullException.ThrowIfNull(
+            commands);
+
+        _coordinator.Submit(
+            tick,
+            _localParticipant,
+            commands);
+
+        var batch =
+            new NetworkCommandBatch(
+                tick);
+
+        foreach (var command in
+                 commands)
+        {
+            batch.Add(
+                command);
+        }
+
+        foreach (var connection in
+                 _connections.Values)
+        {
+            if (!_channel.Send(
+                    connection,
+                    batch))
+            {
+                throw new InvalidOperationException(
+                    $"Failed to send commands for tick '{tick}'.");
+            }
+        }
+    }
+
+    public bool TryExecute(
+        Tick tick,
+        FixedSystemContext context)
+    {
+        EnsureNotDisposed();
+
+        UpdateNetwork();
+
+        CheckRemoteHashes();
+
+        if (!TryPrepareTick(
+                tick))
+        {
+            return false;
+        }
+
         var executed =
             _coordinator.TryExecute(
                 tick,
@@ -197,7 +302,8 @@ public sealed class NetworkLockstep : IDisposable
 
         TrimHashHistory();
 
-        foreach (var connection in _connections.Values)
+        foreach (var connection in
+                 _connections.Values)
         {
             if (!_hashChannel.Send(
                     connection,
@@ -221,19 +327,51 @@ public sealed class NetworkLockstep : IDisposable
             return;
         }
 
+        _session.ConnectionDisconnected -=
+            OnConnectionDisconnected;
+
         _localHashes.Clear();
 
-        _disposed = true;
+        _connections.Clear();
+
+        _disposed =
+            true;
+    }
+
+    private void OnConnectionDisconnected(
+        NetworkConnection connection)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        foreach (var pair in
+                 _connections)
+        {
+            if (pair.Value !=
+                connection.Id)
+            {
+                continue;
+            }
+
+            ConnectionDisconnected?.Invoke(
+                connection.Id);
+
+            break;
+        }
     }
 
     private void CheckRemoteHashes()
     {
-        foreach (var pair in _connections)
+        foreach (var pair in
+                 _connections)
         {
             var connection =
                 pair.Value;
 
-            foreach (var localHash in _localHashes)
+            foreach (var localHash in
+                     _localHashes)
             {
                 var result =
                     _desyncDetector.Check(

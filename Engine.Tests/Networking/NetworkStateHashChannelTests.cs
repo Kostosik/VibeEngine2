@@ -29,7 +29,7 @@ public sealed class NetworkStateHashChannelTests
         var serverEndpoint =
             new NetworkEndpoint(
                 "server",
-                1000);
+                1300);
 
         serverSession.Start(
             serverEndpoint);
@@ -37,7 +37,7 @@ public sealed class NetworkStateHashChannelTests
         clientSession.Start(
             new NetworkEndpoint(
                 "client",
-                1001));
+                1301));
 
         var clientConnection =
             clientSession.Connect(
@@ -96,13 +96,7 @@ public sealed class NetworkStateHashChannelTests
         session.Start(
             new NetworkEndpoint(
                 "loopback",
-                1000));
-
-        var connection =
-            session.Connect(
-                new NetworkEndpoint(
-                    "remote",
-                    1001));
+                1600));
 
         using var channel =
             new NetworkStateHashChannel(
@@ -110,7 +104,7 @@ public sealed class NetworkStateHashChannelTests
 
         var found =
             channel.TryGet(
-                connection.Id,
+                new ConnectionId(1),
                 new Tick(42),
                 out _);
 

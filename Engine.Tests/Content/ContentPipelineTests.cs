@@ -17,7 +17,8 @@ public sealed class ContentPipelineTests
                 Path.GetTempPath(),
                 Guid.NewGuid().ToString());
 
-        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(
+            root);
 
         try
         {
@@ -45,7 +46,6 @@ public sealed class ContentPipelineTests
 
             var loaders =
                 new ContentLoaderRegistry();
-
 
             using var content =
                 new ContentManager(
@@ -86,14 +86,15 @@ public sealed class ContentPipelineTests
                 Path.GetTempPath(),
                 Guid.NewGuid().ToString());
 
-        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(
+            root);
 
         try
         {
             var path =
                 Path.Combine(
                     root,
-                    "test.asset");
+                    "test.bin");
 
             var expected =
                 new BinaryTestAsset(
@@ -110,24 +111,27 @@ public sealed class ContentPipelineTests
                     SerializationContext.Default));
 
             var loaders =
-    new ContentLoaderRegistry();
-
+                new ContentLoaderRegistry();
 
             using var content =
                 new ContentManager(
                     new FileAssetSource(
                         root),
                     new FileContentCatalog(
-                        root),loaders);
+                        root),
+                    loaders);
 
             content.Register(
                 new BinaryContentLoader<BinaryTestAsset>(
-                    serializer));
+                    serializer,
+                    asset => asset.Extension.Equals(
+                        ".bin",
+                        StringComparison.OrdinalIgnoreCase)));
 
             var actual =
                 content.Load<BinaryTestAsset>(
                     new AssetPath(
-                        "test.asset"));
+                        "test.bin"));
 
             Assert.Equal(
                 expected.Value,
@@ -149,7 +153,8 @@ public sealed class ContentPipelineTests
                 Path.GetTempPath(),
                 Guid.NewGuid().ToString());
 
-        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(
+            root);
 
         try
         {
@@ -175,7 +180,6 @@ public sealed class ContentPipelineTests
 
             var loaders =
                 new ContentLoaderRegistry();
-
 
             using var content =
                 new ContentManager(
@@ -232,7 +236,8 @@ public sealed class ContentPipelineTests
         public BinaryTestAsset(
             string value)
         {
-            Value = value;
+            Value =
+                value;
         }
 
         public string Value
@@ -246,7 +251,8 @@ public sealed class ContentPipelineTests
         public TextAsset(
             string text)
         {
-            Text = text;
+            Text =
+                text;
         }
 
         public string Text
@@ -258,13 +264,36 @@ public sealed class ContentPipelineTests
     private sealed class TextAssetLoader :
         IContentLoader<TextAsset>
     {
+        public Type AssetType =>
+            typeof(TextAsset);
+
         public TextAsset Load(
             AssetPath path,
             IContentLoadContext context)
         {
             return new TextAsset(
                 System.Text.Encoding.UTF8.GetString(
-                    context.ReadBytes(path).Span));
+                    context.ReadBytes(
+                        path)
+                    .Span));
+        }
+
+        object IContentLoader.Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            return Load(
+                path,
+                context);
+        }
+
+        public bool CanLoad(
+            ContentAsset asset)
+        {
+            ArgumentNullException.ThrowIfNull(
+                asset);
+
+            return true;
         }
     }
 
@@ -273,7 +302,8 @@ public sealed class ContentPipelineTests
         public WrapperAsset(
             TextAsset value)
         {
-            Value = value;
+            Value =
+                value;
         }
 
         public TextAsset Value
@@ -285,18 +315,41 @@ public sealed class ContentPipelineTests
     private sealed class WrapperAssetLoader :
         IContentLoader<WrapperAsset>
     {
+        public Type AssetType =>
+            typeof(WrapperAsset);
+
         public WrapperAsset Load(
             AssetPath path,
             IContentLoadContext context)
         {
             var dependencyPath =
                 System.Text.Encoding.UTF8.GetString(
-                    context.ReadBytes(path).Span);
+                    context.ReadBytes(
+                        path)
+                    .Span);
 
             return new WrapperAsset(
                 context.Load<TextAsset>(
                     new AssetPath(
                         dependencyPath)));
+        }
+
+        object IContentLoader.Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            return Load(
+                path,
+                context);
+        }
+
+        public bool CanLoad(
+            ContentAsset asset)
+        {
+            ArgumentNullException.ThrowIfNull(
+                asset);
+
+            return true;
         }
     }
 
@@ -305,7 +358,8 @@ public sealed class ContentPipelineTests
         public TestAsset(
             byte[] data)
         {
-            Data = data;
+            Data =
+                data;
         }
 
         public byte[] Data
@@ -317,14 +371,36 @@ public sealed class ContentPipelineTests
     private sealed class TestAssetLoader :
         IContentLoader<TestAsset>
     {
+        public Type AssetType =>
+            typeof(TestAsset);
+
         public TestAsset Load(
             AssetPath path,
             IContentLoadContext context)
         {
             return new TestAsset(
                 context
-                    .ReadBytes(path)
+                    .ReadBytes(
+                        path)
                     .ToArray());
+        }
+
+        object IContentLoader.Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            return Load(
+                path,
+                context);
+        }
+
+        public bool CanLoad(
+            ContentAsset asset)
+        {
+            ArgumentNullException.ThrowIfNull(
+                asset);
+
+            return true;
         }
     }
 }

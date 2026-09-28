@@ -30,12 +30,12 @@ public sealed class NetworkCommandChannelTests
         var serverEndpoint =
             new NetworkEndpoint(
                 "server",
-                1000);
+                1100);
 
         var clientEndpoint =
             new NetworkEndpoint(
                 "client",
-                1001);
+                1011);
 
         serverSession.Start(
             serverEndpoint);

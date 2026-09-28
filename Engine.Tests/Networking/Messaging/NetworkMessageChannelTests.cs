@@ -31,12 +31,12 @@ public sealed class NetworkMessageChannelTests
         var serverEndpoint =
             new NetworkEndpoint(
                 "server",
-                1000);
+                1800);
 
         var clientEndpoint =
             new NetworkEndpoint(
                 "client",
-                1001);
+                1801);
 
         serverSession.Start(
             serverEndpoint);

@@ -4,13 +4,15 @@ using Engine.Networking.Transport;
 
 namespace Engine.Networking.Sessions;
 
-public sealed class NetworkSession : IDisposable
+public sealed class NetworkSession :
+    IDisposable
 {
     private readonly INetworkTransport _transport;
-
+    private NetworkEndpoint? _localEndpoint;
     private readonly Dictionary<
         ConnectionId,
-        NetworkConnection> _connections = new();
+        NetworkConnection> _connections =
+        new();
 
     private bool _started;
     private bool _disposed;
@@ -18,13 +20,25 @@ public sealed class NetworkSession : IDisposable
     public NetworkSession(
         INetworkTransport transport)
     {
-        ArgumentNullException.ThrowIfNull(transport);
+        ArgumentNullException.ThrowIfNull(
+            transport);
 
-        _transport = transport;
+        _transport =
+            transport;
     }
 
     public bool IsStarted =>
         _started;
+
+    public NetworkEndpoint LocalEndpoint
+    {
+        get
+        {
+            EnsureStarted();
+
+            return _localEndpoint!.Value;
+        }
+    }
 
     public IReadOnlyCollection<NetworkConnection> Connections =>
         _connections.Values;
@@ -43,7 +57,13 @@ public sealed class NetworkSession : IDisposable
         _transport.Start(
             endpoint);
 
-        _started = true;
+        _localEndpoint =
+            endpoint;
+
+        _started =
+            true;
+
+
     }
 
     public NetworkConnection Connect(
@@ -51,20 +71,45 @@ public sealed class NetworkSession : IDisposable
     {
         EnsureStarted();
 
-        var id =
-            _transport.Connect(
-                endpoint);
+        if (TryGetConnection(
+                endpoint,
+                out _))
+        {
+            throw new InvalidOperationException(
+                $"A connection to '{endpoint.Host}:{endpoint.Port}' already exists.");
+        }
+
+        var connectionId =
+     _transport.Connect(
+         endpoint);
+
+        if (!connectionId.IsValid)
+        {
+            throw new InvalidOperationException(
+                "Network transport returned an invalid connection ID.");
+        }
+
+        if (_connections.ContainsKey(
+                connectionId))
+        {
+            throw new InvalidOperationException(
+                $"Network transport returned an already registered connection ID '{connectionId.Value}'.");
+        }
 
         var connection =
             new NetworkConnection(
-                id,
-                endpoint);
+                connectionId,
+                endpoint,
+                NetworkConnectionDirection.Outbound);
 
         connection.State =
             NetworkConnectionState.Connected;
 
         _connections.Add(
-            id,
+            connectionId,
+            connection);
+
+        ConnectionConnected?.Invoke(
             connection);
 
         return connection;
@@ -91,6 +136,9 @@ public sealed class NetworkSession : IDisposable
         networkConnection.State =
             NetworkConnectionState.Disconnected;
 
+        ConnectionDisconnected?.Invoke(
+            networkConnection);
+
         return true;
     }
 
@@ -109,6 +157,24 @@ public sealed class NetworkSession : IDisposable
 
         if (networkConnection.State !=
             NetworkConnectionState.Connected)
+        {
+            return false;
+        }
+
+        var capability =
+    packet.Channel switch
+    {
+        NetworkChannel.Reliable =>
+            NetworkTransportCapabilities.Reliable,
+
+        NetworkChannel.Unreliable =>
+            NetworkTransportCapabilities.Unreliable,
+
+        _ =>
+            NetworkTransportCapabilities.None
+    };
+
+        if ((_transport.Capabilities & capability) == 0)
         {
             return false;
         }
@@ -134,14 +200,44 @@ public sealed class NetworkSession : IDisposable
         EnsureStarted();
 
         while (
-            _transport.TryAccept(
-                out var connectionId,
-                out var remoteEndpoint))
+            _transport.TryReceiveDisconnect(
+                out var disconnected))
         {
+            if (!_connections.Remove(
+                    disconnected,
+                    out var connection))
+            {
+                continue;
+            }
+
+            connection.State =
+                NetworkConnectionState.Disconnected;
+
+            ConnectionDisconnected?.Invoke(
+                connection);
+        }
+
+        while (
+    _transport.TryAccept(
+        out var connectionId,
+        out var remoteEndpoint))
+        {
+            if (!connectionId.IsValid)
+            {
+                continue;
+            }
+
+            if (_connections.ContainsKey(
+                    connectionId))
+            {
+                continue;
+            }
+
             var connection =
                 new NetworkConnection(
                     connectionId,
-                    remoteEndpoint);
+                    remoteEndpoint,
+                    NetworkConnectionDirection.Inbound);
 
             connection.State =
                 NetworkConnectionState.Connected;
@@ -159,6 +255,12 @@ public sealed class NetworkSession : IDisposable
                 out var connection,
                 out var packet))
         {
+            if (!_connections.ContainsKey(
+                    connection))
+            {
+                continue;
+            }
+
             PacketReceived?.Invoke(
                 connection,
                 packet);
@@ -166,7 +268,13 @@ public sealed class NetworkSession : IDisposable
     }
 
     public event Action<
+        NetworkConnection>? ConnectionConnected;
+
+    public event Action<
         NetworkConnection>? ConnectionAccepted;
+
+    public event Action<
+        NetworkConnection>? ConnectionDisconnected;
 
     public event Action<
         ConnectionId,
@@ -175,32 +283,89 @@ public sealed class NetworkSession : IDisposable
     public void Stop()
     {
         if (!_started)
+        {
             return;
+        }
+
+        var connections =
+            _connections.Values.ToArray();
 
         foreach (var connection in
-                 _connections.Values)
+                 connections)
         {
             connection.State =
+                NetworkConnectionState.Disconnecting;
+
+            _transport.Disconnect(
+                connection.Id);
+
+            connection.State =
                 NetworkConnectionState.Disconnected;
+
+            ConnectionDisconnected?.Invoke(
+                connection);
         }
 
         _connections.Clear();
 
         _transport.Stop();
 
-        _started = false;
+        _localEndpoint =
+            null;
+
+        _started =
+            false;
+    }
+
+    public bool TryGetConnection(
+    ConnectionId id,
+    out NetworkConnection? connection)
+    {
+        EnsureStarted();
+
+        return _connections.TryGetValue(
+            id,
+            out connection);
+    }
+
+    public bool TryGetConnection(
+        NetworkEndpoint endpoint,
+        out NetworkConnection? connection)
+    {
+        EnsureStarted();
+
+        foreach (var candidate in
+                 _connections.Values)
+        {
+            if (candidate.Endpoint ==
+                endpoint)
+            {
+                connection =
+                    candidate;
+
+                return true;
+            }
+        }
+
+        connection =
+            null;
+
+        return false;
     }
 
     public void Dispose()
     {
         if (_disposed)
+        {
             return;
+        }
 
         Stop();
 
         _transport.Dispose();
 
-        _disposed = true;
+        _disposed =
+            true;
     }
 
     private void EnsureStarted()

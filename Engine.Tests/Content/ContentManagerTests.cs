@@ -53,7 +53,6 @@ public sealed class ContentManagerTests
         var loaders =
             new ContentLoaderRegistry();
 
-
         using var content =
             new ContentManager(
                 source,
@@ -98,7 +97,6 @@ public sealed class ContentManagerTests
         var loaders =
             new ContentLoaderRegistry();
 
-
         using var content =
             new ContentManager(
                 source,
@@ -112,20 +110,23 @@ public sealed class ContentManagerTests
             content.Load<DisposableTestAsset>(
                 path);
 
-        Assert.False(asset.Disposed);
+        Assert.False(
+            asset.Disposed);
 
         Assert.True(
             content.Unload<DisposableTestAsset>(
                 path));
 
-        Assert.True(asset.Disposed);
+        Assert.True(
+            asset.Disposed);
+
         Assert.False(
             content.IsLoaded<DisposableTestAsset>(
                 path));
     }
 
     private sealed class DisposableTestAsset :
-    IDisposable
+        IDisposable
     {
         public bool Disposed
         {
@@ -142,11 +143,32 @@ public sealed class ContentManagerTests
     private sealed class DisposableTestLoader :
         IContentLoader<DisposableTestAsset>
     {
+        public Type AssetType =>
+            typeof(DisposableTestAsset);
+
         public DisposableTestAsset Load(
             AssetPath path,
             IContentLoadContext context)
         {
             return new DisposableTestAsset();
+        }
+
+        object IContentLoader.Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            return Load(
+                path,
+                context);
+        }
+
+        public bool CanLoad(
+            ContentAsset asset)
+        {
+            ArgumentNullException.ThrowIfNull(
+                asset);
+
+            return true;
         }
     }
 
@@ -163,6 +185,9 @@ public sealed class ContentManagerTests
             private set;
         }
 
+        public Type AssetType =>
+            typeof(TestAsset);
+
         public TestAsset Load(
             AssetPath path,
             IContentLoadContext context)
@@ -170,6 +195,24 @@ public sealed class ContentManagerTests
             LoadCount++;
 
             return new TestAsset();
+        }
+
+        object IContentLoader.Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            return Load(
+                path,
+                context);
+        }
+
+        public bool CanLoad(
+            ContentAsset asset)
+        {
+            ArgumentNullException.ThrowIfNull(
+                asset);
+
+            return true;
         }
     }
 
@@ -184,7 +227,7 @@ public sealed class ContentManagerTests
     }
 
     private sealed class TestCatalog :
-    IContentCatalog
+        IContentCatalog
     {
         private readonly Dictionary<
             AssetPath,
@@ -214,7 +257,8 @@ public sealed class ContentManagerTests
         public bool Contains(
             AssetPath path)
         {
-            return _assets.ContainsKey(path);
+            return _assets.ContainsKey(
+                path);
         }
 
         public bool TryGet(
@@ -225,13 +269,19 @@ public sealed class ContentManagerTests
                 path,
                 out asset);
         }
+
+        public void Refresh()
+        {
+        }
     }
 
     private sealed class TestAssetA
     {
-        public TestAssetA(TestAssetB dependency)
+        public TestAssetA(
+            TestAssetB dependency)
         {
-            Dependency = dependency;
+            Dependency =
+                dependency;
         }
 
         public TestAssetB Dependency
@@ -242,9 +292,11 @@ public sealed class ContentManagerTests
 
     private sealed class TestAssetB
     {
-        public TestAssetB(TestAssetA dependency)
+        public TestAssetB(
+            TestAssetA dependency)
         {
-            Dependency = dependency;
+            Dependency =
+                dependency;
         }
 
         public TestAssetA Dependency
@@ -261,8 +313,12 @@ public sealed class ContentManagerTests
         public CyclicLoaderA(
             AssetPath dependencyPath)
         {
-            _dependencyPath = dependencyPath;
+            _dependencyPath =
+                dependencyPath;
         }
+
+        public Type AssetType =>
+            typeof(TestAssetA);
 
         public TestAssetA Load(
             AssetPath path,
@@ -271,6 +327,24 @@ public sealed class ContentManagerTests
             return new TestAssetA(
                 context.Load<TestAssetB>(
                     _dependencyPath));
+        }
+
+        object IContentLoader.Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            return Load(
+                path,
+                context);
+        }
+
+        public bool CanLoad(
+            ContentAsset asset)
+        {
+            ArgumentNullException.ThrowIfNull(
+                asset);
+
+            return true;
         }
     }
 
@@ -282,8 +356,12 @@ public sealed class ContentManagerTests
         public CyclicLoaderB(
             AssetPath dependencyPath)
         {
-            _dependencyPath = dependencyPath;
+            _dependencyPath =
+                dependencyPath;
         }
+
+        public Type AssetType =>
+            typeof(TestAssetB);
 
         public TestAssetB Load(
             AssetPath path,
@@ -292,6 +370,24 @@ public sealed class ContentManagerTests
             return new TestAssetB(
                 context.Load<TestAssetA>(
                     _dependencyPath));
+        }
+
+        object IContentLoader.Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            return Load(
+                path,
+                context);
+        }
+
+        public bool CanLoad(
+            ContentAsset asset)
+        {
+            ArgumentNullException.ThrowIfNull(
+                asset);
+
+            return true;
         }
     }
 }

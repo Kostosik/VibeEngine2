@@ -5,20 +5,17 @@ using Engine.Content.Loading;
 namespace Engine.Content;
 
 public sealed class ContentManager :
+    IContentManager,
     IContentLoadContext,
     IDisposable
 {
     private readonly IAssetSource _source;
     private readonly IContentCatalog _catalog;
+    private readonly IContentLoaderRegistry _loaders;
 
     private readonly Dictionary<
         Type,
         Dictionary<AssetPath, object>> _cache =
-        new();
-
-    private readonly Dictionary<
-        Type,
-        object> _loaders =
         new();
 
     private bool _disposed;
@@ -35,6 +32,9 @@ public sealed class ContentManager :
 
         _source = source;
         _catalog = catalog;
+
+        _loaders =
+            new ContentLoaderRegistry();
     }
 
     public void Register<T>(
@@ -43,20 +43,8 @@ public sealed class ContentManager :
     {
         EnsureNotDisposed();
 
-        ArgumentNullException.ThrowIfNull(
+        _loaders.Register(
             loader);
-
-        var type =
-            typeof(T);
-
-        if (!_loaders.TryAdd(
-                type,
-                loader))
-        {
-            throw new InvalidOperationException(
-                $"A content loader for '{type.Name}' " +
-                "is already registered.");
-        }
     }
 
     public T Load<T>(
@@ -75,12 +63,11 @@ public sealed class ContentManager :
         var type =
             typeof(T);
 
-        if (!_loaders.TryGetValue(
-                type,
-                out var loaderObject))
+        if (!_loaders.TryGet<T>(
+                out var loader))
         {
             throw new InvalidOperationException(
-                $"No content loader is registered for '{type.Name}'.");
+                $"No content loader is registered for '{typeof(T).Name}'.");
         }
 
         if (!_cache.TryGetValue(
@@ -102,11 +89,8 @@ public sealed class ContentManager :
             return (T)existing;
         }
 
-        var loader =
-            (IContentLoader<T>)loaderObject;
-
         var asset =
-            loader.Load(
+            loader!.Load(
                 path,
                 this);
 
@@ -119,6 +103,8 @@ public sealed class ContentManager :
 
         return asset;
     }
+
+
 
     public bool IsLoaded<T>(
         AssetPath path)
@@ -146,7 +132,52 @@ public sealed class ContentManager :
     {
         EnsureNotDisposed();
 
+        foreach (var typeCache in _cache.Values)
+        {
+            foreach (var asset in typeCache.Values)
+            {
+                if (asset is IDisposable disposable)
+                {
+                    disposable.Dispose();
+                }
+            }
+        }
+
         _cache.Clear();
+    }
+
+    public bool Unload<T>(
+    AssetPath path)
+    where T : class
+    {
+        EnsureNotDisposed();
+
+        if (!_cache.TryGetValue(
+                typeof(T),
+                out var typeCache))
+        {
+            return false;
+        }
+
+        if (!typeCache.Remove(
+                path,
+                out var asset))
+        {
+            return false;
+        }
+
+        if (asset is IDisposable disposable)
+        {
+            disposable.Dispose();
+        }
+
+        if (typeCache.Count == 0)
+        {
+            _cache.Remove(
+                typeof(T));
+        }
+
+        return true;
     }
 
     public void Dispose()
@@ -156,7 +187,7 @@ public sealed class ContentManager :
             return;
         }
 
-        _cache.Clear();
+        ClearCache();
         _loaders.Clear();
 
         _disposed = true;
@@ -168,4 +199,6 @@ public sealed class ContentManager :
             _disposed,
             this);
     }
+
+
 }

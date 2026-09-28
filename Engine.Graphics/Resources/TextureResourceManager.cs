@@ -1,16 +1,16 @@
-﻿using Engine.Core.Assets;
+﻿using Engine.Content;
+using Engine.Core.Assets;
 
 namespace Engine.Graphics.Resources;
 
-public sealed class TextureResourceManager
-    : ITextureResourceManager
+public sealed class TextureResourceManager :
+    ITextureResourceManager
 {
-    private readonly IAssetSource _assets;
+    private readonly IContentManager _content;
     private readonly ITextureManager _textures;
-    private readonly ImageTextureLoader _loader;
 
     private readonly Dictionary<TextureAtlasKey, TextureAtlas> _atlases =
-    new();
+        new();
 
     private readonly Dictionary<AssetPath, TextureHandle> _loaded =
         new();
@@ -18,16 +18,20 @@ public sealed class TextureResourceManager
     private bool _disposed;
 
     public TextureResourceManager(
-        IAssetSource assets,
+        IContentManager content,
         ITextureManager textures)
     {
-        ArgumentNullException.ThrowIfNull(assets);
-        ArgumentNullException.ThrowIfNull(textures);
+        ArgumentNullException.ThrowIfNull(
+            content);
 
-        _assets = assets;
-        _textures = textures;
+        ArgumentNullException.ThrowIfNull(
+            textures);
 
-        _loader = new ImageTextureLoader();
+        _content =
+            content;
+
+        _textures =
+            textures;
     }
 
     public TextureHandle Load(
@@ -40,19 +44,23 @@ public sealed class TextureResourceManager
                 path,
                 out var existing))
         {
-            if (_textures.Exists(existing))
+            if (_textures.Exists(
+                    existing))
+            {
                 return existing;
+            }
 
-            _loaded.Remove(path);
+            _loaded.Remove(
+                path);
         }
 
         var data =
-            _loader.Load(
-                _assets,
+            _content.Load<TextureData>(
                 path);
 
         var texture =
-            _textures.Create(data);
+            _textures.Create(
+                data);
 
         _loaded.Add(
             path,
@@ -73,12 +81,13 @@ public sealed class TextureResourceManager
             return false;
         }
 
-        return _textures.Exists(texture);
+        return _textures.Exists(
+            texture);
     }
 
     public bool TryGetDescription(
-    AssetPath path,
-    out TextureDescription description)
+        AssetPath path,
+        out TextureDescription description)
     {
         EnsureNotDisposed();
 
@@ -98,6 +107,7 @@ public sealed class TextureResourceManager
 
         return true;
     }
+
     public bool TryGet(
         AssetPath path,
         out TextureHandle texture)
@@ -108,21 +118,26 @@ public sealed class TextureResourceManager
                 path,
                 out texture))
         {
-            if (_textures.Exists(texture))
+            if (_textures.Exists(
+                    texture))
+            {
                 return true;
+            }
 
-            _loaded.Remove(path);
+            _loaded.Remove(
+                path);
         }
 
-        texture = TextureHandle.Invalid;
+        texture =
+            TextureHandle.Invalid;
 
         return false;
     }
 
     public TextureAtlas LoadAtlas(
-    AssetPath path,
-    int tileWidth,
-    int tileHeight)
+        AssetPath path,
+        int tileWidth,
+        int tileHeight)
     {
         EnsureNotDisposed();
         EnsurePathValid(path);
@@ -144,7 +159,8 @@ public sealed class TextureResourceManager
             Load(path);
 
         var description =
-            _textures.GetDescription(texture);
+            _textures.GetDescription(
+                texture);
 
         var atlas =
             new TextureAtlas(
@@ -160,32 +176,13 @@ public sealed class TextureResourceManager
         return atlas;
     }
 
-    private void RemoveAtlases(
-    AssetPath path)
-    {
-        var keysToRemove =
-            new List<TextureAtlasKey>();
-
-        foreach (var key in _atlases.Keys)
-        {
-            if (key.Path == path)
-            {
-                keysToRemove.Add(key);
-            }
-        }
-
-        foreach (var key in keysToRemove)
-        {
-            _atlases.Remove(key);
-        }
-    }
-
     public bool Unload(
         AssetPath path)
     {
         EnsureNotDisposed();
 
-        RemoveAtlases(path);
+        RemoveAtlases(
+            path);
 
         if (!_loaded.Remove(
                 path,
@@ -194,9 +191,11 @@ public sealed class TextureResourceManager
             return false;
         }
 
-        if (_textures.Exists(texture))
+        if (_textures.Exists(
+                texture))
         {
-            _textures.Destroy(texture);
+            _textures.Destroy(
+                texture);
         }
 
         return true;
@@ -210,9 +209,11 @@ public sealed class TextureResourceManager
 
         foreach (var texture in _loaded.Values)
         {
-            if (_textures.Exists(texture))
+            if (_textures.Exists(
+                    texture))
             {
-                _textures.Destroy(texture);
+                _textures.Destroy(
+                    texture);
             }
         }
 
@@ -222,15 +223,19 @@ public sealed class TextureResourceManager
     public void Dispose()
     {
         if (_disposed)
+        {
             return;
+        }
 
         _atlases.Clear();
 
         foreach (var texture in _loaded.Values)
         {
-            if (_textures.Exists(texture))
+            if (_textures.Exists(
+                    texture))
             {
-                _textures.Destroy(texture);
+                _textures.Destroy(
+                    texture);
             }
         }
 
@@ -239,10 +244,33 @@ public sealed class TextureResourceManager
         _disposed = true;
     }
 
+    private void RemoveAtlases(
+        AssetPath path)
+    {
+        var keysToRemove =
+            new List<TextureAtlasKey>();
+
+        foreach (var key in _atlases.Keys)
+        {
+            if (key.Path == path)
+            {
+                keysToRemove.Add(
+                    key);
+            }
+        }
+
+        foreach (var key in keysToRemove)
+        {
+            _atlases.Remove(
+                key);
+        }
+    }
+
     private static void EnsurePathValid(
         AssetPath path)
     {
-        if (string.IsNullOrWhiteSpace(path.Value))
+        if (string.IsNullOrWhiteSpace(
+                path.Value))
         {
             throw new ArgumentException(
                 "Asset path must be valid.",

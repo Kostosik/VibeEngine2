@@ -10,6 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Engine.Audio.OpenAL\Engine.Audio.OpenAL.csproj" />
     <ProjectReference Include="..\Engine.Audio\Engine.Audio.csproj" />
+    <ProjectReference Include="..\Engine.Content\Engine.Content.csproj" />
     <ProjectReference Include="..\Engine.Core\Engine.Core.csproj" />
     <ProjectReference Include="..\Engine.ECS\Engine.ECS.csproj" />
     <ProjectReference Include="..\Engine.Graphics.OpenGL\Engine.Graphics.OpenGL.csproj" />

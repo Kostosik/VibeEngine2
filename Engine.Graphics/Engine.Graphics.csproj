@@ -11,6 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Engine.Content\Engine.Content.csproj" />
     <ProjectReference Include="..\Engine.Core\Engine.Core.csproj" />
   </ItemGroup>
 

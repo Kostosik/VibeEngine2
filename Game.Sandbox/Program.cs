@@ -1,5 +1,7 @@
 ﻿using Engine.Audio;
 using Engine.Audio.OpenAL;
+using Engine.Content;
+using Engine.Content.Assets;
 using Engine.Core.Application;
 using Engine.Core.Assets;
 using Engine.Core.Math;
@@ -12,6 +14,7 @@ using Engine.Input;
 using Engine.Physics.Components;
 using Engine.Physics.Shapes;
 using Engine.Runtime;
+using Engine.Serialization.Content;
 using Engine.Serialization.UI;
 using Engine.Tooling.Debugging;
 using Engine.UI.Actions;
@@ -119,6 +122,24 @@ var defaultFont =
         new FontDescription(
             32));
 
+var contentCatalog =
+    new FileContentCatalog(
+        Path.Combine(
+            AppContext.BaseDirectory,
+            "Assets"));
+
+using var content =
+    new ContentManager(
+        assetSource,
+        contentCatalog);
+
+content.Register(
+    new ImageTextureContentLoader());
+
+content.Register(
+    new BinaryContentLoader<UiAsset>(
+        new UiAssetSerializer()));
+
 var uiTheme =
     new UiTheme
     {
@@ -138,7 +159,7 @@ var ui =
 window.Resized += ui.Resize;
 using var resources =
     new TextureResourceManager(
-        assetSource,
+        content,
         window.GraphicsDevice.Textures);
 
 var tileAtlas =
@@ -290,16 +311,11 @@ if (runtime.Console is not null)
 var uiActions =
     new UiActionRegistry();
 
-var mainMenuPath =
-    Path.Combine(
-        AppContext.BaseDirectory,
-        "Assets",
-        "UI",
-        "MainMenu.ui");
 
 var mainMenuAsset =
-    UiAssetFileSerializer.Load(
-        mainMenuPath);
+    content.Load<UiAsset>(
+        new AssetPath(
+            "UI/MainMenu.ui"));
 
 var mainMenu =
     new UiAssetLoader(

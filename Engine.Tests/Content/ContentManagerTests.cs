@@ -45,6 +45,68 @@ public sealed class ContentManagerTests
             loader.LoadCount);
     }
 
+    [Fact]
+    public void Unload_DisposesLoadedAsset()
+    {
+        var source =
+            new TestAssetSource();
+
+        var path =
+            new AssetPath("test.asset");
+
+        var catalog =
+            new TestCatalog(path);
+
+        using var content =
+            new ContentManager(
+                source,
+                catalog);
+
+        content.Register(
+            new DisposableTestLoader());
+
+        var asset =
+            content.Load<DisposableTestAsset>(
+                path);
+
+        Assert.False(asset.Disposed);
+
+        Assert.True(
+            content.Unload<DisposableTestAsset>(
+                path));
+
+        Assert.True(asset.Disposed);
+        Assert.False(
+            content.IsLoaded<DisposableTestAsset>(
+                path));
+    }
+
+    private sealed class DisposableTestAsset :
+    IDisposable
+    {
+        public bool Disposed
+        {
+            get;
+            private set;
+        }
+
+        public void Dispose()
+        {
+            Disposed = true;
+        }
+    }
+
+    private sealed class DisposableTestLoader :
+        IContentLoader<DisposableTestAsset>
+    {
+        public DisposableTestAsset Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            return new DisposableTestAsset();
+        }
+    }
+
     private sealed class TestAsset
     {
     }

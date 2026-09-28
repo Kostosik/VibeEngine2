@@ -6,4 +6,8 @@ public interface IContentLoadContext
 {
     ReadOnlyMemory<byte> ReadBytes(
         AssetPath path);
+
+    T Load<T>(
+        AssetPath path)
+        where T : class;
 }

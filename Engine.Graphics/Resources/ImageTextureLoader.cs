@@ -34,4 +34,28 @@ public sealed class ImageTextureLoader
             TextureFormat.Rgba8,
             pixels);
     }
+
+    public TextureData Load(
+    ReadOnlyMemory<byte> encodedData)
+    {
+        if (encodedData.IsEmpty)
+        {
+            throw new InvalidDataException(
+                "Texture asset is empty.");
+        }
+
+        using var image =
+            Stbi.LoadFromMemory(
+                encodedData.Span,
+                4);
+
+        var pixels =
+            image.Data.ToArray();
+
+        return new TextureData(
+            image.Width,
+            image.Height,
+            TextureFormat.Rgba8,
+            pixels);
+    }
 }

@@ -274,25 +274,17 @@ internal sealed class OpenGLTextureRenderer : IDisposable
         ThrowIfDisposed();
         EnsureFrameActive();
 
-        if (!PrepareTextureBatch(
-                command.Texture))
-        {
-            return;
-        }
-
-        AddQuad(
-            command.Position.X,
-            command.Position.Y,
-            command.Size.X,
-            command.Size.Y,
+        DrawQuad(
+            command.Texture,
+            command.Position,
+            command.Size,
             command.UV);
     }
 
     public void DrawWorld(
-        DrawWorldTextureCommand command)
+     DrawWorldTextureCommand command)
     {
         ThrowIfDisposed();
-
         EnsureFrameActive();
 
         if (!command.Texture.IsValid)
@@ -308,12 +300,31 @@ internal sealed class OpenGLTextureRenderer : IDisposable
             command.Size *
             _camera.Zoom;
 
-        Draw(
-            new DrawTextureCommand(
-                command.Texture,
-                position,
-                size,
-                command.UV));
+        DrawQuad(
+            command.Texture,
+            position,
+            size,
+            command.UV);
+    }
+
+    private void DrawQuad(
+    TextureHandle texture,
+    Vector2 position,
+    Vector2 size,
+    Rectangle uv)
+    {
+        if (!PrepareTextureBatch(
+                texture))
+        {
+            return;
+        }
+
+        AddQuad(
+            position.X,
+            position.Y,
+            size.X,
+            size.Y,
+            uv);
     }
 
     public void End()
@@ -496,10 +507,6 @@ internal sealed class OpenGLTextureRenderer : IDisposable
             PrimitiveType.Triangles,
             0,
             (uint)_vertexCount);
-
-        _gl.BindBuffer(
-            BufferTargetARB.ArrayBuffer,
-            0);
 
         _vertexCount = 0;
         _currentTexture = 0;

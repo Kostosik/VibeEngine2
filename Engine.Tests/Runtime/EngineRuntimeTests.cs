@@ -6,6 +6,7 @@ using Engine.Graphics;
 using Engine.Graphics.Cameras;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
+using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Engine.Input;
 using Engine.Runtime;
@@ -217,6 +218,7 @@ public sealed class EngineRuntimeTests
     private sealed class FakeGraphicsDevice :
         IGraphicsDevice
     {
+        public RenderPipeline Pipeline => throw new NotSupportedException();
         public IFontManager Fonts =>
     throw new NotSupportedException();
         public IRenderTargetManager RenderTargets => throw new NotSupportedException();

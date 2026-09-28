@@ -67,6 +67,7 @@ public sealed class TilemapRendererTests
     private sealed class TestGraphicsDevice :
         IGraphicsDevice
     {
+        public RenderPipeline Pipeline => throw new NotSupportedException();
         public IFontManager Fonts => throw new NotSupportedException();
         public IRenderTargetManager RenderTargets => throw new NotSupportedException();
         public IShaderManager Shaders => throw new NotSupportedException();

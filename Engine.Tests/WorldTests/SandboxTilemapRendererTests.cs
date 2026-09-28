@@ -1,6 +1,7 @@
 ﻿using Engine.Graphics;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
+using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Engine.Worlds;
 using Engine.Worlds.Spatial;
@@ -15,6 +16,7 @@ public sealed class SandboxTilemapRendererTests
     private sealed class TestGraphicsDevice :
         IGraphicsDevice
     {
+        public RenderPipeline Pipeline => throw new NotSupportedException();
         public IGraphicsBufferManager Buffers => throw new NotSupportedException();
         public IRenderTargetManager RenderTargets => throw new NotSupportedException();
         public IShaderManager Shaders => throw new NotSupportedException();

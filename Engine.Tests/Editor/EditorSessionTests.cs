@@ -47,7 +47,7 @@ public sealed class EditorSessionTests
     }
 
     [Fact]
-    public void CloseAll_DisposesAllDocuments()
+    public void Open_RejectsSecondDocumentForSameWorld()
     {
         using var ecsWorld =
             new Engine.ECS.World();
@@ -58,10 +58,63 @@ public sealed class EditorSessionTests
                 ecsWorld);
 
         var first =
-            new EditorDocument(world);
+            new EditorDocument(
+                world);
 
         var second =
-            new EditorDocument(world);
+            new EditorDocument(
+                world);
+
+        var session =
+            new EditorSession();
+
+        session.Open(
+            first);
+
+        Assert.Throws<InvalidOperationException>(
+            () =>
+                session.Open(
+                    second));
+
+        second.Dispose();
+
+        Assert.Single(
+            session.Documents);
+
+        Assert.Same(
+            first,
+            session.ActiveDocument);
+
+        session.CloseAll();
+    }
+
+
+    [Fact]
+    public void CloseAll_DisposesAllDocuments()
+    {
+        using var firstEcsWorld =
+            new Engine.ECS.World();
+
+        using var secondEcsWorld =
+            new Engine.ECS.World();
+
+        var firstWorld =
+            new World(
+                new ChunkSize(16, 16),
+                firstEcsWorld);
+
+        var secondWorld =
+            new World(
+                new ChunkSize(16, 16),
+                secondEcsWorld);
+
+        var first =
+            new EditorDocument(
+                firstWorld);
+
+        var second =
+            new EditorDocument(
+                secondWorld);
 
         var session =
             new EditorSession();
@@ -71,7 +124,10 @@ public sealed class EditorSessionTests
 
         session.CloseAll();
 
-        Assert.Empty(session.Documents);
-        Assert.Null(session.ActiveDocument);
+        Assert.Empty(
+            session.Documents);
+
+        Assert.Null(
+            session.ActiveDocument);
     }
 }

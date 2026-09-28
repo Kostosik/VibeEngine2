@@ -9,8 +9,11 @@ public sealed class EditorPanelLayout
         ArgumentException.ThrowIfNullOrWhiteSpace(
             panelId);
 
-        PanelId = panelId;
-        Area = area;
+        PanelId =
+            panelId;
+
+        SetArea(
+            area);
     }
 
     public string PanelId { get; }
@@ -34,7 +37,8 @@ public sealed class EditorPanelLayout
                 nameof(area));
         }
 
-        Area = area;
+        Area =
+            area;
     }
 
     public void SetOrder(

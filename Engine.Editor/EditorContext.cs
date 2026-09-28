@@ -60,10 +60,18 @@ public sealed class EditorContext
             new EditorDocument(
                 world);
 
-        Session.Open(
-            document);
+        try
+        {
+            Session.Open(
+                document);
 
-        return document;
+            return document;
+        }
+        catch
+        {
+            document.Dispose();
+            throw;
+        }
     }
 
     public void InitializeAssetBrowser(

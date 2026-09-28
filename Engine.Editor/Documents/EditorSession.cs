@@ -15,14 +15,28 @@ public sealed class EditorSession
         ArgumentNullException.ThrowIfNull(
             document);
 
-        if (_documents.Contains(document))
+        if (_documents.Contains(
+                document))
         {
             throw new InvalidOperationException(
                 "Document is already open.");
         }
 
-        _documents.Add(document);
-        ActiveDocument = document;
+        if (_documents.Any(
+                existing =>
+                    ReferenceEquals(
+                        existing.World,
+                        document.World)))
+        {
+            throw new InvalidOperationException(
+                "A document for this World is already open.");
+        }
+
+        _documents.Add(
+            document);
+
+        ActiveDocument =
+            document;
 
         return document;
     }
@@ -33,12 +47,11 @@ public sealed class EditorSession
         ArgumentNullException.ThrowIfNull(
             document);
 
-        if (!_documents.Remove(document))
+        if (!_documents.Remove(
+                document))
         {
             return false;
         }
-
-        _documents.Remove(document);
 
         document.Dispose();
 

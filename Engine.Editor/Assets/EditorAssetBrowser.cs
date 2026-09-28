@@ -61,36 +61,22 @@ public sealed class EditorAssetBrowser
 
     public void Refresh()
     {
-        Entries =
-            _source.GetEntries(
-                CurrentPath);
+        var changed =
+            RefreshCore();
 
-        var selected =
-            Selection.Items.ToArray();
-
-        foreach (var path in selected)
+        if (changed)
         {
-            if (!Entries.Any(
-                    entry =>
-                        string.Equals(
-                            entry.Path,
-                            path,
-                            StringComparison.OrdinalIgnoreCase)))
-            {
-                Selection.Remove(path);
-            }
+            Changed?.Invoke();
         }
     }
 
     public bool NavigateTo(
-    string path)
+        string path)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(
-            path);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
         var fullPath =
-            Path.GetFullPath(
-                path);
+            Path.GetFullPath(path);
 
         if (!IsWithinRoot(fullPath) ||
             !Directory.Exists(fullPath))
@@ -111,7 +97,7 @@ public sealed class EditorAssetBrowser
 
         Selection.Clear();
 
-        Refresh();
+        RefreshCore();
 
         Changed?.Invoke();
 
@@ -175,6 +161,46 @@ public sealed class EditorAssetBrowser
         }
 
         return true;
+    }
+
+    private bool RefreshCore()
+    {
+        var entries =
+            _source.GetEntries(
+                CurrentPath);
+
+        var entriesChanged =
+            !Entries.SequenceEqual(
+                entries);
+
+        var selected =
+            Selection.Items.ToArray();
+
+        var selectionChanged = false;
+
+        foreach (var path in selected)
+        {
+            if (entries.Any(
+                    entry =>
+                        string.Equals(
+                            entry.Path,
+                            path,
+                            StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            if (Selection.Remove(path))
+            {
+                selectionChanged = true;
+            }
+        }
+
+        Entries =
+            entries;
+
+        return entriesChanged ||
+               selectionChanged;
     }
 
     private bool IsWithinRoot(

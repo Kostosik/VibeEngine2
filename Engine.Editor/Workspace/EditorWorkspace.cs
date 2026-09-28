@@ -23,7 +23,7 @@ public sealed class EditorWorkspace
     }
 
     public void RegisterPanel(
-        IEditorPanel panel)
+    IEditorPanel panel)
     {
         ArgumentNullException.ThrowIfNull(
             panel);
@@ -39,9 +39,19 @@ public sealed class EditorWorkspace
                 $"Editor panel '{panel.Id}' is already registered.");
         }
 
-        _panels.Add(panel);
+        if (Layout.TryGetPanel(
+                panel.Id,
+                out _))
+        {
+            throw new InvalidOperationException(
+                $"Editor panel '{panel.Id}' is already registered in the layout.");
+        }
+
         Layout.RegisterPanel(
-    panel.Id);
+            panel.Id);
+
+        _panels.Add(
+            panel);
     }
 
     public bool UnregisterPanel(

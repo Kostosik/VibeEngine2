@@ -17,6 +17,7 @@
     <ProjectReference Include="..\Engine.Input\Engine.Input.csproj" />
     <ProjectReference Include="..\Engine.Physics\Engine.Physics.csproj" />
     <ProjectReference Include="..\Engine.Runtime\Engine.Runtime.csproj" />
+    <ProjectReference Include="..\Engine.Serialization\Engine.Serialization.csproj" />
     <ProjectReference Include="..\Engine.Simulations\Engine.Simulations.csproj" />
     <ProjectReference Include="..\Engine.Tooling\Engine.Tooling.csproj" />
     <ProjectReference Include="..\Engine.UI\Engine.UI.csproj" />
@@ -26,6 +27,7 @@
   <ItemGroup>
     <Folder Include="Assets\Textures\" />
     <Folder Include="Assets\Audio\" />
+    <Folder Include="Assets\UI\" />
     <Folder Include="Rendering\" />
   </ItemGroup>
 
@@ -40,6 +42,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Assets\Textures\test.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\UI\MainMenu.ui">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

@@ -57,6 +57,41 @@ public struct SerializationWriter
     public ReadOnlySpan<byte> WrittenSpan =>
         _buffer.WrittenSpan;
 
+    public void WriteGuid(
+    Guid value)
+    {
+        Span<byte> bytes =
+            stackalloc byte[16];
+
+        value.TryWriteBytes(
+            bytes);
+
+        WriteRawBytes(
+            bytes);
+    }
+
+    private void WriteRawBytes(
+    ReadOnlySpan<byte> value)
+    {
+        EnsureCanWrite(
+            value.Length);
+
+        if (value.IsEmpty)
+        {
+            return;
+        }
+
+        var span =
+            _buffer.GetSpan(
+                value.Length);
+
+        value.CopyTo(
+            span);
+
+        _buffer.Advance(
+            value.Length);
+    }
+
     public void WriteByte(
         byte value)
     {

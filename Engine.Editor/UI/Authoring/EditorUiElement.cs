@@ -1,9 +1,11 @@
-﻿namespace Engine.Editor.UI.Authoring;
+﻿using Engine.Core.Assets;
+
+namespace Engine.Editor.UI.Authoring;
 
 public sealed class EditorUiElement
 {
     private readonly List<EditorUiElement> _children = new();
-
+    
     internal EditorUiElement(
         Guid id,
         EditorUiElementType type,
@@ -34,6 +36,11 @@ public sealed class EditorUiElement
 
     public EditorUiLayout Layout { get; internal set; }
 
+    public string Text { get; internal set; } = string.Empty;
+
+    public AssetPath? Texture { get; internal set; }
+
+    public string? Action { get; internal set; }
     public EditorUiElement? Parent { get; internal set; }
 
     public IReadOnlyList<EditorUiElement> Children =>

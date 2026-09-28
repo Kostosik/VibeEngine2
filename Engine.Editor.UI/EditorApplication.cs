@@ -2,6 +2,7 @@
 using Engine.Core.Time;
 using Engine.Editor;
 using Engine.Editor.Documents;
+using Engine.Editor.UI.Authoring;
 using Engine.Editor.UI.Shell;
 using Engine.Graphics.Resources;
 using Engine.Input;
@@ -14,12 +15,15 @@ public sealed class EditorApplication :
     IApplication
 {
     private bool _uiDirty = true;
-
+    private readonly string _uiAssetPath;
+    public EditorUiDocument UiDocument { get; }
     public EditorApplication(
-        EditorContext editor,
-        UiSystem ui,
-        IInputBackend input,
-        ITextureResourceManager assetPreviewTextures)
+     EditorContext editor,
+     UiSystem ui,
+     IInputBackend input,
+     ITextureResourceManager assetPreviewTextures,
+     EditorUiDocument uiDocument,
+     string uiAssetPath)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -33,29 +37,55 @@ public sealed class EditorApplication :
         ArgumentNullException.ThrowIfNull(
             assetPreviewTextures);
 
+        ArgumentNullException.ThrowIfNull(
+            uiDocument);
+
         Editor = editor;
         Ui = ui;
         Input = input;
         AssetPreviewTextures = assetPreviewTextures;
+        UiDocument = uiDocument;
 
         UiHost =
             new EditorUiHost(
                 editor,
                 ui);
 
+        _uiAssetPath = uiAssetPath;
+
         MainShell =
             new EditorMainShell(
                 editor,
-                assetPreviewTextures);
+                assetPreviewTextures,
+                uiDocument);
+
+        MainShell.SaveRequested +=
+    SaveUiDocument;
 
         UiHost.Root.AddChild(
             MainShell);
+
+        UiDocument.Changed +=
+            MarkUiDirty;
 
         if (editor.AssetBrowser is not null)
         {
             editor.AssetBrowser.Changed +=
                 MarkUiDirty;
         }
+
+        
+    }
+
+    private void SaveUiDocument()
+    {
+        EditorUiAssetFile.Save(
+            UiDocument,
+            _uiAssetPath);
+
+        UiDocument.MarkSaved();
+
+        MarkUiDirty();
     }
 
     public EditorContext Editor { get; }

@@ -1,5 +1,6 @@
 ﻿using Engine.Core.Math;
 using Engine.Editor;
+using Engine.Editor.UI.Authoring;
 using Engine.Editor.UI.Workspace;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Resources;
@@ -9,17 +10,26 @@ using Engine.UI.Layout;
 
 namespace Engine.Editor.UI.Shell;
 
-public sealed class EditorMainShell : UiPanel
+public sealed class EditorMainShell :
+    UiPanel
 {
     private readonly UiPanel _menuBar;
     private readonly UiPanel _workspace;
+
     private readonly UiLabel _documentLabel;
+
     private readonly EditorWorkspaceView _workspaceView;
+    private readonly EditorUiWorkspaceView _uiWorkspaceView;
+
     private UiButton _undoButton;
     private UiButton _redoButton;
+    private UiButton _worldButton;
+    private UiButton _uiButton;
+
     public EditorMainShell(
-     EditorContext editor,
-     ITextureResourceManager assetPreviewTextures)
+        EditorContext editor,
+        ITextureResourceManager assetPreviewTextures,
+        EditorUiDocument uiDocument)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -27,7 +37,14 @@ public sealed class EditorMainShell : UiPanel
         ArgumentNullException.ThrowIfNull(
             assetPreviewTextures);
 
-        Editor = editor;
+        ArgumentNullException.ThrowIfNull(
+            uiDocument);
+
+        Editor =
+            editor;
+
+        UiDocument =
+            uiDocument;
 
         Background =
             new UiColor(
@@ -61,18 +78,30 @@ public sealed class EditorMainShell : UiPanel
                 VerticalAlignment =
                     UiVerticalAlignment.Stretch
             };
+
         _workspaceView =
             new EditorWorkspaceView(
                 editor,
                 assetPreviewTextures);
 
+        _uiWorkspaceView =
+            new EditorUiWorkspaceView(
+                uiDocument);
+
         _workspace.AddChild(
             _workspaceView);
+
+        _workspace.AddChild(
+            _uiWorkspaceView);
+
+        _uiWorkspaceView.Visible = false;
+
         _documentLabel =
             new UiLabel(
                 "No document")
             {
                 FontSize = 14.0f,
+
                 Color =
                     new UiColor(
                         180,
@@ -96,8 +125,10 @@ public sealed class EditorMainShell : UiPanel
         AddChild(
             _documentLabel);
     }
-
+    public event Action? SaveRequested;
     public EditorContext Editor { get; }
+
+    public EditorUiDocument UiDocument { get; }
 
     public UiPanel Workspace =>
         _workspace;
@@ -106,11 +137,8 @@ public sealed class EditorMainShell : UiPanel
         UiLayoutContext context,
         Vector2 availableSize)
     {
-        var menuHeight =
-            32.0f;
-
-        var documentHeight =
-            24.0f;
+        const float menuHeight = 32.0f;
+        const float documentHeight = 24.0f;
 
         _menuBar.Measure(
             context,
@@ -153,7 +181,8 @@ public sealed class EditorMainShell : UiPanel
         _workspace.Arrange(
             new UiRect(
                 finalRect.X,
-                finalRect.Y + menuHeight,
+                finalRect.Y +
+                menuHeight,
                 finalRect.Width,
                 MathF.Max(
                     0.0f,
@@ -172,23 +201,91 @@ public sealed class EditorMainShell : UiPanel
 
     public void Refresh()
     {
-        var document =
+        var worldDocument =
             Editor.ActiveDocument;
 
-        _documentLabel.Text =
-            document is null
-                ? "No document"
-                : document.IsDirty
-                    ? "Unsaved changes"
-                    : "Saved";
+        var uiActive =
+            _uiWorkspaceView.Visible;
 
-        _undoButton.Enabled =
-            document?.CommandHistory.CanUndo == true;
+        if (uiActive)
+        {
+            _documentLabel.Text =
+                UiDocument.IsDirty
+                    ? "UI • Unsaved changes"
+                    : "UI • Saved";
 
-        _redoButton.Enabled =
-            document?.CommandHistory.CanRedo == true;
+            _undoButton.Enabled =
+                UiDocument.CommandHistory.CanUndo;
+
+            _redoButton.Enabled =
+                UiDocument.CommandHistory.CanRedo;
+        }
+        else
+        {
+            _documentLabel.Text =
+                worldDocument is null
+                    ? "No document"
+                    : worldDocument.IsDirty
+                        ? "World • Unsaved changes"
+                        : "World • Saved";
+
+            _undoButton.Enabled =
+                worldDocument?.CommandHistory.CanUndo == true;
+
+            _redoButton.Enabled =
+                worldDocument?.CommandHistory.CanRedo == true;
+        }
 
         _workspaceView.Refresh();
+        _uiWorkspaceView.Refresh();
+    }
+
+    private void ShowWorld()
+    {
+        _workspaceView.Visible = true;
+        _uiWorkspaceView.Visible = false;
+
+        Refresh();
+    }
+
+    private void ShowUi()
+    {
+        _workspaceView.Visible = false;
+        _uiWorkspaceView.Visible = true;
+
+        Refresh();
+    }
+
+    private void Undo()
+    {
+        if (_uiWorkspaceView.Visible)
+        {
+            UiDocument.Undo();
+        }
+        else
+        {
+            Editor.Actions.Execute(
+                "edit.undo",
+                Editor.ActionContext);
+        }
+
+        Refresh();
+    }
+
+    private void Redo()
+    {
+        if (_uiWorkspaceView.Visible)
+        {
+            UiDocument.Redo();
+        }
+        else
+        {
+            Editor.Actions.Execute(
+                "edit.redo",
+                Editor.ActionContext);
+        }
+
+        Refresh();
     }
 
     private UiPanel CreateMenuBar()
@@ -222,6 +319,7 @@ public sealed class EditorMainShell : UiPanel
             {
                 Orientation =
                     UiOrientation.Horizontal,
+
                 Spacing = 4.0f,
 
                 HorizontalAlignment =
@@ -231,26 +329,54 @@ public sealed class EditorMainShell : UiPanel
                     UiVerticalAlignment.Stretch
             };
 
+        var fileButton =
+            new UiButton("Save")
+            {
+                Width = 80.0f,
+                Height = 30.0f
+            };
+
+        fileButton.Clicked +=
+            () =>
+            {
+                SaveRequested?.Invoke();
+            };
+
         buttons.AddChild(
-            new UiButton("File"));
+            fileButton);
 
         buttons.AddChild(
             new UiButton("Edit"));
 
+        _worldButton =
+            new UiButton("World")
+            {
+                Width = 80.0f,
+                Height = 30.0f
+            };
+
+        _worldButton.Clicked +=
+            ShowWorld;
+
+        _uiButton =
+            new UiButton("UI")
+            {
+                Width = 80.0f,
+                Height = 30.0f
+            };
+
+        _uiButton.Clicked +=
+            ShowUi;
+
         _undoButton =
-    new UiButton("Undo")
-    {
-        Width = 80.0f,
-        Height = 30.0f
-    };
+            new UiButton("Undo")
+            {
+                Width = 80.0f,
+                Height = 30.0f
+            };
 
         _undoButton.Clicked +=
-            () =>
-            {
-                Editor.Actions.Execute(
-                    "edit.undo",
-                    Editor.ActionContext);
-            };
+            Undo;
 
         _redoButton =
             new UiButton("Redo")
@@ -260,12 +386,13 @@ public sealed class EditorMainShell : UiPanel
             };
 
         _redoButton.Clicked +=
-            () =>
-            {
-                Editor.Actions.Execute(
-                    "edit.redo",
-                    Editor.ActionContext);
-            };
+            Redo;
+
+        buttons.AddChild(
+            _worldButton);
+
+        buttons.AddChild(
+            _uiButton);
 
         buttons.AddChild(
             _undoButton);

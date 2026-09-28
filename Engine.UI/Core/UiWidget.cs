@@ -48,6 +48,14 @@ public abstract class UiWidget
 
     public float? Height { get; set; }
 
+    public UiLayoutMode LayoutMode { get; set; } =
+    UiLayoutMode.Alignment;
+
+    public UiAnchor Anchor { get; set; } =
+        UiAnchor.TopLeft;
+
+    public Vector2 Offset { get; set; } =
+        Vector2.Zero;
     public Vector2 DesiredSize { get; private set; }
 
     public UiRect Bounds { get; private set; }
@@ -109,7 +117,7 @@ public abstract class UiWidget
     }
 
     public void Arrange(
-        UiRect finalRect)
+    UiRect finalRect)
     {
         var available =
             finalRect.Deflate(
@@ -129,6 +137,50 @@ public abstract class UiWidget
                 Margin.Top -
                 Margin.Bottom);
 
+        if (LayoutMode ==
+    UiLayoutMode.Anchor)
+        {
+            var anchorWidth =
+                MathF.Max(
+                    0.0f,
+                    Width ??
+                    desiredWidth);
+
+            var anchorHeight =
+                MathF.Max(
+                    0.0f,
+                    Height ??
+                    desiredHeight);
+
+            var anchorX =
+                available.X +
+                available.Width *
+                Anchor.X +
+                Offset.X -
+                anchorWidth *
+                Anchor.X;
+
+            var anchorY =
+                available.Y +
+                available.Height *
+                Anchor.Y +
+                Offset.Y -
+                anchorHeight *
+                Anchor.Y;
+
+            Bounds =
+                new UiRect(
+                    anchorX,
+                    anchorY,
+                    anchorWidth,
+                    anchorHeight);
+
+            ArrangeCore(
+                Bounds);
+
+            return;
+        }
+
         var width =
             Width ??
             (HorizontalAlignment ==
@@ -145,12 +197,16 @@ public abstract class UiWidget
 
         width =
             MathF.Min(
-                MathF.Max(0.0f, width),
+                MathF.Max(
+                    0.0f,
+                    width),
                 available.Width);
 
         height =
             MathF.Min(
-                MathF.Max(0.0f, height),
+                MathF.Max(
+                    0.0f,
+                    height),
                 available.Height);
 
         var x =
@@ -162,7 +218,8 @@ public abstract class UiWidget
                     2.0f,
 
                 UiHorizontalAlignment.Right =>
-                    available.Right - width,
+                    available.Right -
+                    width,
 
                 _ =>
                     available.X
@@ -177,7 +234,8 @@ public abstract class UiWidget
                     2.0f,
 
                 UiVerticalAlignment.Bottom =>
-                    available.Bottom - height,
+                    available.Bottom -
+                    height,
 
                 _ =>
                     available.Y

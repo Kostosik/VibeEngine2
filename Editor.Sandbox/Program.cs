@@ -2,6 +2,7 @@
 using Engine.Core.Assets;
 using Engine.Editor;
 using Engine.Editor.UI;
+using Engine.Editor.UI.Authoring;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.OpenGL;
 using Engine.UI.Core;
@@ -100,12 +101,24 @@ using var assetPreviewTextures =
         assetSource,
         window.GraphicsDevice.Textures);
 
+var uiDocument =
+    new EditorUiDocument(
+        "Main UI");
+
+var uiAssetPath =
+    Path.Combine(
+        AppContext.BaseDirectory,
+        "Assets",
+        "UI",
+        "MainMenu.ui");
+
 var application =
     new EditorApplication(
         editor,
         ui,
         window.InputBackend,
-        assetPreviewTextures);
+        assetPreviewTextures,
+        uiDocument,uiAssetPath);
 
 var document =
     application.OpenDocument(

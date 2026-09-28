@@ -44,6 +44,12 @@ public ref struct SerializationReader
             0;
     }
 
+    public Guid ReadGuid()
+    {
+        return new Guid(
+            ReadSpan(16));
+    }
+
     public SerializationContext Context =>
         _context;
 

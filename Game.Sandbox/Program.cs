@@ -12,7 +12,10 @@ using Engine.Input;
 using Engine.Physics.Components;
 using Engine.Physics.Shapes;
 using Engine.Runtime;
+using Engine.Serialization.UI;
 using Engine.Tooling.Debugging;
+using Engine.UI.Actions;
+using Engine.UI.Assets;
 using Engine.UI.Core;
 using Engine.UI.Input;
 using Engine.UI.Styling;
@@ -283,6 +286,38 @@ if (runtime.Console is not null)
     window.Resized +=
         consoleOverlay.Resize;
 }
+
+var uiActions =
+    new UiActionRegistry();
+
+var mainMenuPath =
+    Path.Combine(
+        AppContext.BaseDirectory,
+        "Assets",
+        "UI",
+        "MainMenu.ui");
+
+var mainMenuAsset =
+    UiAssetFileSerializer.Load(
+        mainMenuPath);
+
+var mainMenu =
+    new UiAssetLoader(
+        resources,
+        uiActions)
+        .Load(
+            mainMenuAsset);
+
+ui.Root.AddChild(
+    mainMenu.Root);
+
+uiActions.Register(
+    "StartGame",
+    () =>
+    {
+        mainMenu.Root.Visible =
+            false;
+    });
 
 IGameLoopController? gameLoopController = null;
 

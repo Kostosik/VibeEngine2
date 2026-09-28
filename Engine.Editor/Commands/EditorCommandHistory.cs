@@ -7,6 +7,8 @@ public sealed class EditorCommandHistory
     private int _position;
     private int _savedPosition;
 
+    public event Action? Changed;
+
     public bool CanUndo =>
         _position > 0;
 
@@ -25,8 +27,7 @@ public sealed class EditorCommandHistory
     public void Execute(
         IEditorCommand command)
     {
-        ArgumentNullException.ThrowIfNull(
-            command);
+        ArgumentNullException.ThrowIfNull(command);
 
         if (_position < _commands.Count)
         {
@@ -41,6 +42,8 @@ public sealed class EditorCommandHistory
             command);
 
         _position++;
+
+        Changed?.Invoke();
     }
 
     public void Undo()
@@ -56,6 +59,8 @@ public sealed class EditorCommandHistory
         command.Undo();
 
         _position--;
+
+        Changed?.Invoke();
     }
 
     public void Redo()
@@ -71,12 +76,16 @@ public sealed class EditorCommandHistory
         command.Execute();
 
         _position++;
+
+        Changed?.Invoke();
     }
 
     public void MarkSaved()
     {
         _savedPosition =
             _position;
+
+        Changed?.Invoke();
     }
 
     public void Clear()
@@ -85,5 +94,7 @@ public sealed class EditorCommandHistory
 
         _position = 0;
         _savedPosition = 0;
+
+        Changed?.Invoke();
     }
 }

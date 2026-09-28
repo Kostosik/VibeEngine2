@@ -1,6 +1,7 @@
 ﻿using Engine.ECS;
 using Engine.ECS.Entities;
 using Engine.ECS.Inspection;
+using Engine.Editor.Entities;
 using Engine.Editor.Selection;
 using Engine.Worlds;
 
@@ -23,6 +24,42 @@ public sealed class EditorInspector
 
         _propertyProviders =
             propertyProviders;
+    }
+
+    public IReadOnlyList<EditorProperty> GetProperties(
+    EditorEntityReference entity,
+    Type componentType)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+        ArgumentNullException.ThrowIfNull(componentType);
+
+        if (!entity.IsAlive)
+        {
+            throw new InvalidOperationException(
+                "Editor entity reference is not alive.");
+        }
+
+        if (!_worldInspector.TryGetComponent(
+                entity.Entity,
+                componentType,
+                out _))
+        {
+            throw new InvalidOperationException(
+                $"Entity '{entity.Entity}' does not contain component '{componentType.Name}'.");
+        }
+
+        if (!_propertyProviders.TryGetProvider(
+                componentType,
+                out var provider))
+        {
+            return Array.Empty<EditorProperty>();
+        }
+
+        return provider.GetProperties(
+            new EcsComponentEditorTarget(
+                _world,
+                entity,
+                componentType));
     }
 
     public bool TryGetSelectedEntity(

@@ -90,4 +90,62 @@ internal static class EcsComponentAccessor
                        : new object[] { world, entity, value })
                ?? null!;
     }
+
+    public static void Add(
+    World world,
+    EntityId entity,
+    Type componentType,
+    object value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        InvokeGeneric(
+            nameof(AddGeneric),
+            world,
+            entity,
+            componentType,
+            value);
+    }
+
+    public static bool Remove(
+        World world,
+        EntityId entity,
+        Type componentType)
+    {
+        return (bool)InvokeGeneric(
+            nameof(RemoveGeneric),
+            world,
+            entity,
+            componentType,
+            null)!;
+    }
+
+    private static object AddGeneric<T>(
+        World world,
+        EntityId entity,
+        object value)
+        where T : struct
+    {
+        if (value is not T typedValue)
+        {
+            throw new ArgumentException(
+                $"Value must be of type '{typeof(T)}'.",
+                nameof(value));
+        }
+
+        world.EcsWorld.Add(
+            entity,
+            typedValue);
+
+        return null!;
+    }
+
+    private static object RemoveGeneric<T>(
+        World world,
+        EntityId entity)
+        where T : struct
+    {
+        return world.EcsWorld.Remove<T>(
+            entity);
+    }
 }

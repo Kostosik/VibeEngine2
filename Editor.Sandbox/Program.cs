@@ -70,26 +70,61 @@ var world =
         ecsWorld);
 
 var entity =
-    ecsWorld.CreateEntity();
+    world.SpatialEntities.CreateEntity(
+        new WorldPosition(
+            0,
+            0));
 
 ecsWorld.Add(
     entity,
     new EditorTestComponent(
         100,
         42.5f));
+
 world.SpatialEntities.CreateEntity(
     new WorldPosition(0, 0));
 
 var editor =
     new EditorContext();
 
+editor.InitializeAssetBrowser(
+    new Engine.Editor.Assets.FileSystemAssetSource(),
+    Path.Combine(
+        AppContext.BaseDirectory,
+        "Assets"));
+
+editor.ComponentTypes.Register<EditorTestComponent>();
+
 var application =
     new EditorApplication(
         editor,
-        ui);
+        ui,
+        window.InputBackend);
 
 application.OpenDocument(
     world);
+
+var document =
+    application.OpenDocument(
+        world);
+
+document.EntitySelection.Changed +=
+    () =>
+    {
+        Console.WriteLine(
+            "[SELECTION] Changed");
+
+        Console.WriteLine(
+            $"[SELECTION] Count=" +
+            $"{document.EntitySelection.Count}");
+
+        foreach (var selected in
+                 document.EntitySelection.Items)
+        {
+            Console.WriteLine(
+                $"[SELECTION] Entity={selected}");
+        }
+    };
 
 var gameLoop =
     new GameLoop(
@@ -98,6 +133,8 @@ var gameLoop =
             60));
 
 gameLoop.Initialize();
+
+
 
 try
 {

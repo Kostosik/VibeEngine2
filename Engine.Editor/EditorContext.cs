@@ -1,5 +1,7 @@
 ﻿using Engine.Editor.Actions;
+using Engine.Editor.Assets;
 using Engine.Editor.Documents;
+using Engine.Editor.Inspection;
 using Engine.Editor.Workspace;
 using Engine.Worlds;
 
@@ -16,7 +18,10 @@ public sealed class EditorContext
             new EditorWorkspace(
                 Session);
         Actions =
-    new EditorActionRegistry();
+            new EditorActionRegistry();
+
+        ComponentTypes =
+    new EditorComponentTypeRegistry();
 
         ActionContext =
             new EditorActionContext(
@@ -27,7 +32,12 @@ public sealed class EditorContext
 
         Actions.Register(
             new RedoEditorAction());
+
+        AssetBrowser = null;
     }
+
+    public EditorAssetBrowser? AssetBrowser { get; private set; }
+    public EditorComponentTypeRegistry ComponentTypes { get; }
 
     public EditorActionRegistry Actions { get; }
 
@@ -54,5 +64,24 @@ public sealed class EditorContext
             document);
 
         return document;
+    }
+
+    public void InitializeAssetBrowser(
+    IEditorAssetSource source,
+    string rootPath)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
+
+        if (AssetBrowser is not null)
+        {
+            throw new InvalidOperationException(
+                "Asset browser has already been initialized.");
+        }
+
+        AssetBrowser =
+            new EditorAssetBrowser(
+                source,
+                rootPath);
     }
 }

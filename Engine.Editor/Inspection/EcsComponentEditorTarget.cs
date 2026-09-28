@@ -1,4 +1,5 @@
 ﻿using Engine.ECS.Entities;
+using Engine.Editor.Entities;
 using Engine.Worlds;
 
 namespace Engine.Editor.Inspection;
@@ -7,14 +8,19 @@ public sealed class EcsComponentEditorTarget
 {
     public EcsComponentEditorTarget(
         World world,
-        EntityId entity,
+        EditorEntityReference entity,
         Type componentType)
     {
-        ArgumentNullException.ThrowIfNull(
-            world);
+        ArgumentNullException.ThrowIfNull(world);
+        ArgumentNullException.ThrowIfNull(entity);
+        ArgumentNullException.ThrowIfNull(componentType);
 
-        ArgumentNullException.ThrowIfNull(
-            componentType);
+        if (!entity.IsAlive)
+        {
+            throw new ArgumentException(
+                "Editor entity reference is not alive.",
+                nameof(entity));
+        }
 
         if (!componentType.IsValueType ||
             componentType.IsPrimitive ||
@@ -26,13 +32,27 @@ public sealed class EcsComponentEditorTarget
         }
 
         World = world;
-        Entity = entity;
+        EntityReference = entity;
         ComponentType = componentType;
+    }
+
+    public EcsComponentEditorTarget(
+        World world,
+        EntityId entity,
+        Type componentType)
+        : this(
+            world,
+            new EditorEntityReference(entity),
+            componentType)
+    {
     }
 
     public World World { get; }
 
-    public EntityId Entity { get; }
+    public EditorEntityReference EntityReference { get; }
+
+    public EntityId Entity =>
+        EntityReference.Entity;
 
     public Type ComponentType { get; }
 }

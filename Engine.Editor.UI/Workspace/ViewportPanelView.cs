@@ -1,6 +1,8 @@
 ﻿using Engine.Core.Math;
 using Engine.ECS.Entities;
 using Engine.Editor;
+using Engine.Editor.Commands;
+using Engine.Editor.Viewport.Gizmos;
 using Engine.Graphics.Commands;
 using Engine.UI.Controls;
 using Engine.UI.Core;
@@ -13,6 +15,17 @@ namespace Engine.Editor.UI.Workspace;
 public sealed class ViewportPanelView :
     UiPanel
 {
+    private int _debugRenderCounter;
+
+    private readonly EditorTranslationGizmo _translationGizmo =
+    new();
+
+    private bool _isTranslating;
+    private EditorGizmoAxis _translationAxis;
+    private EntityId _translationEntity;
+    private Vector2 _translationStartWorld;
+    private WorldPosition _translationStartPosition;
+
     private const float GridMinScreenSpacing = 12.0f;
     private const float GridMaxScreenSpacing = 48.0f;
     private const float GridLineThickness = 1.0f;
@@ -25,6 +38,8 @@ public sealed class ViewportPanelView :
     private Vector2 _lastPanPosition;
     private const float EntityMarkerSize = 12.0f;
     private const float SelectionOutlineSize = 18.0f;
+
+    private Vector2 _translationStartMouseWorld;
 
     public ViewportPanelView(
         EditorContext editor)
@@ -133,12 +148,14 @@ public sealed class ViewportPanelView :
     }
 
     protected override void OnRender(
-        UiRenderContext context)
+     UiRenderContext context)
     {
-        base.OnRender(context);
+        base.OnRender(
+            context);
 
         var document =
             Editor.ActiveDocument;
+
 
         if (document is null)
         {
@@ -168,21 +185,123 @@ public sealed class ViewportPanelView :
                 Bounds.Width,
                 Bounds.Height));
 
-        DrawGrid(
-            context,
-            document);
+        context.PushClip(
+            Bounds);
 
-        DrawEntities(
-            context,
-            document);
+        try
+        {
+            DrawGrid(
+                context,
+                document);
 
-        DrawSelection(
-            context,
-            document);
+            DrawEntities(
+                context,
+                document);
 
-        DrawInfo(
-            context,
-            document);
+            DrawSelection(
+                context,
+                document);
+
+            DrawTranslationGizmo(
+    context,
+    document);
+
+            DrawInfo(
+                context,
+                document);
+        }
+        finally
+        {
+            context.PopClip();
+        }
+    }
+
+    private void DrawTranslationGizmo(
+    UiRenderContext context,
+    Editor.Documents.EditorDocument document)
+    {
+        if (!document.Inspector.TryGetSelectedEntity(
+                document.EntitySelection,
+                out var entity))
+        {
+            return;
+        }
+
+        if (!document.World.SpatialEntities.Contains(
+                entity))
+        {
+            return;
+        }
+
+        var position =
+            document.World.SpatialEntities.GetPosition(
+                entity);
+
+        var screen =
+            document.Viewport.Transform.WorldToScreen(
+                new Vector2(
+                    position.X,
+                    position.Y));
+
+        var arm =
+            _translationGizmo.ArmLength;
+
+        const float thickness = 3.0f;
+        const float arrowSize = 8.0f;
+
+        var xColor =
+            new UiColor(
+                220,
+                80,
+                80,
+                255);
+
+        var yColor =
+            new UiColor(
+                80,
+                220,
+                120,
+                255);
+
+        context.DrawRectangle(
+            new UiRect(
+                screen.X,
+                screen.Y - thickness * 0.5f,
+                arm,
+                thickness),
+            xColor,
+            filled: true,
+            layer: 3);
+
+        context.DrawRectangle(
+            new UiRect(
+                screen.X - thickness * 0.5f,
+                screen.Y - arm,
+                thickness,
+                arm),
+            yColor,
+            filled: true,
+            layer: 3);
+
+        context.DrawRectangle(
+            new UiRect(
+                screen.X + arm - arrowSize,
+                screen.Y - arrowSize * 0.5f,
+                arrowSize,
+                arrowSize),
+            xColor,
+            filled: true,
+            layer: 3);
+
+        context.DrawRectangle(
+            new UiRect(
+                screen.X - arrowSize * 0.5f,
+                screen.Y - arm,
+                arrowSize,
+                arrowSize),
+            yColor,
+            filled: true,
+            layer: 3);
     }
 
     private void DrawGrid(
@@ -263,35 +382,39 @@ public sealed class ViewportPanelView :
             worldX <= maxX;
             worldX += spacing)
         {
-            var screen =
+            var localScreen =
                 viewport.Transform.WorldToScreen(
                     new Vector2(
                         worldX,
                         0.0f));
 
+            var screenX =
+                Bounds.X +
+                localScreen.X;
+
             var thickness =
-                MathF.Abs(
-                    worldX) < 0.0001f
-                        ? AxisLineThickness
-                        : GridLineThickness;
+                MathF.Abs(worldX) <
+                0.0001f
+                    ? AxisLineThickness
+                    : GridLineThickness;
 
             var color =
-                MathF.Abs(
-                        worldX) <
-                    0.0001f
-                        ? axisColor
-                        : gridColor;
+                MathF.Abs(worldX) <
+                0.0001f
+                    ? axisColor
+                    : gridColor;
 
             context.DrawRectangle(
                 new UiRect(
-                    screen.X -
+                    screenX -
                     thickness * 0.5f,
 
-                    0.0f,
+                    Bounds.Y,
 
                     thickness,
 
                     Bounds.Height),
+
                 color,
                 filled: true,
                 layer: -10);
@@ -302,35 +425,39 @@ public sealed class ViewportPanelView :
             worldY <= maxY;
             worldY += spacing)
         {
-            var screen =
+            var localScreen =
                 viewport.Transform.WorldToScreen(
                     new Vector2(
                         0.0f,
                         worldY));
 
+            var screenY =
+                Bounds.Y +
+                localScreen.Y;
+
             var thickness =
-                MathF.Abs(
-                    worldY) < 0.0001f
-                        ? AxisLineThickness
-                        : GridLineThickness;
+                MathF.Abs(worldY) <
+                0.0001f
+                    ? AxisLineThickness
+                    : GridLineThickness;
 
             var color =
-                MathF.Abs(
-                        worldY) <
-                    0.0001f
-                        ? axisColor
-                        : gridColor;
+                MathF.Abs(worldY) <
+                0.0001f
+                    ? axisColor
+                    : gridColor;
 
             context.DrawRectangle(
                 new UiRect(
-                    0.0f,
+                    Bounds.X,
 
-                    screen.Y -
+                    screenY -
                     thickness * 0.5f,
 
                     Bounds.Width,
 
                     thickness),
+
                 color,
                 filled: true,
                 layer: -10);
@@ -376,7 +503,7 @@ public sealed class ViewportPanelView :
     }
 
     protected override void OnPointerDown(
-        UiPointerEvent pointer)
+    UiPointerEvent pointer)
     {
         if (pointer.Button ==
             Engine.Input.InputMouseButton.Middle)
@@ -390,29 +517,61 @@ public sealed class ViewportPanelView :
             return;
         }
 
-        base.OnPointerDown(
-            pointer);
-
         var document =
             Editor.ActiveDocument;
 
         if (document is null)
         {
-            pointer.Handled = true;
             return;
         }
 
         var localPosition =
             new Vector2(
-                pointer.Position.X -
-                Bounds.X,
-                pointer.Position.Y -
-                Bounds.Y);
+                pointer.Position.X - Bounds.X,
+                pointer.Position.Y - Bounds.Y);
 
         if (!ContainsLocalPosition(
                 localPosition))
         {
             return;
+        }
+
+        if (document.Inspector.TryGetSelectedEntity(
+                document.EntitySelection,
+                out var selectedEntity) &&
+            document.World.SpatialEntities.Contains(
+                selectedEntity))
+        {
+            var selectedPosition =
+                document.World.SpatialEntities.GetPosition(
+                    selectedEntity);
+
+            var selectedScreen =
+                document.Viewport.Transform.WorldToScreen(
+                    new Vector2(
+                        selectedPosition.X,
+                        selectedPosition.Y));
+
+            var axis =
+                _translationGizmo.HitTest(
+                    localPosition,
+                    selectedScreen);
+
+            if (axis != EditorGizmoAxis.None)
+            {
+                _isTranslating = true;
+                _translationAxis = axis;
+                _translationEntity = selectedEntity;
+                _translationStartPosition = selectedPosition;
+                _translationStartWorld =
+                    document.Viewport.Transform.ScreenToWorld(
+                        localPosition);
+
+                pointer.RequestCapture();
+                pointer.Handled = true;
+
+                return;
+            }
         }
 
         var worldPosition =
@@ -443,6 +602,66 @@ public sealed class ViewportPanelView :
         base.OnPointerMove(
             pointer);
 
+        if (_isTranslating &&
+    _translationAxis != EditorGizmoAxis.None)
+        {
+            var document =
+                Editor.ActiveDocument;
+
+            if (document is null ||
+                !document.World.EcsWorld.Exists(
+                    _translationEntity))
+            {
+                return;
+            }
+
+            var localPosition =
+                new Vector2(
+                    pointer.Position.X - Bounds.X,
+                    pointer.Position.Y - Bounds.Y);
+
+            var worldPosition =
+                document.Viewport.Transform.ScreenToWorld(
+                    localPosition);
+
+            var deltaPos =
+                worldPosition -
+                _translationStartWorld;
+
+            var x =
+                _translationStartPosition.X;
+
+            var y =
+                _translationStartPosition.Y;
+
+            if (_translationAxis ==
+                EditorGizmoAxis.X)
+            {
+                x =
+                    (int)MathF.Round(
+                        _translationStartPosition.X + deltaPos.X,
+                        MidpointRounding.AwayFromZero);
+            }
+            else if (_translationAxis ==
+                     EditorGizmoAxis.Y)
+            {
+                y =
+                    (int)MathF.Round(
+                        _translationStartPosition.Y + deltaPos.Y,
+                        MidpointRounding.AwayFromZero);
+            }
+
+            document.World.SpatialEntities.SetPosition(
+                _translationEntity,
+                new WorldPosition(
+                    x,
+                    y));
+
+            pointer.Handled = true;
+
+            return;
+        }
+
         if (!_isPanning ||
             pointer.Button !=
             Engine.Input.InputMouseButton.Middle)
@@ -454,30 +673,29 @@ public sealed class ViewportPanelView :
             new Vector2(
                 pointer.Position.X -
                 _lastPanPosition.X,
-
                 pointer.Position.Y -
                 _lastPanPosition.Y);
 
         _lastPanPosition =
             pointer.Position;
 
-        var document =
+        var documentForPan =
             Editor.ActiveDocument;
 
-        if (document is null)
+        if (documentForPan is null)
         {
             return;
         }
 
         var zoom =
-            document.Viewport.State.Zoom;
+            documentForPan.Viewport.State.Zoom;
 
         if (zoom <= 0.0f)
         {
             return;
         }
 
-        document.Viewport.State.Pan(
+        documentForPan.Viewport.State.Pan(
             new Vector2(
                 -delta.X / zoom,
                 delta.Y / zoom));
@@ -491,21 +709,112 @@ public sealed class ViewportPanelView :
         base.OnPointerUp(
             pointer);
 
-        if (pointer.Button !=
+        if (_isTranslating &&
+    pointer.Button ==
+    Engine.Input.InputMouseButton.Left)
+        {
+            var document =
+                Editor.ActiveDocument;
+
+            if (document is not null &&
+                document.World.EcsWorld.Exists(
+                    _translationEntity))
+            {
+                var finalPosition =
+                    document.World.SpatialEntities.GetPosition(
+                        _translationEntity);
+
+                if (finalPosition !=
+                    _translationStartPosition)
+                {
+                    var reference =
+                        document.GetEntityReference(
+                            _translationEntity);
+
+                    document.Execute(
+                        new SetWorldPositionCommand(
+                            document.World,
+                            reference,
+                            _translationStartPosition,
+                            finalPosition));
+                }
+            }
+
+            _isTranslating = false;
+            _translationAxis = EditorGizmoAxis.None;
+            _translationEntity = EntityId.Invalid;
+
+            pointer.ReleaseCapture();
+            pointer.Handled = true;
+
+            return;
+        }
+
+        if (pointer.Button ==
             Engine.Input.InputMouseButton.Middle)
+        {
+            _isPanning = false;
+
+            pointer.ReleaseCapture();
+            pointer.Handled = true;
+
+            return;
+        }
+
+        if (pointer.Button !=
+            Engine.Input.InputMouseButton.Left)
         {
             return;
         }
 
-        _isPanning = false;
+        if (_isTranslating)
+        {
+            var document =
+                Editor.ActiveDocument;
 
-        pointer.ReleaseCapture();
-        pointer.Handled = true;
+            if (document is not null &&
+                document.World.EcsWorld.Exists(
+                    _translationEntity))
+            {
+                var finalPosition =
+                    document.World.SpatialEntities
+                        .GetPosition(
+                            _translationEntity);
+
+                if (finalPosition !=
+                    _translationStartPosition)
+                {
+                    var reference =
+                        document.GetEntityReference(
+                            _translationEntity);
+
+                    document.Execute(
+                        new SetWorldPositionCommand(
+                            document.World,
+                            reference,
+                            _translationStartPosition,
+                            finalPosition));
+                }
+            }
+
+            _isTranslating = false;
+
+            _translationAxis =
+                EditorGizmoAxis.None;
+
+            _translationEntity =
+                EntityId.Invalid;
+
+            pointer.ReleaseCapture();
+            pointer.Handled = true;
+
+            return;
+        }
     }
 
     private void DrawEntities(
-        UiRenderContext context,
-        Editor.Documents.EditorDocument document)
+    UiRenderContext context,
+    Editor.Documents.EditorDocument document)
     {
         foreach (var entity in
                  document.World
@@ -523,11 +832,19 @@ public sealed class ViewportPanelView :
                 document.World.SpatialEntities.GetPosition(
                     entity);
 
-            var screen =
+            var localScreen =
                 document.Viewport.Transform.WorldToScreen(
                     new Vector2(
                         position.X,
                         position.Y));
+
+            var screen =
+                new Vector2(
+                    Bounds.X +
+                    localScreen.X,
+
+                    Bounds.Y +
+                    localScreen.Y);
 
             var rect =
                 CreateScreenRect(
@@ -546,8 +863,8 @@ public sealed class ViewportPanelView :
     }
 
     private void DrawSelection(
-        UiRenderContext context,
-        Editor.Documents.EditorDocument document)
+    UiRenderContext context,
+    Editor.Documents.EditorDocument document)
     {
         foreach (var entity in
                  document.EntitySelection.Items)
@@ -568,11 +885,19 @@ public sealed class ViewportPanelView :
                 document.World.SpatialEntities.GetPosition(
                     entity);
 
-            var screen =
+            var localScreen =
                 document.Viewport.Transform.WorldToScreen(
                     new Vector2(
                         position.X,
                         position.Y));
+
+            var screen =
+                new Vector2(
+                    Bounds.X +
+                    localScreen.X,
+
+                    Bounds.Y +
+                    localScreen.Y);
 
             var rect =
                 CreateScreenRect(
@@ -712,5 +1037,89 @@ public sealed class ViewportPanelView :
                position.Y >= 0.0f &&
                position.X <= Bounds.Width &&
                position.Y <= Bounds.Height;
+    }
+
+    public void DebugDump()
+    {
+        var document =
+            Editor.ActiveDocument;
+
+        Console.WriteLine();
+        Console.WriteLine(
+            "========== VIEWPORT DEBUG ==========");
+
+        Console.WriteLine(
+            $"Viewport Bounds: " +
+            $"X={Bounds.X}, " +
+            $"Y={Bounds.Y}, " +
+            $"W={Bounds.Width}, " +
+            $"H={Bounds.Height}");
+
+        if (document is null)
+        {
+            Console.WriteLine(
+                "Document: NULL");
+
+            Console.WriteLine(
+                "====================================");
+
+            return;
+        }
+
+        Console.WriteLine(
+            $"World entities: " +
+            $"{document.World.EcsWorld.EntityCount}");
+
+        Console.WriteLine(
+            $"Spatial entities: " +
+            $"{document.World.SpatialIndex.EntityCount}");
+
+        Console.WriteLine(
+            $"Selected entities: " +
+            $"{document.EntitySelection.Count}");
+
+        Console.WriteLine(
+            $"Viewport size: " +
+            $"{document.Viewport.State.Size.X} x " +
+            $"{document.Viewport.State.Size.Y}");
+
+        Console.WriteLine(
+            $"Viewport center: " +
+            $"{document.Viewport.State.Center}");
+
+        Console.WriteLine(
+            $"Viewport zoom: " +
+            $"{document.Viewport.State.Zoom}");
+
+        foreach (var entity in
+                 document.World
+                     .EcsWorld
+                     .Inspector
+                     .GetEntities())
+        {
+            Console.WriteLine(
+                $"Entity: {entity}");
+
+            var hasPosition =
+                document.World.SpatialEntities.Contains(
+                    entity);
+
+            Console.WriteLine(
+                $"  Has WorldPosition: {hasPosition}");
+
+            if (hasPosition)
+            {
+                Console.WriteLine(
+                    $"  WorldPosition: " +
+                    $"{document.World.SpatialEntities.GetPosition(entity)}");
+            }
+
+            Console.WriteLine(
+                $"  Selected: " +
+                $"{document.EntitySelection.Contains(entity)}");
+        }
+
+        Console.WriteLine(
+            "====================================");
     }
 }

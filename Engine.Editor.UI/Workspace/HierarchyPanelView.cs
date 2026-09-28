@@ -1,5 +1,6 @@
 ﻿using Engine.ECS.Entities;
 using Engine.Editor;
+using Engine.Editor.Commands;
 using Engine.Editor.Hierarchy;
 using Engine.Graphics.Commands;
 using Engine.UI.Controls;
@@ -78,6 +79,102 @@ public sealed class HierarchyPanelView :
             return;
         }
 
+        if (document.EntitySelection.Count == 1)
+        {
+            var selected =
+                document.EntitySelection.Items.First();
+
+            if (!document.World.EcsWorld.Exists(
+                    selected))
+            {
+                document.EntitySelection.Clear();
+            }
+        }
+
+        var toolbar =
+            new UiStackPanel
+            {
+                Orientation =
+                    UiOrientation.Horizontal,
+
+                Spacing = 4.0f,
+
+                HorizontalAlignment =
+                    UiHorizontalAlignment.Stretch,
+
+                VerticalAlignment =
+                    UiVerticalAlignment.Top
+            };
+
+        var createButton =
+            new UiButton("Create")
+            {
+                Width = 90.0f,
+                Height = 30.0f
+            };
+
+        createButton.Clicked +=
+            () =>
+            {
+                var command =
+                    new CreateEditorEntityCommand(
+                        document);
+
+                document.Execute(
+                    command);
+
+                if (command.Reference is not null)
+                {
+                    document.EntitySelection.Set(
+                        command.Entity);
+                }
+            };
+
+        var deleteButton =
+            new UiButton("Delete")
+            {
+                Width = 90.0f,
+                Height = 30.0f,
+
+                Enabled =
+                    document.EntitySelection.Count == 1
+            };
+
+        deleteButton.Clicked +=
+            () =>
+            {
+                if (document.EntitySelection.Count != 1)
+                {
+                    return;
+                }
+
+                var entity =
+                    document.EntitySelection.Items.First();
+
+                if (!document.World.EcsWorld.Exists(
+                        entity))
+                {
+                    document.EntitySelection.Clear();
+                    return;
+                }
+
+                document.Execute(
+                    new DeleteEditorEntityCommand(
+                        document,
+                        entity));
+
+                document.EntitySelection.Clear();
+            };
+
+        toolbar.AddChild(
+            createButton);
+
+        toolbar.AddChild(
+            deleteButton);
+
+        _items.AddChild(
+            toolbar);
+
         var source =
             new EcsHierarchySource(
                 document.World);
@@ -120,7 +217,7 @@ public sealed class HierarchyPanelView :
                 button);
         }
 
-        if (_items.Children.Count == 0)
+        if (source.GetNodes().Count == 0)
         {
             _items.AddChild(
                 new UiLabel(

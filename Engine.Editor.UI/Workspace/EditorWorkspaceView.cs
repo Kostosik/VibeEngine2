@@ -12,6 +12,7 @@ public sealed class EditorWorkspaceView : UiPanel
     private readonly UiPanel _hierarchyHost;
     private readonly UiPanel _viewportHost;
     private readonly UiPanel _inspectorHost;
+    private readonly AssetBrowserPanelView _assetBrowser;
 
     public EditorWorkspaceView(
         EditorContext editor)
@@ -69,6 +70,13 @@ public sealed class EditorWorkspaceView : UiPanel
 
         _inspectorHost.AddChild(
             Inspector);
+
+        _assetBrowser =
+            new AssetBrowserPanelView(
+                editor);
+
+        AddChild(
+            _assetBrowser);
     }
 
     public EditorContext Editor { get; }
@@ -79,11 +87,15 @@ public sealed class EditorWorkspaceView : UiPanel
 
     public InspectorPanelView Inspector { get; }
 
+    public AssetBrowserPanelView AssetBrowser =>
+        _assetBrowser;
+
     public void Refresh()
     {
         Hierarchy.Refresh();
         Inspector.Refresh();
         Viewport.Refresh();
+        _assetBrowser.Refresh();
     }
 
     protected override Vector2 MeasureCore(
@@ -102,6 +114,10 @@ public sealed class EditorWorkspaceView : UiPanel
             context,
             availableSize);
 
+        _assetBrowser.Measure(
+            context,
+            availableSize);
+
         return availableSize;
     }
 
@@ -110,6 +126,15 @@ public sealed class EditorWorkspaceView : UiPanel
     {
         const float hierarchyWidthRatio = 0.22f;
         const float inspectorWidthRatio = 0.22f;
+        const float assetBrowserHeightRatio = 0.25f;
+
+        var assetBrowserHeight =
+            finalRect.Height *
+            assetBrowserHeightRatio;
+
+        var topHeight =
+            finalRect.Height -
+            assetBrowserHeight;
 
         var hierarchyWidth =
             finalRect.Width *
@@ -129,7 +154,7 @@ public sealed class EditorWorkspaceView : UiPanel
                 finalRect.X,
                 finalRect.Y,
                 hierarchyWidth,
-                finalRect.Height));
+                topHeight));
 
         _viewportHost.Arrange(
             new UiRect(
@@ -137,7 +162,7 @@ public sealed class EditorWorkspaceView : UiPanel
                 hierarchyWidth,
                 finalRect.Y,
                 viewportWidth,
-                finalRect.Height));
+                topHeight));
 
         _inspectorHost.Arrange(
             new UiRect(
@@ -145,11 +170,19 @@ public sealed class EditorWorkspaceView : UiPanel
                 inspectorWidth,
                 finalRect.Y,
                 inspectorWidth,
-                finalRect.Height));
+                topHeight));
+
+        _assetBrowser.Arrange(
+            new UiRect(
+                finalRect.X,
+                finalRect.Y +
+                topHeight,
+                finalRect.Width,
+                assetBrowserHeight));
     }
 
     private static UiPanel CreateHost(
-    string title)
+        string title)
     {
         var host =
             new UiPanel

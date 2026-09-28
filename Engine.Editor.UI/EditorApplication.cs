@@ -3,6 +3,7 @@ using Engine.Core.Time;
 using Engine.Editor;
 using Engine.Editor.Documents;
 using Engine.Editor.UI.Shell;
+using Engine.Input;
 using Engine.UI.Core;
 using Engine.Worlds;
 
@@ -11,9 +12,12 @@ namespace Engine.Editor.UI;
 public sealed class EditorApplication :
     IApplication
 {
+    private bool _uiDirty = true;
+
     public EditorApplication(
         EditorContext editor,
-        UiSystem ui)
+        UiSystem ui,
+        IInputBackend input)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -21,8 +25,12 @@ public sealed class EditorApplication :
         ArgumentNullException.ThrowIfNull(
             ui);
 
+        ArgumentNullException.ThrowIfNull(
+            input);
+
         Editor = editor;
         Ui = ui;
+        Input = input;
 
         UiHost =
             new EditorUiHost(
@@ -41,6 +49,8 @@ public sealed class EditorApplication :
 
     public UiSystem Ui { get; }
 
+    public IInputBackend Input { get; }
+
     public EditorUiHost UiHost { get; }
 
     public EditorMainShell MainShell { get; }
@@ -52,20 +62,26 @@ public sealed class EditorApplication :
             Editor.OpenDocument(
                 world);
 
-        MainShell.Refresh();
+        SubscribeDocument(
+            document);
+
+        MarkUiDirty();
 
         return document;
     }
 
     public void Initialize()
     {
-        MainShell.Refresh();
+        MarkUiDirty();
+        RefreshIfNeeded();
     }
 
     public void Update(
         TimeSnapshot time)
     {
-        MainShell.Refresh();
+        Input.Update();
+
+        RefreshIfNeeded();
 
         Ui.Update(
             time.Delta.TotalSeconds);
@@ -84,5 +100,32 @@ public sealed class EditorApplication :
 
     public void Shutdown()
     {
+    }
+
+    private void SubscribeDocument(
+        EditorDocument document)
+    {
+        document.EntitySelection.Changed +=
+            MarkUiDirty;
+
+        document.CommandHistory.Changed +=
+            MarkUiDirty;
+    }
+
+    private void MarkUiDirty()
+    {
+        _uiDirty = true;
+    }
+
+    private void RefreshIfNeeded()
+    {
+        if (!_uiDirty)
+        {
+            return;
+        }
+
+        _uiDirty = false;
+
+        MainShell.Refresh();
     }
 }

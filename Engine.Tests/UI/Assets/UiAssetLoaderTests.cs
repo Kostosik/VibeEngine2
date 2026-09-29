@@ -9,6 +9,65 @@ namespace Engine.Tests.UI.Assets;
 public sealed class UiAssetLoaderTests
 {
     [Fact]
+    public void Asset_RejectsHierarchyCycle()
+    {
+        var rootId =
+            Guid.NewGuid();
+
+        var firstId =
+            Guid.NewGuid();
+
+        var secondId =
+            Guid.NewGuid();
+
+        Assert.Throws<InvalidDataException>(
+            () =>
+                new UiAsset(
+                    "Invalid",
+                    new Vector2(
+                        1280.0f,
+                        720.0f),
+                    new[]
+                    {
+                    new UiAssetElement(
+                        rootId,
+                        Guid.Empty,
+                        UiAssetElementType.Root,
+                        "Root",
+                        new UiAssetLayout(
+                            UiAnchor.TopLeft,
+                            Vector2.Zero,
+                            new Vector2(
+                                1280.0f,
+                                720.0f))),
+
+                    new UiAssetElement(
+                        firstId,
+                        secondId,
+                        UiAssetElementType.Panel,
+                        "First",
+                        new UiAssetLayout(
+                            UiAnchor.TopLeft,
+                            Vector2.Zero,
+                            new Vector2(
+                                100.0f,
+                                100.0f))),
+
+                    new UiAssetElement(
+                        secondId,
+                        firstId,
+                        UiAssetElementType.Panel,
+                        "Second",
+                        new UiAssetLayout(
+                            UiAnchor.TopLeft,
+                            Vector2.Zero,
+                            new Vector2(
+                                100.0f,
+                                100.0f)))
+                    }));
+    }
+
+    [Fact]
     public void Load_ButtonAction_InvokesRegisteredAction()
     {
         var rootId =

@@ -1,4 +1,6 @@
-﻿using Engine.Worlds.Chunks;
+﻿using Engine.ECS.Persistence;
+using Engine.Worlds.Chunks;
+using Engine.Worlds.Spatial;
 using Engine.Worlds.Tiles;
 
 namespace Engine.Worlds.Persistence;
@@ -127,6 +129,34 @@ public static class WorldPersistence
 
         world.EcsWorld.RestoreState(
             state.Ecs);
+
+        world.SpatialIndex.Clear();
+
+        foreach (var componentState in
+                 state.Ecs.Components)
+        {
+            if (componentState is not
+                WorldComponentState<WorldPositionComponent> positions)
+            {
+                continue;
+            }
+
+            for (var i = 0;
+                 i < positions.Entities.Length;
+                 i++)
+            {
+                var entity =
+                    positions.Entities[i];
+
+                var position =
+                    positions.Components[i].Position;
+
+                world.SpatialIndex.Add(
+                    entity,
+                    world.GetChunkPosition(
+                        position));
+            }
+        }
 
         foreach (var chunk in
                  state.Chunks)

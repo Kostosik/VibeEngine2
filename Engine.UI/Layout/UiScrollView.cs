@@ -20,10 +20,18 @@ public class UiScrollView : UiContainer
     public UiColor? Background { get; set; }
 
     public void SetContent(
-        UiWidget content)
+    UiWidget content)
     {
         ArgumentNullException.ThrowIfNull(
             content);
+
+        if (ReferenceEquals(
+                content,
+                this))
+        {
+            throw new InvalidOperationException(
+                "A widget cannot be its own content.");
+        }
 
         if (ReferenceEquals(
                 Content,

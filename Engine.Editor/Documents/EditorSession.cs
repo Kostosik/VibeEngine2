@@ -4,9 +4,11 @@ public sealed class EditorSession
 {
     private readonly List<EditorDocument> _documents = new();
 
+    public event Action<EditorDocument>? DocumentClosed;
+
     public IReadOnlyList<EditorDocument> Documents =>
         _documents;
-
+    public event Action<EditorDocument?>? ActiveDocumentChanged;
     public EditorDocument? ActiveDocument { get; private set; }
 
     public EditorDocument Open(
@@ -37,12 +39,13 @@ public sealed class EditorSession
 
         ActiveDocument =
             document;
-
+        ActiveDocumentChanged?.Invoke(
+    ActiveDocument);
         return document;
     }
 
     public bool Close(
-        EditorDocument document)
+    EditorDocument document)
     {
         ArgumentNullException.ThrowIfNull(
             document);
@@ -53,11 +56,12 @@ public sealed class EditorSession
             return false;
         }
 
-        document.Dispose();
-
-        if (ReferenceEquals(
+        var activeChanged =
+            ReferenceEquals(
                 ActiveDocument,
-                document))
+                document);
+
+        if (activeChanged)
         {
             ActiveDocument =
                 _documents.Count > 0
@@ -65,32 +69,69 @@ public sealed class EditorSession
                     : null;
         }
 
+        document.Dispose();
+
+        DocumentClosed?.Invoke(
+            document);
+
+        if (activeChanged)
+        {
+            ActiveDocumentChanged?.Invoke(
+                ActiveDocument);
+        }
+
         return true;
     }
 
     public void Activate(
-        EditorDocument document)
+    EditorDocument document)
     {
         ArgumentNullException.ThrowIfNull(
             document);
 
-        if (!_documents.Contains(document))
+        if (!_documents.Contains(
+                document))
         {
             throw new InvalidOperationException(
                 "Document is not open.");
         }
 
-        ActiveDocument = document;
+        if (ReferenceEquals(
+                ActiveDocument,
+                document))
+        {
+            return;
+        }
+
+        ActiveDocument =
+            document;
+
+        ActiveDocumentChanged?.Invoke(
+            ActiveDocument);
     }
 
     public void CloseAll()
     {
-        foreach (var document in _documents)
-        {
-            document.Dispose();
-        }
+        var documents =
+            _documents.ToArray();
 
         _documents.Clear();
-        ActiveDocument = null;
+
+        ActiveDocument =
+            null;
+
+        foreach (var document in documents)
+        {
+            document.Dispose();
+
+            DocumentClosed?.Invoke(
+                document);
+        }
+
+        if (documents.Length > 0)
+        {
+            ActiveDocumentChanged?.Invoke(
+                null);
+        }
     }
 }

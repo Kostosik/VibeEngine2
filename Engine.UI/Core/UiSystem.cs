@@ -131,12 +131,28 @@ public sealed class UiSystem
                 Focus.FocusedWidget;
 
             if (focused is null ||
-                !focused.Visible ||
-                !focused.Enabled ||
                 !focused.ConsumesKeyboardInput)
             {
                 return false;
             }
+
+            var current =
+                focused;
+
+            while (current is not null)
+            {
+                if (!current.Visible ||
+                    !current.Enabled)
+                {
+                    return false;
+                }
+
+                current =
+                    current.Parent;
+            }
+
+            return IsInRoot(
+                focused);
 
             return IsInRoot(
                 focused);
@@ -212,6 +228,9 @@ public sealed class UiSystem
         Layout();
 
         _inputRouter?.Update();
+
+        Screens.Update(
+            deltaSeconds);
 
         Root.Update(
             deltaSeconds);

@@ -119,6 +119,8 @@ public sealed class UiContextMenu : UiCanvas
 
     public void ClearItems()
     {
+        Close();
+
         _itemsPanel.ClearChildren();
     }
 

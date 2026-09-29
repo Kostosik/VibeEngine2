@@ -14,6 +14,7 @@ namespace Engine.Editor.UI;
 public sealed class EditorApplication :
     IApplication
 {
+    private readonly HashSet<EditorDocument> _subscribedDocuments = new();
     private bool _uiDirty = true;
     private readonly string _uiAssetPath;
     public EditorUiDocument UiDocument { get; }
@@ -61,9 +62,13 @@ public sealed class EditorApplication :
 
         MainShell.SaveRequested +=
     SaveUiDocument;
-
+        Editor.Session.DocumentClosed +=
+    UnsubscribeDocument;
         UiHost.Root.AddChild(
             MainShell);
+
+        Editor.Session.ActiveDocumentChanged +=
+    OnActiveDocumentChanged;
 
         UiDocument.Changed +=
             MarkUiDirty;
@@ -75,6 +80,12 @@ public sealed class EditorApplication :
         }
 
         
+    }
+
+    private void OnActiveDocumentChanged(
+    EditorDocument? document)
+    {
+        MarkUiDirty();
     }
 
     private void SaveUiDocument()
@@ -145,18 +156,62 @@ public sealed class EditorApplication :
 
     public void Shutdown()
     {
+        Editor.Session.DocumentClosed -=
+            UnsubscribeDocument;
+        Editor.Session.ActiveDocumentChanged -=
+    OnActiveDocumentChanged;
+
+        foreach (var document in _subscribedDocuments.ToArray())
+        {
+            UnsubscribeDocument(
+                document);
+        }
+
+        UiDocument.Changed -=
+            MarkUiDirty;
+
+        if (Editor.AssetBrowser is not null)
+        {
+            Editor.AssetBrowser.Changed -=
+                MarkUiDirty;
+        }
+
+        MainShell.SaveRequested -=
+            SaveUiDocument;
     }
 
     private void SubscribeDocument(
         EditorDocument document)
     {
+        if (!_subscribedDocuments.Add(
+                document))
+        {
+            return;
+        }
+
         document.EntitySelection.Changed +=
             MarkUiDirty;
 
         document.CommandHistory.Changed +=
             MarkUiDirty;
     }
+    private void UnsubscribeDocument(
+    EditorDocument document)
+    {
+        if (!_subscribedDocuments.Remove(
+                document))
+        {
+            return;
+        }
 
+        document.EntitySelection.Changed -=
+            MarkUiDirty;
+
+        document.CommandHistory.Changed -=
+            MarkUiDirty;
+
+        MarkUiDirty();
+    }
     private void MarkUiDirty()
     {
         _uiDirty = true;

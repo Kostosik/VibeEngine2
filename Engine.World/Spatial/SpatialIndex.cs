@@ -18,6 +18,12 @@ public sealed class SpatialIndex
     public int EntityCount =>
         _entityChunks.Count;
 
+    public void Clear()
+    {
+        _chunkEntities.Clear();
+        _entityChunks.Clear();
+    }
+
     public bool Add(
         EntityId entity,
         ChunkPosition chunk)

@@ -18,7 +18,7 @@ public sealed class ReplayFrame
     public IReadOnlyList<ICommand> Commands =>
         _commands;
 
-    internal void Add(
+    public void Add(
         ICommand command)
     {
         ArgumentNullException.ThrowIfNull(command);

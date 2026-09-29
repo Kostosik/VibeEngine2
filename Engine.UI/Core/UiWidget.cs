@@ -20,7 +20,7 @@ public abstract class UiWidget
 
     public bool IsHovered { get; internal set; }
 
-    public bool IsPressed { get; internal set; }
+    public bool IsPressed { get; set; }
 
     public bool IsFocused { get; internal set; }
 

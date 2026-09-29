@@ -31,6 +31,13 @@ public sealed class UiScreenManager
         };
     }
 
+    public void Update(
+    double deltaSeconds)
+    {
+        CurrentScreen?.Update(
+            deltaSeconds);
+    }
+
     public UiWidget Root =>
         _host;
 
@@ -47,26 +54,35 @@ public sealed class UiScreenManager
     {
         ArgumentNullException.ThrowIfNull(screen);
 
-        if (CurrentScreen is not null)
+        EnsureRootCanAttach(screen);
+
+        var current =
+            CurrentScreen;
+
+        if (current is not null)
         {
-            CurrentScreen.OnExit();
+            current.OnExit();
+
+            current.Root.Visible = false;
 
             _host.RemoveChild(
-                CurrentScreen.Root);
+                current.Root);
         }
 
         _stack.Clear();
 
         _focus.ClearFocus();
 
-        _stack.Add(screen);
+        _stack.Add(
+            screen);
 
         _host.AddChild(
             screen.Root);
 
         screen.Root.Visible = true;
 
-        screen.OnEnter(_focus);
+        screen.OnEnter(
+            _focus);
     }
 
     public void Push(
@@ -74,24 +90,33 @@ public sealed class UiScreenManager
     {
         ArgumentNullException.ThrowIfNull(screen);
 
-        if (CurrentScreen is not null)
+        EnsureRootCanAttach(screen);
+
+        var current =
+            CurrentScreen;
+
+        if (current is not null)
         {
-            CurrentScreen.Root.Visible = false;
+            current.OnExit();
+
+            current.Root.Visible = false;
 
             _host.RemoveChild(
-                CurrentScreen.Root);
+                current.Root);
         }
 
         _focus.ClearFocus();
 
-        _stack.Add(screen);
+        _stack.Add(
+            screen);
 
         _host.AddChild(
             screen.Root);
 
         screen.Root.Visible = true;
 
-        screen.OnEnter(_focus);
+        screen.OnEnter(
+            _focus);
     }
 
     public bool Pop()
@@ -103,6 +128,12 @@ public sealed class UiScreenManager
 
         var current =
             _stack[^1];
+
+        if (_stack.Count > 1)
+        {
+            EnsureRootCanAttach(
+                _stack[^2]);
+        }
 
         current.OnExit();
 
@@ -122,7 +153,8 @@ public sealed class UiScreenManager
             CurrentScreen.Root.Visible =
                 true;
 
-            CurrentScreen.OnEnter(_focus);
+            CurrentScreen.OnEnter(
+                _focus);
         }
 
         return true;
@@ -140,6 +172,16 @@ public sealed class UiScreenManager
         _stack.Clear();
 
         _focus.ClearFocus();
+    }
+
+    private static void EnsureRootCanAttach(
+        UiScreen screen)
+    {
+        if (screen.Root.Parent is not null)
+        {
+            throw new InvalidOperationException(
+                "A screen root must not already have a parent.");
+        }
     }
 
     private sealed class UiScreenHost : UiCanvas

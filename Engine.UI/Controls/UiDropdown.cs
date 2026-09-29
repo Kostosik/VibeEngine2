@@ -136,6 +136,8 @@ public sealed class UiDropdown : UiContainer
 
     public void ClearOptions()
     {
+        ClosePopup();
+
         _options.Clear();
 
         _list.ClearItems();

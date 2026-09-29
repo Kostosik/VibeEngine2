@@ -42,6 +42,32 @@ public sealed class EditorWorkspaceTests
                     (EditorDockArea)255));
     }
 
+    [Fact]
+    public void RegisterPanel_WhenPanelIdIsInvalid_DoesNotModifyPanels()
+    {
+        var session =
+            new EditorSession();
+
+        var workspace =
+            new EditorWorkspace(
+                session);
+
+        var panel =
+            new TestPanel(
+                " ");
+
+        Assert.Throws<ArgumentException>(
+            () =>
+                workspace.RegisterPanel(
+                    panel));
+
+        Assert.Empty(
+            workspace.Panels);
+
+        Assert.Empty(
+            workspace.Layout.Panels);
+    }
+
     private sealed class TestPanel :
         IEditorPanel
     {

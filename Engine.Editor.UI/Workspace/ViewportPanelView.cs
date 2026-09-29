@@ -21,6 +21,7 @@ public sealed class ViewportPanelView :
     new();
 
     private bool _isTranslating;
+    private Editor.Documents.EditorDocument? _interactionDocument;
     private EditorGizmoAxis _translationAxis;
     private EntityId _translationEntity;
     private Vector2 _translationStartWorld;
@@ -506,10 +507,14 @@ public sealed class ViewportPanelView :
     UiPointerEvent pointer)
     {
         if (pointer.Button ==
-            Engine.Input.InputMouseButton.Middle)
+     Engine.Input.InputMouseButton.Middle)
         {
+            _interactionDocument =
+                Editor.ActiveDocument;
+
             _isPanning = true;
-            _lastPanPosition = pointer.Position;
+            _lastPanPosition =
+                pointer.Position;
 
             pointer.RequestCapture();
             pointer.Handled = true;
@@ -560,6 +565,7 @@ public sealed class ViewportPanelView :
             if (axis != EditorGizmoAxis.None)
             {
                 _isTranslating = true;
+                _interactionDocument = document;
                 _translationAxis = axis;
                 _translationEntity = selectedEntity;
                 _translationStartPosition = selectedPosition;
@@ -602,11 +608,32 @@ public sealed class ViewportPanelView :
         base.OnPointerMove(
             pointer);
 
+        if ((_isTranslating || _isPanning) &&
+            !ReferenceEquals(
+                _interactionDocument,
+                Editor.ActiveDocument))
+        {
+            _isTranslating = false;
+            _isPanning = false;
+
+            _translationAxis =
+                EditorGizmoAxis.None;
+
+            _translationEntity =
+                EntityId.Invalid;
+
+            _interactionDocument =
+                null;
+
+            return;
+        }
+
         if (_isTranslating &&
-    _translationAxis != EditorGizmoAxis.None)
+            _translationAxis !=
+            EditorGizmoAxis.None)
         {
             var document =
-                Editor.ActiveDocument;
+                _interactionDocument;
 
             if (document is null ||
                 !document.World.EcsWorld.Exists(
@@ -617,8 +644,10 @@ public sealed class ViewportPanelView :
 
             var localPosition =
                 new Vector2(
-                    pointer.Position.X - Bounds.X,
-                    pointer.Position.Y - Bounds.Y);
+                    pointer.Position.X -
+                    Bounds.X,
+                    pointer.Position.Y -
+                    Bounds.Y);
 
             var worldPosition =
                 document.Viewport.Transform.ScreenToWorld(
@@ -639,7 +668,8 @@ public sealed class ViewportPanelView :
             {
                 x =
                     (int)MathF.Round(
-                        _translationStartPosition.X + deltaPos.X,
+                        _translationStartPosition.X +
+                        deltaPos.X,
                         MidpointRounding.AwayFromZero);
             }
             else if (_translationAxis ==
@@ -647,7 +677,8 @@ public sealed class ViewportPanelView :
             {
                 y =
                     (int)MathF.Round(
-                        _translationStartPosition.Y + deltaPos.Y,
+                        _translationStartPosition.Y +
+                        deltaPos.Y,
                         MidpointRounding.AwayFromZero);
             }
 
@@ -680,7 +711,7 @@ public sealed class ViewportPanelView :
             pointer.Position;
 
         var documentForPan =
-            Editor.ActiveDocument;
+            _interactionDocument;
 
         if (documentForPan is null)
         {
@@ -710,11 +741,11 @@ public sealed class ViewportPanelView :
             pointer);
 
         if (_isTranslating &&
-    pointer.Button ==
-    Engine.Input.InputMouseButton.Left)
+            pointer.Button ==
+            Engine.Input.InputMouseButton.Left)
         {
             var document =
-                Editor.ActiveDocument;
+                _interactionDocument;
 
             if (document is not null &&
                 document.World.EcsWorld.Exists(
@@ -741,8 +772,15 @@ public sealed class ViewportPanelView :
             }
 
             _isTranslating = false;
-            _translationAxis = EditorGizmoAxis.None;
-            _translationEntity = EntityId.Invalid;
+
+            _translationAxis =
+                EditorGizmoAxis.None;
+
+            _translationEntity =
+                EntityId.Invalid;
+
+            _interactionDocument =
+                null;
 
             pointer.ReleaseCapture();
             pointer.Handled = true;
@@ -755,55 +793,8 @@ public sealed class ViewportPanelView :
         {
             _isPanning = false;
 
-            pointer.ReleaseCapture();
-            pointer.Handled = true;
-
-            return;
-        }
-
-        if (pointer.Button !=
-            Engine.Input.InputMouseButton.Left)
-        {
-            return;
-        }
-
-        if (_isTranslating)
-        {
-            var document =
-                Editor.ActiveDocument;
-
-            if (document is not null &&
-                document.World.EcsWorld.Exists(
-                    _translationEntity))
-            {
-                var finalPosition =
-                    document.World.SpatialEntities
-                        .GetPosition(
-                            _translationEntity);
-
-                if (finalPosition !=
-                    _translationStartPosition)
-                {
-                    var reference =
-                        document.GetEntityReference(
-                            _translationEntity);
-
-                    document.Execute(
-                        new SetWorldPositionCommand(
-                            document.World,
-                            reference,
-                            _translationStartPosition,
-                            finalPosition));
-                }
-            }
-
-            _isTranslating = false;
-
-            _translationAxis =
-                EditorGizmoAxis.None;
-
-            _translationEntity =
-                EntityId.Invalid;
+            _interactionDocument =
+                null;
 
             pointer.ReleaseCapture();
             pointer.Handled = true;

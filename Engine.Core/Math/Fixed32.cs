@@ -298,12 +298,20 @@ public readonly struct Fixed32 :
 
     public int FloorToInt()
     {
-        var scale =
-            1 << 16;
+        const long scale =
+            1L << 16;
 
-        if (_raw >= 0)
-            return _raw / scale;
+        var raw =
+            (long)_raw;
 
-        return -((-_raw + scale - 1) / scale);
+        if (raw >= 0)
+        {
+            return (int)(raw / scale);
+        }
+
+        return (int)(
+            -(
+                (-raw + scale - 1) /
+                scale));
     }
 }

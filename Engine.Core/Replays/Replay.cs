@@ -7,25 +7,34 @@ public sealed class Replay
 {
     private readonly List<ReplayFrame> _frames = new();
 
+    private readonly Dictionary<
+        Tick,
+        ReplayFrame> _framesByTick =
+        new();
+
     public IReadOnlyList<ReplayFrame> Frames =>
         _frames;
 
-    internal ReplayFrame GetOrCreateFrame(
+    public ReplayFrame GetOrCreateFrame(
         Tick tick)
     {
-        if (_frames.Count > 0)
+        if (_framesByTick.TryGetValue(
+                tick,
+                out var existing))
         {
-            var last =
-                _frames[^1];
-
-            if (last.Tick == tick)
-                return last;
+            return existing;
         }
 
         var frame =
-            new ReplayFrame(tick);
+            new ReplayFrame(
+                tick);
 
-        _frames.Add(frame);
+        _frames.Add(
+            frame);
+
+        _framesByTick.Add(
+            tick,
+            frame);
 
         return frame;
     }

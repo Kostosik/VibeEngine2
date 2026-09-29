@@ -77,9 +77,7 @@ public sealed class AStarPathfinder : INavigationPathfinder
         frontier.Enqueue(
             start,
             (
-                Heuristic(
-                    start,
-                    goal),
+                0.0f,
                 start.Y,
                 start.X));
 
@@ -146,10 +144,7 @@ public sealed class AStarPathfinder : INavigationPathfinder
                     current;
 
                 var fScore =
-                    newCost +
-                    Heuristic(
-                        neighbor,
-                        goal);
+                    newCost;
 
                 frontier.Enqueue(
                     neighbor,
@@ -197,16 +192,6 @@ public sealed class AStarPathfinder : INavigationPathfinder
         return new NavigationPath(
             coordinates,
             costs[goal]);
-    }
-
-    private static int Heuristic(
-        NavigationCoordinate from,
-        NavigationCoordinate to)
-    {
-        return Math.Abs(
-                   from.X - to.X) +
-               Math.Abs(
-                   from.Y - to.Y);
     }
 
     private static void ValidateTraversalCost(

@@ -57,6 +57,8 @@ public sealed class UiModal : UiContainer
                     UiVerticalAlignment.Center
             };
 
+        Visible = false;
+
         AddChild(
             ContentHost);
     }
@@ -77,10 +79,18 @@ public sealed class UiModal : UiContainer
     public event Action? Closed;
 
     public void SetContent(
-        UiWidget content)
+    UiWidget content)
     {
         ArgumentNullException.ThrowIfNull(
             content);
+
+        if (ReferenceEquals(
+                content,
+                this))
+        {
+            throw new InvalidOperationException(
+                "A widget cannot be its own content.");
+        }
 
         if (ContentHost.Children.Count > 0 &&
             ReferenceEquals(
@@ -153,6 +163,7 @@ public sealed class UiModal : UiContainer
         }
 
         IsOpen = false;
+        Visible = false;
 
         _overlay.Hide(
             this);

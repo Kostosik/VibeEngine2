@@ -53,16 +53,21 @@ public sealed class UiAsset
                 UiAssetElementType.Root);
 
     private static void ValidateElements(
-        IReadOnlyList<UiAssetElement> elements)
+    IReadOnlyList<UiAssetElement> elements)
     {
-        var ids =
-            new HashSet<Guid>();
+        var byId =
+            new Dictionary<Guid, UiAssetElement>();
 
         UiAssetElement? root = null;
 
         foreach (var element in elements)
         {
-            if (!ids.Add(element.Id))
+            ArgumentNullException.ThrowIfNull(
+                element);
+
+            if (!byId.TryAdd(
+                    element.Id,
+                    element))
             {
                 throw new InvalidDataException(
                     $"UI asset contains duplicate element id '{element.Id}'.");
@@ -95,11 +100,48 @@ public sealed class UiAsset
                 continue;
             }
 
-            if (!ids.Contains(
+            if (!byId.ContainsKey(
                     element.ParentId))
             {
                 throw new InvalidDataException(
                     $"UI asset element '{element.Id}' references missing parent '{element.ParentId}'.");
+            }
+        }
+
+        foreach (var element in elements)
+        {
+            if (element.Type ==
+                UiAssetElementType.Root)
+            {
+                continue;
+            }
+
+            var visited =
+                new HashSet<Guid>();
+
+            var current =
+                element;
+
+            while (current.Type !=
+                   UiAssetElementType.Root)
+            {
+                if (!visited.Add(
+                        current.Id))
+                {
+                    throw new InvalidDataException(
+                        $"UI asset contains a hierarchy cycle involving element '{current.Id}'.");
+                }
+
+                current =
+                    byId[current.ParentId];
+            }
+
+            if (!ReferenceEquals(
+                    current,
+                    root))
+            {
+                throw new InvalidDataException(
+                    $"UI asset element '{element.Id}' is not connected to the root element.");
             }
         }
     }

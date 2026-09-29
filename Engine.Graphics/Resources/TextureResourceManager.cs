@@ -198,6 +198,9 @@ public sealed class TextureResourceManager :
                 texture);
         }
 
+        _content.Unload<TextureData>(
+            path);
+
         return true;
     }
 
@@ -207,14 +210,17 @@ public sealed class TextureResourceManager :
 
         _atlases.Clear();
 
-        foreach (var texture in _loaded.Values)
+        foreach (var pair in _loaded)
         {
             if (_textures.Exists(
-                    texture))
+                    pair.Value))
             {
                 _textures.Destroy(
-                    texture);
+                    pair.Value);
             }
+
+            _content.Unload<TextureData>(
+                pair.Key);
         }
 
         _loaded.Clear();
@@ -229,14 +235,17 @@ public sealed class TextureResourceManager :
 
         _atlases.Clear();
 
-        foreach (var texture in _loaded.Values)
+        foreach (var pair in _loaded)
         {
             if (_textures.Exists(
-                    texture))
+                    pair.Value))
             {
                 _textures.Destroy(
-                    texture);
+                    pair.Value);
             }
+
+            _content.Unload<TextureData>(
+                pair.Key);
         }
 
         _loaded.Clear();

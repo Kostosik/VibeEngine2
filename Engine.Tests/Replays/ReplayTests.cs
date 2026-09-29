@@ -12,6 +12,53 @@ namespace Engine.Tests.Replays;
 public sealed class ReplayTests
 {
     [Fact]
+    public void Replay_MergesCommandsForSameTick()
+    {
+        var replay =
+            new Replay();
+
+        var first =
+            replay.GetOrCreateFrame(
+                new Tick(1));
+
+        first.Add(
+            new TestReplayCommand(
+                1));
+
+        replay.GetOrCreateFrame(
+                new Tick(2))
+            .Add(
+                new TestReplayCommand(
+                    2));
+
+        replay.GetOrCreateFrame(
+                new Tick(1))
+            .Add(
+                new TestReplayCommand(
+                    3));
+
+        Assert.Equal(
+            2,
+            replay.Frames.Count);
+
+        Assert.Equal(
+            2,
+            replay.Frames[0].Commands.Count);
+    }
+
+    private sealed class TestReplayCommand :
+    ICommand
+    {
+        public TestReplayCommand(
+            int value)
+        {
+            Value = value;
+        }
+
+        public int Value { get; }
+    }
+
+    [Fact]
     public void Replay_ProducesSameStateAfterSaveAndLoad()
     {
         const int tickCount = 10;

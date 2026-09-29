@@ -8,6 +8,54 @@ namespace Engine.Tests.Navigation;
 public sealed class NavigationPathfinderTests
 {
     [Fact]
+    public void FindsMinimumCostPathWhenTraversalCostsAreBelowOne()
+    {
+        var map =
+            new NavigationGrid(
+                5,
+                5);
+
+        var costs =
+            new float[,]
+            {
+            { 0.1f, 5.0f, 0.1f, 0.1f, 0.1f },
+            { 1.0f, 0.1f, 5.0f, 1.0f, 1.0f },
+            { 1.0f, 0.2f, 5.0f, 1.0f, 5.0f },
+            { 5.0f, 1.0f, 5.0f, 0.2f, 0.1f },
+            { 1.0f, 1.0f, 5.0f, 0.1f, 0.1f }
+            };
+
+        for (var y = 0; y < 5; y++)
+        {
+            for (var x = 0; x < 5; x++)
+            {
+                map.SetTraversalCost(
+                    new NavigationCoordinate(
+                        x,
+                        y),
+                    costs[y, x]);
+            }
+        }
+
+        var pathfinder =
+            new AStarPathfinder();
+
+        var found =
+            pathfinder.TryFindPath(
+                map,
+                new NavigationCoordinate(0, 0),
+                new NavigationCoordinate(4, 4),
+                out var path);
+
+        Assert.True(found);
+        Assert.NotNull(path);
+
+        Assert.Equal(
+            7.6f,
+            path!.TotalCost);
+    }
+
+    [Fact]
     public void FindsPathAroundBlockedCell()
     {
         var map =

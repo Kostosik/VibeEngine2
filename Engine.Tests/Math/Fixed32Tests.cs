@@ -22,6 +22,18 @@ public sealed class Fixed32Tests
     }
 
     [Fact]
+    public void FloorToInt_IntMinValue_IsCorrect()
+    {
+        var value =
+            Fixed32.FromFloat(
+                -32768.0f);
+
+        Assert.Equal(
+            -32768,
+            value.FloorToInt());
+    }
+
+    [Fact]
     public void Multiplication_IsCorrect()
     {
         var a =

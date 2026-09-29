@@ -113,13 +113,6 @@ public sealed class EngineRuntime :
             return;
         }
 
-        Validation =
-    new ValidationService();
-
-        Validation.Register(
-            new WorldValidator(
-                EcsWorld));
-
         Inspection =
             new WorldInspectionService(
                 EcsWorld.Inspector);
@@ -375,6 +368,8 @@ public sealed class EngineRuntime :
         }
 
         SchedulerProfiler?.Dispose();
+
+        EcsWorld.Dispose();
 
         _disposed = true;
     }

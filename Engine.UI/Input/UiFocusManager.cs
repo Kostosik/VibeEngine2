@@ -23,8 +23,7 @@ public sealed class UiFocusManager
     {
         if (widget is not null &&
             (!IsAttachedToRoot(widget) ||
-             !widget.Visible ||
-             !widget.Enabled ||
+             !IsEffectivelyAvailable(widget) ||
              !widget.Focusable))
         {
             return;
@@ -72,7 +71,7 @@ public sealed class UiFocusManager
         FocusedWidget?.RaiseSubmit();
     }
 
-    internal void ValidateFocus()
+    public void ValidateFocus()
     {
         if (FocusedWidget is null)
         {
@@ -80,9 +79,8 @@ public sealed class UiFocusManager
         }
 
         if (!IsAttachedToRoot(FocusedWidget) ||
-            !FocusedWidget.Visible ||
-            !FocusedWidget.Enabled ||
-            !FocusedWidget.Focusable)
+           !IsEffectivelyAvailable(FocusedWidget) ||
+           !FocusedWidget.Focusable)
         {
             ClearFocus();
         }
@@ -167,6 +165,26 @@ public sealed class UiFocusManager
         return false;
     }
 
+    private static bool IsEffectivelyAvailable(
+    UiWidget widget)
+    {
+        var current =
+            widget;
+
+        while (current is not null)
+        {
+            if (!current.Visible ||
+                !current.Enabled)
+            {
+                return false;
+            }
+
+            current =
+                current.Parent;
+        }
+
+        return true;
+    }
     private static void CollectFocusable(
         UiWidget widget,
         List<UiWidget> result)

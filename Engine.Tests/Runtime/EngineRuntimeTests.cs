@@ -179,6 +179,25 @@ public sealed class EngineRuntimeTests
             diagnostic.Message);
     }
 
+    [Fact]
+    public void Dispose_DisposesOwnedEcsWorld()
+    {
+        var runtime =
+            CreateRuntime();
+
+        var ecsWorld =
+            runtime.EcsWorld;
+
+        runtime.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(
+            () =>
+            {
+                _ =
+                    ecsWorld.EntityCount;
+            });
+    }
+
     private static EngineRuntime CreateRuntime()
     {
         var camera =

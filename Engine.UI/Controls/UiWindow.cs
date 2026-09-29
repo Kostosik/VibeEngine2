@@ -23,7 +23,9 @@ public sealed class UiWindow : UiContainer
     private readonly ResizeHandle _resizeTopRight;
     private readonly ResizeHandle _resizeBottomLeft;
     private readonly ResizeHandle _resizeBottomRight;
-
+    private bool _isOpen;
+    public bool IsOpen =>
+    _isOpen;
     private bool _dragging;
     private Vector2 _dragOffset;
 
@@ -196,10 +198,18 @@ public sealed class UiWindow : UiContainer
     public event Action? Closed;
 
     public void SetContent(
-        UiWidget content)
+    UiWidget content)
     {
         ArgumentNullException.ThrowIfNull(
             content);
+
+        if (ReferenceEquals(
+                content,
+                this))
+        {
+            throw new InvalidOperationException(
+                "A widget cannot be its own content.");
+        }
 
         if (ReferenceEquals(
                 Content,
@@ -221,27 +231,56 @@ public sealed class UiWindow : UiContainer
     }
 
     public void Show(
-        Vector2 position)
+    Vector2 position)
     {
+        if (_isOpen)
+        {
+            _overlays.SetPosition(
+                this,
+                position);
+
+            Visible = true;
+
+            return;
+        }
+
         if (Parent is null)
         {
             _overlays.Show(
                 this,
                 position);
         }
-        else
+        else if (ReferenceEquals(
+                     Parent,
+                     _overlays))
         {
             _overlays.SetPosition(
                 this,
                 position);
         }
+        else
+        {
+            throw new InvalidOperationException(
+                "The window already has a different parent.");
+        }
 
+        _isOpen = true;
         Visible = true;
     }
 
     public void Close()
     {
-        if (Parent is not null)
+        if (!_isOpen)
+        {
+            return;
+        }
+
+        _isOpen = false;
+        Visible = false;
+
+        if (ReferenceEquals(
+                Parent,
+                _overlays))
         {
             _overlays.Hide(
                 this);

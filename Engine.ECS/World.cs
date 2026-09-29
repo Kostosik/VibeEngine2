@@ -139,14 +139,6 @@ public sealed class World :
         foreach (var componentState in
                  state.Components)
         {
-            if (!componentTypes.Add(
-                    componentState.ComponentType))
-            {
-                throw new InvalidOperationException(
-                    $"Component type '{componentState.ComponentType.Name}' " +
-                    "appears more than once in the world state.");
-            }
-
             componentState.Restore(
                 this);
         }
@@ -189,11 +181,22 @@ public sealed class World :
             }
         }
 
+        var componentTypes =
+    new HashSet<Type>();
+
         foreach (var componentState in
                  state.Components)
         {
             ArgumentNullException.ThrowIfNull(
                 componentState);
+
+            if (!componentTypes.Add(
+                    componentState.ComponentType))
+            {
+                throw new InvalidOperationException(
+                    $"Component type '{componentState.ComponentType.Name}' " +
+                    "appears more than once in the world state.");
+            }
 
             var componentEntities =
                 new HashSet<EntityId>();

@@ -5,6 +5,42 @@ namespace Engine.Tests.ECS.DirtyTracking;
 public sealed class WorldDirtyTrackingTests
 {
     [Fact]
+    public void Inspection_DoesNotMarkComponentDirty()
+    {
+        using var world =
+            new World();
+
+        var entity =
+            world.CreateEntity();
+
+        world.Add(
+            entity,
+            new TestComponent(10));
+
+        world.ClearDirty<TestComponent>();
+
+        var versionBefore =
+            world.GetChangeVersion<TestComponent>();
+
+        var found =
+            world.Inspector.TryGetComponent(
+                entity,
+                typeof(TestComponent),
+                out var component);
+
+        Assert.True(found);
+        Assert.NotNull(component);
+
+        Assert.Equal(
+            0,
+            world.GetDirtyEntities<TestComponent>().Length);
+
+        Assert.Equal(
+            versionBefore,
+            world.GetChangeVersion<TestComponent>());
+    }
+
+    [Fact]
     public void MutableAccess_IsTrackedAndCanBeCleared()
     {
         using var world =

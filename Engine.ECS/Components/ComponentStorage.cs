@@ -9,6 +9,7 @@ internal sealed class ComponentStorage<T> :
     IComponentStorage
     where T : struct
 {
+    private readonly object _dirtySync = new();
     private ulong _changeVersion;
     private readonly PooledList<EntityId> _entities =
         new();
@@ -44,7 +45,18 @@ internal sealed class ComponentStorage<T> :
     public object GetBoxed(
         EntityId entity)
     {
-        return Get(entity);
+        if (!TryGetIndex(
+                entity,
+                out var index))
+        {
+            throw new KeyNotFoundException(
+                $"Entity " +
+                $"{entity.Index}:{entity.Generation} " +
+                $"does not have component " +
+                $"{typeof(T).Name}.");
+        }
+
+        return _components[index];
     }
 
     public void Add(
@@ -433,18 +445,21 @@ internal sealed class ComponentStorage<T> :
         int index,
         EntityId entity)
     {
-        if (_dirtyFlags[index] != 0)
+        lock (_dirtySync)
         {
-            return;
+            if (_dirtyFlags[index] != 0)
+            {
+                return;
+            }
+
+            _dirtyFlags[index] =
+                1;
+
+            _dirtyEntities.Add(
+                entity);
+
+            AdvanceChangeVersion();
         }
-
-        _dirtyFlags[index] =
-            1;
-
-        _dirtyEntities.Add(
-            entity);
-
-        AdvanceChangeVersion();
     }
 
     private void AdvanceChangeVersion()

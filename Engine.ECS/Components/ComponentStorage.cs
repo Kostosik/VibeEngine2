@@ -9,8 +9,12 @@ internal sealed class ComponentStorage<T> :
     IComponentStorage
     where T : struct
 {
-    private readonly object _dirtySync = new();
-    private ulong _changeVersion;
+    private long _changeVersion;
+    public ulong ChangeVersion =>
+    unchecked(
+        (ulong)Volatile.Read(
+            ref _changeVersion));
+
     private readonly PooledList<EntityId> _entities =
         new();
 
@@ -37,10 +41,26 @@ internal sealed class ComponentStorage<T> :
     public Type ComponentType =>
         typeof(T);
 
-    public ulong ChangeVersion =>
-    _changeVersion;
     public int Count =>
         _entities.Count;
+
+    private const int DirtyLockCount = 64;
+
+    private readonly object[] _dirtyLocks =
+        CreateDirtyLocks();
+
+    private static object[] CreateDirtyLocks()
+    {
+        var locks =
+            new object[DirtyLockCount];
+
+        for (var i = 0; i < locks.Length; i++)
+        {
+            locks[i] = new object();
+        }
+
+        return locks;
+    }
 
     public object GetBoxed(
         EntityId entity)
@@ -442,20 +462,27 @@ internal sealed class ComponentStorage<T> :
     private bool _deterministicOrderDirty = true;
 
     private void MarkDirty(
-        int index,
-        EntityId entity)
+    int index,
+    EntityId entity)
     {
-        lock (_dirtySync)
+        var dirtyLock =
+            _dirtyLocks[
+                index &
+                (DirtyLockCount - 1)];
+
+        lock (dirtyLock)
         {
-            if (_dirtyFlags[index] != 0)
+            ref var flag =
+                ref _dirtyFlags.AsSpan()[index];
+
+            if (flag != 0)
             {
                 return;
             }
 
-            _dirtyFlags[index] =
-                1;
+            flag = 1;
 
-            _dirtyEntities.Add(
+            _dirtyEntities.AddConcurrent(
                 entity);
 
             AdvanceChangeVersion();
@@ -464,9 +491,8 @@ internal sealed class ComponentStorage<T> :
 
     private void AdvanceChangeVersion()
     {
-        _changeVersion =
-            checked(
-                _changeVersion + 1);
+        Interlocked.Increment(
+            ref _changeVersion);
     }
 
     private void EnsureDeterministicOrder()

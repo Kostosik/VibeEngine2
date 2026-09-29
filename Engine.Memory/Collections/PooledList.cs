@@ -48,6 +48,30 @@ public sealed class PooledList<T> :
         }
     }
 
+    public void AddConcurrent(
+    T value)
+    {
+        EnsureNotDisposed();
+
+        var index =
+            Interlocked.Increment(
+                ref _count) - 1;
+
+        if ((uint)index >=
+            (uint)Capacity)
+        {
+            Interlocked.Decrement(
+                ref _count);
+
+            throw new InvalidOperationException(
+                "Concurrent append exceeded the current buffer capacity.");
+        }
+
+        _buffer!
+            .Span[index] =
+            value;
+    }
+
     public void Add(
         T value)
     {

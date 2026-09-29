@@ -28,8 +28,18 @@ public sealed class World
             _chunks.RegisterUnloaded(
                 state.Position);
 
-            _chunkPersistence.Save(
-                state);
+            try
+            {
+                _chunkPersistence.Save(
+                    state);
+            }
+            catch
+            {
+                _chunks.Remove(
+                    state.Position);
+
+                throw;
+            }
 
             return;
         }
@@ -49,8 +59,8 @@ public sealed class World
         }
 
         var record =
-            _chunks.RegisterUnloaded(
-                state.Position);
+    _chunks.RegisterUnloaded(
+        state.Position);
 
         record.Lifecycle.BeginLoading();
 
@@ -64,10 +74,16 @@ public sealed class World
             .CopyTo(
                 chunk.Tiles.AsSpan());
 
+        var attached =
+            false;
+
         try
         {
             record.Attach(
                 chunk);
+
+            attached =
+                true;
 
             record.Lifecycle.SetSimulation(
                 state.Simulation);
@@ -77,7 +93,22 @@ public sealed class World
         }
         catch
         {
-            chunk.Dispose();
+            if (attached)
+            {
+                record.Lifecycle.SetSimulation(
+                    ChunkSimulationState.Suspended);
+
+                record.Lifecycle.BeginUnloading();
+
+                record.Detach();
+            }
+            else
+            {
+                chunk.Dispose();
+
+                _chunks.Remove(
+                    state.Position);
+            }
 
             throw;
         }

@@ -5,7 +5,67 @@ namespace Engine.Tests.ECS.Jobs;
 
 public sealed class WorldParallelJobTests
 {
+    [Fact]
+    public void ScheduleParallel_TracksAllMutatedComponentsAsDirty()
+    {
+        using var world =
+            new Engine.ECS.World();
 
+        using var scheduler =
+            new JobScheduler(
+                workerCount: 4);
+
+        const int entityCount = 10_000;
+
+        for (var i = 0;
+             i < entityCount;
+             i++)
+        {
+            var entity =
+                world.CreateEntity();
+
+            world.Add(
+                entity,
+                new TestComponent());
+        }
+
+        world.ClearDirty<TestComponent>();
+
+        var handle =
+            world.ScheduleParallel(
+                scheduler,
+                (
+                    EntityId entity,
+                    ref TestComponent component) =>
+                {
+                    component.Value++;
+                },
+                batchSize: 64);
+
+        scheduler.Wait(
+            handle);
+
+        var dirty =
+            world.GetDirtyEntities<TestComponent>();
+
+        Assert.Equal(
+            entityCount,
+            dirty.Length);
+
+        var unique =
+            new HashSet<EntityId>();
+
+        foreach (var entity in dirty)
+        {
+            unique.Add(entity);
+        }
+
+        Assert.Equal(
+            entityCount,
+            unique.Count);
+
+
+    }
 
     [Fact]
     public void ScheduleParallel_PairJob_ProcessesOnlyEntitiesWithBothComponents()

@@ -113,6 +113,10 @@ public static class WorldPersistence
         ArgumentNullException.ThrowIfNull(
             state);
 
+        ValidateChunkStates(
+    world,
+    state);
+
         if (state.ChunkSize !=
             world.ChunkSize)
         {
@@ -163,6 +167,79 @@ public static class WorldPersistence
         {
             world.RestoreChunk(
                 chunk);
+        }
+    }
+    private static void ValidateChunkStates(
+    World world,
+    WorldSaveState state)
+    {
+        var expectedTileCount =
+            checked(
+                world.ChunkSize.Width *
+                world.ChunkSize.Height);
+
+        var positions =
+            new HashSet<ChunkPosition>();
+
+        foreach (var chunk in state.Chunks)
+        {
+            ArgumentNullException.ThrowIfNull(
+                chunk);
+
+            if (!positions.Add(
+                    chunk.Position))
+            {
+                throw new InvalidOperationException(
+                    $"Chunk '{chunk.Position}' appears more than once in the world state.");
+            }
+
+            if (chunk.Tiles.Length !=
+                expectedTileCount)
+            {
+                throw new InvalidDataException(
+                    $"Chunk '{chunk.Position}' contains " +
+                    $"'{chunk.Tiles.Length}' tiles, expected " +
+                    $"'{expectedTileCount}'.");
+            }
+
+            if (chunk.Residency !=
+                    ChunkResidencyState.Loaded &&
+                chunk.Residency !=
+                    ChunkResidencyState.Unloaded)
+            {
+                throw new InvalidDataException(
+                    $"Chunk '{chunk.Position}' has invalid residency state " +
+                    $"'{chunk.Residency}'.");
+            }
+
+            if (chunk.Simulation !=
+                    ChunkSimulationState.Simulating &&
+                chunk.Simulation !=
+                    ChunkSimulationState.Suspended)
+            {
+                throw new InvalidDataException(
+                    $"Chunk '{chunk.Position}' has invalid simulation state " +
+                    $"'{chunk.Simulation}'.");
+            }
+
+            if (chunk.Presentation !=
+                    ChunkPresentationState.Relevant &&
+                chunk.Presentation !=
+                    ChunkPresentationState.Irrelevant)
+            {
+                throw new InvalidDataException(
+                    $"Chunk '{chunk.Position}' has invalid presentation state " +
+                    $"'{chunk.Presentation}'.");
+            }
+
+            if (chunk.Residency ==
+                    ChunkResidencyState.Unloaded &&
+                chunk.Simulation !=
+                    ChunkSimulationState.Suspended)
+            {
+                throw new InvalidDataException(
+                    $"Unloaded chunk '{chunk.Position}' cannot be simulating.");
+            }
         }
     }
 }

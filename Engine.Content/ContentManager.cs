@@ -20,6 +20,15 @@ public sealed class ContentManager :
         Dictionary<AssetPath, ContentEntry>> _cache =
         new();
 
+    private readonly object _cacheSync =
+    new();
+
+    private readonly
+        System.Collections.Concurrent.ConcurrentDictionary<
+            ContentKey,
+            Lazy<Task<ContentEntry>>> _inFlightLoads =
+            new();
+
     private readonly Stack<ContentLoadFrame> _loading =
         new();
 
@@ -76,11 +85,14 @@ public sealed class ContentManager :
     {
         EnsureNotDisposed();
 
-        return _cache.TryGetValue(
-                   typeof(T),
-                   out var typeCache) &&
-               typeCache.ContainsKey(
-                   path);
+        lock (_cacheSync)
+        {
+            return _cache.TryGetValue(
+                       typeof(T),
+                       out var typeCache) &&
+                   typeCache.ContainsKey(
+                       path);
+        }
     }
 
     public ReadOnlyMemory<byte> ReadBytes(
@@ -98,60 +110,66 @@ public sealed class ContentManager :
     {
         EnsureNotDisposed();
 
-        if (!_cache.TryGetValue(
-                typeof(T),
-                out var typeCache))
+        lock (_cacheSync)
         {
-            return false;
-        }
+            if (!_cache.TryGetValue(
+                    typeof(T),
+                    out var typeCache))
+            {
+                return false;
+            }
 
-        if (!typeCache.TryGetValue(
-                path,
-                out var entry))
-        {
-            return false;
-        }
+            if (!typeCache.TryGetValue(
+                    path,
+                    out var entry))
+            {
+                return false;
+            }
 
-        if (entry.ExternalReferences <= 0)
-        {
-            return false;
-        }
+            if (entry.ExternalReferences <= 0)
+            {
+                return false;
+            }
 
-        entry.ExternalReferences--;
+            entry.ExternalReferences--;
 
-        if (HasReferences(entry))
-        {
+            if (HasReferences(entry))
+            {
+                return true;
+            }
+
+            RemoveEntry(
+                new ContentKey(
+                    typeof(T),
+                    path),
+                entry);
+
             return true;
         }
-
-        RemoveEntry(
-            new ContentKey(
-                typeof(T),
-                path),
-            entry);
-
-        return true;
     }
 
     public void ClearCache()
     {
         EnsureNotDisposed();
 
-        foreach (var typeCache in
-                 _cache.Values)
+        lock (_cacheSync)
         {
-            foreach (var entry in
-                     typeCache.Values)
+            foreach (var typeCache in
+                     _cache.Values)
             {
-                if (entry.Asset is IDisposable disposable)
+                foreach (var entry in
+                         typeCache.Values)
                 {
-                    disposable.Dispose();
+                    if (entry.Asset is IDisposable disposable)
+                    {
+                        disposable.Dispose();
+                    }
                 }
             }
-        }
 
-        _cache.Clear();
-        _loading.Clear();
+            _cache.Clear();
+            _loading.Clear();
+        }
     }
 
     public void Dispose()
@@ -188,9 +206,9 @@ public sealed class ContentManager :
     }
 
     private T LoadInternal<T>(
-        AssetPath path,
-        ContentKey? owner)
-        where T : class
+    AssetPath path,
+    ContentKey? owner)
+    where T : class
     {
         EnsureNotDisposed();
 
@@ -215,12 +233,24 @@ public sealed class ContentManager :
                 $"Cyclic content dependency detected for '{typeof(T).Name}' at '{path}'.");
         }
 
-        if (_cache.TryGetValue(
-                typeof(T),
-                out var typeCache) &&
-            typeCache.TryGetValue(
-                path,
-                out var existing))
+        ContentEntry? existing =
+            null;
+
+        lock (_cacheSync)
+        {
+            if (_cache.TryGetValue(
+                    typeof(T),
+                    out var typeCache) &&
+                typeCache.TryGetValue(
+                    path,
+                    out var cached))
+            {
+                existing =
+                    cached;
+            }
+        }
+
+        if (existing is not null)
         {
             if (owner.HasValue)
             {
@@ -231,7 +261,10 @@ public sealed class ContentManager :
             }
             else
             {
-                existing.ExternalReferences++;
+                lock (_cacheSync)
+                {
+                    existing.ExternalReferences++;
+                }
             }
 
             return (T)existing.Asset;
@@ -245,49 +278,63 @@ public sealed class ContentManager :
                 $"No content loader is registered for asset '{path}' as '{typeof(T).Name}'.");
         }
 
-        var frame =
-            new ContentLoadFrame(
-                key);
+        var candidate =
+            new Lazy<Task<ContentEntry>>(
+                () =>
+                    Task.FromResult(
+                        LoadFresh<T>(
+                            path,
+                            key,
+                            loader!,
+                            owner)),
+                System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
 
-        _loading.Push(
-            frame);
+        var actual =
+            _inFlightLoads.GetOrAdd(
+                key,
+                candidate);
 
-        try
+        if (ReferenceEquals(
+                actual,
+                candidate))
         {
-            var asset =
-                loader!.Load(
-                    path,
-                    this);
-
-            ArgumentNullException.ThrowIfNull(
-                asset);
-
-            if (!_cache.TryGetValue(
-                    typeof(T),
-                    out typeCache))
+            try
             {
-                typeCache =
-                    new Dictionary<
-                        AssetPath,
-                        ContentEntry>();
+                _ = actual.Value;
+            }
+            catch
+            {
+                _inFlightLoads.TryRemove(
+                    key,
+                    out Lazy<Task<ContentEntry>>? removed);
 
-                _cache.Add(
-                    typeof(T),
-                    typeCache);
+                throw;
             }
 
-            var entry =
-                new ContentEntry(
-                    asset,
-                    owner.HasValue
-                        ? 0
-                        : 1,
-                    frame.Dependencies);
+            _ = actual.Value.ContinueWith(
+                _ =>
+                {
+                    _inFlightLoads.TryRemove(
+                        new KeyValuePair<
+                            ContentKey,
+                            Lazy<Task<ContentEntry>>>(
+                            key,
+                            actual));
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
 
-            typeCache.Add(
-                path,
-                entry);
+        var entry =
+            actual.Value
+                .GetAwaiter()
+                .GetResult();
 
+        if (!ReferenceEquals(
+                actual,
+                candidate))
+        {
             if (owner.HasValue)
             {
                 RegisterDependency(
@@ -295,30 +342,22 @@ public sealed class ContentManager :
                     key,
                     entry);
             }
-
-            return asset;
-        }
-        catch
-        {
-            foreach (var dependency in
-                     frame.Dependencies)
+            else
             {
-                ReleaseDependency(
-                    dependency);
+                lock (_cacheSync)
+                {
+                    entry.ExternalReferences++;
+                }
             }
+        }
 
-            throw;
-        }
-        finally
-        {
-            _loading.Pop();
-        }
+        return (T)entry.Asset;
     }
 
     private void RegisterDependency(
-        ContentKey owner,
-        ContentKey dependency,
-        ContentEntry dependencyEntry)
+     ContentKey owner,
+     ContentKey dependency,
+     ContentEntry dependencyEntry)
     {
         ContentLoadFrame? ownerFrame =
             null;
@@ -336,6 +375,26 @@ public sealed class ContentManager :
 
         if (ownerFrame is null)
         {
+            var asyncLoading =
+                _asyncLoading.Value;
+
+            if (asyncLoading is not null)
+            {
+                foreach (var frame in asyncLoading)
+                {
+                    if (frame.Key == owner)
+                    {
+                        ownerFrame =
+                            frame;
+
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (ownerFrame is null)
+        {
             throw new InvalidOperationException(
                 "Content dependency owner is not currently loading.");
         }
@@ -346,67 +405,76 @@ public sealed class ContentManager :
             return;
         }
 
-        dependencyEntry.DependencyReferences++;
+        lock (_cacheSync)
+        {
+            dependencyEntry.DependencyReferences++;
+        }
     }
 
     private void ReleaseDependency(
-        ContentKey dependency)
+    ContentKey dependency)
     {
-        if (!_cache.TryGetValue(
-                dependency.Type,
-                out var typeCache) ||
-            !typeCache.TryGetValue(
-                dependency.Path,
-                out var entry))
+        lock (_cacheSync)
         {
-            return;
+            if (!_cache.TryGetValue(
+                    dependency.Type,
+                    out var typeCache) ||
+                !typeCache.TryGetValue(
+                    dependency.Path,
+                    out var entry))
+            {
+                return;
+            }
+
+            if (entry.DependencyReferences <= 0)
+            {
+                return;
+            }
+
+            entry.DependencyReferences--;
+
+            if (HasReferences(entry))
+            {
+                return;
+            }
+
+            RemoveEntry(
+                dependency,
+                entry);
         }
-
-        if (entry.DependencyReferences <= 0)
-        {
-            return;
-        }
-
-        entry.DependencyReferences--;
-
-        if (HasReferences(entry))
-        {
-            return;
-        }
-
-        RemoveEntry(
-            dependency,
-            entry);
     }
 
     private void RemoveEntry(
         ContentKey key,
         ContentEntry entry)
     {
-        if (_cache.TryGetValue(
-                key.Type,
-                out var typeCache))
+        lock (_cacheSync)
         {
-            typeCache.Remove(
-                key.Path);
-
-            if (typeCache.Count == 0)
+            if (_cache.TryGetValue(
+                    key.Type,
+                    out var typeCache))
             {
-                _cache.Remove(
-                    key.Type);
+                typeCache.Remove(
+                    key.Path);
+
+                if (typeCache.Count == 0)
+                {
+                    _cache.Remove(
+                        key.Type);
+                }
             }
-        }
 
-        foreach (var dependency in
-                 entry.Dependencies)
-        {
-            ReleaseDependency(
-                dependency);
-        }
+            foreach (var dependency in
+                     entry.Dependencies)
+            {
+                ReleaseDependency(
+                    dependency);
+            }
 
-        if (entry.Asset is IDisposable disposable)
-        {
-            disposable.Dispose();
+            if (entry.Asset is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
         }
     }
 
@@ -474,13 +542,66 @@ public sealed class ContentManager :
     }
 
     public T Reload<T>(
-    AssetPath path)
-    where T : class
+     AssetPath path)
+     where T : class
     {
         EnsureNotDisposed();
 
-        Unload<T>(
-            path);
+        var key =
+            new ContentKey(
+                typeof(T),
+                path);
+
+        ContentEntry? existing =
+            null;
+
+        lock (_cacheSync)
+        {
+            if (_cache.TryGetValue(
+                    typeof(T),
+                    out var typeCache) &&
+                typeCache.TryGetValue(
+                    path,
+                    out var cached))
+            {
+                existing =
+                    cached;
+            }
+        }
+
+        if (existing is null)
+        {
+            return Load<T>(
+                path);
+        }
+
+        if (_inFlightLoads.ContainsKey(
+                key))
+        {
+            throw new InvalidOperationException(
+                $"Content asset '{path}' is currently being loaded asynchronously.");
+        }
+
+        lock (_cacheSync)
+        {
+            if (existing.ExternalReferences != 1)
+            {
+                throw new InvalidOperationException(
+                    $"Content asset '{path}' cannot be reloaded while " +
+                    $"it has {existing.ExternalReferences} external references.");
+            }
+
+            if (existing.DependencyReferences != 0)
+            {
+                throw new InvalidOperationException(
+                    $"Content asset '{path}' cannot be reloaded while " +
+                    "other content assets depend on it.");
+            }
+
+            RemoveEntry(
+                key,
+                existing);
+        }
 
         return Load<T>(
             path);
@@ -575,12 +696,24 @@ public sealed class ContentManager :
                 $"Cyclic content dependency detected for '{typeof(T).Name}' at '{path}'.");
         }
 
-        if (_cache.TryGetValue(
-                typeof(T),
-                out var typeCache) &&
-            typeCache.TryGetValue(
-                path,
-                out var existing))
+        ContentEntry? existing =
+            null;
+
+        lock (_cacheSync)
+        {
+            if (_cache.TryGetValue(
+                    typeof(T),
+                    out var typeCache) &&
+                typeCache.TryGetValue(
+                    path,
+                    out var cached))
+            {
+                existing =
+                    cached;
+            }
+        }
+
+        if (existing is not null)
         {
             if (owner.HasValue)
             {
@@ -591,7 +724,10 @@ public sealed class ContentManager :
             }
             else
             {
-                existing.ExternalReferences++;
+                lock (_cacheSync)
+                {
+                    existing.ExternalReferences++;
+                }
             }
 
             return (T)existing.Asset;
@@ -605,6 +741,166 @@ public sealed class ContentManager :
                 $"No content loader is registered for asset '{path}' as '{typeof(T).Name}'.");
         }
 
+        var candidate =
+            new Lazy<Task<ContentEntry>>(
+                () =>
+                    LoadFreshAsync(
+                        path,
+                        key,
+                        loader!,
+                        owner),
+                System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
+
+        var actual =
+            _inFlightLoads.GetOrAdd(
+                key,
+                candidate);
+
+        if (ReferenceEquals(
+                actual,
+                candidate))
+        {
+            try
+            {
+                _ = actual.Value;
+            }
+            catch
+            {
+                _inFlightLoads.TryRemove(
+                    key,
+                    out Lazy<Task<ContentEntry>>? removed);
+
+                throw;
+            }
+
+            _ = actual.Value.ContinueWith(
+                _ =>
+                {
+                    _inFlightLoads.TryRemove(
+                        new KeyValuePair<
+                            ContentKey,
+                            Lazy<Task<ContentEntry>>>(
+                            key,
+                            actual));
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
+
+        var entry =
+            await actual.Value.WaitAsync(
+                cancellationToken);
+
+        if (!ReferenceEquals(
+                actual,
+                candidate))
+        {
+            if (owner.HasValue)
+            {
+                RegisterDependency(
+                    owner.Value,
+                    key,
+                    entry);
+            }
+            else
+            {
+                lock (_cacheSync)
+                {
+                    entry.ExternalReferences++;
+                }
+            }
+        }
+
+        return (T)entry.Asset;
+    }
+
+    private ContentEntry LoadFresh<T>(
+    AssetPath path,
+    ContentKey key,
+    IContentLoader<T> loader,
+    ContentKey? owner)
+    where T : class
+    {
+        var frame =
+            new ContentLoadFrame(
+                key);
+
+        _loading.Push(
+            frame);
+
+        try
+        {
+            var asset =
+                loader.Load(
+                    path,
+                    this);
+
+            ArgumentNullException.ThrowIfNull(
+                asset);
+
+            var entry =
+                new ContentEntry(
+                    asset,
+                    owner.HasValue
+                        ? 0
+                        : 1,
+                    frame.Dependencies);
+
+            lock (_cacheSync)
+            {
+                if (!_cache.TryGetValue(
+                        typeof(T),
+                        out var typeCache))
+                {
+                    typeCache =
+                        new Dictionary<
+                            AssetPath,
+                            ContentEntry>();
+
+                    _cache.Add(
+                        typeof(T),
+                        typeCache);
+                }
+
+                typeCache.Add(
+                    path,
+                    entry);
+            }
+
+            if (owner.HasValue)
+            {
+                RegisterDependency(
+                    owner.Value,
+                    key,
+                    entry);
+            }
+
+            return entry;
+        }
+        catch
+        {
+            foreach (var dependency in
+                     frame.Dependencies)
+            {
+                ReleaseDependency(
+                    dependency);
+            }
+
+            throw;
+        }
+        finally
+        {
+            _loading.Pop();
+        }
+    }
+    private async Task<ContentEntry> LoadFreshAsync<T>(
+    AssetPath path,
+    ContentKey key,
+    IContentLoader<T> loader,
+    ContentKey? owner)
+    where T : class
+    {
         var frame =
             new ContentLoadFrame(
                 key);
@@ -627,29 +923,13 @@ public sealed class ContentManager :
         try
         {
             var asset =
-                await loader!.LoadAsync(
+                await loader.LoadAsync(
                     path,
                     this,
-                    cancellationToken);
-
-            cancellationToken.ThrowIfCancellationRequested();
+                    CancellationToken.None);
 
             ArgumentNullException.ThrowIfNull(
                 asset);
-
-            if (!_cache.TryGetValue(
-                    typeof(T),
-                    out typeCache))
-            {
-                typeCache =
-                    new Dictionary<
-                        AssetPath,
-                        ContentEntry>();
-
-                _cache.Add(
-                    typeof(T),
-                    typeCache);
-            }
 
             var entry =
                 new ContentEntry(
@@ -659,9 +939,26 @@ public sealed class ContentManager :
                         : 1,
                     frame.Dependencies);
 
-            typeCache.Add(
-                path,
-                entry);
+            lock (_cacheSync)
+            {
+                if (!_cache.TryGetValue(
+                        typeof(T),
+                        out var typeCache))
+                {
+                    typeCache =
+                        new Dictionary<
+                            AssetPath,
+                            ContentEntry>();
+
+                    _cache.Add(
+                        typeof(T),
+                        typeCache);
+                }
+
+                typeCache.Add(
+                    path,
+                    entry);
+            }
 
             if (owner.HasValue)
             {
@@ -671,7 +968,7 @@ public sealed class ContentManager :
                     entry);
             }
 
-            return asset;
+            return entry;
         }
         catch
         {

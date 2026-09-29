@@ -631,16 +631,59 @@ public sealed class UiInputRouter
 
     private void UpdateNavigation()
     {
+        var focused =
+            _focus.FocusedWidget;
+
+        if (_textInput.IsPressed(
+                TextInputKey.Left) &&
+            focused is not null)
+        {
+            var keyEvent =
+                new UiKeyEvent(
+                    TextInputKey.Left);
+
+            RouteKeyEvent(
+                focused,
+                keyEvent);
+        }
+
+        if (_textInput.IsPressed(
+                TextInputKey.Right) &&
+            focused is not null)
+        {
+            var keyEvent =
+                new UiKeyEvent(
+                    TextInputKey.Right);
+
+            RouteKeyEvent(
+                focused,
+                keyEvent);
+        }
+
         if (_textInput.IsPressed(
                 TextInputKey.Up))
         {
-            _focus.MovePrevious();
+            var keyEvent =
+                CreateFocusedKeyEvent(
+                    TextInputKey.Up);
+
+            if (!keyEvent.Handled)
+            {
+                _focus.MovePrevious();
+            }
         }
 
         if (_textInput.IsPressed(
                 TextInputKey.Down))
         {
-            _focus.MoveNext();
+            var keyEvent =
+                CreateFocusedKeyEvent(
+                    TextInputKey.Down);
+
+            if (!keyEvent.Handled)
+            {
+                _focus.MoveNext();
+            }
         }
 
         if (_textInput.IsPressed(
@@ -656,7 +699,7 @@ public sealed class UiInputRouter
                 new UiKeyEvent(
                     TextInputKey.Escape);
 
-            var focused =
+            focused =
                 _focus.FocusedWidget;
 
             if (focused is not null)
@@ -688,6 +731,25 @@ public sealed class UiInputRouter
                 _focus.ClearFocus();
             }
         }
+    }
+
+    private UiKeyEvent CreateFocusedKeyEvent(
+        TextInputKey key)
+    {
+        var keyEvent =
+            new UiKeyEvent(key);
+
+        var focused =
+            _focus.FocusedWidget;
+
+        if (focused is not null)
+        {
+            RouteKeyEvent(
+                focused,
+                keyEvent);
+        }
+
+        return keyEvent;
     }
 
     private void RouteKeyEvent(

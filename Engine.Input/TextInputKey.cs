@@ -7,5 +7,7 @@ public enum TextInputKey
     Backspace,
     Up,
     Down,
+    Left,
+    Right,
     Escape
 }

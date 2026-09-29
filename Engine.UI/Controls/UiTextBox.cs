@@ -117,6 +117,17 @@ public sealed class UiTextBox : UiWidget
             Text);
     }
 
+    protected override void OnPointerDown(
+    UiPointerEvent pointer)
+    {
+        if (!Enabled)
+        {
+            return;
+        }
+
+        pointer.Handled = true;
+    }
+
     protected override void OnKeyPressed(
         TextInputKey key)
     {

@@ -86,6 +86,8 @@ public sealed class UiSystem
         Focus =
             new UiFocusManager();
 
+        Root.FocusManager =Focus;
+
         Screens =
             new UiScreenManager(
                 Focus);

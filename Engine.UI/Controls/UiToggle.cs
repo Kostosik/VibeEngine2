@@ -71,6 +71,34 @@ public sealed class UiToggle : UiWidget
         SetValue(!IsOn);
     }
 
+    protected override void OnPointerDown(
+    UiPointerEvent pointer)
+    {
+        if (!Enabled)
+        {
+            return;
+        }
+
+        pointer.Handled = true;
+    }
+
+    protected override void OnPointerUp(
+        UiPointerEvent pointer)
+    {
+        if (!Enabled)
+        {
+            return;
+        }
+
+        if (Bounds.Contains(
+                pointer.Position))
+        {
+            Toggle();
+        }
+
+        pointer.Handled = true;
+    }
+
     protected override Vector2 MeasureCore(
         UiLayoutContext context,
         Vector2 availableSize)
@@ -165,16 +193,6 @@ public sealed class UiToggle : UiWidget
                 context.Theme.ButtonFocusedBorder,
                 filled: false,
                 layer: 2);
-        }
-    }
-
-    protected override void OnPointerUp(
-        UiPointerEvent pointer)
-    {
-        if (Bounds.Contains(
-                pointer.Position))
-        {
-            Toggle();
         }
     }
 

@@ -12,8 +12,6 @@ public sealed class UiModal : UiContainer
     private readonly UiOverlayLayer _overlay;
     private readonly UiFocusManager _focus;
 
-    private UiWidget? _previousFocus;
-
     public UiModal(
         UiOverlayLayer overlay,
         UiFocusManager focus)
@@ -135,9 +133,6 @@ public sealed class UiModal : UiContainer
             return;
         }
 
-        _previousFocus =
-            _focus.FocusedWidget;
-
         _overlay.Show(
             this,
             Vector2.Zero);
@@ -145,14 +140,11 @@ public sealed class UiModal : UiContainer
         IsOpen = true;
         Visible = true;
 
-        _focus.ClearFocus();
-
-        if (initialFocus is not null &&
-            initialFocus.Focusable)
-        {
-            _focus.SetFocus(
-                initialFocus);
-        }
+        _focus.EnterScope(
+            this,
+            initialFocus ??
+            _focus.FindFirstFocusable(
+                ContentHost));
     }
 
     public void Close()
@@ -168,19 +160,8 @@ public sealed class UiModal : UiContainer
         _overlay.Hide(
             this);
 
-        _focus.ClearFocus();
-
-        if (_previousFocus is not null &&
-            _previousFocus.Visible &&
-            _previousFocus.Enabled &&
-            _previousFocus.Focusable)
-        {
-            _focus.SetFocus(
-                _previousFocus);
-        }
-
-        _previousFocus =
-            null;
+        _focus.ExitScope(
+            this);
 
         Closed?.Invoke();
     }

@@ -1,6 +1,7 @@
 ﻿using Engine.Core.Math;
 using Engine.Graphics.Commands;
 using Engine.UI.Core;
+using Engine.UI.Input;
 using Engine.UI.Layout;
 
 namespace Engine.UI.Controls;
@@ -9,7 +10,7 @@ public sealed class UiDropdown : UiContainer
 {
     private readonly UiOverlayLayer? _overlay;
     private readonly UiButton _button;
-    private readonly UiPanel _popup;
+    private readonly DropdownPopup _popup;
     private readonly UiScrollView _scrollView;
     private readonly UiList _list;
 
@@ -43,23 +44,24 @@ public sealed class UiDropdown : UiContainer
             TogglePopup;
 
         _popup =
-            new UiPanel
-            {
-                Width = 220.0f,
-                Height = 180.0f,
+    new DropdownPopup(
+        this)
+    {
+        Width = 220.0f,
+        Height = 180.0f,
 
-                Padding =
-                    new UiThickness(4.0f),
+        Padding =
+            new UiThickness(4.0f),
 
-                Background =
-                    new UiColor(
-                        25,
-                        25,
-                        25,
-                        250),
+        Background =
+            new UiColor(
+                25,
+                25,
+                25,
+                250),
 
-                ZIndex = 100
-            };
+        ZIndex = 100
+    };
 
         _scrollView =
             new UiScrollView
@@ -245,6 +247,8 @@ public sealed class UiDropdown : UiContainer
 
         _popup.IsHitTestVisible =
             true;
+        ResolveFocusManager()?.EnterScope(
+    _popup);
     }
 
     private void ClosePopup()
@@ -254,6 +258,8 @@ public sealed class UiDropdown : UiContainer
 
         _popup.IsHitTestVisible =
             false;
+        ResolveFocusManager()?.ExitScope(
+    _popup);
 
         if (_overlay is not null &&
             ReferenceEquals(
@@ -292,5 +298,33 @@ public sealed class UiDropdown : UiContainer
         SelectionChanged?.Invoke(
             index,
             _options[index].Text);
+    }
+
+    private sealed class DropdownPopup :
+    UiPanel
+    {
+        private readonly UiDropdown _owner;
+
+        public DropdownPopup(
+            UiDropdown owner)
+        {
+            _owner =
+                owner;
+        }
+
+        protected override void OnKeyEvent(
+            UiKeyEvent keyEvent)
+        {
+            if (keyEvent.Key !=
+                Engine.Input.TextInputKey.Escape)
+            {
+                return;
+            }
+
+            _owner.ClosePopup();
+
+            keyEvent.Handled =
+                true;
+        }
     }
 }

@@ -38,13 +38,14 @@ public sealed class SilkNetInputBackend :
     private static readonly TextInputKey[] TextKeys =
     [
         TextInputKey.F1,
-        TextInputKey.Enter,
-        TextInputKey.Backspace,
-        TextInputKey.Up,
-        TextInputKey.Down,
-        TextInputKey.Escape
+    TextInputKey.Enter,
+    TextInputKey.Backspace,
+    TextInputKey.Up,
+    TextInputKey.Down,
+    TextInputKey.Left,
+    TextInputKey.Right,
+    TextInputKey.Escape
     ];
-
     public float ScrollDelta =>
     _mouseScroll;
 
@@ -193,7 +194,7 @@ public sealed class SilkNetInputBackend :
     }
 
     private static Key ToSilkKey(
-        TextInputKey key)
+     TextInputKey key)
     {
         return key switch
         {
@@ -211,6 +212,12 @@ public sealed class SilkNetInputBackend :
 
             TextInputKey.Down =>
                 Key.Down,
+
+            TextInputKey.Left =>
+                Key.Left,
+
+            TextInputKey.Right =>
+                Key.Right,
 
             TextInputKey.Escape =>
                 Key.Escape,

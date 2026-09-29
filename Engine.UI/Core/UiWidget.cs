@@ -48,6 +48,22 @@ public abstract class UiWidget
 
     public float? Height { get; set; }
 
+    internal UiFocusManager? ResolveFocusManager()
+    {
+        var current =
+            this;
+
+        while (current.Parent is not null)
+        {
+            current =
+                current.Parent;
+        }
+
+        return current is UiRoot root
+            ? root.FocusManager
+            : null;
+    }
+
     public UiLayoutMode LayoutMode { get; set; } =
     UiLayoutMode.Alignment;
 

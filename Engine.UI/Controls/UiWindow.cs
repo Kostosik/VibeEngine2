@@ -57,7 +57,7 @@ public sealed class UiWindow : UiContainer
         MinHeight = 220.0f;
 
         Resizable = true;
-        Focusable = true;
+        Focusable = false;
 
         _header =
             new UiPanel
@@ -266,6 +266,17 @@ public sealed class UiWindow : UiContainer
 
         _isOpen = true;
         Visible = true;
+
+        var focus =
+    ResolveFocusManager();
+
+        if (focus is not null)
+        {
+            focus.EnterScope(
+                this,
+                focus.FindFirstFocusable(
+                    _contentHost));
+        }
     }
 
     public void Close()
@@ -274,6 +285,9 @@ public sealed class UiWindow : UiContainer
         {
             return;
         }
+
+        ResolveFocusManager()?.ExitScope(
+    this);
 
         _isOpen = false;
         Visible = false;

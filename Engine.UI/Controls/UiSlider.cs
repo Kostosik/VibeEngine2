@@ -1,5 +1,6 @@
 ﻿using Engine.Core.Math;
 using Engine.Graphics.Commands;
+using Engine.Input;
 using Engine.UI.Core;
 using Engine.UI.Input;
 using Engine.UI.Layout;
@@ -20,6 +21,27 @@ public sealed class UiSlider : UiWidget
 
         VerticalAlignment =
             UiVerticalAlignment.Top;
+
+        Focusable = true;
+    }
+
+    protected override void OnKeyEvent(
+    UiKeyEvent keyEvent)
+    {
+        const float step = 0.05f;
+
+        switch (keyEvent.Key)
+        {
+            case TextInputKey.Left:
+                Value -= step;
+                keyEvent.Handled = true;
+                break;
+
+            case TextInputKey.Right:
+                Value += step;
+                keyEvent.Handled = true;
+                break;
+        }
     }
 
     public float Value
@@ -78,6 +100,9 @@ public sealed class UiSlider : UiWidget
             pointer.Position.X);
 
         IsPressed = true;
+
+        pointer.Handled = true;
+        pointer.RequestCapture();
     }
 
     protected override void OnPointerMove(
@@ -90,15 +115,25 @@ public sealed class UiSlider : UiWidget
 
         UpdateValue(
             pointer.Position.X);
+
+        pointer.Handled = true;
     }
 
     protected override void OnPointerUp(
         UiPointerEvent pointer)
     {
+        if (!IsPressed)
+        {
+            return;
+        }
+
         UpdateValue(
             pointer.Position.X);
 
         IsPressed = false;
+
+        pointer.Handled = true;
+        pointer.ReleaseCapture();
     }
 
     protected override void OnRender(

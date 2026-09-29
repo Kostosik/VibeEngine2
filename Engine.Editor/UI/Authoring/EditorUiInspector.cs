@@ -294,6 +294,48 @@ public sealed class EditorUiInspector
                 displayName: "Height",
                 order: 15));
 
+        properties.Add(
+    new EditorProperty(
+        "Visible",
+        typeof(bool),
+        () => element.Visible,
+        value =>
+        {
+            element.Visible =
+                Convert.ToBoolean(
+                    value);
+        },
+        displayName: "Visible",
+        order: 30));
+
+        properties.Add(
+            new EditorProperty(
+                "Enabled",
+                typeof(bool),
+                () => element.Enabled,
+                value =>
+                {
+                    element.Enabled =
+                        Convert.ToBoolean(
+                            value);
+                },
+                displayName: "Enabled",
+                order: 31));
+
+        properties.Add(
+            new EditorProperty(
+                "ZIndex",
+                typeof(int),
+                () => element.ZIndex,
+                value =>
+                {
+                    element.ZIndex =
+                        Convert.ToInt32(
+                            value);
+                },
+                displayName: "Z Index",
+                order: 32));
+
         return properties
             .OrderBy(
                 static property => property.Order)

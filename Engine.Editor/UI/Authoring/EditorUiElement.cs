@@ -5,7 +5,19 @@ namespace Engine.Editor.UI.Authoring;
 public sealed class EditorUiElement
 {
     private readonly List<EditorUiElement> _children = new();
-    
+
+    public IReadOnlyList<string> DropdownOptions { get; internal set; } =
+    Array.Empty<string>();
+
+    public int SelectedIndex { get; internal set; } = -1;
+
+    public bool ToggleValue { get; internal set; }
+
+    public string Placeholder { get; internal set; } =
+        string.Empty;
+
+    public int MaxLength { get; internal set; } = 256;
+
     internal EditorUiElement(
         Guid id,
         EditorUiElementType type,
@@ -42,6 +54,12 @@ public sealed class EditorUiElement
 
     public string? Action { get; internal set; }
     public EditorUiElement? Parent { get; internal set; }
+
+    public bool Visible { get; internal set; } = true;
+
+    public bool Enabled { get; internal set; } = true;
+
+    public int ZIndex { get; internal set; }
 
     public IReadOnlyList<EditorUiElement> Children =>
         _children;

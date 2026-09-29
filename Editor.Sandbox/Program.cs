@@ -122,16 +122,19 @@ using var assetPreviewTextures =
         content,
         window.GraphicsDevice.Textures);
 
-var uiDocument =
-    new EditorUiDocument(
-        "Main UI");
-
 var uiAssetPath =
     Path.Combine(
         AppContext.BaseDirectory,
         "Assets",
         "UI",
         "MainMenu.ui");
+
+var uiDocument =
+    File.Exists(uiAssetPath)
+        ? EditorUiAssetFile.Load(
+            uiAssetPath)
+        : new EditorUiDocument(
+            "Main UI");
 
 var application =
     new EditorApplication(

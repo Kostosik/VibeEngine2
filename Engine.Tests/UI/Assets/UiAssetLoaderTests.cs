@@ -10,6 +10,134 @@ public sealed class UiAssetLoaderTests
 {
 
     [Fact]
+    public void Load_RestoresRuntimeControlSettings()
+    {
+        var rootId =
+            Guid.NewGuid();
+
+        var dropdownId =
+            Guid.NewGuid();
+
+        var toggleId =
+            Guid.NewGuid();
+
+        var textBoxId =
+            Guid.NewGuid();
+
+        var asset =
+            new UiAsset(
+                "Controls",
+                new Vector2(
+                    1280.0f,
+                    720.0f),
+                new[]
+                {
+                new UiAssetElement(
+                    rootId,
+                    Guid.Empty,
+                    UiAssetElementType.Root,
+                    "Root",
+                    new UiAssetLayout(
+                        UiAnchor.TopLeft,
+                        Vector2.Zero,
+                        new Vector2(
+                            1280.0f,
+                            720.0f))),
+
+                new UiAssetElement(
+                    dropdownId,
+                    rootId,
+                    UiAssetElementType.Dropdown,
+                    "Quality",
+                    new UiAssetLayout(
+                        UiAnchor.TopLeft,
+                        Vector2.Zero,
+                        new Vector2(
+                            220.0f,
+                            42.0f)),
+                    dropdownOptions:
+                    new[]
+                    {
+                        "Low",
+                        "Medium",
+                        "High"
+                    },
+                    selectedIndex: 2),
+
+                new UiAssetElement(
+                    toggleId,
+                    rootId,
+                    UiAssetElementType.Toggle,
+                    "VSync",
+                    new UiAssetLayout(
+                        UiAnchor.TopLeft,
+                        Vector2.Zero,
+                        new Vector2(
+                            220.0f,
+                            36.0f)),
+                    text: "VSync",
+                    toggleValue: true),
+
+                new UiAssetElement(
+                    textBoxId,
+                    rootId,
+                    UiAssetElementType.TextBox,
+                    "Name",
+                    new UiAssetLayout(
+                        UiAnchor.TopLeft,
+                        Vector2.Zero,
+                        new Vector2(
+                            240.0f,
+                            42.0f)),
+                    text: "Player",
+                    placeholder: "Enter name",
+                    maxLength: 64)
+                });
+
+        var instance =
+            new UiAssetLoader().Load(
+                asset);
+
+        var dropdown =
+            Assert.IsType<UiDropdown>(
+                instance.Get(
+                    dropdownId));
+
+        Assert.Equal(
+            2,
+            dropdown.SelectedIndex);
+
+        Assert.Equal(
+            "High",
+            dropdown.SelectedText);
+
+        var toggle =
+            Assert.IsType<UiToggle>(
+                instance.Get(
+                    toggleId));
+
+        Assert.True(
+            toggle.IsOn);
+
+        var textBox =
+            Assert.IsType<UiTextBox>(
+                instance.Get(
+                    textBoxId));
+
+        Assert.Equal(
+            "Player",
+            textBox.Text);
+
+        Assert.Equal(
+            "Enter name",
+            textBox.Placeholder);
+
+        Assert.Equal(
+            64,
+            textBox.MaxLength);
+    }
+
+    [Fact]
     public void UiAnchor_RejectsNaN()
     {
         Assert.Throws<ArgumentOutOfRangeException>(

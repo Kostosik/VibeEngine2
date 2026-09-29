@@ -77,6 +77,62 @@ public sealed class UiAssetSerializer :
 
             writer.WriteString(
                 element.Action);
+
+            writer.WriteInt32(
+                element.DropdownOptions.Count);
+
+            foreach (var option in
+                     element.DropdownOptions)
+            {
+                writer.WriteString(
+                    option);
+            }
+
+            writer.WriteInt32(
+                element.SelectedIndex);
+
+            writer.WriteBoolean(
+                element.ToggleValue);
+
+            writer.WriteString(
+                element.Placeholder);
+
+            writer.WriteInt32(
+                element.MaxLength);
+
+            writer.WriteString(
+    element.Action);
+
+            writer.WriteInt32(
+                element.DropdownOptions.Count);
+
+            foreach (var option in
+                     element.DropdownOptions)
+            {
+                writer.WriteString(
+                    option);
+            }
+
+            writer.WriteInt32(
+                element.SelectedIndex);
+
+            writer.WriteBoolean(
+                element.ToggleValue);
+
+            writer.WriteString(
+                element.Placeholder);
+
+            writer.WriteInt32(
+                element.MaxLength);
+
+            writer.WriteBoolean(
+                element.Visible);
+
+            writer.WriteBoolean(
+                element.Enabled);
+
+            writer.WriteInt32(
+                element.ZIndex);
         }
     }
 
@@ -86,11 +142,11 @@ public sealed class UiAssetSerializer :
         var version =
             reader.ReadInt32();
 
-        if (version !=
-            UiAsset.CurrentVersion)
+        if (version < 1 ||
+            version > UiAsset.CurrentVersion)
         {
             throw new InvalidDataException(
-                $"UI asset version '{version}' is not supported. Expected '{UiAsset.CurrentVersion}'.");
+                $"UI asset version '{version}' is not supported.");
         }
 
         var name =
@@ -185,6 +241,85 @@ public sealed class UiAssetSerializer :
             var action =
                 reader.ReadString();
 
+            var dropdownOptions =
+    Array.Empty<string>();
+
+            var selectedIndex =
+                -1;
+
+            var toggleValue =
+                false;
+
+            var placeholder =
+                string.Empty;
+
+            var maxLength =
+                256;
+
+            if (version >= 2)
+            {
+                var optionCount =
+                    reader.ReadInt32();
+
+                if (optionCount < 0 ||
+                    optionCount >
+                    reader.Context.MaxCollectionLength)
+                {
+                    throw new InvalidDataException(
+                        $"UI dropdown option count '{optionCount}' is invalid.");
+                }
+
+                var options =
+                    new string[optionCount];
+
+                for (var optionIndex = 0;
+                     optionIndex < optionCount;
+                     optionIndex++)
+                {
+                    options[optionIndex] =
+                        reader.ReadString()
+                        ?? throw new InvalidDataException(
+                            "UI dropdown option cannot be null.");
+                }
+
+                dropdownOptions =
+                    options;
+
+                selectedIndex =
+                    reader.ReadInt32();
+
+                toggleValue =
+                    reader.ReadBoolean();
+
+                placeholder =
+                    reader.ReadString()
+                    ?? string.Empty;
+
+                maxLength =
+                    reader.ReadInt32();
+            }
+
+            var visible =
+    true;
+
+            var enabled =
+                true;
+
+            var zIndex =
+                0;
+
+            if (version >= 3)
+            {
+                visible =
+                    reader.ReadBoolean();
+
+                enabled =
+                    reader.ReadBoolean();
+
+                zIndex =
+                    reader.ReadInt32();
+            }
+
             elements.Add(
                 new UiAssetElement(
                     id,
@@ -194,7 +329,14 @@ public sealed class UiAssetSerializer :
                     layout,
                     text,
                     texture,
-                    action));
+                    action, dropdownOptions,
+                    selectedIndex,
+                    toggleValue,
+                    placeholder,
+                    maxLength,
+                    visible,
+                    enabled,
+                    zIndex));
         }
 
         return new UiAsset(

@@ -1,5 +1,6 @@
 ﻿using Engine.Editor.Commands;
 using Engine.Editor.Selection;
+using Engine.Core.Math;
 
 namespace Engine.Editor.UI.Authoring;
 
@@ -10,23 +11,52 @@ public sealed class EditorUiDocument
         EditorUiElement> _elements = new();
 
     public EditorUiDocument(
-        string name = "UI Document")
+    string name = "UI Document")
+    : this(
+        name,
+        Guid.NewGuid(),
+        new Vector2(
+            1280.0f,
+            720.0f))
+    {
+    }
+
+    internal EditorUiDocument(
+        string name,
+        Guid rootId,
+        Vector2 canvasSize)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(
             name);
+
+        if (rootId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "UI root id cannot be empty.",
+                nameof(rootId));
+        }
+
+        if (!float.IsFinite(canvasSize.X) ||
+            !float.IsFinite(canvasSize.Y) ||
+            canvasSize.X <= 0.0f ||
+            canvasSize.Y <= 0.0f)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(canvasSize),
+                "UI document canvas size must be finite and positive.");
+        }
 
         Name = name;
 
         Root =
             new EditorUiElement(
-                Guid.NewGuid(),
+                rootId,
                 EditorUiElementType.Root,
                 "UI Root",
                 new EditorUiLayout(
-                    0.0f,
-                    0.0f,
-                    1280.0f,
-                    720.0f));
+                    Vector2.Zero,
+                    Vector2.Zero,
+                    canvasSize));
 
         _elements.Add(
             Root.Id,

@@ -97,6 +97,20 @@ public sealed class NetworkLockstep :
         ConnectionId>?
         ConnectionDisconnected;
 
+    private void EnsureNextTick(
+    Tick tick)
+    {
+        var expectedTick =
+            _coordinator.LastExecutedTick + 1;
+
+        if (tick != expectedTick)
+        {
+            throw new InvalidOperationException(
+                $"Expected tick '{expectedTick.Value}', " +
+                $"but received tick '{tick.Value}'.");
+        }
+    }
+
     public void AddConnection(
         int participant,
         ConnectionId connection)
@@ -123,6 +137,17 @@ public sealed class NetworkLockstep :
         {
             throw new ArgumentException(
                 "Connection ID must be valid.",
+                nameof(connection));
+        }
+
+        if (!_session.TryGetConnection(
+        connection,
+        out var networkConnection) ||
+    networkConnection is null ||
+    networkConnection.State != NetworkConnectionState.Connected)
+        {
+            throw new ArgumentException(
+                "Connection must belong to the NetworkSession and be connected.",
                 nameof(connection));
         }
 
@@ -199,6 +224,9 @@ public sealed class NetworkLockstep :
     {
         EnsureNotDisposed();
 
+        EnsureNextTick(
+    tick);
+
         foreach (var pair in
                  _connections)
         {
@@ -207,6 +235,10 @@ public sealed class NetworkLockstep :
 
             var connection =
                 pair.Value;
+
+            _channel.RemoveBefore(
+                connection,
+                tick);
 
             if (!_channel.TryGet(
                     connection,
@@ -273,6 +305,9 @@ public sealed class NetworkLockstep :
         FixedSystemContext context)
     {
         EnsureNotDisposed();
+
+        EnsureNextTick(
+    tick);
 
         UpdateNetwork();
 
@@ -378,11 +413,23 @@ public sealed class NetworkLockstep :
 
     private void CheckRemoteHashes()
     {
+        if (_localHashes.Count == 0)
+        {
+            return;
+        }
+
+        var oldestLocalTick =
+            _localHashes.Keys.Min();
+
         foreach (var pair in
                  _connections)
         {
             var connection =
                 pair.Value;
+
+            _hashChannel.RemoveBefore(
+                connection,
+                oldestLocalTick);
 
             foreach (var localHash in
                      _localHashes)

@@ -11,6 +11,100 @@ namespace Engine.Tests.Networking;
 public sealed class NetworkStateHashChannelTests
 {
     [Fact]
+    public void RemoveBefore_RemovesOnlyOlderHashes()
+    {
+        using var serverTransport =
+            new LoopbackTransport();
+
+        using var clientTransport =
+            new LoopbackTransport();
+
+        using var serverSession =
+            new NetworkSession(
+                serverTransport);
+
+        using var clientSession =
+            new NetworkSession(
+                clientTransport);
+
+        serverSession.Start(
+            new NetworkEndpoint(
+                "hash-cleanup-server",
+                1940));
+
+        clientSession.Start(
+            new NetworkEndpoint(
+                "hash-cleanup-client",
+                1941));
+
+        var clientConnection =
+            clientSession.Connect(
+                serverSession.LocalEndpoint);
+
+        serverSession.Update();
+
+        var serverConnection =
+            Assert.Single(
+                serverSession.Connections);
+
+        using var clientChannel =
+            new NetworkStateHashChannel(
+                clientSession);
+
+        using var serverChannel =
+            new NetworkStateHashChannel(
+                serverSession);
+
+        Assert.True(
+            clientChannel.Send(
+                clientConnection.Id,
+                new Tick(1),
+                new DeterministicStateHash(1)));
+
+        Assert.True(
+            clientChannel.Send(
+                clientConnection.Id,
+                new Tick(5),
+                new DeterministicStateHash(5)));
+
+        Assert.True(
+            clientChannel.Send(
+                clientConnection.Id,
+                new Tick(10),
+                new DeterministicStateHash(10)));
+
+        serverChannel.Update();
+
+        Assert.Equal(
+            2,
+            serverChannel.RemoveBefore(
+                serverConnection.Id,
+                new Tick(10)));
+
+        Assert.False(
+            serverChannel.TryGet(
+                serverConnection.Id,
+                new Tick(1),
+                out _));
+
+        Assert.False(
+            serverChannel.TryGet(
+                serverConnection.Id,
+                new Tick(5),
+                out _));
+
+        Assert.True(
+            serverChannel.TryGet(
+                serverConnection.Id,
+                new Tick(10),
+                out var hash));
+
+        Assert.Equal(
+            new DeterministicStateHash(10),
+            hash);
+    }
+
+    [Fact]
     public void Update_MalformedPacket_DoesNotBlockFollowingValidHash()
     {
         using var serverTransport =

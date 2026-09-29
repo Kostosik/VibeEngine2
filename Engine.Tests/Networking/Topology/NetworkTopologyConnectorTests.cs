@@ -8,6 +8,85 @@ namespace Engine.Tests.Networking.Topology;
 public sealed class NetworkTopologyConnectorTests
 {
     [Fact]
+    public void Update_TracksInboundConnectionFromTopologyPeer()
+    {
+        using var serverTransport =
+            new LoopbackTransport();
+
+        using var clientTransport =
+            new LoopbackTransport();
+
+        using var serverSession =
+            new NetworkSession(
+                serverTransport);
+
+        using var clientSession =
+            new NetworkSession(
+                clientTransport);
+
+        var serverNode =
+            CreateNode(
+                1,
+                1101);
+
+        var clientNode =
+            CreateNode(
+                2,
+                1102);
+
+        serverSession.Start(
+            serverNode.Endpoint);
+
+        clientSession.Start(
+            clientNode.Endpoint);
+
+        var connector =
+            new NetworkTopologyConnector(
+                serverSession,
+                serverNode,
+                new[]
+                {
+                serverNode,
+                clientNode
+                });
+
+        var plan =
+            new StarTopology(
+                serverNode.Id)
+            .Build(
+                new[]
+                {
+                serverNode,
+                clientNode
+                });
+
+        connector.Apply(
+            plan);
+
+        Assert.Empty(
+            connector.Connections);
+
+        clientSession.Connect(
+            serverNode.Endpoint);
+
+        serverSession.Update();
+
+        connector.Update();
+
+        var connection =
+            Assert.Single(
+                connector.Connections);
+
+        Assert.Equal(
+            clientNode.Id,
+            connection.Key);
+
+        Assert.Equal(
+            NetworkConnectionDirection.Inbound,
+            connection.Value.Direction);
+    }
+
+    [Fact]
     public void Apply_ConnectsLocalNodeToAllTopologyPeers()
     {
         using var localTransport =

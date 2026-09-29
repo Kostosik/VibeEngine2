@@ -1,4 +1,5 @@
-﻿using Engine.Networking.Connections;
+﻿using Engine.Networking.Authority;
+using Engine.Networking.Connections;
 using Engine.Networking.Sessions;
 using Engine.Networking.Topology;
 
@@ -11,6 +12,15 @@ public sealed class NetworkArchitecture
     private readonly NetworkConfiguration _configuration;
 
     private readonly NetworkTopologyConnector _connector;
+
+    public INetworkAuthority Authority =>
+    _configuration.Authority;
+
+    public NetworkNodeId AuthorityNode =>
+        Authority.AuthorityNode;
+
+    public bool HasAuthority =>
+        Authority.HasAuthority;
 
     private bool _started;
 
@@ -97,6 +107,8 @@ public sealed class NetworkArchitecture
         EnsureStarted();
 
         _session.Update();
+
+        _connector.Update();
     }
 
     public void Stop()

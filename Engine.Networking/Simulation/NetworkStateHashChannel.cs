@@ -28,6 +28,8 @@ public sealed class NetworkStateHashChannel : IDisposable
 
         _session.PacketReceived +=
             OnPacketReceived;
+        _session.ConnectionDisconnected +=
+    OnConnectionDisconnected;
     }
 
     public bool Send(
@@ -106,12 +108,50 @@ public sealed class NetworkStateHashChannel : IDisposable
             return;
         }
 
+        _session.ConnectionDisconnected -=
+            OnConnectionDisconnected;
+
         _session.PacketReceived -=
             OnPacketReceived;
 
         _received.Clear();
 
         _disposed = true;
+    }
+
+    public int RemoveBefore(
+    ConnectionId connection,
+    Tick tick)
+    {
+        EnsureNotDisposed();
+
+        if (!_received.TryGetValue(
+                connection,
+                out var hashes))
+        {
+            return 0;
+        }
+
+        var staleTicks =
+            hashes.Keys
+                .Where(
+                    current => current.Value < tick.Value)
+                .ToArray();
+
+        foreach (var staleTick in staleTicks)
+        {
+            hashes.Remove(
+                staleTick);
+        }
+
+        return staleTicks.Length;
+    }
+
+    private void OnConnectionDisconnected(
+    NetworkConnection connection)
+    {
+        _received.Remove(
+            connection.Id);
     }
 
     private void OnPacketReceived(

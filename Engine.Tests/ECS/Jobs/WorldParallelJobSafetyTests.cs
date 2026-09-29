@@ -7,6 +7,71 @@ namespace Engine.Tests.ECS.Jobs;
 public sealed class WorldParallelJobSafetyTests
 {
     [Fact]
+    public void WorldRejectsStructuralAccessWhileReadOnlyParallelJobIsRunning()
+    {
+        using var world =
+            new World();
+
+        using var scheduler =
+            new JobScheduler(
+                workerCount: 1);
+
+        using var started =
+            new ManualResetEventSlim();
+
+        using var release =
+            new ManualResetEventSlim();
+
+        var entity =
+            world.CreateEntity();
+
+        world.Add(
+            entity,
+            new TestComponent());
+
+        world.ClearDirty<TestComponent>();
+
+        var handle =
+            world.ScheduleParallelReadOnly(
+                scheduler,
+                (
+                    EntityId entity,
+                    in TestComponent component) =>
+                {
+                    started.Set();
+
+                    release.Wait();
+
+                    Assert.Equal(
+                        0,
+                        component.Value);
+                });
+
+        Assert.True(
+            started.Wait(
+                TimeSpan.FromSeconds(5)));
+
+        Assert.Throws<InvalidOperationException>(
+            () =>
+                world.CreateEntity());
+
+        Assert.Throws<InvalidOperationException>(
+            () =>
+                world.Get<TestComponent>(
+                    entity));
+
+        release.Set();
+
+        scheduler.Wait(
+            handle);
+
+        Assert.Equal(
+            0,
+            world.GetDirtyEntities<TestComponent>().Length);
+    }
+
+
+    [Fact]
     public void WorldRejectsStructuralAccessWhileParallelJobIsRunning()
     {
         using var world =

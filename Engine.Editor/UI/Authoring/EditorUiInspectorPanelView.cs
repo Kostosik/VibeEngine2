@@ -140,6 +140,24 @@ public sealed class EditorUiInspectorPanelView :
     private void AddProperty(
         EditorProperty property)
     {
+        if (property.PropertyType == typeof(bool))
+        {
+            _content.AddChild(
+                CreateBooleanProperty(
+                    property));
+
+            return;
+        }
+
+        if (property.PropertyType == typeof(int))
+        {
+            _content.AddChild(
+                CreateIntegerProperty(
+                    property));
+
+            return;
+        }
+
         if (property.Name == "Type")
         {
             _content.AddChild(
@@ -173,6 +191,85 @@ public sealed class EditorUiInspectorPanelView :
             {
                 FontSize = 12.0f
             });
+    }
+
+    private UiWidget CreateBooleanProperty(
+    EditorProperty property)
+    {
+        var toggle =
+            new UiToggle(
+                property.DisplayName);
+
+        toggle.SetValue(
+            Convert.ToBoolean(
+                property.GetValue()));
+
+        toggle.ValueChanged +=
+            value =>
+            {
+                _document.Execute(
+                    new SetEditorPropertyCommand(
+                        property,
+                        value));
+            };
+
+        return toggle;
+    }
+
+    private UiWidget CreateIntegerProperty(
+        EditorProperty property)
+    {
+        var row =
+            new UiStackPanel
+            {
+                Orientation =
+                    UiOrientation.Horizontal,
+
+                Spacing = 6.0f
+            };
+
+        row.AddChild(
+            new UiLabel(
+                property.DisplayName)
+            {
+                Width = 70.0f,
+                FontSize = 12.0f
+            });
+
+        var textBox =
+            new UiTextBox(
+                Convert.ToInt32(
+                    property.GetValue())
+                .ToString(
+                    CultureInfo.InvariantCulture))
+            {
+                Width = 150.0f,
+                Height = 32.0f,
+                FontSize = 12.0f
+            };
+
+        textBox.Submitted +=
+            value =>
+            {
+                if (!int.TryParse(
+                        value,
+                        NumberStyles.Integer,
+                        CultureInfo.InvariantCulture,
+                        out var parsed))
+                {
+                    return;
+                }
+
+                _document.Execute(
+                    new SetEditorPropertyCommand(
+                        property,
+                        parsed));
+            };
+
+        row.AddChild(
+            textBox);
+
+        return row;
     }
 
     private UiWidget CreateReadOnlyProperty(

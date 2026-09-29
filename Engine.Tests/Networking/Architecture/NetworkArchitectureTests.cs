@@ -10,6 +10,60 @@ namespace Engine.Tests.Networking.Architecture;
 public sealed class NetworkArchitectureTests
 {
     [Fact]
+    public void Authority_IsExposedThroughArchitecture()
+    {
+        using var transport =
+            new LoopbackTransport();
+
+        using var session =
+            new NetworkSession(
+                transport);
+
+        var server =
+            CreateNode(
+                1,
+                2101);
+
+        var client =
+            CreateNode(
+                2,
+                2102);
+
+        var nodes =
+            new[]
+            {
+            server,
+            client
+            };
+
+        var authority =
+            new FixedNetworkAuthority(
+                client.Id,
+                server.Id);
+
+        var architecture =
+            new NetworkArchitecture(
+                session,
+                new NetworkConfiguration(
+                    client,
+                    nodes,
+                    new StarTopology(
+                        server.Id),
+                    authority));
+
+        Assert.Same(
+            authority,
+            architecture.Authority);
+
+        Assert.Equal(
+            server.Id,
+            architecture.AuthorityNode);
+
+        Assert.False(
+            architecture.HasAuthority);
+    }
+
+    [Fact]
     public void StarArchitecture_ClientsInitiateAndServerAccepts()
     {
         using var serverTransport =

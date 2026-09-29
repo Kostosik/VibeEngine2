@@ -22,4 +22,18 @@ public static class EditorUiAssetFile
             path,
             asset);
     }
+
+    public static EditorUiDocument Load(
+    string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            path);
+
+        var asset =
+            UiAssetFileSerializer.Load(
+                path);
+
+        return EditorUiAssetConverter.ConvertToDocument(
+            asset);
+    }
 }

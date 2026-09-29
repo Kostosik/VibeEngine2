@@ -34,6 +34,8 @@ public sealed class NetworkCommandChannel : IDisposable
 
         _session.PacketReceived +=
             OnPacketReceived;
+        _session.ConnectionDisconnected +=
+    OnConnectionDisconnected;
     }
 
     public bool Send(
@@ -101,12 +103,50 @@ public sealed class NetworkCommandChannel : IDisposable
                ticks.Remove(tick);
     }
 
+    private void OnConnectionDisconnected(
+    NetworkConnection connection)
+    {
+        _received.Remove(
+            connection.Id);
+    }
+
+    public int RemoveBefore(
+    ConnectionId connection,
+    Tick tick)
+    {
+        EnsureNotDisposed();
+
+        if (!_received.TryGetValue(
+                connection,
+                out var ticks))
+        {
+            return 0;
+        }
+
+        var staleTicks =
+            ticks.Keys
+                .Where(
+                    current => current.Value < tick.Value)
+                .ToArray();
+
+        foreach (var staleTick in staleTicks)
+        {
+            ticks.Remove(
+                staleTick);
+        }
+
+        return staleTicks.Length;
+    }
+
     public void Dispose()
     {
         if (_disposed)
         {
             return;
         }
+
+        _session.ConnectionDisconnected -=
+            OnConnectionDisconnected;
 
         _session.PacketReceived -=
             OnPacketReceived;

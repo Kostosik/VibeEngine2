@@ -18,6 +18,8 @@ public sealed class NetworkTopologyConnector
         NetworkConnection> _connections =
         new();
 
+    private NetworkTopologyPlan? _plan;
+
     public NetworkTopologyConnector(
         NetworkSession session,
         NetworkNode localNode,
@@ -50,7 +52,10 @@ public sealed class NetworkTopologyConnector
     public IReadOnlyDictionary<
         NetworkNodeId,
         NetworkConnection> Connections =>
-        new Dictionary<NetworkNodeId,NetworkConnection>(_connections);
+        new Dictionary<
+            NetworkNodeId,
+            NetworkConnection>(
+            _connections);
 
     public void Apply(
         NetworkTopologyPlan plan)
@@ -58,17 +63,23 @@ public sealed class NetworkTopologyConnector
         ArgumentNullException.ThrowIfNull(
             plan);
 
-        var initiatedPeers =
-            plan.GetInitiatedPeers(
-                _localNode.Id);
+        _plan =
+            plan;
 
         var desiredPeers =
-            initiatedPeers.ToHashSet();
+            plan.GetPeers(
+                    _localNode.Id)
+                .ToHashSet();
 
         RemoveUndesiredConnections(
             desiredPeers);
 
-        foreach (var peerId in initiatedPeers)
+        ReconcileActiveConnections(
+            desiredPeers);
+
+        foreach (var peerId in
+                 plan.GetInitiatedPeers(
+                     _localNode.Id))
         {
             if (!_nodes.TryGetValue(
                     peerId,
@@ -106,6 +117,102 @@ public sealed class NetworkTopologyConnector
             _connections[peerId] =
                 connection;
         }
+    }
+
+    public void Update()
+    {
+        if (_plan is null)
+        {
+            return;
+        }
+
+        var desiredPeers =
+            _plan.GetPeers(
+                    _localNode.Id)
+                .ToHashSet();
+
+        ReconcileActiveConnections(
+            desiredPeers);
+    }
+
+    private void ReconcileActiveConnections(
+        HashSet<NetworkNodeId> desiredPeers)
+    {
+        var activeConnectionIds =
+            new HashSet<ConnectionId>();
+
+        foreach (var connection in
+                 _session.Connections.ToArray())
+        {
+            var peerId =
+                FindNodeId(
+                    connection.Endpoint);
+
+            if (!peerId.HasValue ||
+                !desiredPeers.Contains(
+                    peerId.Value))
+            {
+                _session.Disconnect(
+                    connection.Id);
+
+                continue;
+            }
+
+            if (_connections.TryGetValue(
+                    peerId.Value,
+                    out var existing))
+            {
+                if (existing.Id !=
+                    connection.Id)
+                {
+                    _session.Disconnect(
+                        connection.Id);
+
+                    continue;
+                }
+            }
+            else
+            {
+                _connections[peerId.Value] =
+                    connection;
+            }
+
+            activeConnectionIds.Add(
+                connection.Id);
+        }
+
+        var trackedPeers =
+            _connections.Keys.ToArray();
+
+        foreach (var peerId in
+                 trackedPeers)
+        {
+            var connection =
+                _connections[peerId];
+
+            if (!activeConnectionIds.Contains(
+                    connection.Id))
+            {
+                _connections.Remove(
+                    peerId);
+            }
+        }
+    }
+
+    private NetworkNodeId? FindNodeId(
+        NetworkEndpoint endpoint)
+    {
+        foreach (var node in
+                 _nodes.Values)
+        {
+            if (node.Endpoint ==
+                endpoint)
+            {
+                return node.Id;
+            }
+        }
+
+        return null;
     }
 
     private void RemoveUndesiredConnections(
@@ -181,7 +288,7 @@ public sealed class NetworkTopologyConnector
             if (!node.Id.IsValid)
             {
                 throw new ArgumentException(
-                    "Topology contains an invalid node ID.",
+                    "Network node ID must be valid.",
                     nameof(nodes));
             }
 
@@ -189,7 +296,7 @@ public sealed class NetworkTopologyConnector
                     node.Id))
             {
                 throw new ArgumentException(
-                    $"Topology contains duplicate node ID '{node.Id.Value}'.",
+                    $"Network node ID '{node.Id.Value}' appears more than once.",
                     nameof(nodes));
             }
 
@@ -204,7 +311,7 @@ public sealed class NetworkTopologyConnector
         {
             throw new ArgumentException(
                 $"Local node '{localNodeId.Value}' does not exist in the node list.",
-                nameof(nodes));
+                nameof(localNodeId));
         }
     }
 }

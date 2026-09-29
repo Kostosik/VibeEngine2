@@ -80,6 +80,15 @@ public sealed class UiAssetLoader
             ApplyLayout(
                 widget,
                 element);
+
+            ApplyProperties(
+    widget,
+    element);
+
+            BindAction(
+                widget,
+                element);
+
             BindAction(
     widget,
     element);
@@ -114,15 +123,13 @@ public sealed class UiAssetLoader
                 CreateImage(element),
 
             UiAssetElementType.TextBox =>
-                new UiTextBox(
-                    element.Text),
+                CreateTextBox(element),
 
             UiAssetElementType.Toggle =>
-                new UiToggle(
-                    element.Text),
+                CreateToggle(element),
 
             UiAssetElementType.Dropdown =>
-                new UiDropdown(),
+                CreateDropdown(element),
 
             UiAssetElementType.ScrollView =>
                 new UiScrollView(),
@@ -135,6 +142,58 @@ public sealed class UiAssetLoader
                 throw new InvalidDataException(
                     $"Unsupported UI asset element type '{element.Type}'.")
         };
+    }
+
+    private static UiTextBox CreateTextBox(
+    UiAssetElement element)
+    {
+        var textBox =
+            new UiTextBox(
+                element.Text)
+            {
+                Placeholder =
+                    element.Placeholder,
+
+                MaxLength =
+                    element.MaxLength
+            };
+
+        return textBox;
+    }
+
+    private static UiToggle CreateToggle(
+        UiAssetElement element)
+    {
+        var toggle =
+            new UiToggle(
+                element.Text);
+
+        toggle.SetValue(
+            element.ToggleValue);
+
+        return toggle;
+    }
+
+    private static UiDropdown CreateDropdown(
+        UiAssetElement element)
+    {
+        var dropdown =
+            new UiDropdown();
+
+        foreach (var option in
+                 element.DropdownOptions)
+        {
+            dropdown.AddOption(
+                option);
+        }
+
+        if (element.SelectedIndex >= 0)
+        {
+            dropdown.SetSelectedIndex(
+                element.SelectedIndex);
+        }
+
+        return dropdown;
     }
 
     private UiImage CreateImage(
@@ -182,6 +241,19 @@ public sealed class UiAssetLoader
             element.Layout.Size.Y;
     }
 
+    private static void ApplyProperties(
+    UiWidget widget,
+    UiAssetElement element)
+    {
+        widget.Visible =
+            element.Visible;
+
+        widget.Enabled =
+            element.Enabled;
+
+        widget.ZIndex =
+            element.ZIndex;
+    }
     private static void AddChild(
         UiWidget parent,
         UiWidget child)

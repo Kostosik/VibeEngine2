@@ -2,6 +2,7 @@
 using Engine.Core.Replays;
 using Engine.Core.Time;
 using Engine.Networking.Connections;
+using Engine.Networking.Packets;
 using Engine.Networking.Sessions;
 using Engine.Networking.Simulation;
 using Engine.Networking.Transport;
@@ -10,6 +11,102 @@ namespace Engine.Tests.Networking;
 
 public sealed class NetworkCommandChannelTests
 {
+    [Fact]
+    public void Update_MalformedPacket_DoesNotBlockFollowingValidPacket()
+    {
+        using var serverTransport =
+            new LoopbackTransport();
+
+        using var clientTransport =
+            new LoopbackTransport();
+
+        using var serverSession =
+            new NetworkSession(
+                serverTransport);
+
+        using var clientSession =
+            new NetworkSession(
+                clientTransport);
+
+        var serverEndpoint =
+            new NetworkEndpoint(
+                "malformed-command-server",
+                1110);
+
+        var clientEndpoint =
+            new NetworkEndpoint(
+                "malformed-command-client",
+                1111);
+
+        serverSession.Start(
+            serverEndpoint);
+
+        clientSession.Start(
+            clientEndpoint);
+
+        var clientConnection =
+            clientSession.Connect(
+                serverEndpoint);
+
+        serverSession.Update();
+
+        var serverConnection =
+            Assert.Single(
+                serverSession.Connections);
+
+        var registry =
+            new ReplayCommandRegistry();
+
+        registry.Register<AddValueCommand>(
+            "add_value");
+
+        using var serverChannel =
+            new NetworkCommandChannel(
+                serverSession,
+                registry);
+
+        using var clientChannel =
+            new NetworkCommandChannel(
+                clientSession,
+                registry);
+
+        Assert.True(
+            clientSession.Send(
+                clientConnection.Id,
+                new NetworkPacket(
+                    new PacketId(1),
+                    NetworkChannel.Reliable,
+                    "{invalid-json"u8.ToArray())));
+
+        var batch =
+            new NetworkCommandBatch(
+                TickFromInt(42));
+
+        batch.Add(
+            new AddValueCommand(10));
+
+        Assert.True(
+            clientChannel.Send(
+                clientConnection.Id,
+                batch));
+
+        serverChannel.Update();
+
+        Assert.True(
+            serverChannel.TryGet(
+                serverConnection.Id,
+                TickFromInt(42),
+                out var commands));
+
+        var command =
+            Assert.IsType<AddValueCommand>(
+                Assert.Single(commands));
+
+        Assert.Equal(
+            10,
+            command.Value);
+    }
+
     [Fact]
     public void SendAndUpdate_DeliversCommandsForCorrectTick()
     {

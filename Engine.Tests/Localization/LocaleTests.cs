@@ -39,4 +39,11 @@ public sealed class LocaleTests
         Assert.Null(
             locale.Region);
     }
+
+    [Fact]
+    public void Locale_RejectsMoreThanLanguageAndRegion()
+    {
+        Assert.Throws<ArgumentException>(
+            () => new Locale("en-US-extra"));
+    }
 }

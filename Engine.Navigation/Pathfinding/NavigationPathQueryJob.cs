@@ -22,7 +22,9 @@ public sealed class NavigationPathQueryJob :
             query;
     }
 
-    public NavigationQueryResult Result { get; private set; }
+    public NavigationQueryResult Result { get; private set; } =
+    NavigationQueryResult.Failure(
+        NavigationQueryStatus.NotExecuted);
 
     public void Execute()
     {

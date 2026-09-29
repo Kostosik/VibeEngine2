@@ -49,7 +49,8 @@ public static class NetworkCommandSerializer
         ReadOnlySpan<byte> payload,
         ReplayCommandRegistry registry)
     {
-        ArgumentNullException.ThrowIfNull(registry);
+        ArgumentNullException.ThrowIfNull(
+            registry);
 
         if (payload.IsEmpty)
         {
@@ -57,15 +58,32 @@ public static class NetworkCommandSerializer
                 "Network command payload is empty.");
         }
 
-        var data =
-            JsonSerializer.Deserialize<
-                NetworkCommandBatchData>(
+        NetworkCommandBatchData? data;
+
+        try
+        {
+            data =
+                JsonSerializer.Deserialize<
+                    NetworkCommandBatchData>(
                     payload);
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException(
+                "Network command payload contains invalid JSON.",
+                exception);
+        }
 
         if (data is null)
         {
             throw new InvalidDataException(
                 "Network command payload is invalid.");
+        }
+
+        if (data.Commands is null)
+        {
+            throw new InvalidDataException(
+                "Network command payload contains no command list.");
         }
 
         var batch =
@@ -74,11 +92,33 @@ public static class NetworkCommandSerializer
 
         foreach (var command in data.Commands)
         {
-            batch.Add(
-                registry.DeserializeCommand(
-                    new ReplayCommandData(
-                        command.Type,
-                        command.Payload)));
+            if (command is null)
+            {
+                throw new InvalidDataException(
+                    "Network command payload contains a null command.");
+            }
+
+            try
+            {
+                batch.Add(
+                    registry.DeserializeCommand(
+                        new ReplayCommandData(
+                            command.Type,
+                            command.Payload)));
+            }
+            catch (InvalidDataException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+                when (exception is
+                    ArgumentException or
+                    JsonException)
+            {
+                throw new InvalidDataException(
+                    $"Network command '{command.Type}' is invalid.",
+                    exception);
+            }
         }
 
         return batch;

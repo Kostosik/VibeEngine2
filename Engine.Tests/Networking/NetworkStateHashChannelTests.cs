@@ -1,6 +1,7 @@
 ﻿using Engine.Core.Determinism;
 using Engine.Core.Time;
 using Engine.Networking.Connections;
+using Engine.Networking.Packets;
 using Engine.Networking.Sessions;
 using Engine.Networking.Simulation;
 using Engine.Networking.Transport;
@@ -9,6 +10,88 @@ namespace Engine.Tests.Networking;
 
 public sealed class NetworkStateHashChannelTests
 {
+    [Fact]
+    public void Update_MalformedPacket_DoesNotBlockFollowingValidHash()
+    {
+        using var serverTransport =
+            new LoopbackTransport();
+
+        using var clientTransport =
+            new LoopbackTransport();
+
+        using var serverSession =
+            new NetworkSession(
+                serverTransport);
+
+        using var clientSession =
+            new NetworkSession(
+                clientTransport);
+
+        var serverEndpoint =
+            new NetworkEndpoint(
+                "malformed-hash-server",
+                1310);
+
+        var clientEndpoint =
+            new NetworkEndpoint(
+                "malformed-hash-client",
+                1311);
+
+        serverSession.Start(
+            serverEndpoint);
+
+        clientSession.Start(
+            clientEndpoint);
+
+        var clientConnection =
+            clientSession.Connect(
+                serverEndpoint);
+
+        serverSession.Update();
+
+        var serverConnection =
+            Assert.Single(
+                serverSession.Connections);
+
+        using var serverChannel =
+            new NetworkStateHashChannel(
+                serverSession);
+
+        Assert.True(
+            clientSession.Send(
+                clientConnection.Id,
+                new NetworkPacket(
+                    new PacketId(2),
+                    NetworkChannel.Unreliable,
+                    new byte[] { 1, 2, 3 })));
+
+        var expectedHash =
+            new DeterministicStateHash(
+                12345UL);
+
+        using var clientChannel =
+            new NetworkStateHashChannel(
+                clientSession);
+
+        Assert.True(
+            clientChannel.Send(
+                clientConnection.Id,
+                new Tick(42),
+                expectedHash));
+
+        serverChannel.Update();
+
+        Assert.True(
+            serverChannel.TryGet(
+                serverConnection.Id,
+                new Tick(42),
+                out var receivedHash));
+
+        Assert.Equal(
+            expectedHash,
+            receivedHash);
+    }
+
     [Fact]
     public void SendAndUpdate_DeliversHashForCorrectTick()
     {

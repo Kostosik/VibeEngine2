@@ -136,8 +136,8 @@ public sealed class NetworkMessageChannel :
     }
 
     private void OnPacketReceived(
-        ConnectionId connection,
-        NetworkPacket packet)
+    ConnectionId connection,
+    NetworkPacket packet)
     {
         if (_disposed)
         {
@@ -151,10 +151,19 @@ public sealed class NetworkMessageChannel :
             return;
         }
 
-        var message =
-            registration.Serializer.Deserialize(
-                packet.Payload.Span,
-                _context);
+        object message;
+
+        try
+        {
+            message =
+                registration.Serializer.Deserialize(
+                    packet.Payload.Span,
+                    _context);
+        }
+        catch (InvalidDataException)
+        {
+            return;
+        }
 
         registration.Invoke(
             connection,

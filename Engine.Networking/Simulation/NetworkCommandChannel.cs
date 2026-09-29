@@ -125,10 +125,19 @@ public sealed class NetworkCommandChannel : IDisposable
             return;
         }
 
-        var batch =
-            NetworkCommandSerializer.Deserialize(
-                packet.Payload.Span,
-                _registry);
+        NetworkCommandBatch batch;
+
+        try
+        {
+            batch =
+                NetworkCommandSerializer.Deserialize(
+                    packet.Payload.Span,
+                    _registry);
+        }
+        catch (InvalidDataException)
+        {
+            return;
+        }
 
         if (!_received.TryGetValue(
                 connection,

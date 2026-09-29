@@ -26,6 +26,13 @@ public readonly record struct Locale
                 nameof(code));
         }
 
+        if (parts.Length > 2)
+        {
+            throw new ArgumentException(
+                "Locale code cannot contain more than language and region.",
+                nameof(code));
+        }
+
         var language =
             parts[0].ToLowerInvariant();
 

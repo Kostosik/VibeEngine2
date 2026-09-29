@@ -2,6 +2,7 @@
 
 public enum NavigationQueryStatus
 {
+    NotExecuted = 0,
     Success,
     StartOutsideMap,
     GoalOutsideMap,

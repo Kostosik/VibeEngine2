@@ -6,6 +6,11 @@ namespace Engine.Physics;
 public sealed class PhysicsSettings2D :
     IDeterministicState
 {
+    private int _velocityIterations;
+    private int _positionIterations;
+    private Fixed32 _penetrationSlop;
+    private Fixed32 _positionCorrectionPercent;
+
     public PhysicsSettings2D()
     {
         Gravity = FixedVector2.Zero;
@@ -17,13 +22,70 @@ public sealed class PhysicsSettings2D :
 
     public FixedVector2 Gravity { get; set; }
 
-    public int VelocityIterations { get; set; }
+    public int VelocityIterations
+    {
+        get => _velocityIterations;
+        set
+        {
+            if (value < 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    "Velocity iterations cannot be negative.");
+            }
 
-    public int PositionIterations { get; set; }
+            _velocityIterations = value;
+        }
+    }
 
-    public Fixed32 PenetrationSlop { get; set; }
+    public int PositionIterations
+    {
+        get => _positionIterations;
+        set
+        {
+            if (value < 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    "Position iterations cannot be negative.");
+            }
 
-    public Fixed32 PositionCorrectionPercent { get; set; }
+            _positionIterations = value;
+        }
+    }
+
+    public Fixed32 PenetrationSlop
+    {
+        get => _penetrationSlop;
+        set
+        {
+            if (value < Fixed32.Zero)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    "Penetration slop cannot be negative.");
+            }
+
+            _penetrationSlop = value;
+        }
+    }
+
+    public Fixed32 PositionCorrectionPercent
+    {
+        get => _positionCorrectionPercent;
+        set
+        {
+            if (value < Fixed32.Zero ||
+                value > Fixed32.One)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    "Position correction percent must be between zero and one.");
+            }
+
+            _positionCorrectionPercent = value;
+        }
+    }
 
     public void AddToHash(
         ref DeterministicStateHasher hasher)

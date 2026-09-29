@@ -115,24 +115,35 @@ public sealed class NetworkStateHashChannel : IDisposable
     }
 
     private void OnPacketReceived(
-        ConnectionId connection,
-        NetworkPacket packet)
+     ConnectionId connection,
+     NetworkPacket packet)
     {
         if (packet.Id != StateHashPacketId)
         {
             return;
         }
 
-        var message =
-            NetworkStateHashSerializer.Deserialize(
-                packet.Payload.Span);
+        NetworkStateHashMessage message;
+
+        try
+        {
+            message =
+                NetworkStateHashSerializer.Deserialize(
+                    packet.Payload.Span);
+        }
+        catch (InvalidDataException)
+        {
+            return;
+        }
 
         if (!_received.TryGetValue(
                 connection,
                 out var hashes))
         {
             hashes =
-                new Dictionary<Tick, DeterministicStateHash>();
+                new Dictionary<
+                    Tick,
+                    DeterministicStateHash>();
 
             _received.Add(
                 connection,

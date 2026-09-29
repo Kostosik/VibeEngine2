@@ -161,8 +161,6 @@ public sealed class OpenGLWindow : IDisposable
     }
     private void OnClosing()
     {
-        _graphicsDevice?.Dispose();
-        _graphicsDevice = null;
     }
 
     public void Dispose()

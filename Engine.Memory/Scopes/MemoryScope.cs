@@ -197,17 +197,16 @@ public unsafe sealed class MemoryScope :
     }
 
     private void MoveToBlock(
-        int byteCount,
-        int alignment)
+    int byteCount,
+    int alignment)
     {
-        if (_currentBlockIndex + 1 <
-            _blocks.Count)
+        for (var i =
+                 _currentBlockIndex + 1;
+             i < _blocks.Count;
+             i++)
         {
-            _currentBlockIndex++;
-            _currentOffset = 0;
-
             var existingBlock =
-                _blocks[_currentBlockIndex];
+                _blocks[i];
 
             var alignedOffset =
                 AlignUp(
@@ -218,6 +217,12 @@ public unsafe sealed class MemoryScope :
                 (int)existingBlock.ByteLength -
                 alignedOffset)
             {
+                _currentBlockIndex =
+                    i;
+
+                _currentOffset =
+                    0;
+
                 return;
             }
         }
@@ -230,7 +235,8 @@ public unsafe sealed class MemoryScope :
 
         var currentCapacity =
             checked(
-                (int)_blocks[_currentBlockIndex]
+                (int)_blocks[
+                    _currentBlockIndex]
                     .ByteLength);
 
         var doubledCapacity =
@@ -256,7 +262,8 @@ public unsafe sealed class MemoryScope :
         _currentBlockIndex =
             _blocks.Count - 1;
 
-        _currentOffset = 0;
+        _currentOffset =
+            0;
     }
 
     private void AddBlock(

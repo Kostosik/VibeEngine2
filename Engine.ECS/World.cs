@@ -341,6 +341,147 @@ public sealed class World :
                    entity);
     }
 
+    public ReadOnlyQuery<T> QueryReadOnly<T>()
+    where T : struct
+    {
+        EnsureNotDisposed();
+        EnsureNoActiveJobs();
+
+        TryGetStorage<T>(
+            out var storage);
+
+        return new ReadOnlyQuery<T>(
+            storage);
+    }
+
+    public JobHandle ScheduleParallelReadOnly<T>(
+    JobScheduler scheduler,
+    ReadOnlyComponentJob<T> job,
+    int batchSize = 64,
+    params JobHandle[] dependencies)
+    where T : struct
+    {
+        EnsureNotDisposed();
+
+        ArgumentNullException.ThrowIfNull(
+            scheduler);
+
+        ArgumentNullException.ThrowIfNull(
+            job);
+
+        ArgumentNullException.ThrowIfNull(
+            dependencies);
+
+        if (batchSize <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(batchSize));
+        }
+
+        if (!TryGetStorage<T>(
+                out var storage))
+        {
+            return scheduler.CombineDependencies(
+                dependencies);
+        }
+
+        var parallelJob =
+            new ParallelReadOnlyComponentJob<T>(
+                storage,
+                job);
+
+        var handle =
+            scheduler.ParallelFor(
+                parallelJob,
+                storage.Count,
+                batchSize,
+                dependencies);
+
+        TrackJob(
+            scheduler,
+            handle);
+
+        JobScope.Current?.Track(
+            handle);
+
+        return handle;
+    }
+
+    public JobHandle ScheduleParallelReadOnly<T1, T2>(
+    JobScheduler scheduler,
+    ReadOnlyComponentPairJob<T1, T2> job,
+    int batchSize = 64,
+    params JobHandle[] dependencies)
+    where T1 : struct
+    where T2 : struct
+    {
+        EnsureNotDisposed();
+
+        ArgumentNullException.ThrowIfNull(
+            scheduler);
+
+        ArgumentNullException.ThrowIfNull(
+            job);
+
+        ArgumentNullException.ThrowIfNull(
+            dependencies);
+
+        if (batchSize <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(batchSize));
+        }
+
+        if (!TryGetStorage<T1>(
+                out var first) ||
+            !TryGetStorage<T2>(
+                out var second))
+        {
+            return scheduler.CombineDependencies(
+                dependencies);
+        }
+
+        var parallelJob =
+            new ParallelReadOnlyComponentPairJob<T1, T2>(
+                first,
+                second,
+                job);
+
+        var handle =
+            scheduler.ParallelFor(
+                parallelJob,
+                parallelJob.Count,
+                batchSize,
+                dependencies);
+
+        TrackJob(
+            scheduler,
+            handle);
+
+        JobScope.Current?.Track(
+            handle);
+
+        return handle;
+    }
+
+    public ReadOnlyQuery<T1, T2> QueryReadOnly<T1, T2>()
+        where T1 : struct
+        where T2 : struct
+    {
+        EnsureNotDisposed();
+        EnsureNoActiveJobs();
+
+        TryGetStorage<T1>(
+            out var first);
+
+        TryGetStorage<T2>(
+            out var second);
+
+        return new ReadOnlyQuery<T1, T2>(
+            first,
+            second);
+    }
+
     public Query<T> Query<T>()
         where T : struct
     {

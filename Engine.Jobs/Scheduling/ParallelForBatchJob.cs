@@ -2,53 +2,102 @@
 
 namespace Engine.Jobs.Scheduling;
 
-internal sealed class ParallelForBatchJob :
+internal sealed class ParallelForWorkerJob :
     IJob
 {
-    private readonly IJobParallelFor _job;
+    private readonly ParallelForState _state;
 
-    private readonly int _startIndex;
-
-    private readonly int _endIndex;
-
-    public ParallelForBatchJob(
-        IJobParallelFor job,
-        int startIndex,
-        int endIndex)
+    public ParallelForWorkerJob(
+        ParallelForState state)
     {
         ArgumentNullException.ThrowIfNull(
-            job);
+            state);
 
-        if (startIndex < 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(startIndex));
-        }
-
-        if (endIndex < startIndex)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(endIndex));
-        }
-
-        _job =
-            job;
-
-        _startIndex =
-            startIndex;
-
-        _endIndex =
-            endIndex;
+        _state =
+            state;
     }
 
     public void Execute()
     {
-        for (var index = _startIndex;
-             index < _endIndex;
-             index++)
+        _state.Execute();
+    }
+}
+
+internal sealed class ParallelForState
+{
+    private readonly IJobParallelFor _job;
+
+    private readonly int _length;
+
+    private readonly int _batchSize;
+
+    private readonly int _batchCount;
+
+    private int _nextBatch;
+
+    public ParallelForState(
+        IJobParallelFor job,
+        int length,
+        int batchSize)
+    {
+        ArgumentNullException.ThrowIfNull(
+            job);
+
+        _job =
+            job;
+
+        _length =
+            length;
+
+        _batchSize =
+            batchSize;
+
+        _batchCount =
+            length == 0
+                ? 0
+                : (length - 1) /
+                  batchSize +
+                  1;
+    }
+
+    public void Execute()
+    {
+        while (true)
         {
-            _job.Execute(
-                index);
+            var batch =
+                Interlocked.Increment(
+                    ref _nextBatch) - 1;
+
+            if ((uint)batch >=
+                (uint)_batchCount)
+            {
+                return;
+            }
+
+            var startIndex =
+                batch *
+                _batchSize;
+
+            var remaining =
+                _length -
+                startIndex;
+
+            var count =
+                Math.Min(
+                    remaining,
+                    _batchSize);
+
+            var endIndex =
+                startIndex +
+                count;
+
+            for (var index = startIndex;
+                 index < endIndex;
+                 index++)
+            {
+                _job.Execute(
+                    index);
+            }
         }
     }
 }

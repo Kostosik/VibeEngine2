@@ -4,17 +4,17 @@ using Engine.Jobs.Jobs;
 
 namespace Engine.ECS.Jobs;
 
-internal sealed class ParallelComponentJob<T> :
+internal sealed class ParallelReadOnlyComponentJob<T> :
     IJobParallelFor
     where T : struct
 {
     private readonly ComponentStorage<T> _storage;
 
-    private readonly ComponentJob<T> _job;
+    private readonly ReadOnlyComponentJob<T> _job;
 
-    public ParallelComponentJob(
+    public ParallelReadOnlyComponentJob(
         ComponentStorage<T> storage,
-        ComponentJob<T> job)
+        ReadOnlyComponentJob<T> job)
     {
         ArgumentNullException.ThrowIfNull(
             storage);
@@ -36,12 +36,12 @@ internal sealed class ParallelComponentJob<T> :
             _storage.GetEntity(
                 index);
 
-        ref var component =
-            ref _storage.GetByIndexParallel(
+        ref readonly var component =
+            ref _storage.GetByIndexReadOnly(
                 index);
 
         _job(
             entity,
-            ref component);
+            in component);
     }
 }

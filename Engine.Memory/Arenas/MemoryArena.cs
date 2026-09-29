@@ -66,7 +66,9 @@ public sealed class MemoryArena<T> :
         }
 
         if (_current is null ||
-            _position + length > _current.Length)
+            length >
+            _current.Length -
+            _position)
         {
             _current =
                 _pool.Rent(

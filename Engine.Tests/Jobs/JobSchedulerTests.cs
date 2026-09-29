@@ -44,6 +44,8 @@ public sealed class JobSchedulerTests
                 ref _counters[index]);
         }
     }
+
+
     [Fact]
     public void ParallelFor_WithZeroLength_CompletesImmediately()
     {
@@ -70,6 +72,39 @@ public sealed class JobSchedulerTests
         Assert.False(
             executed);
     }
+    [Theory]
+    [InlineData(0, 1, 0)]
+    [InlineData(1, 1, 1)]
+    [InlineData(100, 10, 10)]
+    [InlineData(101, 10, 11)]
+    [InlineData(int.MaxValue, int.MaxValue, 1)]
+    [InlineData(int.MaxValue, 2, 1073741824)]
+    public void CalculateBatchCount_DoesNotOverflow(
+    int length,
+    int batchSize,
+    int expected)
+    {
+        Assert.Equal(
+            expected,
+            CalculateBatchCount(
+                length,
+                batchSize));
+    }
+
+    private static int CalculateBatchCount(
+    int length,
+    int batchSize)
+    {
+        if (length == 0)
+        {
+            return 0;
+        }
+
+        return (length - 1) /
+               batchSize +
+               1;
+    }
+
     [Fact]
     public void ParallelFor_RespectsDependencies()
     {

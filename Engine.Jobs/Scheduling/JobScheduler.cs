@@ -145,6 +145,18 @@ public sealed class JobScheduler :
             return CombineDependencies();
         }
 
+        var batchCount =
+            length == 0
+                ? 0
+                : (length - 1) /
+                  batchSize +
+                  1;
+
+        var workerCount =
+            Math.Min(
+                _workers.Length,
+                batchCount);
+
         JobHandle dependencyHandle =
             default;
 
@@ -155,39 +167,30 @@ public sealed class JobScheduler :
                     dependencies);
         }
 
-        var batchCount =
-            (length + batchSize - 1) /
-            batchSize;
+        var state =
+            new ParallelForState(
+                job,
+                length,
+                batchSize);
 
         var handles =
-            new JobHandle[batchCount];
+            new JobHandle[workerCount];
 
-        for (var batch = 0;
-             batch < batchCount;
-             batch++)
+        for (var worker = 0;
+             worker < workerCount;
+             worker++)
         {
-            var startIndex =
-                batch *
-                batchSize;
+            var workerJob =
+                new ParallelForWorkerJob(
+                    state);
 
-            var endIndex =
-                Math.Min(
-                    startIndex + batchSize,
-                    length);
-
-            var batchJob =
-                new ParallelForBatchJob(
-                    job,
-                    startIndex,
-                    endIndex);
-
-            handles[batch] =
+            handles[worker] =
                 dependencies.Length > 0
                     ? Schedule(
-                        batchJob,
+                        workerJob,
                         dependencyHandle)
                     : Schedule(
-                        batchJob);
+                        workerJob);
         }
 
         return CombineDependencies(

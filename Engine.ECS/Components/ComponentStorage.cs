@@ -15,6 +15,7 @@ internal sealed class ComponentStorage<T> :
         (ulong)Volatile.Read(
             ref _changeVersion));
 
+    private int _parallelVersionAdvanced;
     private readonly PooledList<EntityId> _entities =
         new();
 
@@ -48,6 +49,64 @@ internal sealed class ComponentStorage<T> :
 
     private readonly object[] _dirtyLocks =
         CreateDirtyLocks();
+
+    internal ref T GetByIndexParallel(
+    int index)
+    {
+        var entity =
+            _entities[index];
+
+        MarkDirtyParallel(
+            index,
+            entity);
+
+        return ref _components[index];
+    }
+
+    internal ref T GetParallel(
+        EntityId entity)
+    {
+        if (!TryGetIndex(
+                entity,
+                out var index))
+        {
+            throw new KeyNotFoundException(
+                $"Entity " +
+                $"{entity.Index}:{entity.Generation} " +
+                $"does not have component " +
+                $"{typeof(T).Name}.");
+        }
+
+        MarkDirtyParallel(
+            index,
+            entity);
+
+        return ref _components[index];
+    }
+
+    private void MarkDirtyParallel(
+    int index,
+    EntityId entity)
+    {
+        if (_dirtyFlags[index] != 0)
+        {
+            return;
+        }
+
+        _dirtyFlags[index] =
+            1;
+
+        _dirtyEntities.AddConcurrent(
+            entity);
+
+        if (Interlocked.Exchange(
+                ref _parallelVersionAdvanced,
+                1) == 0)
+        {
+            Interlocked.Increment(
+                ref _changeVersion);
+        }
+    }
 
     private static object[] CreateDirtyLocks()
     {
@@ -303,7 +362,28 @@ internal sealed class ComponentStorage<T> :
         return _dirtyEntities.AsReadOnlySpan();
     }
 
+    internal ref readonly T GetByIndexReadOnly(
+    int index)
+    {
+        return ref _components[index];
+    }
 
+    internal ref readonly T GetReadOnly(
+        EntityId entity)
+    {
+        if (!TryGetIndex(
+                entity,
+                out var index))
+        {
+            throw new KeyNotFoundException(
+                $"Entity " +
+                $"{entity.Index}:{entity.Generation} " +
+                $"does not have component " +
+                $"{typeof(T).Name}.");
+        }
+
+        return ref _components[index];
+    }
 
     public ReadOnlySpan<EntityId> GetRemovedEntities()
     {
@@ -318,6 +398,10 @@ internal sealed class ComponentStorage<T> :
 
         _dirtyEntities.Clear();
         _removedEntities.Clear();
+
+        Volatile.Write(
+            ref _parallelVersionAdvanced,
+            0);
     }
 
     public void AddToHash(

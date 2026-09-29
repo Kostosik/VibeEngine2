@@ -107,6 +107,67 @@ Benchmark(
 world.ClearDirty<TestComponent>();
 
 Benchmark(
+    "JobScheduler ParallelFor NoOp",
+    warmupIterations,
+    iterations,
+    () =>
+    {
+        var handle =
+            scheduler.ParallelFor(
+                new NoOpJob(),
+                entityCount,
+                batchSize);
+
+        scheduler.Wait(
+            handle);
+    });
+
+Benchmark(
+    "JobScheduler ParallelFor AtomicIncrement",
+    warmupIterations,
+    iterations,
+    () =>
+    {
+        var job =
+            new AtomicIncrementJob();
+
+        var handle =
+            scheduler.ParallelFor(
+                job,
+                entityCount,
+                batchSize);
+
+        scheduler.Wait(
+            handle);
+
+        GC.KeepAlive(
+            job);
+    });
+
+Benchmark(
+    "JobScheduler ParallelFor AtomicAppend",
+    warmupIterations,
+    iterations,
+    () =>
+    {
+        var job =
+            new AtomicAppendJob(
+                entityCount);
+
+        var handle =
+            scheduler.ParallelFor(
+                job,
+                entityCount,
+                batchSize);
+
+        scheduler.Wait(
+            handle);
+
+        GC.KeepAlive(
+            job);
+    });
+
+Benchmark(
     "ECS ScheduleParallel",
     warmupIterations,
     iterations,
@@ -128,6 +189,57 @@ Benchmark(
         scheduler.Wait(
             handle);
     });
+
+Benchmark(
+    "ECS ScheduleParallel NoOp",
+    warmupIterations,
+    iterations,
+    () =>
+    {
+        world.ClearDirty<TestComponent>();
+
+        var handle =
+            world.ScheduleParallel(
+                scheduler,
+                (
+                    EntityId entity,
+                    ref TestComponent component) =>
+                {
+                },
+                batchSize);
+
+        scheduler.Wait(
+            handle);
+    });
+
+var batchSizes =
+    new[]
+    {
+        64,
+        256,
+        1024,
+        4096
+    };
+
+foreach (var currentBatchSize in
+         batchSizes)
+{
+    Benchmark(
+        $"JobScheduler ParallelFor NoOp Batch={currentBatchSize}",
+        warmupIterations,
+        iterations,
+        () =>
+        {
+            var handle =
+                scheduler.ParallelFor(
+                    new NoOpJob(),
+                    entityCount,
+                    currentBatchSize);
+
+            scheduler.Wait(
+                handle);
+        });
+}
 
 Console.WriteLine(
     "Baseline complete.");
@@ -225,6 +337,56 @@ static void Benchmark(
 struct TestComponent
 {
     public int Value;
+}
+
+sealed class NoOpJob :
+    IJobParallelFor
+{
+    public void Execute(
+        int index)
+    {
+    }
+}
+
+sealed class AtomicIncrementJob :
+    IJobParallelFor
+{
+    private int _counter;
+
+    public void Execute(
+        int index)
+    {
+        Interlocked.Increment(
+            ref _counter);
+    }
+}
+
+sealed class AtomicAppendJob :
+    IJobParallelFor
+{
+    private readonly EntityId[] _values;
+
+    private int _count;
+
+    public AtomicAppendJob(
+        int capacity)
+    {
+        _values =
+            new EntityId[capacity];
+    }
+
+    public void Execute(
+        int index)
+    {
+        var position =
+            Interlocked.Increment(
+                ref _count) - 1;
+
+        _values[position] =
+            new EntityId(
+                (uint)index + 1,
+                1);
+    }
 }
 
 sealed class IncrementJob :

@@ -4,7 +4,7 @@ using Engine.Jobs.Jobs;
 
 namespace Engine.ECS.Jobs;
 
-internal sealed class ParallelComponentPairJob<T1, T2> :
+internal sealed class ParallelReadOnlyComponentPairJob<T1, T2> :
     IJobParallelFor
     where T1 : struct
     where T2 : struct
@@ -13,14 +13,14 @@ internal sealed class ParallelComponentPairJob<T1, T2> :
 
     private readonly ComponentStorage<T2> _second;
 
-    private readonly ComponentPairJob<T1, T2> _job;
+    private readonly ReadOnlyComponentPairJob<T1, T2> _job;
 
     private readonly bool _iterateFirst;
 
-    public ParallelComponentPairJob(
+    public ParallelReadOnlyComponentPairJob(
         ComponentStorage<T1> first,
         ComponentStorage<T2> second,
-        ComponentPairJob<T1, T2> job)
+        ReadOnlyComponentPairJob<T1, T2> job)
     {
         ArgumentNullException.ThrowIfNull(
             first);
@@ -65,18 +65,18 @@ internal sealed class ParallelComponentPairJob<T1, T2> :
                 return;
             }
 
-            ref var first =
-                ref _first.GetByIndexParallel(
+            ref readonly var firstComponent =
+                ref _first.GetByIndexReadOnly(
                     index);
 
-            ref var second =
-                ref _second.GetParallel(
+            ref readonly var secondComponent =
+                ref _second.GetReadOnly(
                     entity);
 
             _job(
                 entity,
-                ref first,
-                ref second);
+                in firstComponent,
+                in secondComponent);
 
             return;
         }
@@ -91,17 +91,17 @@ internal sealed class ParallelComponentPairJob<T1, T2> :
             return;
         }
 
-        ref var secondComponent =
-            ref _second.GetByIndexParallel(
-                index);
-
-        ref var firstComponent =
-            ref _first.GetParallel(
+        ref readonly var secondFirstComponent =
+            ref _first.GetReadOnly(
                 secondEntity);
+
+        ref readonly var secondComponentValue =
+            ref _second.GetByIndexReadOnly(
+                index);
 
         _job(
             secondEntity,
-            ref firstComponent,
-            ref secondComponent);
+            in secondFirstComponent,
+            in secondComponentValue);
     }
 }

@@ -98,6 +98,24 @@ public sealed class NetworkTopologyConnectorTests
 
         Assert.Single(
             secondRemoteSession.Connections);
+
+        var exposed =
+    connector.Connections;
+
+        if (exposed is IDictionary<
+                NetworkNodeId,
+                NetworkConnection> mutable)
+        {
+            mutable.Clear();
+        }
+
+        Assert.Equal(
+            2,
+            connector.Connections.Count);
+
+        Assert.Equal(
+            2,
+            localSession.Connections.Count);
     }
 
     private static NetworkNode CreateNode(

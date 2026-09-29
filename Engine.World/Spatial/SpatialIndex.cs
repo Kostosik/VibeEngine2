@@ -163,7 +163,7 @@ public sealed class SpatialIndex
             return Array.Empty<ChunkPosition>();
         }
 
-        return chunks;
+        return chunks.ToArray();
     }
 
     public bool Move(

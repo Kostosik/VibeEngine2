@@ -346,6 +346,9 @@ public sealed class NetworkLockstep :
             return;
         }
 
+        var participant =
+            -1;
+
         foreach (var pair in
                  _connections)
         {
@@ -355,11 +358,22 @@ public sealed class NetworkLockstep :
                 continue;
             }
 
-            ConnectionDisconnected?.Invoke(
-                connection.Id);
+            participant =
+                pair.Key;
 
             break;
         }
+
+        if (participant < 0)
+        {
+            return;
+        }
+
+        _connections.Remove(
+            participant);
+
+        ConnectionDisconnected?.Invoke(
+            connection.Id);
     }
 
     private void CheckRemoteHashes()

@@ -82,8 +82,8 @@ public sealed class SpatialEntityManager
     }
 
     public void SetPosition(
-        EntityId entity,
-        WorldPosition position)
+    EntityId entity,
+    WorldPosition position)
     {
         EnsureEntityExists(entity);
 
@@ -99,6 +99,18 @@ public sealed class SpatialEntityManager
 
             if (component.Position == position)
             {
+                if (!_index.Contains(
+                        entity,
+                        newChunk))
+                {
+                    _index.RemoveEntity(
+                        entity);
+
+                    _index.Add(
+                        entity,
+                        newChunk);
+                }
+
                 return;
             }
 
@@ -109,11 +121,33 @@ public sealed class SpatialEntityManager
             component.Position =
                 position;
 
-            if (previousChunk != newChunk)
+            if (previousChunk == newChunk)
             {
-                _index.Move(
+                if (!_index.Contains(
+                        entity,
+                        newChunk))
+                {
+                    _index.RemoveEntity(
+                        entity);
+
+                    _index.Add(
+                        entity,
+                        newChunk);
+                }
+
+                return;
+            }
+
+            if (!_index.Move(
                     entity,
                     previousChunk,
+                    newChunk))
+            {
+                _index.RemoveEntity(
+                    entity);
+
+                _index.Add(
+                    entity,
                     newChunk);
             }
 

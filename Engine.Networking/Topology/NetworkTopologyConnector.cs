@@ -50,7 +50,7 @@ public sealed class NetworkTopologyConnector
     public IReadOnlyDictionary<
         NetworkNodeId,
         NetworkConnection> Connections =>
-        _connections;
+        new Dictionary<NetworkNodeId,NetworkConnection>(_connections);
 
     public void Apply(
         NetworkTopologyPlan plan)

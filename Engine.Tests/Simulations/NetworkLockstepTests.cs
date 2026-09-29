@@ -146,6 +146,15 @@ public sealed class NetworkLockstepTests
             12,
             state.Value);
 
+        Assert.True(
+    clientSession.Disconnect(
+        clientConnection.Id));
+
+        Assert.False(
+            lockstep.TryGetConnection(
+                1,
+                out _));
+
         simulation.Shutdown();
     }
 

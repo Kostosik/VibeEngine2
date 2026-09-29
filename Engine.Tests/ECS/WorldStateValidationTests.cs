@@ -40,34 +40,27 @@ public sealed class WorldStateValidationTests
                     state.Components[1]
                 });
 
-        world.Get<FirstComponent>(
-            entity).Value = 100;
+        world.Get<FirstComponent>(entity).Value = 100;
 
-        world.Get<SecondComponent>(
-            entity).Value = 200;
+        world.Get<SecondComponent>(entity).Value = 200;
 
         Assert.Throws<InvalidOperationException>(
             () =>
-                world.RestoreState(
-                    malformedState));
+                world.RestoreState(malformedState));
 
         Assert.True(
-            world.Has<FirstComponent>(
-                entity));
+            world.Has<FirstComponent>(entity));
 
         Assert.True(
-            world.Has<SecondComponent>(
-                entity));
+            world.Has<SecondComponent>(entity));
 
         Assert.Equal(
             100,
-            world.Get<FirstComponent>(
-                entity).Value);
+            world.Get<FirstComponent>(entity).Value);
 
         Assert.Equal(
             200,
-            world.Get<SecondComponent>(
-                entity).Value);
+            world.Get<SecondComponent>(entity).Value);
     }
 
     private struct FirstComponent

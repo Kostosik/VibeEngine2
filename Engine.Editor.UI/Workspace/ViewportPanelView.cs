@@ -1,6 +1,5 @@
 ﻿using Engine.Core.Math;
 using Engine.ECS.Entities;
-using Engine.Editor;
 using Engine.Editor.Commands;
 using Engine.Editor.Viewport.Gizmos;
 using Engine.Graphics.Commands;

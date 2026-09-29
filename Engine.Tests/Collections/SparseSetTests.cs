@@ -5,6 +5,23 @@ namespace Engine.Tests.Collections;
 public sealed class SparseSetTests
 {
     [Fact]
+    public void AddZero_AddsValueToEmptySet()
+    {
+        var set =
+            new SparseSet();
+
+        Assert.True(
+            set.Add(0));
+
+        Assert.True(
+            set.Contains(0));
+
+        Assert.Equal(
+            1,
+            set.Count);
+    }
+
+    [Fact]
     public void NewSetIsEmpty()
     {
         var set =

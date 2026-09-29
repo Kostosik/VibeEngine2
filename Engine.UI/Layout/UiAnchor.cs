@@ -47,12 +47,13 @@ public readonly record struct UiAnchor
     private static void Validate(
         float value)
     {
-        if (value < 0.0f ||
+        if (!float.IsFinite(value) ||
+            value < 0.0f ||
             value > 1.0f)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(value),
-                "Anchor values must be between 0 and 1.");
+                "Anchor values must be finite and between 0 and 1.");
         }
     }
 }

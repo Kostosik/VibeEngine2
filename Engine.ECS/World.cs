@@ -118,6 +118,9 @@ public sealed class World :
         ArgumentNullException.ThrowIfNull(
             state);
 
+        ValidateComponentState(
+    state);
+
         _entities.RestoreState(
             state.Entities);
 
@@ -151,6 +154,75 @@ public sealed class World :
         RebuildDeterministicStorages();
 
         _commandBuffer.Clear();
+    }
+
+    private static void ValidateComponentState(
+    EcsWorldState state)
+    {
+        var generations =
+            state.Entities.Generations;
+
+        var activeEntities =
+            new HashSet<EntityId>();
+
+        foreach (var index in
+                 state.Entities.ActiveIndices)
+        {
+            if (index == 0 ||
+                index > (uint)generations.Length)
+            {
+                throw new InvalidOperationException(
+                    $"Component state references invalid active entity index '{index}'.");
+            }
+
+            var entity =
+                new EntityId(
+                    index,
+                    generations[
+                        checked((int)index - 1)]);
+
+            if (!activeEntities.Add(
+                    entity))
+            {
+                throw new InvalidOperationException(
+                    $"Active entity '{entity}' appears more than once.");
+            }
+        }
+
+        foreach (var componentState in
+                 state.Components)
+        {
+            ArgumentNullException.ThrowIfNull(
+                componentState);
+
+            var componentEntities =
+                new HashSet<EntityId>();
+
+            for (var i = 0;
+                 i < componentState.Count;
+                 i++)
+            {
+                var entity =
+                    componentState.GetEntity(
+                        i);
+
+                if (!activeEntities.Contains(
+                        entity))
+                {
+                    throw new InvalidOperationException(
+                        $"Component '{componentState.ComponentType.Name}' " +
+                        $"references entity '{entity}' which is not active.");
+                }
+
+                if (!componentEntities.Add(
+                        entity))
+                {
+                    throw new InvalidOperationException(
+                        $"Component '{componentState.ComponentType.Name}' " +
+                        $"contains duplicate entity '{entity}'.");
+                }
+            }
+        }
     }
 
     internal void RestoreComponentState<T>(
@@ -270,7 +342,7 @@ public sealed class World :
         where T : struct
     {
         EnsureNotDisposed();
-        EnsureNoActiveJobs() ;
+        EnsureNoActiveJobs();
         TryGetStorage<T>(
             out var storage);
 
@@ -542,7 +614,7 @@ public sealed class World :
         WorldSnapshot snapshot)
     {
         EnsureNotDisposed();
-        EnsureNoActiveJobs() ;  
+        EnsureNoActiveJobs();
         ArgumentNullException.ThrowIfNull(
             snapshot);
 
@@ -691,7 +763,7 @@ public sealed class World :
         EnsureNoActiveJobs();
         _commandBuffer.Clear();
 
-       
+
         foreach (var storage in
                  _componentStorages.Values)
         {

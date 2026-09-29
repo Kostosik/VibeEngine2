@@ -153,9 +153,6 @@ public sealed class UiSystem
 
             return IsInRoot(
                 focused);
-
-            return IsInRoot(
-                focused);
         }
     }
     private bool IsInRoot(

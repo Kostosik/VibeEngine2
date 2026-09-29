@@ -10,6 +10,44 @@ namespace Engine.Tests.WorldTests;
 
 public sealed class WorldTests
 {
+    [Fact]
+    public void ToWorldPositionThrowsOnCoordinateOverflow()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(32, 32),
+                ecsWorld);
+
+        Assert.Throws<OverflowException>(
+            () =>
+                world.ToWorldPosition(
+                    new ChunkPosition(int.MaxValue, 0),
+                    new LocalPosition(0, 0)));
+    }
+
+    [Fact]
+    public void TryGetNeighborThrowsOnCoordinateOverflow()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(32, 32),
+                ecsWorld);
+
+        Assert.Throws<OverflowException>(
+            () =>
+                world.TryGetNeighbor(
+                    new ChunkPosition(int.MaxValue, 0),
+                    1,
+                    0,
+                    out _));
+    }
+
     Engine.ECS.World ecsWorld =
     new Engine.ECS.World();
     [Fact]

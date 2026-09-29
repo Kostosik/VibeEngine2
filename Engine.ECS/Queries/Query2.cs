@@ -68,9 +68,8 @@ public readonly struct Query<T1, T2>
 
             _iterateFirst =
                 first is not null &&
-                (
-                    second is null ||
-                    first.Count <= second.Count);
+                second is not null &&
+                first.Count <= second.Count;
 
             _index = -1;
         }
@@ -98,25 +97,23 @@ public readonly struct Query<T1, T2>
                         ref first,
                         ref second);
                 }
-                else
-                {
-                    var entity =
-                        _second!.GetEntity(
-                            _index);
 
-                    ref var first =
-                        ref _first!.Get(
-                            entity);
+                var secondEntity =
+                    _second!.GetEntity(
+                        _index);
 
-                    ref var second =
-                        ref _second.GetByIndex(
-                            _index);
+                ref var secondComponent =
+                    ref _second.GetByIndex(
+                        _index);
 
-                    return new QueryItem<T1, T2>(
-                        entity,
-                        ref first,
-                        ref second);
-                }
+                ref var firstComponent =
+                    ref _first!.Get(
+                        secondEntity);
+
+                return new QueryItem<T1, T2>(
+                    secondEntity,
+                    ref firstComponent,
+                    ref secondComponent);
             }
         }
 
@@ -130,16 +127,36 @@ public readonly struct Query<T1, T2>
 
             if (_iterateFirst)
             {
-                _index++;
+                while (++_index < _first.Count)
+                {
+                    var entity =
+                        _first.GetEntity(
+                            _index);
 
-                return _index <
-                       _first.Count;
+                    if (_second.Has(
+                            entity))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
             }
 
-            _index++;
+            while (++_index < _second.Count)
+            {
+                var entity =
+                    _second.GetEntity(
+                        _index);
 
-            return _index <
-                   _second.Count;
+                if (_first.Has(
+                        entity))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

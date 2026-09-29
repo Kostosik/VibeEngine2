@@ -1,5 +1,4 @@
 ﻿using Engine.Core.Application;
-using Engine.Graphics;
 using Engine.Graphics.Cameras;
 using Engine.Input;
 using Engine.Input.Cursors;
@@ -18,7 +17,6 @@ public sealed class OpenGLWindow : IDisposable
     private GL? _gl;
     private OpenGLGraphicsDevice? _graphicsDevice;
     private SilkNetInputBackend? _inputBackend;
-    private GameLoop? _gameLoop;
     public ICursorService Cursor =>
     _inputBackend as ICursorService
     ?? throw new InvalidOperationException(
@@ -103,7 +101,7 @@ public sealed class OpenGLWindow : IDisposable
             throw new InvalidOperationException(
                 "Window must be initialized before Run.");
         }
-        _gameLoop = gameLoop;
+
         _window.Update +=
             _ =>
             {
@@ -163,12 +161,6 @@ public sealed class OpenGLWindow : IDisposable
     }
     private void OnClosing()
     {
-        if (_gameLoop is not null &&
-            !_gameLoop.IsShutdown)
-        {
-            _gameLoop.Shutdown();
-        }
-
         _graphicsDevice?.Dispose();
         _graphicsDevice = null;
     }

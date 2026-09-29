@@ -26,6 +26,10 @@ public sealed class SparseSet
 
         _dense =
             new int[capacity];
+
+        Array.Fill(
+            _sparse,
+            -1);
     }
 
     public bool Contains(
@@ -163,17 +167,27 @@ public sealed class SparseSet
             return;
         }
 
-        var newCapacity =
+        var previousCapacity =
             _sparse.Length;
+
+        var newCapacity =
+            previousCapacity;
 
         while (newCapacity <= value)
         {
-            newCapacity *= 2;
+            newCapacity =
+                checked(newCapacity * 2);
         }
 
         Array.Resize(
             ref _sparse,
             newCapacity);
+
+        Array.Fill(
+            _sparse,
+            -1,
+            previousCapacity,
+            newCapacity - previousCapacity);
     }
 
     private void EnsureDenseCapacity()

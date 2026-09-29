@@ -1,6 +1,5 @@
 ﻿using Engine.Navigation;
 using Engine.Navigation.Maps;
-using Engine.Navigation.Pathfinding;
 using Engine.Navigation.Pathfinding.Algorithms;
 
 namespace Engine.Tests.Navigation;
@@ -52,7 +51,8 @@ public sealed class NavigationPathfinderTests
 
         Assert.Equal(
             7.6f,
-            path!.TotalCost);
+            path!.TotalCost,
+            4);
     }
 
     [Fact]

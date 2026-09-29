@@ -1,5 +1,4 @@
-﻿using Engine.ECS;
-using Engine.Worlds.Chunks;
+﻿using Engine.Worlds.Chunks;
 using Engine.Worlds.Persistence;
 using Engine.Worlds.Spatial;
 
@@ -317,10 +316,15 @@ public sealed class World
             localPosition);
 
         return new WorldPosition(
-            chunkPosition.X * ChunkSize.Width +
-            localPosition.X,
-            chunkPosition.Y * ChunkSize.Height +
-            localPosition.Y);
+            checked(
+                chunkPosition.X *
+                ChunkSize.Width +
+                localPosition.X),
+
+            checked(
+                chunkPosition.Y *
+                ChunkSize.Height +
+                localPosition.Y));
     }
 
     public SpatialQuery<T> Query<T>(
@@ -341,8 +345,8 @@ public sealed class World
     {
         var neighborPosition =
             new ChunkPosition(
-                position.X + offsetX,
-                position.Y + offsetY);
+                checked(position.X + offsetX),
+                checked(position.Y + offsetY));
 
         return TryGetChunk(
             neighborPosition,

@@ -17,12 +17,14 @@ public sealed class UiAsset
         ArgumentNullException.ThrowIfNull(
             elements);
 
-        if (canvasSize.X <= 0.0f ||
+        if (!float.IsFinite(canvasSize.X) ||
+            !float.IsFinite(canvasSize.Y) ||
+            canvasSize.X <= 0.0f ||
             canvasSize.Y <= 0.0f)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(canvasSize),
-                "UI asset canvas size must be positive.");
+                "UI asset canvas size must be finite and positive.");
         }
 
         if (elements.Count == 0)

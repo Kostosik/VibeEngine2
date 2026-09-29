@@ -8,6 +8,30 @@ namespace Engine.Tests.UI.Assets;
 
 public sealed class UiAssetLoaderTests
 {
+
+    [Fact]
+    public void UiAnchor_RejectsNaN()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () =>
+                new UiAnchor(
+                    float.NaN,
+                    0.0f));
+    }
+
+    [Fact]
+    public void UiAssetLayout_RejectsNonFiniteSize()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () =>
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(
+                        float.PositiveInfinity,
+                        100.0f)));
+    }
+
     [Fact]
     public void Asset_RejectsHierarchyCycle()
     {

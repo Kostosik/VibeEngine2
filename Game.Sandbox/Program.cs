@@ -21,7 +21,6 @@ using Engine.Tooling.Debugging;
 using Engine.UI.Actions;
 using Engine.UI.Assets;
 using Engine.UI.Core;
-using Engine.UI.Input;
 using Engine.UI.Styling;
 using Engine.Worlds.Spatial;
 using Engine.Worlds.Tiles;
@@ -363,8 +362,8 @@ var gameplayState =
         moveLeft,
         moveRight,
         zoomIn,
-        zoomOut,interaction,
-        player,walls,interactionTargets,
+        zoomOut, interaction,
+        player, walls, interactionTargets,
         runtime.Services.Audio,
         playerMoveSound, ui,
 window.TextInput,
@@ -407,8 +406,18 @@ gameLoop.Initialize();
 window.Resized +=
     gameplayState.Resize;
 
-window.Run(
-    gameLoop);
+try
+{
+    window.Run(
+        gameLoop);
+}
+finally
+{
+    if (!gameLoop.IsShutdown)
+    {
+        gameLoop.Shutdown();
+    }
+}
 
 
 static EntityId CreateStaticWall(

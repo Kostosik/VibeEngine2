@@ -1,9 +1,7 @@
-﻿using Engine.ECS;
-using Engine.ECS.Entities;
+﻿using Engine.ECS.Entities;
 using Engine.ECS.Inspection;
 using Engine.Editor.Entities;
 using Engine.Editor.Selection;
-using Engine.Worlds;
 
 namespace Engine.Editor.Inspection;
 

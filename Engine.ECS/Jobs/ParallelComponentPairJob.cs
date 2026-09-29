@@ -51,13 +51,19 @@ internal sealed class ParallelComponentPairJob<T1, T2> :
             : _second.Count;
 
     public void Execute(
-        int index)
+    int index)
     {
         if (_iterateFirst)
         {
             var entity =
                 _first.GetEntity(
                     index);
+
+            if (!_second.Has(
+                    entity))
+            {
+                return;
+            }
 
             ref var first =
                 ref _first.GetByIndex(
@@ -78,6 +84,12 @@ internal sealed class ParallelComponentPairJob<T1, T2> :
         var secondEntity =
             _second.GetEntity(
                 index);
+
+        if (!_first.Has(
+                secondEntity))
+        {
+            return;
+        }
 
         ref var secondComponent =
             ref _second.GetByIndex(

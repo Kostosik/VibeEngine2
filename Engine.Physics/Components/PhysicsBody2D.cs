@@ -34,10 +34,13 @@ public struct PhysicsBody2D :
         Velocity = FixedVector2.Zero;
         Force = FixedVector2.Zero;
         Mass = mass;
+        Inertia = Fixed32.One;
         GravityScale = Fixed32.One;
         AngularVelocity = Fixed32.Zero;
+        Torque = Fixed32.Zero;
+        LinearDamping = Fixed32.Zero;
+        AngularDamping = Fixed32.Zero;
     }
-
     public PhysicsBodyType BodyType { get; set; }
 
     public FixedVector2 Velocity { get; set; }
@@ -46,13 +49,22 @@ public struct PhysicsBody2D :
 
     public Fixed32 Mass { get; private set; }
 
+    public Fixed32 Inertia { get; private set; }
+
     public Fixed32 GravityScale { get; set; }
 
     public Fixed32 AngularVelocity { get; set; }
 
+    public Fixed32 Torque { get; private set; }
+
     public Fixed32 InverseMass =>
         BodyType == PhysicsBodyType.Dynamic
             ? Fixed32.One / Mass
+            : Fixed32.Zero;
+
+    public Fixed32 InverseInertia =>
+        BodyType == PhysicsBodyType.Dynamic
+            ? Fixed32.One / Inertia
             : Fixed32.Zero;
 
     public static PhysicsBody2D Dynamic(
@@ -61,6 +73,21 @@ public struct PhysicsBody2D :
         return new(
             PhysicsBodyType.Dynamic,
             mass);
+    }
+
+    public static PhysicsBody2D Dynamic(
+        Fixed32 mass,
+        Fixed32 inertia)
+    {
+        var body =
+            new PhysicsBody2D(
+                PhysicsBodyType.Dynamic,
+                mass);
+
+        body.SetInertia(
+            inertia);
+
+        return body;
     }
 
     public static PhysicsBody2D Static()
@@ -83,9 +110,16 @@ public struct PhysicsBody2D :
         Force += force;
     }
 
+    public void AddTorque(
+        Fixed32 torque)
+    {
+        Torque += torque;
+    }
+
     public void ClearForces()
     {
         Force = FixedVector2.Zero;
+        Torque = Fixed32.Zero;
     }
 
     public void SetMass(
@@ -99,6 +133,52 @@ public struct PhysicsBody2D :
         }
 
         Mass = mass;
+    }
+    private Fixed32 _linearDamping;
+    private Fixed32 _angularDamping;
+    public Fixed32 LinearDamping
+    {
+        get => _linearDamping;
+        set
+        {
+            if (value < Fixed32.Zero)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    "Linear damping cannot be negative.");
+            }
+
+            _linearDamping = value;
+        }
+    }
+
+    public Fixed32 AngularDamping
+    {
+        get => _angularDamping;
+        set
+        {
+            if (value < Fixed32.Zero)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    "Angular damping cannot be negative.");
+            }
+
+            _angularDamping = value;
+        }
+    }
+
+    public void SetInertia(
+        Fixed32 inertia)
+    {
+        if (inertia <= Fixed32.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(inertia),
+                "Inertia must be greater than zero.");
+        }
+
+        Inertia = inertia;
     }
 
     public void AddToHash(
@@ -117,9 +197,15 @@ public struct PhysicsBody2D :
             Mass);
 
         hasher.AddFixed32(
+            Inertia);
+
+        hasher.AddFixed32(
             GravityScale);
 
         hasher.AddFixed32(
             AngularVelocity);
+
+        hasher.AddFixed32(
+            Torque);
     }
 }

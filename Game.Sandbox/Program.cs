@@ -215,7 +215,7 @@ var terminal =
 
 runtime.EcsWorld.Add(
     terminal,
-    new Transform2D(
+    new WorldTransform2D(
         new FixedVector2(
             Fixed32.FromInt(20),
             Fixed32.FromInt(16))));
@@ -230,7 +230,7 @@ interactionTargets.Add(
 
 runtime.EcsWorld.Add(
     player,
-    new Transform2D(
+    new WorldTransform2D(
         new FixedVector2(
             Fixed32.FromInt(16),
             Fixed32.FromInt(16))));
@@ -430,7 +430,7 @@ static EntityId CreateStaticWall(
 
     world.Add(
         entity,
-        new Transform2D(
+        new WorldTransform2D(
             position));
 
     world.Add(

@@ -11,7 +11,10 @@ public struct Collider2D :
     public Collider2D(
         AabbShape2D shape)
     {
-        Shape = shape;
+        Shape =
+            PhysicsShape2D.FromAabb(
+                shape);
+
         Offset = FixedVector2.Zero;
         Material = PhysicsMaterial2D.Default;
         IsTrigger = false;
@@ -20,7 +23,37 @@ public struct Collider2D :
         CollisionMask = uint.MaxValue;
     }
 
-    public AabbShape2D Shape { get; set; }
+    public Collider2D(
+    PolygonShape2D shape)
+    {
+        Shape =
+            PhysicsShape2D.FromPolygon(
+                shape);
+
+        Offset = FixedVector2.Zero;
+        Material = PhysicsMaterial2D.Default;
+        IsTrigger = false;
+        Enabled = true;
+        CollisionLayer = 1u;
+        CollisionMask = uint.MaxValue;
+    }
+
+    public Collider2D(
+        CircleShape2D shape)
+    {
+        Shape =
+            PhysicsShape2D.FromCircle(
+                shape);
+
+        Offset = FixedVector2.Zero;
+        Material = PhysicsMaterial2D.Default;
+        IsTrigger = false;
+        Enabled = true;
+        CollisionLayer = 1u;
+        CollisionMask = uint.MaxValue;
+    }
+
+    public PhysicsShape2D Shape { get; set; }
 
     public FixedVector2 Offset { get; set; }
 
@@ -52,7 +85,8 @@ public struct Collider2D :
     public void AddToHash(
         ref DeterministicStateHasher hasher)
     {
-        Shape.AddToHash(ref hasher);
+        Shape.AddToHash(
+            ref hasher);
 
         hasher.AddFixedVector2(
             Offset);

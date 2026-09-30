@@ -35,11 +35,11 @@ public sealed class CollisionResolver2D
                 secondEntity);
 
         ref var firstTransform =
-            ref world.Get<Transform2D>(
+            ref world.Get<WorldTransform2D>(
                 firstEntity);
 
         ref var secondTransform =
-            ref world.Get<Transform2D>(
+            ref world.Get<WorldTransform2D>(
                 secondEntity);
 
         var firstInverseMass =
@@ -87,8 +87,8 @@ public sealed class CollisionResolver2D
     }
 
     public void ResolveVelocity(
-        World world,
-        CollisionManifold manifold)
+    World world,
+    CollisionManifold manifold)
     {
         var firstEntity =
             manifold.Pair.First;
@@ -110,30 +110,83 @@ public sealed class CollisionResolver2D
             ref world.Get<PhysicsBody2D>(
                 secondEntity);
 
+        var firstTransform =
+            world.Get<WorldTransform2D>(
+                firstEntity);
+
+        var secondTransform =
+            world.Get<WorldTransform2D>(
+                secondEntity);
+
         var firstInverseMass =
             firstBody.InverseMass;
 
         var secondInverseMass =
             secondBody.InverseMass;
 
-        var inverseMassSum =
-            firstInverseMass +
-            secondInverseMass;
+        var firstInverseInertia =
+            firstBody.InverseInertia;
 
-        if (inverseMassSum == Fixed32.Zero)
+        var secondInverseInertia =
+            secondBody.InverseInertia;
+
+        var normal =
+            manifold.Contact.Normal;
+
+        var firstRadius =
+            manifold.Contact.Position -
+            firstTransform.Position;
+
+        var secondRadius =
+            manifold.Contact.Position -
+            secondTransform.Position;
+
+        var firstPointVelocity =
+            firstBody.Velocity +
+            Cross(
+                firstBody.AngularVelocity,
+                firstRadius);
+
+        var secondPointVelocity =
+            secondBody.Velocity +
+            Cross(
+                secondBody.AngularVelocity,
+                secondRadius);
+
+        var relativeVelocity =
+            secondPointVelocity -
+            firstPointVelocity;
+
+        var velocityAlongNormal =
+            relativeVelocity.Dot(
+                normal);
+
+        if (velocityAlongNormal > Fixed32.Zero)
         {
             return;
         }
 
-        var relativeVelocity =
-            secondBody.Velocity -
-            firstBody.Velocity;
+        var firstRadiusCrossNormal =
+            Cross(
+                firstRadius,
+                normal);
 
-        var velocityAlongNormal =
-            relativeVelocity.Dot(
-                manifold.Contact.Normal);
+        var secondRadiusCrossNormal =
+            Cross(
+                secondRadius,
+                normal);
 
-        if (velocityAlongNormal > Fixed32.Zero)
+        var denominator =
+            firstInverseMass +
+            secondInverseMass +
+            firstRadiusCrossNormal *
+            firstRadiusCrossNormal *
+            firstInverseInertia +
+            secondRadiusCrossNormal *
+            secondRadiusCrossNormal *
+            secondInverseInertia;
+
+        if (denominator == Fixed32.Zero)
         {
             return;
         }
@@ -148,10 +201,10 @@ public sealed class CollisionResolver2D
                 Fixed32.One +
                 material.Restitution) *
             velocityAlongNormal /
-            inverseMassSum;
+            denominator;
 
         var normalImpulse =
-            manifold.Contact.Normal *
+            normal *
             impulseMagnitude;
 
         firstBody.Velocity -=
@@ -162,33 +215,64 @@ public sealed class CollisionResolver2D
             normalImpulse *
             secondInverseMass;
 
+        firstBody.AngularVelocity -=
+            firstRadiusCrossNormal *
+            impulseMagnitude *
+            firstInverseInertia;
+
+        secondBody.AngularVelocity +=
+            secondRadiusCrossNormal *
+            impulseMagnitude *
+            secondInverseInertia;
+
         ResolveFriction(
             ref firstBody,
             ref secondBody,
-            relativeVelocity,
-            manifold.Contact.Normal,
+            firstRadius,
+            secondRadius,
+            normal,
             impulseMagnitude,
             firstInverseMass,
             secondInverseMass,
-            inverseMassSum,
+            firstInverseInertia,
+            secondInverseInertia,
             material.Friction);
     }
 
     private static void ResolveFriction(
-        ref PhysicsBody2D firstBody,
-        ref PhysicsBody2D secondBody,
-        FixedVector2 relativeVelocity,
-        FixedVector2 normal,
-        Fixed32 normalImpulse,
-        Fixed32 firstInverseMass,
-        Fixed32 secondInverseMass,
-        Fixed32 inverseMassSum,
-        Fixed32 friction)
+    ref PhysicsBody2D firstBody,
+    ref PhysicsBody2D secondBody,
+    FixedVector2 firstRadius,
+    FixedVector2 secondRadius,
+    FixedVector2 normal,
+    Fixed32 normalImpulse,
+    Fixed32 firstInverseMass,
+    Fixed32 secondInverseMass,
+    Fixed32 firstInverseInertia,
+    Fixed32 secondInverseInertia,
+    Fixed32 friction)
     {
+        var firstPointVelocity =
+            firstBody.Velocity +
+            Cross(
+                firstBody.AngularVelocity,
+                firstRadius);
+
+        var secondPointVelocity =
+            secondBody.Velocity +
+            Cross(
+                secondBody.AngularVelocity,
+                secondRadius);
+
+        var relativeVelocity =
+            secondPointVelocity -
+            firstPointVelocity;
+
         var tangentVelocity =
             relativeVelocity -
             normal *
-            relativeVelocity.Dot(normal);
+            relativeVelocity.Dot(
+                normal);
 
         var tangentLength =
             tangentVelocity.Length();
@@ -202,9 +286,35 @@ public sealed class CollisionResolver2D
             tangentVelocity /
             tangentLength;
 
+        var firstRadiusCrossTangent =
+            Cross(
+                firstRadius,
+                tangent);
+
+        var secondRadiusCrossTangent =
+            Cross(
+                secondRadius,
+                tangent);
+
+        var denominator =
+            firstInverseMass +
+            secondInverseMass +
+            firstRadiusCrossTangent *
+            firstRadiusCrossTangent *
+            firstInverseInertia +
+            secondRadiusCrossTangent *
+            secondRadiusCrossTangent *
+            secondInverseInertia;
+
+        if (denominator == Fixed32.Zero)
+        {
+            return;
+        }
+
         var tangentImpulse =
-            -relativeVelocity.Dot(tangent) /
-            inverseMassSum;
+            -relativeVelocity.Dot(
+                tangent) /
+            denominator;
 
         var maxFriction =
             normalImpulse *
@@ -227,6 +337,34 @@ public sealed class CollisionResolver2D
         secondBody.Velocity +=
             frictionImpulse *
             secondInverseMass;
+
+        firstBody.AngularVelocity -=
+            firstRadiusCrossTangent *
+            tangentImpulse *
+            firstInverseInertia;
+
+        secondBody.AngularVelocity +=
+            secondRadiusCrossTangent *
+            tangentImpulse *
+            secondInverseInertia;
+    }
+
+    private static Fixed32 Cross(
+    FixedVector2 left,
+    FixedVector2 right)
+    {
+        return
+            left.X * right.Y -
+            left.Y * right.X;
+    }
+
+    private static FixedVector2 Cross(
+        Fixed32 scalar,
+        FixedVector2 vector)
+    {
+        return new FixedVector2(
+            -scalar * vector.Y,
+            scalar * vector.X);
     }
 
     private static PhysicsMaterial2D GetCombinedMaterial(

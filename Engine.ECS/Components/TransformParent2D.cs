@@ -9,17 +9,24 @@ public struct TransformParent2D :
     public TransformParent2D(
         EntityId parent)
     {
-        if (!parent.IsValid)
-        {
-            throw new ArgumentException(
-                "Parent entity must be valid.",
-                nameof(parent));
-        }
+        ValidateParent(parent);
 
         Parent = parent;
     }
 
-    public EntityId Parent { get; set; }
+    public EntityId Parent
+    {
+        readonly get => _parent;
+
+        set
+        {
+            ValidateParent(value);
+
+            _parent = value;
+        }
+    }
+
+    private EntityId _parent;
 
     public void AddToHash(
         ref DeterministicStateHasher hasher)
@@ -29,5 +36,16 @@ public struct TransformParent2D :
 
         hasher.AddUInt32(
             Parent.Generation);
+    }
+
+    private static void ValidateParent(
+        EntityId parent)
+    {
+        if (!parent.IsValid)
+        {
+            throw new ArgumentException(
+                "Parent entity must be valid.",
+                nameof(parent));
+        }
     }
 }

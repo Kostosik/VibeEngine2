@@ -51,14 +51,14 @@ public sealed class PhysicsDebugVisualizer :
             ref var body =
                 ref item.Component;
 
-            if (!_world.Has<Transform2D>(
+            if (!_world.Has<WorldTransform2D>(
                     entity))
             {
                 continue;
             }
 
             ref var transform =
-                ref _world.Get<Transform2D>(
+                ref _world.Get<WorldTransform2D>(
                     entity);
 
             if (ShowColliders &&

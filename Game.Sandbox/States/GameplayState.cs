@@ -181,11 +181,11 @@ public sealed class GameplayState :
                 tileAtlas.Texture);
 
         if (_ecsWorld.Exists(_player) &&
-            _ecsWorld.Has<Transform2D>(_player))
+            _ecsWorld.Has<WorldTransform2D>(_player))
         {
             var position =
                 _ecsWorld
-                    .Get<Transform2D>(_player)
+                    .Get<WorldTransform2D>(_player)
                     .Position;
 
             _previousPlayerPosition =
@@ -438,13 +438,13 @@ public sealed class GameplayState :
     private FixedVector2? TryGetPlayerPosition()
     {
         if (!_ecsWorld.Exists(_player) ||
-            !_ecsWorld.Has<Transform2D>(_player))
+            !_ecsWorld.Has<WorldTransform2D>(_player))
         {
             return null;
         }
 
         return _ecsWorld
-            .Get<Transform2D>(_player)
+            .Get<WorldTransform2D>(_player)
             .Position;
     }
 
@@ -552,14 +552,14 @@ public sealed class GameplayState :
         EntityId wall)
     {
         if (!_ecsWorld.Exists(wall) ||
-            !_ecsWorld.Has<Transform2D>(wall) ||
+            !_ecsWorld.Has<WorldTransform2D>(wall) ||
             !_ecsWorld.Has<Collider2D>(wall))
         {
             return;
         }
 
         ref var transform =
-            ref _ecsWorld.Get<Transform2D>(
+            ref _ecsWorld.Get<WorldTransform2D>(
                 wall);
 
         ref var collider =

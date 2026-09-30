@@ -4,12 +4,12 @@ using Engine.Transform;
 
 namespace Engine.ECS.Components;
 
-public struct Transform2D :
+public struct WorldTransform2D :
     IDeterministicState
 {
     private FixedTransform2D _value;
 
-    public Transform2D(
+    public WorldTransform2D(
         FixedVector2 position)
     {
         _value = new FixedTransform2D(

@@ -116,7 +116,7 @@ public sealed class PhysicsSystem2D :
             }
 
             ref var transform =
-                ref _world.Get<Transform2D>(
+                ref _world.Get<WorldTransform2D>(
                     item.Entity);
 
             if (body.BodyType ==
@@ -134,10 +134,41 @@ public sealed class PhysicsSystem2D :
                 body.Velocity +=
                     acceleration *
                     delta;
+
+                if (body.LinearDamping > Fixed32.Zero)
+                {
+                    var factor =
+                        Fixed32.One /
+                        (Fixed32.One +
+                         body.LinearDamping * delta);
+
+                    body.Velocity *=
+                        factor;
+                }
+
+                body.AngularVelocity +=
+                    body.Torque *
+                    body.InverseInertia *
+                    delta;
+
+                if (body.AngularDamping > Fixed32.Zero)
+                {
+                    var factor =
+                        Fixed32.One /
+                        (Fixed32.One +
+                         body.AngularDamping * delta);
+
+                    body.AngularVelocity *=
+                        factor;
+                }
             }
 
             transform.Position +=
                 body.Velocity *
+                delta;
+
+            transform.Rotation +=
+                body.AngularVelocity *
                 delta;
         }
     }
@@ -390,7 +421,7 @@ public sealed class PhysicsSystem2D :
                 continue;
 
             ref var transform =
-                ref _world.Get<Transform2D>(
+                ref _world.Get<WorldTransform2D>(
                     entity);
 
             var bounds =

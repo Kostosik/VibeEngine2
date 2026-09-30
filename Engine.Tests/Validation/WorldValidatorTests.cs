@@ -38,7 +38,7 @@ public sealed class WorldValidatorTests
 
         world.Add(
             entity,
-            new Transform2D());
+            new WorldTransform2D());
 
         var validator =
             new WorldValidator(world);

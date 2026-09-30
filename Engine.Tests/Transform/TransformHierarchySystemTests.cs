@@ -4,7 +4,6 @@ using Engine.ECS;
 using Engine.ECS.Components;
 using Engine.ECS.Systems;
 using Engine.Transform;
-using EcsTransform2D = Engine.ECS.Components.Transform2D;
 
 namespace Engine.Tests.Transform;
 
@@ -20,7 +19,7 @@ public sealed class TransformHierarchySystemTests
 
         world.Add(
             entity,
-            new EcsTransform2D(
+            new WorldTransform2D(
                 FixedVector2.Zero));
 
         world.Add(
@@ -39,7 +38,7 @@ public sealed class TransformHierarchySystemTests
             default);
 
         var transform =
-            world.Get<EcsTransform2D>(
+            world.Get<WorldTransform2D>(
                 entity);
 
         Assert.Equal(
@@ -64,7 +63,7 @@ public sealed class TransformHierarchySystemTests
 
         world.Add(
             parent,
-            new EcsTransform2D(
+            new WorldTransform2D(
                 FixedVector2.Zero));
 
         world.Add(
@@ -77,7 +76,7 @@ public sealed class TransformHierarchySystemTests
 
         world.Add(
             child,
-            new EcsTransform2D(
+            new WorldTransform2D(
                 FixedVector2.Zero));
 
         world.Add(
@@ -101,7 +100,7 @@ public sealed class TransformHierarchySystemTests
             default);
 
         var transform =
-            world.Get<EcsTransform2D>(
+            world.Get<WorldTransform2D>(
                 child);
 
         Assert.Equal(
@@ -163,7 +162,7 @@ public sealed class TransformHierarchySystemTests
             default);
 
         var transform =
-            world.Get<EcsTransform2D>(
+            world.Get<WorldTransform2D>(
                 child);
 
         Assert.Equal(
@@ -211,7 +210,7 @@ public sealed class TransformHierarchySystemTests
             default);
 
         var transform =
-            world.Get<EcsTransform2D>(
+            world.Get<WorldTransform2D>(
                 child);
 
         Assert.Equal(
@@ -311,7 +310,7 @@ public sealed class TransformHierarchySystemTests
     {
         world.Add(
             entity,
-            new EcsTransform2D(
+            new WorldTransform2D(
                 FixedVector2.Zero));
 
         world.Add(

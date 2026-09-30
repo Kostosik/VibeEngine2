@@ -1,4 +1,6 @@
 ﻿using Engine.Core.Math;
+using Engine.ECS.Components;
+using Engine.ECS.Entities;
 using Engine.Transform;
 
 namespace Engine.Tests.Transform;
@@ -17,6 +19,20 @@ public sealed class Transform2DTests
             transform.Scale);
 
         Assert.True(transform.IsFinite);
+    }
+
+    [Fact]
+    public void SettingInvalidParentThrows()
+    {
+        var parent =
+            new EntityId(1, 1);
+
+        var component =
+            new TransformParent2D(parent);
+
+        Assert.Throws<ArgumentException>(
+            () =>
+                component.Parent = default);
     }
 
     [Fact]

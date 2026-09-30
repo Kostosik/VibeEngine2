@@ -150,6 +150,9 @@ public sealed class EngineRuntime :
         Validation.Register(
             new WorldValidator(
                 EcsWorld));
+        Validation.Register(
+    new PhysicsValidator(
+        EcsWorld));
 
         DebugRegistry.Register(
             new ValidateDebugCommand(

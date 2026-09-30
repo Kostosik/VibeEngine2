@@ -88,6 +88,37 @@ public sealed class FixedTransform2DTests
     }
 
     [Fact]
+    public void TransformPointAppliesFullTransform()
+    {
+        var transform =
+            FixedTransformOperations2D.Create(
+                new FixedVector2(
+                    Fixed32.FromInt(10),
+                    Fixed32.FromInt(20)),
+                Fixed32.HalfPi,
+                new FixedVector2(
+                    Fixed32.FromInt(2),
+                    Fixed32.FromInt(2)));
+
+        var result =
+            FixedTransformOperations2D.TransformPoint(
+                transform,
+                new FixedVector2(
+                    Fixed32.One,
+                    Fixed32.Zero));
+
+        Assert.Equal(
+            10.0f,
+            result.X.ToFloat(),
+            2);
+
+        Assert.Equal(
+            22.0f,
+            result.Y.ToFloat(),
+            2);
+    }
+
+    [Fact]
     public void CreatePreservesAllComponents()
     {
         var position =

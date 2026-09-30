@@ -27,13 +27,13 @@ public sealed class InteractionResolver
         EntityId player)
     {
         if (!_world.Exists(player) ||
-            !_world.Has<Transform2D>(player))
+            !_world.Has<WorldTransform2D>(player))
         {
             return null;
         }
 
         var playerPosition =
-            _world.Get<Transform2D>(
+            _world.Get<WorldTransform2D>(
                 player).Position;
 
         EntityId? bestTarget = null;
@@ -42,7 +42,7 @@ public sealed class InteractionResolver
         foreach (var target in _targets)
         {
             if (!_world.Exists(target) ||
-                !_world.Has<Transform2D>(target) ||
+                !_world.Has<WorldTransform2D>(target) ||
                 !_world.Has<InteractionTarget>(target))
             {
                 continue;
@@ -58,7 +58,7 @@ public sealed class InteractionResolver
             }
 
             var targetPosition =
-                _world.Get<Transform2D>(
+                _world.Get<WorldTransform2D>(
                     target).Position;
 
             var delta =

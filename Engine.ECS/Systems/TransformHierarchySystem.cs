@@ -2,7 +2,6 @@
 using Engine.ECS.Components;
 using Engine.ECS.Entities;
 using Engine.Transform;
-using EcsTransform2D = Engine.ECS.Components.Transform2D;
 
 namespace Engine.ECS.Systems;
 
@@ -63,7 +62,7 @@ public sealed class TransformHierarchySystem :
         _states[entity] =
             VisitState.Visiting;
 
-        if (!_world.Has<EcsTransform2D>(
+        if (!_world.Has<WorldTransform2D>(
                 entity))
         {
             throw new InvalidOperationException(
@@ -147,7 +146,7 @@ public sealed class TransformHierarchySystem :
         EntityId entity)
     {
         var transform =
-            _world.Get<EcsTransform2D>(
+            _world.Get<WorldTransform2D>(
                 entity);
 
         return new FixedTransform2D(
@@ -163,7 +162,7 @@ public sealed class TransformHierarchySystem :
         FixedTransform2D value)
     {
         ref var transform =
-            ref _world.Get<EcsTransform2D>(
+            ref _world.Get<WorldTransform2D>(
                 entity);
 
         transform.Position =

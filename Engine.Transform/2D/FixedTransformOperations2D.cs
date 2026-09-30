@@ -51,18 +51,9 @@ public static class FixedTransformOperations2D
         };
     }
 
-    private static FixedVector2 MultiplyComponents(
-        FixedVector2 left,
-        FixedVector2 right)
-    {
-        return new FixedVector2(
-            left.X * right.X,
-            left.Y * right.Y);
-    }
-
     public static FixedTransform2D Combine(
-    in FixedTransform2D parent,
-    in FixedTransform2D local)
+        in FixedTransform2D parent,
+        in FixedTransform2D local)
     {
         var scaledPosition =
             MultiplyComponents(
@@ -89,9 +80,33 @@ public static class FixedTransformOperations2D
         };
     }
 
+    public static FixedVector2 TransformPoint(
+        in FixedTransform2D transform,
+        FixedVector2 point)
+    {
+        var scaled =
+            MultiplyComponents(
+                point,
+                transform.Scale);
+
+        return transform.Position +
+               Rotate(
+                   scaled,
+                   transform.Rotation);
+    }
+
+    private static FixedVector2 MultiplyComponents(
+        FixedVector2 left,
+        FixedVector2 right)
+    {
+        return new FixedVector2(
+            left.X * right.X,
+            left.Y * right.Y);
+    }
+
     private static FixedVector2 Rotate(
-    FixedVector2 value,
-    Fixed32 angle)
+        FixedVector2 value,
+        Fixed32 angle)
     {
         var cosine =
             Fixed32.Cos(angle);

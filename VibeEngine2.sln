@@ -64,6 +64,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Engine.Localization", "Engi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Engine.Benchmarks", "Engine.Benchmarks\Engine.Benchmarks.csproj", "{A5BB38A5-3E4F-402E-9866-FE460D46B787}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Engine.Animation", "Engine.Animation\Engine.Animation.csproj", "{89F6A2D7-D4AB-47E4-985A-5C0A0B08FEF5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Engine.Particles", "Engine.Particles\Engine.Particles.csproj", "{1A425CA4-C20E-405E-952C-E136B18228F1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -178,6 +182,14 @@ Global
 		{A5BB38A5-3E4F-402E-9866-FE460D46B787}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A5BB38A5-3E4F-402E-9866-FE460D46B787}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A5BB38A5-3E4F-402E-9866-FE460D46B787}.Release|Any CPU.Build.0 = Release|Any CPU
+		{89F6A2D7-D4AB-47E4-985A-5C0A0B08FEF5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{89F6A2D7-D4AB-47E4-985A-5C0A0B08FEF5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{89F6A2D7-D4AB-47E4-985A-5C0A0B08FEF5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{89F6A2D7-D4AB-47E4-985A-5C0A0B08FEF5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1A425CA4-C20E-405E-952C-E136B18228F1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1A425CA4-C20E-405E-952C-E136B18228F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1A425CA4-C20E-405E-952C-E136B18228F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1A425CA4-C20E-405E-952C-E136B18228F1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

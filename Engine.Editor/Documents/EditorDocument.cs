@@ -11,7 +11,12 @@ namespace Engine.Editor.Documents;
 
 public sealed class EditorDocument : IDisposable
 {
+    private ValidationResult? _lastValidationResult;
 
+    public event Action? ValidationChanged;
+
+    public ValidationResult? LastValidationResult =>
+        _lastValidationResult;
 
     private readonly Dictionary<EntityId, EditorEntityReference>
     _entityReferences = new();
@@ -45,6 +50,9 @@ OnEntityDestroyed;
 
         Validation =
             new ValidationService();
+        Validation.Register(
+    new WorldValidator(
+        world.EcsWorld));
 
         PropertyProviders =
             new EditorPropertyProviderRegistry();
@@ -75,6 +83,19 @@ OnEntityDestroyed;
     public bool IsDirty =>
         CommandHistory.IsDirty;
 
+    public ValidationResult Validate()
+    {
+        var result =
+            Validation.Validate(
+                new ValidationContext());
+
+        _lastValidationResult =
+            result;
+
+        ValidationChanged?.Invoke();
+
+        return result;
+    }
     public EditorEntityReference GetEntityReference(
     EntityId entity)
     {
@@ -167,16 +188,25 @@ OnEntityDestroyed;
 
         CommandHistory.Execute(
             command);
+
+        _lastValidationResult = null;
+        ValidationChanged?.Invoke();
     }
 
     public void Undo()
     {
         CommandHistory.Undo();
+
+        _lastValidationResult = null;
+        ValidationChanged?.Invoke();
     }
 
     public void Redo()
     {
         CommandHistory.Redo();
+
+        _lastValidationResult = null;
+        ValidationChanged?.Invoke();
     }
 
     public void MarkSaved()

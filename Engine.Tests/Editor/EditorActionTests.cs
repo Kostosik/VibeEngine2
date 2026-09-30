@@ -10,6 +10,95 @@ namespace Engine.Tests.Editor;
 public sealed class EditorActionTests
 {
     [Fact]
+    public void ValidateAction_CanExecuteWithActiveDocument()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+        var editor =
+            new EditorContext();
+
+        editor.OpenDocument(
+            world);
+
+        Assert.True(
+            editor.Actions.TryGet(
+                "validation.validate",
+                out var action));
+
+        Assert.NotNull(action);
+
+        Assert.True(
+            action!.CanExecute(
+                editor.ActionContext));
+    }
+
+    [Fact]
+    public void ValidateAction_StoresValidationResult()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+        var editor =
+            new EditorContext();
+
+        var document =
+            editor.OpenDocument(
+                world);
+
+        editor.Actions.Execute(
+            "validation.validate",
+            editor.ActionContext);
+
+        Assert.NotNull(
+            document.LastValidationResult);
+
+        Assert.True(
+            document.LastValidationResult!.IsValid);
+    }
+
+    [Fact]
+    public void DocumentChange_InvalidatesPreviousValidationResult()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+        var editor =
+            new EditorContext();
+
+        var document =
+            editor.OpenDocument(
+                world);
+
+        document.Validate();
+
+        Assert.NotNull(
+            document.LastValidationResult);
+
+        document.Execute(
+            new CreateEditorEntityCommand(
+                document));
+
+        Assert.Null(
+            document.LastValidationResult);
+    }
+
+    [Fact]
     public void Registry_Execute_DoesNotExecuteActionWhenCanExecuteIsFalse()
     {
         var editor =

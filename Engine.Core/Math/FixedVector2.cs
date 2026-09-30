@@ -20,6 +20,10 @@ public readonly struct FixedVector2 :
             Fixed32.Zero,
             Fixed32.Zero);
 
+    public static FixedVector2 One =>
+    new(
+        Fixed32.One,
+        Fixed32.One);
     public static FixedVector2 operator +(
         FixedVector2 left,
         FixedVector2 right)

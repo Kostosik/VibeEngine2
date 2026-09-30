@@ -37,6 +37,8 @@ public sealed class EditorContext
 
         Actions.Register(
             new RedoEditorAction());
+        Actions.Register(
+    new ValidateEditorAction());
 
         AssetBrowser = null;
     }
@@ -79,6 +81,145 @@ public sealed class EditorContext
             document.Dispose();
             throw;
         }
+    }
+
+    public EditorSessionState CaptureSessionState()
+    {
+        var paths =
+            new List<string>();
+
+        foreach (var document in
+                 Session.Documents)
+        {
+            if (document.FilePath is null)
+            {
+                continue;
+            }
+
+            paths.Add(
+                Path.GetFullPath(
+                    document.FilePath));
+        }
+
+        var activePath =
+            ActiveDocument?.FilePath is string filePath
+                ? Path.GetFullPath(
+                    filePath)
+                : null;
+
+        if (activePath is not null &&
+            !paths.Contains(
+                activePath,
+                GetPathComparer()))
+        {
+            activePath = null;
+        }
+
+        return new EditorSessionState(
+            paths,
+            activePath);
+    }
+
+    public void SaveSession(
+        IEditorSessionPersistence persistence,
+        string path)
+    {
+        ArgumentNullException.ThrowIfNull(
+            persistence);
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            path);
+
+        persistence.Save(
+            path,
+            CaptureSessionState());
+    }
+
+    public void LoadSession(
+        IEditorSessionPersistence persistence,
+        IEditorDocumentFileService files,
+        string path)
+    {
+        ArgumentNullException.ThrowIfNull(
+            persistence);
+
+        ArgumentNullException.ThrowIfNull(
+            files);
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            path);
+
+        var state =
+            persistence.Load(
+                path);
+
+        if (Session.Documents.Any(
+                static document =>
+                    document.IsDirty))
+        {
+            throw new InvalidOperationException(
+                "Cannot restore an editor session while dirty documents are open.");
+        }
+
+        Session.CloseAll();
+
+        EditorDocument? activeDocument = null;
+
+        try
+        {
+            foreach (var documentPath in
+                     state.DocumentPaths)
+            {
+                var document =
+                    files.Open(
+                        documentPath);
+
+                if (state.ActiveDocumentPath is not null &&
+                    PathsEqual(
+                        document.FilePath,
+                        state.ActiveDocumentPath))
+                {
+                    activeDocument =
+                        document;
+                }
+            }
+        }
+        catch
+        {
+            Session.DiscardAll();
+            throw;
+        }
+
+        if (activeDocument is not null)
+        {
+            Session.Activate(
+                activeDocument);
+        }
+    }
+
+    private static StringComparer GetPathComparer()
+    {
+        return OperatingSystem.IsWindows()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
+    }
+
+    private static bool PathsEqual(
+        string? left,
+        string? right)
+    {
+        if (left is null ||
+            right is null)
+        {
+            return false;
+        }
+
+        return string.Equals(
+            Path.GetFullPath(left),
+            Path.GetFullPath(right),
+            OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal);
     }
 
     public IEditorDocumentFileService CreateDocumentFileService(

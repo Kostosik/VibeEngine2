@@ -1,9 +1,11 @@
 ﻿using Engine.Core.Math;
 using Engine.Editor;
+using Engine.Editor.Documents;
 using Engine.Editor.UI.Authoring;
 using Engine.Editor.UI.Workspace;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Resources;
+using Engine.Tooling.Validation;
 using Engine.UI.Controls;
 using Engine.UI.Core;
 using Engine.UI.Layout;
@@ -13,6 +15,7 @@ namespace Engine.Editor.UI.Shell;
 public sealed class EditorMainShell :
     UiPanel
 {
+    private UiButton _validateButton;
     private readonly UiPanel _menuBar;
     private readonly UiPanel _workspace;
 
@@ -253,12 +256,22 @@ public event Action? CloseRequested;
         var uiActive =
             _uiWorkspaceView.Visible;
 
+        _validateButton.Enabled =
+    !uiActive &&
+    Editor.ActiveDocument is not null;
+
         if (uiActive)
         {
             _documentLabel.Text =
-                UiDocument.IsDirty
-                    ? "UI • Unsaved changes"
-                    : "UI • Saved";
+                worldDocument is null
+                    ? "No document"
+                    : worldDocument.IsDirty
+                        ? BuildDocumentStatus(
+                            worldDocument,
+                            "Unsaved")
+                        : BuildDocumentStatus(
+                            worldDocument,
+                            "Saved");
 
             _undoButton.Enabled =
                 UiDocument.CommandHistory.CanUndo;
@@ -284,6 +297,47 @@ public event Action? CloseRequested;
 
         _workspaceView.Refresh();
         _uiWorkspaceView.Refresh();
+    }
+
+    private static string BuildDocumentStatus(
+    EditorDocument document,
+    string saveState)
+    {
+        var result =
+            document.LastValidationResult;
+
+        if (result is null)
+        {
+            return
+                $"World • {saveState} • Validation: Not run";
+        }
+
+        var errors =
+            result.Issues.Count(
+                static issue =>
+                    issue.Severity ==
+                    ValidationSeverity.Error);
+
+        var warnings =
+            result.Issues.Count(
+                static issue =>
+                    issue.Severity ==
+                    ValidationSeverity.Warning);
+
+        if (errors > 0)
+        {
+            return
+                $"World • {saveState} • Validation: {errors} error(s)";
+        }
+
+        if (warnings > 0)
+        {
+            return
+                $"World • {saveState} • Validation: {warnings} warning(s)";
+        }
+
+        return
+            $"World • {saveState} • Validation: OK";
     }
 
     private void RefreshDocumentTabs()
@@ -557,6 +611,26 @@ public event Action? CloseRequested;
 
         _uiButton.Clicked +=
             ShowUi;
+
+        _validateButton =
+    new UiButton("Validate")
+    {
+        Width = 80.0f,
+        Height = 30.0f
+    };
+
+        _validateButton.Clicked +=
+            () =>
+            {
+                Editor.Actions.Execute(
+                    "validation.validate",
+                    Editor.ActionContext);
+
+                Refresh();
+            };
+
+        buttons.AddChild(
+            _validateButton);
 
         _undoButton =
             new UiButton("Undo")

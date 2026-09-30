@@ -40,7 +40,8 @@ public sealed class EditorApplication :
 
     private DocumentPathRequest?
         _documentPathRequest;
-
+    private readonly EditorErrorDialog
+    _errorDialog;
     public event Action? NewDocumentRequested;
     public event Action? OpenDocumentRequested;
     public event Action? SaveDocumentAsRequested;
@@ -77,6 +78,14 @@ public sealed class EditorApplication :
             new EditorUiHost(
                 editor,
                 ui);
+
+        _errorDialog =
+    new EditorErrorDialog(
+        ui.Overlays,
+        ui.Focus);
+
+        UiHost.Root.AddChild(
+            _errorDialog);
 
         _documentCloseDialog =
     new EditorDocumentCloseDialog(
@@ -357,6 +366,7 @@ public sealed class EditorApplication :
 
         UiDocument.Changed -=
             MarkUiDirty;
+        _errorDialog.Close();
 
         if (Editor.AssetBrowser is not null)
         {
@@ -395,7 +405,7 @@ public sealed class EditorApplication :
     }
 
     private void OnDocumentPathSubmitted(
-        string path)
+    string path)
     {
         var request =
             _documentPathRequest;
@@ -403,17 +413,25 @@ public sealed class EditorApplication :
         _documentPathRequest =
             null;
 
-        switch (request)
+        try
         {
-            case DocumentPathRequest.Open:
-                OpenDocument(
-                    path);
-                break;
+            switch (request)
+            {
+                case DocumentPathRequest.Open:
+                    OpenDocument(
+                        path);
+                    break;
 
-            case DocumentPathRequest.SaveAs:
-                SaveDocumentAs(
-                    path);
-                break;
+                case DocumentPathRequest.SaveAs:
+                    SaveDocumentAs(
+                        path);
+                    break;
+            }
+        }
+        catch (Exception exception)
+        {
+            _errorDialog.ShowError(
+                exception.Message);
         }
     }
 
@@ -425,6 +443,8 @@ public sealed class EditorApplication :
         {
             return;
         }
+        document.ValidationChanged +=
+    MarkUiDirty;
 
         document.EntitySelection.Changed +=
             MarkUiDirty;
@@ -440,6 +460,8 @@ public sealed class EditorApplication :
         {
             return;
         }
+        document.ValidationChanged -=
+    MarkUiDirty;
 
         document.EntitySelection.Changed -=
             MarkUiDirty;
@@ -520,24 +542,36 @@ public sealed class EditorApplication :
             return;
         }
 
-        if (_documentFiles is null)
+        try
         {
-            return;
-        }
+            if (_documentFiles is null)
+            {
+                throw new InvalidOperationException(
+                    "Document file service is not configured.");
+            }
 
-        if (document.FilePath is null)
+            if (document.FilePath is null)
+            {
+                _documentCloseDialog.Close();
+
+                SaveDocumentAsRequested?.Invoke();
+
+                return;
+            }
+
+            Editor.CloseDocument(
+                document,
+                EditorDocumentCloseDecision.Save,
+                _documentFiles);
+
+            _documentCloseDialog.Close();
+            MarkUiDirty();
+        }
+        catch (Exception exception)
         {
-            SaveDocumentAsRequested?.Invoke();
-            return;
+            _errorDialog.ShowError(
+                exception.Message);
         }
-
-        Editor.CloseDocument(
-            document,
-            EditorDocumentCloseDecision.Save,
-            _documentFiles);
-
-        _documentCloseDialog.Close();
-        MarkUiDirty();
     }
 
     private void DiscardPendingDocument()
@@ -560,35 +594,44 @@ public sealed class EditorApplication :
 
     private void SaveRequested()
     {
-        if (MainShell.IsUiMode)
+        try
         {
-            SaveUiDocument();
-            return;
-        }
+            if (MainShell.IsUiMode)
+            {
+                SaveUiDocument();
+                return;
+            }
 
-        if (_documentFiles is null)
+            if (_documentFiles is null)
+            {
+                throw new InvalidOperationException(
+                    "Document file service is not configured.");
+            }
+
+            var document =
+                Editor.ActiveDocument;
+
+            if (document is null)
+            {
+                return;
+            }
+
+            if (document.FilePath is null)
+            {
+                RequestSaveDocumentAs();
+                return;
+            }
+
+            Editor.SaveDocument(
+                _documentFiles);
+
+            MarkUiDirty();
+        }
+        catch (Exception exception)
         {
-            return;
+            _errorDialog.ShowError(
+                exception.Message);
         }
-
-        var document =
-            Editor.ActiveDocument;
-
-        if (document is null)
-        {
-            return;
-        }
-
-        if (document.FilePath is null)
-        {
-            RequestSaveDocumentAs();
-            return;
-        }
-
-        Editor.SaveDocument(
-            _documentFiles);
-
-        MarkUiDirty();
     }
 
     private void ClearPendingCloseDocument()

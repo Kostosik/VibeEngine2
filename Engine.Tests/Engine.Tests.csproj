@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Engine.Animation\Engine.Animation.csproj" />
     <ProjectReference Include="..\Engine.Audio.OpenAL\Engine.Audio.OpenAL.csproj" />
     <ProjectReference Include="..\Engine.Audio\Engine.Audio.csproj" />
     <ProjectReference Include="..\Engine.Content\Engine.Content.csproj" />
@@ -34,6 +35,7 @@
     <ProjectReference Include="..\Engine.Memory\Engine.Memory.csproj" />
     <ProjectReference Include="..\Engine.Navigation\Engine.Navigation.csproj" />
     <ProjectReference Include="..\Engine.Networking\Engine.Networking.csproj" />
+    <ProjectReference Include="..\Engine.Particles\Engine.Particles.csproj" />
     <ProjectReference Include="..\Engine.Runtime\Engine.Runtime.csproj" />
     <ProjectReference Include="..\Engine.Serialization\Engine.Serialization.csproj" />
     <ProjectReference Include="..\Engine.Simulations\Engine.Simulations.csproj" />

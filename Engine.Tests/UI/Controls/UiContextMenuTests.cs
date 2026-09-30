@@ -6,6 +6,8 @@ namespace Engine.Tests.UI.Controls;
 
 public sealed class UiContextMenuTests
 {
+
+
     [Fact]
     public void ClearItems_WhenMenuIsOpen_ClosesMenu()
     {

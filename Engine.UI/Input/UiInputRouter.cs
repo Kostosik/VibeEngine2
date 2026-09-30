@@ -661,6 +661,32 @@ public sealed class UiInputRouter
         }
 
         if (_textInput.IsPressed(
+        TextInputKey.Home) &&
+    focused is not null)
+        {
+            var keyEvent =
+                new UiKeyEvent(
+                    TextInputKey.Home);
+
+            RouteKeyEvent(
+                focused,
+                keyEvent);
+        }
+
+        if (_textInput.IsPressed(
+                TextInputKey.End) &&
+            focused is not null)
+        {
+            var keyEvent =
+                new UiKeyEvent(
+                    TextInputKey.End);
+
+            RouteKeyEvent(
+                focused,
+                keyEvent);
+        }
+
+        if (_textInput.IsPressed(
                 TextInputKey.Up))
         {
             var keyEvent =
@@ -796,6 +822,13 @@ public sealed class UiInputRouter
         {
             focused.RaiseKeyPressed(
                 TextInputKey.Backspace);
+        }
+
+        if (_textInput.IsPressed(
+                TextInputKey.Delete))
+        {
+            focused.RaiseKeyPressed(
+                TextInputKey.Delete);
         }
     }
 }

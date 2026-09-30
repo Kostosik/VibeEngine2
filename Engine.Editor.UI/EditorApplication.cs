@@ -70,6 +70,9 @@ public sealed class EditorApplication :
         Editor.Session.ActiveDocumentChanged +=
     OnActiveDocumentChanged;
 
+        Editor.Workspace.Changed +=
+    MarkUiDirty;
+
         UiDocument.Changed +=
             MarkUiDirty;
 
@@ -156,16 +159,16 @@ public sealed class EditorApplication :
 
     public void Shutdown()
     {
+        Editor.Session.CloseAll();
+
         Editor.Session.DocumentClosed -=
             UnsubscribeDocument;
-        Editor.Session.ActiveDocumentChanged -=
-    OnActiveDocumentChanged;
 
-        foreach (var document in _subscribedDocuments.ToArray())
-        {
-            UnsubscribeDocument(
-                document);
-        }
+        Editor.Session.ActiveDocumentChanged -=
+            OnActiveDocumentChanged;
+
+        Editor.Workspace.Changed -=
+    MarkUiDirty;
 
         UiDocument.Changed -=
             MarkUiDirty;

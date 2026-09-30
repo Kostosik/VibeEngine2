@@ -13,7 +13,7 @@ namespace Engine.Graphics.OpenGL;
 public sealed class OpenGLWindow : IDisposable
 {
     private readonly IWindow _window;
-
+    private GameLoop? _gameLoop;
     private GL? _gl;
     private OpenGLGraphicsDevice? _graphicsDevice;
     private SilkNetInputBackend? _inputBackend;
@@ -92,7 +92,7 @@ public sealed class OpenGLWindow : IDisposable
     }
 
     public void Run(
-        GameLoop gameLoop)
+    GameLoop gameLoop)
     {
         ArgumentNullException.ThrowIfNull(gameLoop);
 
@@ -101,6 +101,8 @@ public sealed class OpenGLWindow : IDisposable
             throw new InvalidOperationException(
                 "Window must be initialized before Run.");
         }
+
+        _gameLoop = gameLoop;
 
         _window.Update +=
             _ =>
@@ -123,7 +125,20 @@ public sealed class OpenGLWindow : IDisposable
                 _graphicsDevice.EndFrame();
             };
 
-        _window.Run();
+        try
+        {
+            _window.Run();
+        }
+        finally
+        {
+            if (!gameLoop.IsShutdown)
+            {
+                gameLoop.Shutdown();
+            }
+
+            _graphicsDevice?.Dispose();
+            _graphicsDevice = null;
+        }
     }
 
     private void OnLoad()
@@ -161,6 +176,19 @@ public sealed class OpenGLWindow : IDisposable
     }
     private void OnClosing()
     {
+        try
+        {
+            if (_gameLoop is not null &&
+                !_gameLoop.IsShutdown)
+            {
+                _gameLoop.Shutdown();
+            }
+        }
+        finally
+        {
+            _graphicsDevice?.Dispose();
+            _graphicsDevice = null;
+        }
     }
 
     public void Dispose()

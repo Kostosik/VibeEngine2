@@ -2,6 +2,8 @@
 using Engine.Editor.Assets;
 using Engine.Editor.Documents;
 using Engine.Editor.Inspection;
+using Engine.Editor.Panels;
+using Engine.Editor.Persistence;
 using Engine.Editor.Workspace;
 using Engine.Worlds;
 
@@ -17,6 +19,8 @@ public sealed class EditorContext
         Workspace =
             new EditorWorkspace(
                 Session);
+
+        RegisterDefaultPanels();
         Actions =
             new EditorActionRegistry();
 
@@ -91,5 +95,120 @@ public sealed class EditorContext
             new EditorAssetBrowser(
                 source,
                 rootPath);
+    }
+
+    public void SaveWorkspace(
+    IEditorWorkspacePersistence persistence,
+    string path)
+    {
+        ArgumentNullException.ThrowIfNull(
+            persistence);
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            path);
+
+        persistence.Save(
+            path,
+            Workspace.CaptureState());
+    }
+
+    public void LoadWorkspace(
+        IEditorWorkspacePersistence persistence,
+        string path)
+    {
+        ArgumentNullException.ThrowIfNull(
+            persistence);
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            path);
+
+        var state =
+            persistence.Load(
+                path);
+
+        Workspace.RestoreState(
+            state);
+    }
+    private void RegisterDefaultPanels()
+    {
+        Workspace.RegisterPanel(
+            new EditorPanel(
+                "Hierarchy",
+                "Hierarchy"));
+
+        Workspace.RegisterPanel(
+            new EditorPanel(
+                "Viewport",
+                "Viewport"));
+
+        Workspace.RegisterPanel(
+            new EditorPanel(
+                "Inspector",
+                "Inspector"));
+
+        Workspace.RegisterPanel(
+            new EditorPanel(
+                "AssetBrowser",
+                "Asset Browser"));
+
+        Workspace.RegisterPanel(
+            new EditorPanel(
+                "AssetPreview",
+                "Asset Preview"));
+
+        Workspace.Layout.GetPanel(
+            "Hierarchy")
+            .SetArea(
+                EditorDockArea.Left);
+
+        Workspace.Layout.GetPanel(
+            "Hierarchy")
+            .SetSize(
+                280.0f);
+
+        Workspace.Layout.GetPanel(
+            "Viewport")
+            .SetArea(
+                EditorDockArea.Center);
+
+        Workspace.Layout.GetPanel(
+            "Viewport")
+            .SetActive(
+                true);
+
+        Workspace.Layout.GetPanel(
+            "Inspector")
+            .SetArea(
+                EditorDockArea.Right);
+
+        Workspace.Layout.GetPanel(
+            "Inspector")
+            .SetSize(
+                300.0f);
+
+        Workspace.Layout.GetPanel(
+            "AssetBrowser")
+            .SetArea(
+                EditorDockArea.Bottom);
+
+        Workspace.Layout.GetPanel(
+            "AssetBrowser")
+            .SetSize(
+                220.0f);
+
+        Workspace.Layout.GetPanel(
+            "AssetPreview")
+            .SetArea(
+                EditorDockArea.Bottom);
+
+        Workspace.Layout.GetPanel(
+            "AssetPreview")
+            .SetOrder(
+                1);
+
+        Workspace.Layout.GetPanel(
+            "AssetPreview")
+            .SetSize(
+                220.0f);
     }
 }

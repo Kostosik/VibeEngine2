@@ -5,4 +5,5 @@ public sealed record EditorPanelLayoutState(
     EditorDockArea Area,
     int Order,
     float Size,
-    bool IsActive);
+    bool IsActive,
+    bool IsOpen = true);

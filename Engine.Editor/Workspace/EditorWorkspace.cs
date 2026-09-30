@@ -6,24 +6,31 @@ namespace Engine.Editor.Workspace;
 public sealed class EditorWorkspace
 {
     private readonly List<IEditorPanel> _panels = new();
+
     public EditorLayout Layout { get; }
+
     public IReadOnlyList<IEditorPanel> Panels =>
         _panels;
 
     public EditorSession Session { get; }
+
+    public event Action? Changed;
 
     public EditorWorkspace(
         EditorSession session)
     {
         ArgumentNullException.ThrowIfNull(
             session);
+
         Layout =
-    new EditorLayout();
-        Session = session;
+            new EditorLayout();
+
+        Session =
+            session;
     }
 
     public void RegisterPanel(
-    IEditorPanel panel)
+        IEditorPanel panel)
     {
         ArgumentNullException.ThrowIfNull(
             panel);
@@ -52,6 +59,8 @@ public sealed class EditorWorkspace
 
         _panels.Add(
             panel);
+
+        Changed?.Invoke();
     }
 
     public bool UnregisterPanel(
@@ -71,8 +80,12 @@ public sealed class EditorWorkspace
             }
 
             _panels.RemoveAt(i);
+
             Layout.RemovePanel(
-    id);
+                id);
+
+            Changed?.Invoke();
+
             return true;
         }
 
@@ -91,5 +104,161 @@ public sealed class EditorWorkspace
                     panel.Id,
                     id,
                     StringComparison.Ordinal));
+    }
+
+    public void SetPanelOpen(
+        string id,
+        bool isOpen)
+    {
+        var panel =
+            GetPanelOrThrow(id);
+
+        if (panel.IsOpen == isOpen)
+        {
+            return;
+        }
+
+        panel.IsOpen =
+            isOpen;
+
+        Changed?.Invoke();
+    }
+
+    public void SetPanelArea(
+        string id,
+        EditorDockArea area)
+    {
+        var layout =
+            Layout.GetPanel(id);
+
+        if (layout.Area == area)
+        {
+            return;
+        }
+
+        layout.SetArea(
+            area);
+
+        Changed?.Invoke();
+    }
+
+    public void SetPanelOrder(
+        string id,
+        int order)
+    {
+        var layout =
+            Layout.GetPanel(id);
+
+        if (layout.Order == order)
+        {
+            return;
+        }
+
+        layout.SetOrder(
+            order);
+
+        Changed?.Invoke();
+    }
+
+    public void SetPanelSize(
+        string id,
+        float size)
+    {
+        var layout =
+            Layout.GetPanel(id);
+
+        if (layout.Size == size)
+        {
+            return;
+        }
+
+        layout.SetSize(
+            size);
+
+        Changed?.Invoke();
+    }
+
+    public void SetPanelActive(
+        string id,
+        bool active)
+    {
+        var layout =
+            Layout.GetPanel(id);
+
+        if (layout.IsActive == active)
+        {
+            return;
+        }
+
+        layout.SetActive(
+            active);
+
+        Changed?.Invoke();
+    }
+
+    public EditorWorkspaceState CaptureState()
+    {
+        var layoutState =
+            Layout.CaptureState();
+
+        var panels =
+            layoutState.Panels
+                .Select(
+                    layout =>
+                    {
+                        var panel =
+                            FindPanel(
+                                layout.PanelId)
+                            ?? throw new InvalidOperationException(
+                                $"Editor panel '{layout.PanelId}' is missing.");
+
+                        return layout with
+                        {
+                            IsOpen =
+                                panel.IsOpen
+                        };
+                    })
+                .ToArray();
+
+        return new EditorWorkspaceState(
+            panels);
+    }
+
+    public void RestoreState(
+        EditorWorkspaceState state)
+    {
+        ArgumentNullException.ThrowIfNull(
+            state);
+
+        Layout.RestoreState(
+            state);
+
+        foreach (var savedPanel in state.Panels)
+        {
+            var panel =
+                FindPanel(
+                    savedPanel.PanelId);
+
+            if (panel is null)
+            {
+                continue;
+            }
+
+            panel.IsOpen =
+                savedPanel.IsOpen;
+        }
+
+        Changed?.Invoke();
+    }
+
+    private IEditorPanel GetPanelOrThrow(
+        string id)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            id);
+
+        return FindPanel(id)
+            ?? throw new KeyNotFoundException(
+                $"Editor panel '{id}' was not found.");
     }
 }

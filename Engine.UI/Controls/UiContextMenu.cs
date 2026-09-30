@@ -154,8 +154,9 @@ public sealed class UiContextMenu : UiCanvas
         _menuPanel.IsHitTestVisible = false;
 
         Visible = false;
-        ResolveFocusManager()?.EnterScope(
-    this);
+
+        ResolveFocusManager()?.ExitScope(
+            this);
     }
 
     internal override UiWidget? HitTest(

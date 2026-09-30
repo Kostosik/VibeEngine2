@@ -183,7 +183,10 @@ try
 }
 finally
 {
-    gameLoop.Shutdown();
+    if (!gameLoop.IsShutdown)
+    {
+        gameLoop.Shutdown();
+    }
 }
 
 public struct EditorTestComponent

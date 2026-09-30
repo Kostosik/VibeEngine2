@@ -40,10 +40,13 @@ public sealed class SilkNetInputBackend :
         TextInputKey.F1,
     TextInputKey.Enter,
     TextInputKey.Backspace,
+    TextInputKey.Delete,
     TextInputKey.Up,
     TextInputKey.Down,
     TextInputKey.Left,
     TextInputKey.Right,
+    TextInputKey.Home,
+    TextInputKey.End,
     TextInputKey.Escape
     ];
     public float ScrollDelta =>
@@ -221,6 +224,14 @@ public sealed class SilkNetInputBackend :
 
             TextInputKey.Escape =>
                 Key.Escape,
+            TextInputKey.Delete =>
+                Key.Delete,
+
+            TextInputKey.Home =>
+                Key.Home,
+
+            TextInputKey.End =>
+                Key.End,
 
             _ =>
                 throw new ArgumentOutOfRangeException(

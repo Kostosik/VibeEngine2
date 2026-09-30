@@ -36,8 +36,8 @@ public sealed class ViewportPanelView :
     private const float ZoomStep = 1.15f;
     private bool _isPanning;
     private Vector2 _lastPanPosition;
-    private const float EntityMarkerSize = 12.0f;
-    private const float SelectionOutlineSize = 18.0f;
+    private const float EntityMarkerWorldSize = 10.0f;
+    private const float SelectionOutlineWorldSize = 10.5f;
 
     private Vector2 _translationStartMouseWorld;
 
@@ -839,7 +839,8 @@ public sealed class ViewportPanelView :
             var rect =
                 CreateScreenRect(
                     screen,
-                    EntityMarkerSize);
+                    EntityMarkerWorldSize *
+                    document.Viewport.State.Zoom);
 
             context.DrawRectangle(
                 rect,
@@ -892,7 +893,8 @@ public sealed class ViewportPanelView :
             var rect =
                 CreateScreenRect(
                     screen,
-                    SelectionOutlineSize);
+                    SelectionOutlineWorldSize *
+                    document.Viewport.State.Zoom);
 
             context.DrawRectangle(
                 rect,

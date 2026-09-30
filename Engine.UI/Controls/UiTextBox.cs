@@ -12,11 +12,14 @@ public sealed class UiTextBox : UiWidget
 {
     private float _cursorTimer;
     private bool _cursorVisible = true;
+    private UiLayoutContext? _layoutContext;
 
     public UiTextBox(
         string text = "")
     {
         Text = text;
+        CursorIndex = text.Length;
+
         Focusable = true;
         ConsumesKeyboardInput = true;
         Width = 240.0f;
@@ -36,10 +39,12 @@ public sealed class UiTextBox : UiWidget
             UiVerticalAlignment.Top;
 
         Cursor =
-    CursorShape.Text;
+            CursorShape.Text;
     }
 
     public string Text { get; private set; }
+
+    public int CursorIndex { get; private set; }
 
     public string Placeholder { get; set; } = "";
 
@@ -80,6 +85,9 @@ public sealed class UiTextBox : UiWidget
         UiLayoutContext context,
         Vector2 availableSize)
     {
+        _layoutContext =
+            context;
+
         return new Vector2(
             Width ?? 240.0f,
             Height ?? 42.0f);
@@ -99,7 +107,7 @@ public sealed class UiTextBox : UiWidget
     }
 
     protected override void OnTextInput(
-        char character)
+    char character)
     {
         if (!Enabled ||
             Text.Length >= MaxLength ||
@@ -108,8 +116,12 @@ public sealed class UiTextBox : UiWidget
             return;
         }
 
-        Text +=
-            character;
+        Text =
+            Text.Insert(
+                CursorIndex,
+                character.ToString());
+
+        CursorIndex++;
 
         ResetCursor();
 
@@ -118,12 +130,17 @@ public sealed class UiTextBox : UiWidget
     }
 
     protected override void OnPointerDown(
-    UiPointerEvent pointer)
+        UiPointerEvent pointer)
     {
         if (!Enabled)
         {
             return;
         }
+
+        SetCursorFromPointer(
+            pointer.Position.X);
+
+        ResetCursor();
 
         pointer.Handled = true;
     }
@@ -131,32 +148,125 @@ public sealed class UiTextBox : UiWidget
     protected override void OnKeyPressed(
         TextInputKey key)
     {
-        if (key != TextInputKey.Backspace ||
-            Text.Length == 0)
+        switch (key)
+        {
+            case TextInputKey.Backspace:
+                DeletePreviousTextElement();
+                break;
+
+            case TextInputKey.Delete:
+                DeleteNextTextElement();
+                break;
+        }
+    }
+
+    protected override void OnKeyEvent(
+        UiKeyEvent keyEvent)
+    {
+        switch (keyEvent.Key)
+        {
+            case TextInputKey.Left:
+                MoveCursorLeft();
+                keyEvent.Handled = true;
+                break;
+
+            case TextInputKey.Right:
+                MoveCursorRight();
+                keyEvent.Handled = true;
+                break;
+
+            case TextInputKey.Home:
+                CursorIndex = 0;
+                ResetCursor();
+                keyEvent.Handled = true;
+                break;
+
+            case TextInputKey.End:
+                CursorIndex = Text.Length;
+                ResetCursor();
+                keyEvent.Handled = true;
+                break;
+        }
+    }
+
+    private void DeletePreviousTextElement()
+    {
+        if (CursorIndex == 0)
         {
             return;
         }
 
-        var indices =
-            System.Globalization.StringInfo
-                .ParseCombiningCharacters(
-                    Text);
+        var starts =
+            GetTextElementStarts();
 
-        if (indices.Length == 0)
+        var previousIndex =
+            FindPreviousTextElementStart(
+                starts,
+                CursorIndex);
+
+        if (previousIndex < 0)
         {
             return;
         }
-
-        var lastIndex =
-            indices[^1];
 
         Text =
-            Text[..lastIndex];
+            Text.Remove(
+                previousIndex,
+                CursorIndex - previousIndex);
+
+        CursorIndex =
+            previousIndex;
 
         ResetCursor();
 
         TextChanged?.Invoke(
             Text);
+    }
+
+    private void DeleteNextTextElement()
+    {
+        if (CursorIndex >= Text.Length)
+        {
+            return;
+        }
+
+        var starts =
+            GetTextElementStarts();
+
+        var nextIndex =
+            FindNextTextElementStart(
+                starts,
+                CursorIndex);
+
+        var endIndex =
+            nextIndex >= 0
+                ? nextIndex
+                : Text.Length;
+
+        Text =
+            Text.Remove(
+                CursorIndex,
+                endIndex - CursorIndex);
+
+        ResetCursor();
+
+        TextChanged?.Invoke(
+            Text);
+    }
+
+    private static int FindNextTextElementStart(
+        int[] starts,
+        int cursorIndex)
+    {
+        foreach (var start in starts)
+        {
+            if (start > cursorIndex)
+            {
+                return start;
+            }
+        }
+
+        return -1;
     }
 
     protected override void OnSubmit()
@@ -219,9 +329,12 @@ public sealed class UiTextBox : UiWidget
         if (IsFocused &&
             _cursorVisible)
         {
+            var textBeforeCursor =
+                Text[..CursorIndex];
+
             var actualTextSize =
                 context.MeasureText(
-                    Text,
+                    textBeforeCursor,
                     FontSize);
 
             var cursorX =
@@ -255,5 +368,166 @@ public sealed class UiTextBox : UiWidget
     {
         _cursorTimer = 0.0f;
         _cursorVisible = true;
+    }
+
+    private void MoveCursorLeft()
+    {
+        if (CursorIndex == 0)
+        {
+            return;
+        }
+
+        var starts =
+            GetTextElementStarts();
+
+        var previousIndex =
+            FindPreviousTextElementStart(
+                starts,
+                CursorIndex);
+
+        if (previousIndex < 0)
+        {
+            return;
+        }
+
+        CursorIndex =
+            previousIndex;
+
+        ResetCursor();
+    }
+
+    private void MoveCursorRight()
+    {
+        if (CursorIndex >= Text.Length)
+        {
+            return;
+        }
+
+        var starts =
+            GetTextElementStarts();
+
+        foreach (var start in starts)
+        {
+            if (start > CursorIndex)
+            {
+                CursorIndex =
+                    start;
+
+                ResetCursor();
+                return;
+            }
+        }
+
+        CursorIndex =
+            Text.Length;
+
+        ResetCursor();
+    }
+
+    private int[] GetTextElementStarts()
+    {
+        return System.Globalization.StringInfo
+            .ParseCombiningCharacters(
+                Text);
+    }
+
+    private void SetCursorFromPointer(
+    float pointerX)
+    {
+        if (Text.Length == 0)
+        {
+            CursorIndex = 0;
+            return;
+        }
+
+        var content =
+            Bounds.Deflate(
+                Padding);
+
+        var localX =
+            pointerX -
+            content.X;
+
+        if (localX <= 0.0f)
+        {
+            CursorIndex = 0;
+            return;
+        }
+
+        if (_layoutContext is null)
+        {
+            CursorIndex = Text.Length;
+            return;
+        }
+
+        var starts =
+            GetTextElementStarts();
+
+        var bestIndex = 0;
+        var bestDistance =
+            float.MaxValue;
+
+        foreach (var start in starts)
+        {
+            var width =
+                _layoutContext
+                    .MeasureText(
+                        Text[..start],
+                        FontSize)
+                    .X;
+
+            var distance =
+                MathF.Abs(
+                    width -
+                    localX);
+
+            if (distance < bestDistance)
+            {
+                bestDistance =
+                    distance;
+
+                bestIndex =
+                    start;
+            }
+        }
+
+        var endWidth =
+            _layoutContext
+                .MeasureText(
+                    Text,
+                    FontSize)
+                .X;
+
+        var endDistance =
+            MathF.Abs(
+                endWidth -
+                localX);
+
+        if (endDistance < bestDistance)
+        {
+            bestIndex =
+                Text.Length;
+        }
+
+        CursorIndex =
+            bestIndex;
+    }
+
+    private static int FindPreviousTextElementStart(
+        int[] starts,
+        int cursorIndex)
+    {
+        for (var i =
+                 starts.Length - 1;
+             i >= 0;
+             i--)
+        {
+            if (starts[i] < cursorIndex)
+            {
+                return starts[i];
+            }
+        }
+
+        return -1;
     }
 }

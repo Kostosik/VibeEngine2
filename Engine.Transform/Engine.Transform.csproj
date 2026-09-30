@@ -8,9 +8,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Engine.Core\Engine.Core.csproj" />
-    <ProjectReference Include="..\Engine.Jobs\Engine.Jobs.csproj" />
-    <ProjectReference Include="..\Engine.Memory\Engine.Memory.csproj" />
-    <ProjectReference Include="..\Engine.Transform\Engine.Transform.csproj" />
   </ItemGroup>
 
 </Project>

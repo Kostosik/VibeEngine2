@@ -29,6 +29,122 @@ public readonly struct Fixed32 :
     public static Fixed32 One =>
         new((int)Scale);
 
+    public static Fixed32 Pi =>
+    new(205887);
+
+    public static Fixed32 HalfPi =>
+        new(102943);
+
+    public static Fixed32 TwoPi =>
+        new(411774);
+
+    public static Fixed32 Sin(
+    Fixed32 angle)
+    {
+        var raw =
+            angle._raw %
+            TwoPi._raw;
+
+        if (raw > Pi._raw)
+            raw -= TwoPi._raw;
+        else if (raw < -Pi._raw)
+            raw += TwoPi._raw;
+
+        var sign = 1;
+
+        if (raw > HalfPi._raw)
+        {
+            raw =
+                Pi._raw -
+                raw;
+        }
+        else if (raw < -HalfPi._raw)
+        {
+            raw =
+                -Pi._raw -
+                raw;
+        }
+
+        var x =
+            new Fixed32(raw);
+
+        var x2 =
+            x * x;
+
+        var x3 =
+            x2 * x;
+
+        var x5 =
+            x3 * x2;
+
+        var x7 =
+            x5 * x2;
+
+        return
+            x
+            - x3 * FromRatio(1, 6)
+            + x5 * FromRatio(1, 120)
+            - x7 * FromRatio(1, 5040);
+    }
+
+    public static Fixed32 Cos(
+        Fixed32 angle)
+    {
+        var raw =
+            angle._raw %
+            TwoPi._raw;
+
+        if (raw > Pi._raw)
+            raw -= TwoPi._raw;
+        else if (raw < -Pi._raw)
+            raw += TwoPi._raw;
+
+        var sign = 1;
+
+        if (raw > HalfPi._raw)
+        {
+            raw =
+                Pi._raw -
+                raw;
+
+            sign = -1;
+        }
+        else if (raw < -HalfPi._raw)
+        {
+            raw =
+                -Pi._raw -
+                raw;
+
+            sign = -1;
+        }
+
+        var x =
+            new Fixed32(raw);
+
+        var x2 =
+            x * x;
+
+        var x4 =
+            x2 * x2;
+
+        var x6 =
+            x4 * x2;
+
+        var x8 =
+            x4 * x4;
+
+        var result =
+            One
+            - x2 * FromRatio(1, 2)
+            + x4 * FromRatio(1, 24)
+            - x6 * FromRatio(1, 720)
+            + x8 * FromRatio(1, 40320);
+
+        return sign > 0
+            ? result
+            : -result;
+    }
+
     public static Fixed32 FromInt(
         int value)
     {

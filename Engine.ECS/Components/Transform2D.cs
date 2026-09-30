@@ -1,35 +1,43 @@
 ﻿using Engine.Core.Determinism;
 using Engine.Core.Math;
+using Engine.Transform;
 
 namespace Engine.ECS.Components;
 
 public struct Transform2D :
     IDeterministicState
 {
+    private FixedTransform2D _value;
+
     public Transform2D(
         FixedVector2 position)
     {
-        Position = position;
-        Rotation = Fixed32.Zero;
-        Scale = FixedVector2.One;
+        _value = new FixedTransform2D(
+            position);
     }
 
-    public FixedVector2 Position { get; set; }
+    public FixedVector2 Position
+    {
+        get => _value.Position;
+        set => _value.Position = value;
+    }
 
-    public Fixed32 Rotation { get; set; }
+    public Fixed32 Rotation
+    {
+        get => _value.Rotation;
+        set => _value.Rotation = value;
+    }
 
-    public FixedVector2 Scale { get; set; }
+    public FixedVector2 Scale
+    {
+        get => _value.Scale;
+        set => _value.Scale = value;
+    }
 
     public void AddToHash(
         ref DeterministicStateHasher hasher)
     {
-        hasher.AddFixedVector2(
-            Position);
-
-        hasher.AddFixed32(
-            Rotation);
-
-        hasher.AddFixedVector2(
-            Scale);
+        _value.AddToHash(
+            ref hasher);
     }
 }

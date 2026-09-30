@@ -39,6 +39,7 @@
     <ProjectReference Include="..\Engine.Runtime\Engine.Runtime.csproj" />
     <ProjectReference Include="..\Engine.Serialization\Engine.Serialization.csproj" />
     <ProjectReference Include="..\Engine.Simulations\Engine.Simulations.csproj" />
+    <ProjectReference Include="..\Engine.Transform\Engine.Transform.csproj" />
     <ProjectReference Include="..\Engine.World\Engine.Worlds.csproj" />
     <ProjectReference Include="..\Game.Sandbox\Game.Sandbox.csproj" />
   </ItemGroup>

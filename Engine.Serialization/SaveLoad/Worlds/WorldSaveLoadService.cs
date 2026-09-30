@@ -84,4 +84,37 @@ public sealed class WorldSaveLoadService
             world,
             state);
     }
+
+    public World LoadWorld(
+    string path)
+    {
+        return LoadWorld(
+            path,
+            SerializationContext.Default);
+    }
+
+    public World LoadWorld(
+        string path,
+        SerializationContext context)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            path);
+
+        var state =
+            BinaryFileSerializer.Load(
+                path,
+                _serializer,
+                context);
+
+        var world =
+            new World(
+                state.ChunkSize,
+                new Engine.ECS.World());
+
+        WorldPersistence.Restore(
+            world,
+            state);
+
+        return world;
+    }
 }

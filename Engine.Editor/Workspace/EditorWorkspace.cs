@@ -125,8 +125,8 @@ public sealed class EditorWorkspace
     }
 
     public void SetPanelArea(
-        string id,
-        EditorDockArea area)
+    string id,
+    EditorDockArea area)
     {
         var layout =
             Layout.GetPanel(id);
@@ -138,6 +138,22 @@ public sealed class EditorWorkspace
 
         layout.SetArea(
             area);
+
+        if (layout.IsActive)
+        {
+            foreach (var other in Layout.Panels)
+            {
+                if (ReferenceEquals(other, layout) ||
+                    other.Area != area ||
+                    !other.IsActive)
+                {
+                    continue;
+                }
+
+                other.SetActive(
+                    false);
+            }
+        }
 
         Changed?.Invoke();
     }
@@ -179,22 +195,66 @@ public sealed class EditorWorkspace
     }
 
     public void SetPanelActive(
-        string id,
-        bool active)
+    string id,
+    bool active)
+{
+    if (active)
     {
-        var layout =
-            Layout.GetPanel(id);
+        ActivatePanel(id);
+        return;
+    }
 
-        if (layout.IsActive == active)
+    var layout =
+        Layout.GetPanel(id);
+
+    if (!layout.IsActive)
+    {
+        return;
+    }
+
+    layout.SetActive(
+        false);
+
+    Changed?.Invoke();
+}
+
+public void ActivatePanel(
+    string id)
+{
+    var layout =
+        Layout.GetPanel(id);
+
+    var changed =
+        false;
+
+    foreach (var other in Layout.Panels)
+    {
+        if (ReferenceEquals(other, layout) ||
+            other.Area != layout.Area ||
+            !other.IsActive)
         {
-            return;
+            continue;
         }
 
-        layout.SetActive(
-            active);
+        other.SetActive(
+            false);
 
+        changed = true;
+    }
+
+    if (!layout.IsActive)
+    {
+        layout.SetActive(
+            true);
+
+        changed = true;
+    }
+
+    if (changed)
+    {
         Changed?.Invoke();
     }
+}
 
     public EditorWorkspaceState CaptureState()
     {
@@ -225,7 +285,7 @@ public sealed class EditorWorkspace
     }
 
     public void RestoreState(
-        EditorWorkspaceState state)
+    EditorWorkspaceState state)
     {
         ArgumentNullException.ThrowIfNull(
             state);
@@ -246,6 +306,29 @@ public sealed class EditorWorkspace
 
             panel.IsOpen =
                 savedPanel.IsOpen;
+        }
+
+        // Restore is another entry point into the workspace state,
+        // so the active-panel invariant must be enforced here as well.
+        var activeAreas =
+            new HashSet<EditorDockArea>();
+
+        foreach (var savedPanel in state.Panels)
+        {
+            if (!savedPanel.IsActive ||
+                !Layout.TryGetPanel(
+                    savedPanel.PanelId,
+                    out var layout) ||
+                layout is null)
+            {
+                continue;
+            }
+
+            if (!activeAreas.Add(
+                    layout.Area))
+            {
+                layout.SetActive(false);
+            }
         }
 
         Changed?.Invoke();

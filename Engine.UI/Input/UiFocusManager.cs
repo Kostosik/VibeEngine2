@@ -29,6 +29,8 @@ public sealed class UiFocusManager
         ValidateFocus();
     }
 
+
+
     public void SetFocus(
         UiWidget? widget)
     {
@@ -408,7 +410,16 @@ public sealed class UiFocusManager
         return false;
     }
 
-    private bool IsAttachedToRoot(
+    internal bool IsAttachedToRoot(
+        UiWidget widget)
+    {
+        ArgumentNullException.ThrowIfNull(
+            widget);
+
+        return IsAttachedToRootCore(widget);
+    }
+
+    private bool IsAttachedToRootCore(
         UiWidget widget)
     {
         var current =

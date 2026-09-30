@@ -4,10 +4,14 @@ using Engine.Content.Loading;
 using Engine.Core.Application;
 using Engine.Core.Assets;
 using Engine.Editor;
+using Engine.Editor.Documents.Persistence;
 using Engine.Editor.UI;
 using Engine.Editor.UI.Authoring;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.OpenGL;
+using Engine.Serialization.Binary;
+using Engine.Serialization.SaveLoad.Ecs;
+using Engine.Serialization.Types;
 using Engine.UI.Core;
 using Engine.UI.Styling;
 using Engine.Worlds;
@@ -136,17 +140,62 @@ var uiDocument =
         : new EditorUiDocument(
             "Main UI");
 
+var serializers =
+    new EcsComponentSerializerRegistry();
+
+serializers.Register(
+    "engine.world.position",
+    new WorldPositionComponentSerializer());
+
+serializers.Register(
+    "sandbox.editor_test_component",
+    new EditorTestComponentSerializer());
+
+var documentPersistence =
+    new BinaryEditorDocumentPersistence(
+        serializers);
+
+var worldPath =
+    Path.Combine(
+        AppContext.BaseDirectory,
+        "Worlds",
+        "Sandbox.world");
+
+Directory.CreateDirectory(
+    Path.GetDirectoryName(
+        worldPath)!);
+
 var application =
     new EditorApplication(
         editor,
         ui,
         window.InputBackend,
         assetPreviewTextures,
-        uiDocument,uiAssetPath);
+        uiDocument,
+        uiAssetPath,
+        documentPersistence);
+
+application.NewDocumentRequested +=
+    () =>
+    {
+        var newEcsWorld =
+            new Engine.ECS.World();
+
+        var newWorld =
+            new World(
+                new ChunkSize(
+                    32,
+                    32),
+                newEcsWorld);
+
+        application.OpenDocument(
+            newWorld);
+    };
 
 var document =
     application.OpenDocument(
-        world);
+        world,
+        worldPath);
 
 document.EntitySelection.Changed +=
     () =>
@@ -202,4 +251,27 @@ public struct EditorTestComponent
     public int Value { get; set; }
 
     public float Speed { get; set; }
+}
+
+public sealed class EditorTestComponentSerializer :
+    IBinarySerializer<EditorTestComponent>
+{
+    public void Serialize(
+        ref SerializationWriter writer,
+        EditorTestComponent value)
+    {
+        writer.WriteInt32(
+            value.Value);
+
+        writer.WriteSingle(
+            value.Speed);
+    }
+
+    public EditorTestComponent Deserialize(
+        ref SerializationReader reader)
+    {
+        return new EditorTestComponent(
+            reader.ReadInt32(),
+            reader.ReadSingle());
+    }
 }

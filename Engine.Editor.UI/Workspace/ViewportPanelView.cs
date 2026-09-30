@@ -947,10 +947,8 @@ public sealed class ViewportPanelView :
             float.MaxValue;
 
         var hitRadius =
-            MathF.Max(
-                0.5f,
-                8.0f /
-                document.Viewport.State.Zoom);
+            EntityMarkerWorldSize *
+            0.5f;
 
         var hitRadiusSquared =
             hitRadius *

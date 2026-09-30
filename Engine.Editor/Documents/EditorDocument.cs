@@ -17,16 +17,22 @@ public sealed class EditorDocument : IDisposable
     _entityReferences = new();
     public EditorViewport Viewport { get; }
     public EditorInspector Inspector { get; }
+    public string? FilePath { get; private set; }
     public EditorPropertyProviderRegistry PropertyProviders { get; }
     public EditorDocument(
-        World world)
+        World world, string? filePath = null)
     {
         ArgumentNullException.ThrowIfNull(
             world);
 
-
+        if (filePath is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(
+                filePath);
+        }
 
         World = world;
+        FilePath = filePath;
 
         World.EcsWorld.EntityDestroyed +=
 OnEntityDestroyed;
@@ -95,6 +101,16 @@ OnEntityDestroyed;
             reference);
 
         return reference;
+    }
+
+    internal void SetFilePath(
+    string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            path);
+
+        FilePath =
+            path;
     }
 
     internal void RemapEntityReference(

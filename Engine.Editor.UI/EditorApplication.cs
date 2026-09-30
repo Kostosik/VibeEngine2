@@ -2,6 +2,7 @@
 using Engine.Core.Time;
 using Engine.Editor;
 using Engine.Editor.Documents;
+using Engine.Editor.Documents.Persistence;
 using Engine.Editor.UI.Authoring;
 using Engine.Editor.UI.Shell;
 using Engine.Graphics.Resources;
@@ -17,14 +18,39 @@ public sealed class EditorApplication :
     private readonly HashSet<EditorDocument> _subscribedDocuments = new();
     private bool _uiDirty = true;
     private readonly string _uiAssetPath;
+    private readonly IEditorDocumentPersistence?
+    _documentPersistence;
     public EditorUiDocument UiDocument { get; }
+    private readonly IEditorDocumentFileService?
+    _documentFiles;
+
+    private readonly EditorDocumentCloseDialog
+    _documentCloseDialog;
+
+    private EditorDocument? _pendingCloseDocument;
+
+    private readonly EditorDocumentPathDialog
+    _documentPathDialog;
+
+    private enum DocumentPathRequest
+    {
+        Open,
+        SaveAs
+    }
+
+    private DocumentPathRequest?
+        _documentPathRequest;
+
+    public event Action? NewDocumentRequested;
+    public event Action? OpenDocumentRequested;
+    public event Action? SaveDocumentAsRequested;
     public EditorApplication(
      EditorContext editor,
      UiSystem ui,
      IInputBackend input,
      ITextureResourceManager assetPreviewTextures,
      EditorUiDocument uiDocument,
-     string uiAssetPath)
+     string uiAssetPath, IEditorDocumentPersistence? documentPersistence = null, IEditorDocumentFileService? documentFiles = null)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -52,8 +78,26 @@ public sealed class EditorApplication :
                 editor,
                 ui);
 
-        _uiAssetPath = uiAssetPath;
+        _documentCloseDialog =
+    new EditorDocumentCloseDialog(
+        ui.Overlays,
+        ui.Focus);
 
+        _documentCloseDialog.SaveRequested +=
+            SavePendingDocument;
+
+        _documentCloseDialog.DiscardRequested +=
+            DiscardPendingDocument;
+
+        _documentCloseDialog.Closed +=
+            ClearPendingCloseDocument;
+
+        UiHost.Root.AddChild(
+            _documentCloseDialog);
+
+        _uiAssetPath = uiAssetPath;
+        _documentPersistence =
+    documentPersistence;
         MainShell =
             new EditorMainShell(
                 editor,
@@ -61,7 +105,20 @@ public sealed class EditorApplication :
                 uiDocument);
 
         MainShell.SaveRequested +=
-    SaveUiDocument;
+            SaveActiveDocument;
+
+        MainShell.NewRequested +=
+    RequestNewDocument;
+
+        MainShell.OpenRequested +=
+            RequestOpenDocument;
+
+        MainShell.SaveAsRequested +=
+            RequestSaveDocumentAs;
+
+        MainShell.CloseRequested +=
+            RequestCloseDocument;
+
         Editor.Session.DocumentClosed +=
     UnsubscribeDocument;
         UiHost.Root.AddChild(
@@ -82,7 +139,111 @@ public sealed class EditorApplication :
                 MarkUiDirty;
         }
 
-        
+        _documentPathDialog =
+    new EditorDocumentPathDialog(
+        ui.Overlays,
+        ui.Focus);
+
+        _documentPathDialog.PathSubmitted +=
+            OnDocumentPathSubmitted;
+
+        UiHost.Root.AddChild(
+            _documentPathDialog);
+
+        _documentFiles = documentFiles;
+    }
+
+    public EditorDocument OpenDocument(
+    string path)
+    {
+        var files =
+            _documentFiles
+            ?? throw new InvalidOperationException(
+                "Document file service is not configured.");
+
+        var document =
+            Editor.OpenDocument(
+                files,
+                path);
+
+        SubscribeDocument(
+            document);
+
+        MarkUiDirty();
+
+        return document;
+    }
+
+    public void SaveDocument()
+    {
+        var files =
+            _documentFiles
+            ?? throw new InvalidOperationException(
+                "Document file service is not configured.");
+
+        Editor.SaveDocument(
+            files);
+
+        MarkUiDirty();
+    }
+
+    public void SaveDocumentAs(
+        string path)
+    {
+        var files =
+            _documentFiles
+            ?? throw new InvalidOperationException(
+                "Document file service is not configured.");
+
+        Editor.SaveDocumentAs(
+            files,
+            path);
+
+        MarkUiDirty();
+    }
+
+    public bool CloseDocument(
+        EditorDocument document,
+        EditorDocumentCloseDecision decision)
+    {
+        var closed =
+            Editor.CloseDocument(
+                document,
+                decision,
+                _documentFiles);
+
+        if (closed)
+        {
+            MarkUiDirty();
+        }
+
+        return closed;
+    }
+
+    private void SaveActiveDocument()
+    {
+        if (MainShell.IsUiMode)
+        {
+            SaveUiDocument();
+            return;
+        }
+
+        var document =
+            Editor.ActiveDocument;
+
+        if (document is null ||
+            document.FilePath is null ||
+            _documentPersistence is null)
+        {
+            return;
+        }
+
+        Editor.SaveDocument(
+            document,
+            _documentPersistence,
+            document.FilePath);
+
+        MarkUiDirty();
     }
 
     private void OnActiveDocumentChanged(
@@ -159,6 +320,30 @@ public sealed class EditorApplication :
 
     public void Shutdown()
     {
+        MainShell.NewRequested -=
+    RequestNewDocument;
+
+        MainShell.OpenRequested -=
+            RequestOpenDocument;
+
+        MainShell.SaveAsRequested -=
+            RequestSaveDocumentAs;
+
+        MainShell.CloseRequested -=
+            RequestCloseDocument;
+
+        _documentPathDialog.PathSubmitted -=
+    OnDocumentPathSubmitted;
+
+        _documentCloseDialog.SaveRequested -=
+    SavePendingDocument;
+
+        _documentCloseDialog.DiscardRequested -=
+            DiscardPendingDocument;
+
+        _documentCloseDialog.Closed -=
+            ClearPendingCloseDocument;
+
         Editor.Session.CloseAll();
 
         Editor.Session.DocumentClosed -=
@@ -180,7 +365,56 @@ public sealed class EditorApplication :
         }
 
         MainShell.SaveRequested -=
-            SaveUiDocument;
+            SaveActiveDocument;
+    }
+
+    private void RequestOpenDocument()
+    {
+        if (_documentFiles is null)
+        {
+            return;
+        }
+
+        _documentPathRequest =
+            DocumentPathRequest.Open;
+
+        _documentPathDialog.ShowFor();
+    }
+
+    private void RequestSaveDocumentAs()
+    {
+        if (_documentFiles is null)
+        {
+            return;
+        }
+
+        _documentPathRequest =
+            DocumentPathRequest.SaveAs;
+
+        _documentPathDialog.ShowFor();
+    }
+
+    private void OnDocumentPathSubmitted(
+        string path)
+    {
+        var request =
+            _documentPathRequest;
+
+        _documentPathRequest =
+            null;
+
+        switch (request)
+        {
+            case DocumentPathRequest.Open:
+                OpenDocument(
+                    path);
+                break;
+
+            case DocumentPathRequest.SaveAs:
+                SaveDocumentAs(
+                    path);
+                break;
+        }
     }
 
     private void SubscribeDocument(
@@ -220,6 +454,23 @@ public sealed class EditorApplication :
         _uiDirty = true;
     }
 
+    public EditorDocument OpenDocument(
+    World world,
+    string? filePath = null)
+    {
+        var document =
+            Editor.OpenDocument(
+                world,
+                filePath);
+
+        SubscribeDocument(
+            document);
+
+        MarkUiDirty();
+
+        return document;
+    }
+
     private void RefreshIfNeeded()
     {
         if (!_uiDirty)
@@ -230,5 +481,129 @@ public sealed class EditorApplication :
         _uiDirty = false;
 
         MainShell.Refresh();
+    }
+
+    private void RequestCloseActiveDocument()
+    {
+        var document =
+            Editor.ActiveDocument;
+
+        if (document is null)
+        {
+            return;
+        }
+
+        if (!document.IsDirty)
+        {
+            Editor.CloseDocument(
+                document,
+                EditorDocumentCloseDecision.Discard);
+
+            MarkUiDirty();
+            return;
+        }
+
+        _pendingCloseDocument =
+            document;
+
+        _documentCloseDialog.ShowFor(
+            document);
+    }
+
+    private void SavePendingDocument()
+    {
+        var document =
+            _pendingCloseDocument;
+
+        if (document is null)
+        {
+            return;
+        }
+
+        if (_documentFiles is null)
+        {
+            return;
+        }
+
+        if (document.FilePath is null)
+        {
+            SaveDocumentAsRequested?.Invoke();
+            return;
+        }
+
+        Editor.CloseDocument(
+            document,
+            EditorDocumentCloseDecision.Save,
+            _documentFiles);
+
+        _documentCloseDialog.Close();
+        MarkUiDirty();
+    }
+
+    private void DiscardPendingDocument()
+    {
+        var document =
+            _pendingCloseDocument;
+
+        if (document is null)
+        {
+            return;
+        }
+
+        Editor.CloseDocument(
+            document,
+            EditorDocumentCloseDecision.Discard);
+
+        _documentCloseDialog.Close();
+        MarkUiDirty();
+    }
+
+    private void SaveRequested()
+    {
+        if (MainShell.IsUiMode)
+        {
+            SaveUiDocument();
+            return;
+        }
+
+        if (_documentFiles is null)
+        {
+            return;
+        }
+
+        var document =
+            Editor.ActiveDocument;
+
+        if (document is null)
+        {
+            return;
+        }
+
+        if (document.FilePath is null)
+        {
+            RequestSaveDocumentAs();
+            return;
+        }
+
+        Editor.SaveDocument(
+            _documentFiles);
+
+        MarkUiDirty();
+    }
+
+    private void ClearPendingCloseDocument()
+    {
+        _pendingCloseDocument =
+            null;
+    }
+
+    public void RequestNewDocument()
+    {
+        NewDocumentRequested?.Invoke();
+    }
+
+    public void RequestCloseDocument()
+    {
+        RequestCloseActiveDocument();
     }
 }

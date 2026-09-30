@@ -419,7 +419,8 @@ public sealed class NetworkLockstep :
         }
 
         var oldestLocalTick =
-            _localHashes.Keys.Min();
+            _localHashes.Keys
+                .MinBy(static tick => tick.Value);
 
         foreach (var pair in
                  _connections)

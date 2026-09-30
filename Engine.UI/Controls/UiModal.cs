@@ -7,7 +7,7 @@ using Engine.UI.Layout;
 
 namespace Engine.UI.Controls;
 
-public sealed class UiModal : UiContainer
+public class UiModal : UiContainer
 {
     private readonly UiOverlayLayer _overlay;
     private readonly UiFocusManager _focus;
@@ -140,11 +140,14 @@ public sealed class UiModal : UiContainer
         IsOpen = true;
         Visible = true;
 
-        _focus.EnterScope(
-            this,
-            initialFocus ??
-            _focus.FindFirstFocusable(
-                ContentHost));
+        if (_focus.IsAttachedToRoot(this))
+        {
+            _focus.EnterScope(
+                this,
+                initialFocus ??
+                _focus.FindFirstFocusable(
+                    ContentHost));
+        }
     }
 
     public void Close()

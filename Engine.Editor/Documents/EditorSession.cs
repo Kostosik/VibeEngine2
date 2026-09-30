@@ -45,11 +45,34 @@ public sealed class EditorSession
     }
 
     public bool Close(
-    EditorDocument document)
+     EditorDocument document)
     {
         ArgumentNullException.ThrowIfNull(
             document);
 
+        if (document.IsDirty)
+        {
+            throw new InvalidOperationException(
+                "Cannot close a dirty document. Save or discard its changes first.");
+        }
+
+        return CloseCore(
+            document);
+    }
+
+    public bool Discard(
+        EditorDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(
+            document);
+
+        return CloseCore(
+            document);
+    }
+
+    private bool CloseCore(
+        EditorDocument document)
+    {
         if (!_documents.Remove(
                 document))
         {
@@ -111,6 +134,24 @@ public sealed class EditorSession
     }
 
     public void CloseAll()
+    {
+        if (_documents.Any(
+                static document =>
+                    document.IsDirty))
+        {
+            throw new InvalidOperationException(
+                "Cannot close dirty documents. Save or discard their changes first.");
+        }
+
+        CloseAllCore();
+    }
+
+    public void DiscardAll()
+    {
+        CloseAllCore();
+    }
+
+    private void CloseAllCore()
     {
         var documents =
             _documents.ToArray();

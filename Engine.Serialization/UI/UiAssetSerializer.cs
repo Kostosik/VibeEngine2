@@ -100,33 +100,8 @@ public sealed class UiAssetSerializer :
             writer.WriteInt32(
                 element.MaxLength);
 
-            writer.WriteString(
-    element.Action);
-
-            writer.WriteInt32(
-                element.DropdownOptions.Count);
-
-            foreach (var option in
-                     element.DropdownOptions)
-            {
-                writer.WriteString(
-                    option);
-            }
-
-            writer.WriteInt32(
-                element.SelectedIndex);
-
             writer.WriteBoolean(
-                element.ToggleValue);
-
-            writer.WriteString(
-                element.Placeholder);
-
-            writer.WriteInt32(
-                element.MaxLength);
-
-            writer.WriteBoolean(
-                element.Visible);
+    element.Visible);
 
             writer.WriteBoolean(
                 element.Enabled);

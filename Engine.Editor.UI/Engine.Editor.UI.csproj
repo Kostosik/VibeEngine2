@@ -11,4 +11,8 @@
     <ProjectReference Include="..\Engine.UI\Engine.UI.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Panels\" />
+  </ItemGroup>
+
 </Project>

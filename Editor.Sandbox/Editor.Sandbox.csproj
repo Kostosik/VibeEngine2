@@ -14,6 +14,7 @@
     <ProjectReference Include="..\Engine.Editor.UI\Engine.Editor.UI.csproj" />
     <ProjectReference Include="..\Engine.Editor\Engine.Editor.csproj" />
     <ProjectReference Include="..\Engine.Graphics.OpenGL\Engine.Graphics.OpenGL.csproj" />
+    <ProjectReference Include="..\Engine.Serialization\Engine.Serialization.csproj" />
     <ProjectReference Include="..\Engine.Simulations\Engine.Simulations.csproj" />
   </ItemGroup>
 

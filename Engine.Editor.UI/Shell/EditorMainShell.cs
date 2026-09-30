@@ -21,11 +21,19 @@ public sealed class EditorMainShell :
     private readonly EditorWorkspaceView _workspaceView;
     private readonly EditorUiWorkspaceView _uiWorkspaceView;
 
+    public bool IsUiMode =>
+    _uiWorkspaceView.Visible;
+
+    public event Action? NewRequested;
+public event Action? OpenRequested;
+public event Action? SaveRequested;
+public event Action? SaveAsRequested;
+public event Action? CloseRequested;
+    private readonly UiPanel _documentTabs;
     private UiButton _undoButton;
     private UiButton _redoButton;
     private UiButton _worldButton;
     private UiButton _uiButton;
-
     public EditorMainShell(
         EditorContext editor,
         ITextureResourceManager assetPreviewTextures,
@@ -61,6 +69,23 @@ public sealed class EditorMainShell :
 
         _menuBar =
             CreateMenuBar();
+
+        _documentTabs =
+    new UiPanel
+    {
+        Background =
+            new UiColor(
+                28,
+                28,
+                28,
+                255),
+
+        HorizontalAlignment =
+            UiHorizontalAlignment.Stretch,
+
+        VerticalAlignment =
+            UiVerticalAlignment.Top
+    };
 
         _workspace =
             new UiPanel
@@ -118,14 +143,14 @@ public sealed class EditorMainShell :
 
         AddChild(
             _menuBar);
-
+        AddChild(
+    _documentTabs);
         AddChild(
             _workspace);
 
         AddChild(
             _documentLabel);
     }
-    public event Action? SaveRequested;
     public EditorContext Editor { get; }
 
     public EditorUiDocument UiDocument { get; }
@@ -134,10 +159,11 @@ public sealed class EditorMainShell :
         _workspace;
 
     protected override Vector2 MeasureCore(
-        UiLayoutContext context,
-        Vector2 availableSize)
+    UiLayoutContext context,
+    Vector2 availableSize)
     {
         const float menuHeight = 32.0f;
+        const float documentTabsHeight = 30.0f;
         const float documentHeight = 24.0f;
 
         _menuBar.Measure(
@@ -145,6 +171,12 @@ public sealed class EditorMainShell :
             new Vector2(
                 availableSize.X,
                 menuHeight));
+
+        _documentTabs.Measure(
+            context,
+            new Vector2(
+                availableSize.X,
+                documentTabsHeight));
 
         _workspace.Measure(
             context,
@@ -154,6 +186,7 @@ public sealed class EditorMainShell :
                     0.0f,
                     availableSize.Y -
                     menuHeight -
+                    documentTabsHeight -
                     documentHeight)));
 
         _documentLabel.Measure(
@@ -166,9 +199,10 @@ public sealed class EditorMainShell :
     }
 
     protected override void ArrangeCore(
-        UiRect finalRect)
+    UiRect finalRect)
     {
         const float menuHeight = 32.0f;
+        const float documentTabsHeight = 30.0f;
         const float documentHeight = 24.0f;
 
         _menuBar.Arrange(
@@ -178,16 +212,26 @@ public sealed class EditorMainShell :
                 finalRect.Width,
                 menuHeight));
 
-        _workspace.Arrange(
+        _documentTabs.Arrange(
             new UiRect(
                 finalRect.X,
                 finalRect.Y +
                 menuHeight,
                 finalRect.Width,
+                documentTabsHeight));
+
+        _workspace.Arrange(
+            new UiRect(
+                finalRect.X,
+                finalRect.Y +
+                menuHeight +
+                documentTabsHeight,
+                finalRect.Width,
                 MathF.Max(
                     0.0f,
                     finalRect.Height -
                     menuHeight -
+                    documentTabsHeight -
                     documentHeight)));
 
         _documentLabel.Arrange(
@@ -201,6 +245,8 @@ public sealed class EditorMainShell :
 
     public void Refresh()
     {
+        RefreshDocumentTabs();
+
         var worldDocument =
             Editor.ActiveDocument;
 
@@ -238,6 +284,85 @@ public sealed class EditorMainShell :
 
         _workspaceView.Refresh();
         _uiWorkspaceView.Refresh();
+    }
+
+    private void RefreshDocumentTabs()
+    {
+        _documentTabs.ClearChildren();
+
+        var documents =
+            Editor.Session.Documents;
+
+        if (documents.Count == 0)
+        {
+            return;
+        }
+
+        var tabs =
+            new UiStackPanel
+            {
+                Orientation =
+                    UiOrientation.Horizontal,
+
+                Spacing = 2.0f,
+
+                HorizontalAlignment =
+                    UiHorizontalAlignment.Left,
+
+                VerticalAlignment =
+                    UiVerticalAlignment.Stretch
+            };
+
+        foreach (var document in documents)
+        {
+            var name =
+                document.FilePath is null
+                    ? "Untitled"
+                    : Path.GetFileName(
+                        document.FilePath);
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                name = "Untitled";
+            }
+
+            var prefix =
+                ReferenceEquals(
+                    document,
+                    Editor.ActiveDocument)
+                    ? "> "
+                    : "  ";
+
+            var dirty =
+                document.IsDirty
+                    ? " *"
+                    : string.Empty;
+
+            var button =
+                new UiButton(
+                    prefix +
+                    name +
+                    dirty)
+                {
+                    Width = 180.0f,
+                    Height = 28.0f
+                };
+
+            button.Clicked +=
+                () =>
+                {
+                    Editor.Session.Activate(
+                        document);
+
+                    Refresh();
+                };
+
+            tabs.AddChild(
+                button);
+        }
+
+        _documentTabs.AddChild(
+            tabs);
     }
 
     private void ShowWorld()
@@ -329,21 +454,86 @@ public sealed class EditorMainShell :
                     UiVerticalAlignment.Stretch
             };
 
-        var fileButton =
-            new UiButton("Save")
+        var newButton =
+            new UiButton("New")
             {
-                Width = 80.0f,
+                Width = 70.0f,
                 Height = 30.0f
             };
 
-        fileButton.Clicked +=
+        newButton.Clicked +=
+            () =>
+            {
+                NewRequested?.Invoke();
+            };
+
+        var openButton =
+            new UiButton("Open")
+            {
+                Width = 70.0f,
+                Height = 30.0f
+            };
+
+        openButton.Clicked +=
+            () =>
+            {
+                OpenRequested?.Invoke();
+            };
+
+        var saveButton =
+            new UiButton("Save")
+            {
+                Width = 70.0f,
+                Height = 30.0f
+            };
+
+        saveButton.Clicked +=
             () =>
             {
                 SaveRequested?.Invoke();
             };
 
+        var saveAsButton =
+            new UiButton("Save As")
+            {
+                Width = 80.0f,
+                Height = 30.0f
+            };
+
+        saveAsButton.Clicked +=
+            () =>
+            {
+                SaveAsRequested?.Invoke();
+            };
+
+        var closeButton =
+            new UiButton("Close")
+            {
+                Width = 70.0f,
+                Height = 30.0f
+            };
+
+        closeButton.Clicked +=
+            () =>
+            {
+                CloseRequested?.Invoke();
+            };
+
         buttons.AddChild(
-            fileButton);
+            newButton);
+
+        buttons.AddChild(
+            openButton);
+
+        buttons.AddChild(
+            saveButton);
+
+        buttons.AddChild(
+            saveAsButton);
+
+        buttons.AddChild(
+            closeButton);
+
 
         buttons.AddChild(
             new UiButton("Edit"));

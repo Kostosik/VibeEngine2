@@ -9,6 +9,70 @@ namespace Engine.Tests.Editor;
 public sealed class EditorDocumentTests
 {
     [Fact]
+    public void EntityDestroyed_GetEntityReferenceThrows()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+        var entity =
+            ecsWorld.CreateEntity();
+
+        var document =
+            new EditorDocument(
+                world);
+
+        Assert.True(
+            ecsWorld.DestroyEntity(
+                entity));
+
+        Assert.Throws<InvalidOperationException>(
+            () =>
+                document.GetEntityReference(
+                    entity));
+    }
+
+    [Fact]
+    public void EntityDestroyed_InspectorRejectsInvalidReference()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+        var entity =
+            ecsWorld.CreateEntity();
+
+        var document =
+            new EditorDocument(
+                world);
+
+        var reference =
+            document.GetEntityReference(
+                entity);
+
+        Assert.True(
+            ecsWorld.DestroyEntity(
+                entity));
+
+        Assert.False(
+            reference.IsAlive);
+
+        Assert.Throws<InvalidOperationException>(
+            () =>
+                document.Inspector.GetProperties(
+                    reference,
+                    typeof(TestComponent)));
+    }
+
+    [Fact]
     public void EntityDestroyed_RemovesSelectionAndInvalidatesReference()
     {
         using var ecsWorld =

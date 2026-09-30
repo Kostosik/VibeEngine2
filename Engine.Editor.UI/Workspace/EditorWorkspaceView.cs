@@ -17,6 +17,7 @@ public sealed class EditorWorkspaceView : UiPanel
     private readonly UiPanel _inspectorHost;
     private readonly AssetBrowserPanelView _assetBrowser;
     private readonly AssetPreviewPanelView _assetPreview;
+
     public AssetPreviewPanelView AssetPreview =>
     _assetPreview;
     public EditorWorkspaceView(
@@ -86,6 +87,8 @@ public sealed class EditorWorkspaceView : UiPanel
         editor,
         assetPreviewTextures);
 
+
+
         AddChild(
             _assetPreview);
 
@@ -129,18 +132,26 @@ public sealed class EditorWorkspaceView : UiPanel
             GetPanels(
                 EditorDockArea.Center);
 
+        if (centerPanels.Count == 0)
+        {
+            return;
+        }
+
         var activeCenter =
             centerPanels.FirstOrDefault(
                 static panel =>
                     panel.Layout.IsActive);
 
+        var visibleCenter =
+            activeCenter.View
+            ?? centerPanels[0].View;
+
         foreach (var panel in centerPanels)
         {
             panel.View.Visible =
-                panel.Panel.IsOpen &&
                 ReferenceEquals(
                     panel.View,
-                    activeCenter.View);
+                    visibleCenter);
         }
     }
 

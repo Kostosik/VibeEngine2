@@ -1,6 +1,7 @@
 ﻿using Engine.Editor.Actions;
 using Engine.Editor.Assets;
 using Engine.Editor.Documents;
+using Engine.Editor.Documents.Persistence;
 using Engine.Editor.Inspection;
 using Engine.Editor.Panels;
 using Engine.Editor.Persistence;
@@ -55,14 +56,16 @@ public sealed class EditorContext
         Session.ActiveDocument;
 
     public EditorDocument OpenDocument(
-    World world)
+        World world,
+        string? filePath = null)
     {
         ArgumentNullException.ThrowIfNull(
             world);
 
         var document =
             new EditorDocument(
-                world);
+                world,
+                filePath);
 
         try
         {
@@ -76,6 +79,154 @@ public sealed class EditorContext
             document.Dispose();
             throw;
         }
+    }
+
+    public IEditorDocumentFileService CreateDocumentFileService(
+    IEditorDocumentPersistence persistence)
+    {
+        ArgumentNullException.ThrowIfNull(
+            persistence);
+
+        return new EditorDocumentFileService(
+            this,
+            persistence);
+    }
+
+    public EditorDocument OpenDocument(
+        IEditorDocumentFileService files,
+        string path)
+    {
+        ArgumentNullException.ThrowIfNull(
+            files);
+
+        return files.Open(
+            path);
+    }
+
+    public void SaveDocument(
+        IEditorDocumentFileService files)
+    {
+        ArgumentNullException.ThrowIfNull(
+            files);
+
+        var document =
+            ActiveDocument
+            ?? throw new InvalidOperationException(
+                "There is no active document.");
+
+        files.Save(
+            document);
+    }
+
+    public void SaveDocumentAs(
+        IEditorDocumentFileService files,
+        string path)
+    {
+        ArgumentNullException.ThrowIfNull(
+            files);
+
+        var document =
+            ActiveDocument
+            ?? throw new InvalidOperationException(
+                "There is no active document.");
+
+        files.SaveAs(
+            document,
+            path);
+    }
+
+    public bool CloseDocument(
+        EditorDocument document,
+        EditorDocumentCloseDecision decision,
+        IEditorDocumentFileService? files = null)
+    {
+        ArgumentNullException.ThrowIfNull(
+            document);
+
+        if (!Session.Documents.Contains(
+                document))
+        {
+            return false;
+        }
+
+        switch (decision)
+        {
+            case EditorDocumentCloseDecision.Cancel:
+                return false;
+
+            case EditorDocumentCloseDecision.Discard:
+                return Session.Discard(
+                    document);
+
+            case EditorDocumentCloseDecision.Save:
+                if (files is null)
+                {
+                    throw new ArgumentNullException(
+                        nameof(files));
+                }
+
+                files.Save(
+                    document);
+
+                return Session.Close(
+                    document);
+
+            default:
+                throw new ArgumentOutOfRangeException(
+                    nameof(decision),
+                    decision,
+                    null);
+        }
+    }
+
+    public void SaveDocument(
+    EditorDocument document,
+    IEditorDocumentPersistence persistence,
+    string path)
+    {
+        ArgumentNullException.ThrowIfNull(
+            document);
+
+        ArgumentNullException.ThrowIfNull(
+            persistence);
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            path);
+
+        if (!Session.Documents.Contains(
+                document))
+        {
+            throw new InvalidOperationException(
+                "Document is not open.");
+        }
+
+        persistence.Save(
+            path,
+            document);
+
+        document.SetFilePath(
+            path);
+
+        document.MarkSaved();
+    }
+
+    public EditorDocument LoadDocument(
+        IEditorDocumentPersistence persistence,
+        string path)
+    {
+        ArgumentNullException.ThrowIfNull(
+            persistence);
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            path);
+
+        var world =
+            persistence.Load(
+                path);
+
+        return OpenDocument(
+            world,
+            path);
     }
 
     public void InitializeAssetBrowser(

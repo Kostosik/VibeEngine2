@@ -13,6 +13,9 @@ public enum PhysicsBodyType
 public struct PhysicsBody2D :
     IDeterministicState
 {
+
+    private bool _isSleeping;
+    private Fixed32 _sleepTimer;
     public PhysicsBody2D(
         PhysicsBodyType bodyType,
         Fixed32 mass)
@@ -40,7 +43,23 @@ public struct PhysicsBody2D :
         Torque = Fixed32.Zero;
         LinearDamping = Fixed32.Zero;
         AngularDamping = Fixed32.Zero;
+
+        IsSleeping = false;
+        SleepTimer = Fixed32.Zero;
     }
+
+    public bool IsSleeping
+    {
+        get => _isSleeping;
+        set => _isSleeping = value;
+    }
+
+    public Fixed32 SleepTimer
+    {
+        get => _sleepTimer;
+        set => _sleepTimer = value;
+    }
+
     public PhysicsBodyType BodyType { get; set; }
 
     public FixedVector2 Velocity { get; set; }
@@ -66,6 +85,25 @@ public struct PhysicsBody2D :
         BodyType == PhysicsBodyType.Dynamic
             ? Fixed32.One / Inertia
             : Fixed32.Zero;
+
+    public void WakeUp()
+    {
+        IsSleeping = false;
+        SleepTimer = Fixed32.Zero;
+    }
+
+    public void Sleep()
+    {
+        if (BodyType != PhysicsBodyType.Dynamic)
+        {
+            return;
+        }
+
+        IsSleeping = true;
+        SleepTimer = Fixed32.Zero;
+        Velocity = FixedVector2.Zero;
+        AngularVelocity = Fixed32.Zero;
+    }
 
     public static PhysicsBody2D Dynamic(
         Fixed32 mass)
@@ -107,12 +145,22 @@ public struct PhysicsBody2D :
     public void AddForce(
         FixedVector2 force)
     {
+        if (force != FixedVector2.Zero)
+        {
+            WakeUp();
+        }
+
         Force += force;
     }
 
     public void AddTorque(
         Fixed32 torque)
     {
+        if (torque != Fixed32.Zero)
+        {
+            WakeUp();
+        }
+
         Torque += torque;
     }
 
@@ -207,5 +255,17 @@ public struct PhysicsBody2D :
 
         hasher.AddFixed32(
             Torque);
+
+        hasher.AddFixed32(
+    LinearDamping);
+
+        hasher.AddFixed32(
+            AngularDamping);
+
+        hasher.AddBool(
+            IsSleeping);
+
+        hasher.AddFixed32(
+            SleepTimer);
     }
 }

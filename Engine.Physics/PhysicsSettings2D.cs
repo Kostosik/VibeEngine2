@@ -10,7 +10,9 @@ public sealed class PhysicsSettings2D :
     private int _positionIterations;
     private Fixed32 _penetrationSlop;
     private Fixed32 _positionCorrectionPercent;
-
+    private Fixed32 _sleepLinearVelocityThreshold;
+    private Fixed32 _sleepAngularVelocityThreshold;
+    private Fixed32 _sleepTime;
     public PhysicsSettings2D()
     {
         Gravity = FixedVector2.Zero;
@@ -18,9 +20,65 @@ public sealed class PhysicsSettings2D :
         PositionIterations = 2;
         PenetrationSlop = Fixed32.Zero;
         PositionCorrectionPercent = Fixed32.One;
+        SleepLinearVelocityThreshold =
+    Fixed32.FromFloat(0.01f);
+
+        SleepAngularVelocityThreshold =
+            Fixed32.FromFloat(0.01f);
+
+        SleepTime =
+            Fixed32.FromFloat(0.5f);
     }
 
     public FixedVector2 Gravity { get; set; }
+
+    public Fixed32 SleepLinearVelocityThreshold
+    {
+        get => _sleepLinearVelocityThreshold;
+        set
+        {
+            if (value < Fixed32.Zero)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    "Sleep linear velocity threshold cannot be negative.");
+            }
+
+            _sleepLinearVelocityThreshold = value;
+        }
+    }
+
+    public Fixed32 SleepAngularVelocityThreshold
+    {
+        get => _sleepAngularVelocityThreshold;
+        set
+        {
+            if (value < Fixed32.Zero)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    "Sleep angular velocity threshold cannot be negative.");
+            }
+
+            _sleepAngularVelocityThreshold = value;
+        }
+    }
+
+    public Fixed32 SleepTime
+    {
+        get => _sleepTime;
+        set
+        {
+            if (value <= Fixed32.Zero)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    "Sleep time must be greater than zero.");
+            }
+
+            _sleepTime = value;
+        }
+    }
 
     public int VelocityIterations
     {
@@ -95,5 +153,13 @@ public sealed class PhysicsSettings2D :
         hasher.AddInt32(PositionIterations);
         hasher.AddFixed32(PenetrationSlop);
         hasher.AddFixed32(PositionCorrectionPercent);
+        hasher.AddFixed32(
+    SleepLinearVelocityThreshold);
+
+        hasher.AddFixed32(
+            SleepAngularVelocityThreshold);
+
+        hasher.AddFixed32(
+            SleepTime);
     }
 }

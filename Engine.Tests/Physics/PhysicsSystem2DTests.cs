@@ -14,6 +14,519 @@ namespace Engine.Tests.Physics;
 public sealed class PhysicsSystem2DTests
 {
     [Fact]
+    public void CircleCollider_CollidesWithPolygonCollider()
+    {
+        var world =
+            new World();
+
+        var circleEntity =
+            world.CreateEntity();
+
+        var polygonEntity =
+            world.CreateEntity();
+
+        world.Add(
+            circleEntity,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromFloat(1.5f),
+                    Fixed32.Zero)));
+
+        world.Add(
+            polygonEntity,
+            new WorldTransform2D(
+                FixedVector2.Zero));
+
+        world.Add(
+            circleEntity,
+            PhysicsBody2D.Static());
+
+        world.Add(
+            polygonEntity,
+            PhysicsBody2D.Static());
+
+        world.Add(
+            circleEntity,
+            new Collider2D(
+                new CircleShape2D(
+                    Fixed32.One)));
+
+        world.Add(
+            polygonEntity,
+            new Collider2D(
+                new PolygonShape2D(
+                    new[]
+                    {
+                    new FixedVector2(
+                        Fixed32.FromInt(-1),
+                        Fixed32.FromInt(-1)),
+
+                    new FixedVector2(
+                        Fixed32.One,
+                        Fixed32.FromInt(-1)),
+
+                    new FixedVector2(
+                        Fixed32.One,
+                        Fixed32.One),
+
+                    new FixedVector2(
+                        Fixed32.FromInt(-1),
+                        Fixed32.One)
+                    })));
+
+        var physics =
+            new PhysicsSystem2D(
+                world,
+                new PhysicsSettings2D(),
+                new EventBus());
+
+        physics.FixedUpdate(
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.FromFloat(1f / 60f),
+                    new Tick(1))));
+
+        Assert.Single(
+            physics.Contacts);
+
+        Assert.Equal(
+            new FixedVector2(
+                Fixed32.FromInt(-1),
+                Fixed32.Zero),
+            physics.Contacts[0]
+                .Contact
+                .Normal);
+
+        Assert.True(
+            physics.Contacts[0]
+                .Contact
+                .Penetration > Fixed32.Zero);
+    }
+
+    [Fact]
+    public void PolygonCollider_CollidesWithPolygonCollider()
+    {
+        var world =
+            new World();
+
+        var firstEntity =
+            world.CreateEntity();
+
+        var secondEntity =
+            world.CreateEntity();
+
+        world.Add(
+            firstEntity,
+            new WorldTransform2D(
+                FixedVector2.Zero));
+
+        world.Add(
+            secondEntity,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromFloat(1.5f),
+                    Fixed32.Zero)));
+
+        world.Add(
+            firstEntity,
+            PhysicsBody2D.Static());
+
+        world.Add(
+            secondEntity,
+            PhysicsBody2D.Static());
+
+        var polygon =
+            new PolygonShape2D(
+                new[]
+                {
+                new FixedVector2(
+                    Fixed32.FromInt(-1),
+                    Fixed32.FromInt(-1)),
+
+                new FixedVector2(
+                    Fixed32.One,
+                    Fixed32.FromInt(-1)),
+
+                new FixedVector2(
+                    Fixed32.One,
+                    Fixed32.One),
+
+                new FixedVector2(
+                    Fixed32.FromInt(-1),
+                    Fixed32.One)
+                });
+
+        world.Add(
+            firstEntity,
+            new Collider2D(
+                polygon));
+
+        world.Add(
+            secondEntity,
+            new Collider2D(
+                polygon));
+
+        var physics =
+            new PhysicsSystem2D(
+                world,
+                new PhysicsSettings2D(),
+                new EventBus());
+
+        physics.FixedUpdate(
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.FromFloat(1f / 60f),
+                    new Tick(1))));
+
+        Assert.Single(
+            physics.Contacts);
+
+        Assert.True(
+            physics.Contacts[0]
+                .Contact
+                .Penetration > Fixed32.Zero);
+
+        Assert.Equal(
+            new FixedVector2(
+                Fixed32.One,
+                Fixed32.Zero),
+            physics.Contacts[0]
+                .Contact
+                .Normal);
+    }
+
+    [Fact]
+    public void PolygonCollider_DoesNotCollideWithSeparatedPolygonCollider()
+    {
+        var world =
+            new World();
+
+        var firstEntity =
+            world.CreateEntity();
+
+        var secondEntity =
+            world.CreateEntity();
+
+        world.Add(
+            firstEntity,
+            new WorldTransform2D(
+                FixedVector2.Zero));
+
+        world.Add(
+            secondEntity,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromInt(4),
+                    Fixed32.Zero)));
+
+        world.Add(
+            firstEntity,
+            PhysicsBody2D.Static());
+
+        world.Add(
+            secondEntity,
+            PhysicsBody2D.Static());
+
+        var polygon =
+            new PolygonShape2D(
+                new[]
+                {
+                new FixedVector2(
+                    Fixed32.FromInt(-1),
+                    Fixed32.FromInt(-1)),
+
+                new FixedVector2(
+                    Fixed32.One,
+                    Fixed32.FromInt(-1)),
+
+                new FixedVector2(
+                    Fixed32.One,
+                    Fixed32.One),
+
+                new FixedVector2(
+                    Fixed32.FromInt(-1),
+                    Fixed32.One)
+                });
+
+        world.Add(
+            firstEntity,
+            new Collider2D(
+                polygon));
+
+        world.Add(
+            secondEntity,
+            new Collider2D(
+                polygon));
+
+        var physics =
+            new PhysicsSystem2D(
+                world,
+                new PhysicsSettings2D(),
+                new EventBus());
+
+        physics.FixedUpdate(
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.FromFloat(1f / 60f),
+                    new Tick(1))));
+
+        Assert.Empty(
+            physics.Contacts);
+    }
+
+    [Fact]
+    public void DynamicBody_SleepsAfterRemainingBelowThreshold()
+    {
+        var world =
+            new World();
+
+        var entity =
+            world.CreateEntity();
+
+        world.Add(
+            entity,
+            new WorldTransform2D(
+                FixedVector2.Zero));
+
+        world.Add(
+            entity,
+            PhysicsBody2D.Dynamic(
+                Fixed32.One));
+
+        var settings =
+            new PhysicsSettings2D
+            {
+                Gravity =
+                    FixedVector2.Zero,
+
+                SleepLinearVelocityThreshold =
+                    Fixed32.FromFloat(0.01f),
+
+                SleepAngularVelocityThreshold =
+                    Fixed32.FromFloat(0.01f),
+
+                SleepTime =
+                    Fixed32.FromFloat(0.2f)
+            };
+
+        var physics =
+            new PhysicsSystem2D(
+                world,
+                settings,
+                new EventBus());
+
+        var context =
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.FromFloat(0.1f),
+                    new Tick(1)));
+
+        physics.FixedUpdate(context);
+        physics.FixedUpdate(context);
+
+        Assert.True(
+            world.Get<PhysicsBody2D>(
+                entity).IsSleeping);
+
+        Assert.Equal(
+            FixedVector2.Zero,
+            world.Get<PhysicsBody2D>(
+                entity).Velocity);
+
+        Assert.Equal(
+            Fixed32.Zero,
+            world.Get<PhysicsBody2D>(
+                entity).AngularVelocity);
+    }
+
+    [Fact]
+    public void Force_WakesSleepingBody()
+    {
+        var world =
+            new World();
+
+        var entity =
+            world.CreateEntity();
+
+        world.Add(
+            entity,
+            new WorldTransform2D(
+                FixedVector2.Zero));
+
+        world.Add(
+            entity,
+            PhysicsBody2D.Dynamic(
+                Fixed32.One));
+
+        var body =
+            world.Get<PhysicsBody2D>(
+                entity);
+
+        body.Sleep();
+        world.Get<PhysicsBody2D>(
+            entity) = body;
+
+        ref var sleepingBody =
+            ref world.Get<PhysicsBody2D>(
+                entity);
+
+        sleepingBody.AddForce(
+            new FixedVector2(
+                Fixed32.One,
+                Fixed32.Zero));
+
+        Assert.False(
+            sleepingBody.IsSleeping);
+    }
+
+    [Fact]
+    public void ActiveKinematicContact_WakesSleepingDynamicBody()
+    {
+        var world =
+            new World();
+
+        var dynamicEntity =
+            world.CreateEntity();
+
+        var kinematicEntity =
+            world.CreateEntity();
+
+        world.Add(
+            dynamicEntity,
+            new WorldTransform2D(
+                FixedVector2.Zero));
+
+        world.Add(
+            dynamicEntity,
+            PhysicsBody2D.Dynamic(
+                Fixed32.One));
+
+        world.Add(
+            dynamicEntity,
+            new Collider2D(
+                new CircleShape2D(
+                    Fixed32.One)));
+
+        ref var dynamicBody =
+            ref world.Get<PhysicsBody2D>(
+                dynamicEntity);
+
+        dynamicBody.Sleep();
+
+        world.Add(
+            kinematicEntity,
+            new WorldTransform2D(
+                FixedVector2.Zero));
+
+        world.Add(
+            kinematicEntity,
+            PhysicsBody2D.Kinematic());
+
+        world.Add(
+            kinematicEntity,
+            new Collider2D(
+                new CircleShape2D(
+                    Fixed32.One)));
+
+        var physics =
+            new PhysicsSystem2D(
+                world,
+                new PhysicsSettings2D
+                {
+                    Gravity =
+                        FixedVector2.Zero
+                },
+                new EventBus());
+
+        physics.FixedUpdate(
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.FromFloat(0.1f),
+                    new Tick(1))));
+
+        Assert.False(
+            world.Get<PhysicsBody2D>(
+                dynamicEntity).IsSleeping);
+    }
+
+    [Fact]
+    public void CircleCollider_DoesNotCollideWithSeparatedPolygonCollider()
+    {
+        var world =
+            new World();
+
+        var circleEntity =
+            world.CreateEntity();
+
+        var polygonEntity =
+            world.CreateEntity();
+
+        world.Add(
+            circleEntity,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromInt(4),
+                    Fixed32.Zero)));
+
+        world.Add(
+            polygonEntity,
+            new WorldTransform2D(
+                FixedVector2.Zero));
+
+        world.Add(
+            circleEntity,
+            PhysicsBody2D.Static());
+
+        world.Add(
+            polygonEntity,
+            PhysicsBody2D.Static());
+
+        world.Add(
+            circleEntity,
+            new Collider2D(
+                new CircleShape2D(
+                    Fixed32.One)));
+
+        world.Add(
+            polygonEntity,
+            new Collider2D(
+                new PolygonShape2D(
+                    new[]
+                    {
+                    new FixedVector2(
+                        Fixed32.FromInt(-1),
+                        Fixed32.FromInt(-1)),
+
+                    new FixedVector2(
+                        Fixed32.One,
+                        Fixed32.FromInt(-1)),
+
+                    new FixedVector2(
+                        Fixed32.One,
+                        Fixed32.One),
+
+                    new FixedVector2(
+                        Fixed32.FromInt(-1),
+                        Fixed32.One)
+                    })));
+
+        var physics =
+            new PhysicsSystem2D(
+                world,
+                new PhysicsSettings2D(),
+                new EventBus());
+
+        physics.FixedUpdate(
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.FromFloat(1f / 60f),
+                    new Tick(1))));
+
+        Assert.Empty(
+            physics.Contacts);
+    }
+
+    [Fact]
     public void PolygonCollider_CollidesWithAabbCollider()
     {
         var world =

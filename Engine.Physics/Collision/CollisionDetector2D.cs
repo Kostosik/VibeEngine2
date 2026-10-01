@@ -89,9 +89,597 @@ public sealed class CollisionDetector2D
                     second,
                     out manifold),
 
+            (PhysicsShapeType.Circle, PhysicsShapeType.Polygon) =>
+            TryDetectCirclePolygon(
+            first,
+            second,
+            out manifold),
+
+            (PhysicsShapeType.Polygon, PhysicsShapeType.Circle) =>
+             TryDetectPolygonCircle(
+              first,
+              second,
+              out manifold),
+
+            (PhysicsShapeType.Polygon, PhysicsShapeType.Polygon) =>
+  TryDetectPolygonPolygon(
+      first,
+      second,
+      out manifold),
+
             _ =>
                 false
         };
+    }
+
+    private static bool TryDetectPolygonPolygon(
+    PhysicsColliderProxy first,
+    PhysicsColliderProxy second,
+    out CollisionManifold manifold)
+    {
+        manifold = default;
+
+        var firstPolygon =
+            first.Collider.Shape.Polygon;
+
+        var secondPolygon =
+            second.Collider.Shape.Polygon;
+
+        var firstLocalBounds =
+            firstPolygon.GetBounds(
+                FixedVector2.Zero);
+
+        var secondLocalBounds =
+            secondPolygon.GetBounds(
+                FixedVector2.Zero);
+
+        var firstTranslation =
+            first.Bounds.Min -
+            firstLocalBounds.Min;
+
+        var secondTranslation =
+            second.Bounds.Min -
+            secondLocalBounds.Min;
+
+        var firstCenter =
+            first.Bounds.Center;
+
+        var secondCenter =
+            second.Bounds.Center;
+
+        var centerDelta =
+            secondCenter -
+            firstCenter;
+
+        var bestPenetration =
+            Fixed32.Zero;
+
+        var bestAxis =
+            FixedVector2.Zero;
+
+        var hasBestAxis =
+            false;
+
+        if (!EvaluatePolygonAxes(
+                firstPolygon,
+                firstTranslation,
+                secondPolygon,
+                secondTranslation,
+                centerDelta,
+                ref bestPenetration,
+                ref bestAxis,
+                ref hasBestAxis))
+        {
+            return false;
+        }
+
+        if (!EvaluatePolygonAxes(
+                secondPolygon,
+                secondTranslation,
+                firstPolygon,
+                firstTranslation,
+                -centerDelta,
+                ref bestPenetration,
+                ref bestAxis,
+                ref hasBestAxis))
+        {
+            return false;
+        }
+
+        OrientAxis(
+            ref bestAxis,
+            centerDelta);
+
+        var firstSupport =
+            GetPolygonSupport(
+                firstPolygon,
+                firstTranslation,
+                bestAxis);
+
+        var secondSupport =
+            GetPolygonSupport(
+                secondPolygon,
+                secondTranslation,
+                -bestAxis);
+
+        var contactPoint =
+            (firstSupport + secondSupport) *
+            Fixed32.FromRatio(
+                1,
+                2);
+
+        manifold =
+            new CollisionManifold(
+                new CollisionPair(
+                    first.Entity,
+                    second.Entity),
+
+                new ContactPoint(
+                    contactPoint,
+                    bestAxis,
+                    bestPenetration));
+
+        return true;
+    }
+
+    private static bool EvaluatePolygonAxes(
+        PolygonShape2D first,
+        FixedVector2 firstTranslation,
+        PolygonShape2D second,
+        FixedVector2 secondTranslation,
+        FixedVector2 centerDelta,
+        ref Fixed32 bestPenetration,
+        ref FixedVector2 bestAxis,
+        ref bool hasBestAxis)
+    {
+        for (var i = 0;
+             i < first.VertexCount;
+             i++)
+        {
+            var nextIndex =
+                (i + 1) %
+                first.VertexCount;
+
+            var current =
+                first.GetVertex(i) +
+                firstTranslation;
+
+            var next =
+                first.GetVertex(nextIndex) +
+                firstTranslation;
+
+            var edge =
+                next -
+                current;
+
+            var axis =
+                new FixedVector2(
+                    -edge.Y,
+                    edge.X);
+
+            var length =
+                axis.Length();
+
+            if (length == Fixed32.Zero)
+            {
+                continue;
+            }
+
+            axis /=
+                length;
+
+            var firstProjection =
+                ProjectPolygon(
+                    first,
+                    firstTranslation,
+                    axis);
+
+            var secondProjection =
+                ProjectPolygon(
+                    second,
+                    secondTranslation,
+                    axis);
+
+            var overlap =
+                Fixed32.Min(
+                    firstProjection.Max,
+                    secondProjection.Max) -
+                Fixed32.Max(
+                    firstProjection.Min,
+                    secondProjection.Min);
+
+            if (overlap < Fixed32.Zero)
+            {
+                return false;
+            }
+
+            if (!hasBestAxis ||
+                overlap < bestPenetration)
+            {
+                bestPenetration =
+                    overlap;
+
+                bestAxis =
+                    axis;
+
+                hasBestAxis =
+                    true;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryDetectCirclePolygon(
+    PhysicsColliderProxy first,
+    PhysicsColliderProxy second,
+    out CollisionManifold manifold)
+    {
+        manifold = default;
+
+        var circle =
+            first.Collider.Shape.Circle;
+
+        var polygon =
+            second.Collider.Shape.Polygon;
+
+        var circleCenter =
+            first.Bounds.Center;
+
+        var polygonBounds =
+            polygon.GetBounds(
+                FixedVector2.Zero);
+
+        var polygonTranslation =
+            second.Bounds.Min -
+            polygonBounds.Min;
+
+        var bestPenetration =
+            Fixed32.Zero;
+
+        var bestAxis =
+            FixedVector2.Zero;
+
+        var hasBestAxis =
+            false;
+
+        for (var i = 0;
+             i < polygon.VertexCount;
+             i++)
+        {
+            var nextIndex =
+                (i + 1) %
+                polygon.VertexCount;
+
+            var current =
+                polygon.GetVertex(i) +
+                polygonTranslation;
+
+            var next =
+                polygon.GetVertex(nextIndex) +
+                polygonTranslation;
+
+            var edge =
+                next -
+                current;
+
+            var axis =
+                new FixedVector2(
+                    -edge.Y,
+                    edge.X);
+
+            var length =
+                axis.Length();
+
+            if (length == Fixed32.Zero)
+            {
+                continue;
+            }
+
+            axis /=
+                length;
+
+            var polygonProjection =
+                ProjectPolygon(
+                    polygon,
+                    polygonTranslation,
+                    axis);
+
+            var circleProjection =
+                ProjectCircle(
+                    circleCenter,
+                    circle.Radius,
+                    axis);
+
+            var overlap =
+                Fixed32.Min(
+                    polygonProjection.Max,
+                    circleProjection.Max) -
+                Fixed32.Max(
+                    polygonProjection.Min,
+                    circleProjection.Min);
+
+            if (overlap < Fixed32.Zero)
+            {
+                return false;
+            }
+
+            if (!hasBestAxis ||
+                overlap < bestPenetration)
+            {
+                bestPenetration =
+                    overlap;
+
+                bestAxis =
+                    axis;
+
+                hasBestAxis =
+                    true;
+            }
+        }
+
+        var closestPoint =
+            FindClosestPointOnPolygon(
+                polygon,
+                polygonTranslation,
+                circleCenter);
+
+        var circleAxis =
+            closestPoint -
+            circleCenter;
+
+        var circleAxisLength =
+            circleAxis.Length();
+
+        if (circleAxisLength != Fixed32.Zero)
+        {
+            circleAxis /=
+                circleAxisLength;
+
+            var polygonProjection =
+                ProjectPolygon(
+                    polygon,
+                    polygonTranslation,
+                    circleAxis);
+
+            var circleProjection =
+                ProjectCircle(
+                    circleCenter,
+                    circle.Radius,
+                    circleAxis);
+
+            var overlap =
+                Fixed32.Min(
+                    polygonProjection.Max,
+                    circleProjection.Max) -
+                Fixed32.Max(
+                    polygonProjection.Min,
+                    circleProjection.Min);
+
+            if (overlap < Fixed32.Zero)
+            {
+                return false;
+            }
+
+            if (!hasBestAxis ||
+                overlap < bestPenetration)
+            {
+                bestPenetration =
+                    overlap;
+
+                bestAxis =
+                    circleAxis;
+
+                hasBestAxis =
+                    true;
+            }
+        }
+
+        var centerDelta =
+            new FixedVector2(
+                second.Bounds.Center.X -
+                circleCenter.X,
+                second.Bounds.Center.Y -
+                circleCenter.Y);
+
+        OrientAxis(
+            ref bestAxis,
+            centerDelta);
+
+        var circleContact =
+            circleCenter +
+            bestAxis *
+            circle.Radius;
+
+        var polygonContact =
+            GetPolygonSupport(
+                polygon,
+                polygonTranslation,
+                -bestAxis);
+
+        var contactPoint =
+            (circleContact + polygonContact) *
+            Fixed32.FromRatio(
+                1,
+                2);
+
+        manifold =
+            new CollisionManifold(
+                new CollisionPair(
+                    first.Entity,
+                    second.Entity),
+
+                new ContactPoint(
+                    contactPoint,
+                    bestAxis,
+                    bestPenetration));
+
+        return true;
+    }
+
+    private readonly record struct Projection(
+    Fixed32 Min,
+    Fixed32 Max);
+
+    private static Projection ProjectPolygon(
+        PolygonShape2D polygon,
+        FixedVector2 translation,
+        FixedVector2 axis)
+    {
+        var firstVertex =
+            polygon.GetVertex(0) +
+            translation;
+
+        var firstProjection =
+            firstVertex.Dot(axis);
+
+        var minimum =
+            firstProjection;
+
+        var maximum =
+            firstProjection;
+
+        for (var i = 1;
+             i < polygon.VertexCount;
+             i++)
+        {
+            var vertex =
+                polygon.GetVertex(i) +
+                translation;
+
+            var projection =
+                vertex.Dot(axis);
+
+            minimum =
+                Fixed32.Min(
+                    minimum,
+                    projection);
+
+            maximum =
+                Fixed32.Max(
+                    maximum,
+                    projection);
+        }
+
+        return new Projection(
+            minimum,
+            maximum);
+    }
+
+    private static Projection ProjectCircle(
+        FixedVector2 center,
+        Fixed32 radius,
+        FixedVector2 axis)
+    {
+        var centerProjection =
+            center.Dot(axis);
+
+        return new Projection(
+            centerProjection - radius,
+            centerProjection + radius);
+    }
+
+    private static FixedVector2 FindClosestPointOnPolygon(
+        PolygonShape2D polygon,
+        FixedVector2 translation,
+        FixedVector2 point)
+    {
+        var bestPoint =
+            polygon.GetVertex(0) +
+            translation;
+
+        var bestDistanceSquared =
+            FixedVector2.DistanceSquared(
+                bestPoint,
+                point);
+
+        for (var i = 0;
+             i < polygon.VertexCount;
+             i++)
+        {
+            var nextIndex =
+                (i + 1) %
+                polygon.VertexCount;
+
+            var start =
+                polygon.GetVertex(i) +
+                translation;
+
+            var end =
+                polygon.GetVertex(nextIndex) +
+                translation;
+
+            var edge =
+                end -
+                start;
+
+            var edgeLengthSquared =
+                edge.LengthSquared();
+
+            if (edgeLengthSquared == Fixed32.Zero)
+            {
+                continue;
+            }
+
+            var amount =
+                (point - start).Dot(edge) /
+                edgeLengthSquared;
+
+            amount =
+                Fixed32.Clamp(
+                    amount,
+                    Fixed32.Zero,
+                    Fixed32.One);
+
+            var candidate =
+                start +
+                edge *
+                amount;
+
+            var distanceSquared =
+                FixedVector2.DistanceSquared(
+                    candidate,
+                    point);
+
+            if (distanceSquared < bestDistanceSquared)
+            {
+                bestDistanceSquared =
+                    distanceSquared;
+
+                bestPoint =
+                    candidate;
+            }
+        }
+
+        return bestPoint;
+    }
+
+    private static bool TryDetectPolygonCircle(
+        PhysicsColliderProxy first,
+        PhysicsColliderProxy second,
+        out CollisionManifold manifold)
+    {
+        if (!TryDetectCirclePolygon(
+                second,
+                first,
+                out var circleManifold))
+        {
+            manifold = default;
+            return false;
+        }
+
+        manifold =
+            new CollisionManifold(
+                new CollisionPair(
+                    first.Entity,
+                    second.Entity),
+
+            new ContactPoint(
+                circleManifold.Contact.Position,
+                -circleManifold.Contact.Normal,
+                circleManifold.Contact.Penetration));
+
+        return true;
     }
 
     private static bool TryDetectPolygonAabb(

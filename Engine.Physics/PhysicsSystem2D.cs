@@ -8,6 +8,7 @@ using Engine.ECS.Entities;
 using Engine.Physics.BroadPhase;
 using Engine.Physics.Collision;
 using Engine.Physics.Components;
+using Engine.Physics.Joints;
 
 namespace Engine.Physics;
 
@@ -21,7 +22,7 @@ public sealed class PhysicsSystem2D :
     private readonly IPhysicsBroadPhase _broadPhase;
     private readonly CollisionDetector2D _detector;
     private readonly CollisionResolver2D _resolver;
-
+    private readonly DistanceJointSolver2D _jointSolver;
     private readonly List<PhysicsColliderProxy> _colliders = new();
     private readonly List<CollisionPair> _pairs = new();
     private readonly List<CollisionManifold> _manifolds = new();
@@ -59,6 +60,8 @@ public sealed class PhysicsSystem2D :
 
         _resolver =
             new CollisionResolver2D();
+        _jointSolver =
+    new DistanceJointSolver2D();
     }
 
     public IReadOnlyList<CollisionManifold> Contacts =>
@@ -77,17 +80,168 @@ public sealed class PhysicsSystem2D :
 
         DetectContacts();
 
+        WakeSleepingBodies();
+
         SolvePositions();
+
+        SolveJointPositions();
 
         DetectContacts();
 
         SolveVelocities();
 
+        SolveJointVelocities();
+
         BuildCurrentContactState();
 
         PublishContactEvents();
 
+        UpdateSleeping(
+    context.Time.Delta);
+
         ClearForces();
+    }
+
+    private void SolveJointPositions()
+    {
+        for (var iteration = 0;
+             iteration < _settings.PositionIterations;
+             iteration++)
+        {
+            foreach (var item
+                     in _world.Query<DistanceJoint2D>())
+            {
+                _jointSolver.SolvePosition(
+                    _world,
+                    item.Component,
+                    _settings.PositionCorrectionPercent);
+            }
+        }
+    }
+
+    private void SolveJointVelocities()
+    {
+        for (var iteration = 0;
+             iteration < _settings.VelocityIterations;
+             iteration++)
+        {
+            foreach (var item
+                     in _world.Query<DistanceJoint2D>())
+            {
+                _jointSolver.SolveVelocity(
+                    _world,
+                    item.Component);
+            }
+        }
+    }
+
+    private void UpdateSleeping(
+    Fixed32 delta)
+    {
+        foreach (var item
+                 in _world.Query<PhysicsBody2D>())
+        {
+            ref var body =
+                ref item.Component;
+
+            if (body.BodyType !=
+                PhysicsBodyType.Dynamic)
+            {
+                continue;
+            }
+
+            if (body.IsSleeping)
+            {
+                continue;
+            }
+
+            if (body.Force != FixedVector2.Zero ||
+                body.Torque != Fixed32.Zero)
+            {
+                body.WakeUp();
+                continue;
+            }
+
+            var linearSpeedSquared =
+                body.Velocity.LengthSquared();
+
+            var linearThresholdSquared =
+                _settings.SleepLinearVelocityThreshold *
+                _settings.SleepLinearVelocityThreshold;
+
+            var angularSpeed =
+                Fixed32.Abs(
+                    body.AngularVelocity);
+
+            if (linearSpeedSquared <=
+                    linearThresholdSquared &&
+                angularSpeed <=
+                    _settings.SleepAngularVelocityThreshold)
+            {
+                body.SleepTimer += delta;
+
+                if (body.SleepTimer >=
+                    _settings.SleepTime)
+                {
+                    body.Sleep();
+                }
+            }
+            else
+            {
+                body.WakeUp();
+            }
+        }
+    }
+
+    private void WakeSleepingBodies()
+    {
+        foreach (var manifold in _manifolds)
+        {
+            WakeBodyFromContact(
+                manifold.Pair.First,
+                manifold.Pair.Second);
+
+            WakeBodyFromContact(
+                manifold.Pair.Second,
+                manifold.Pair.First);
+        }
+    }
+
+    private void WakeBodyFromContact(
+    EntityId entity,
+    EntityId otherEntity)
+    {
+        if (!_world.Exists(entity) ||
+            !_world.Exists(otherEntity) ||
+            !_world.Has<PhysicsBody2D>(entity) ||
+            !_world.Has<PhysicsBody2D>(otherEntity))
+        {
+            return;
+        }
+
+        ref var body =
+            ref _world.Get<PhysicsBody2D>(
+                entity);
+
+        if (body.BodyType !=
+            PhysicsBodyType.Dynamic ||
+            !body.IsSleeping)
+        {
+            return;
+        }
+
+        ref var other =
+            ref _world.Get<PhysicsBody2D>(
+                otherEntity);
+
+        if (other.BodyType ==
+            PhysicsBodyType.Kinematic ||
+            (other.BodyType ==
+             PhysicsBodyType.Dynamic &&
+             !other.IsSleeping))
+        {
+            body.WakeUp();
+        }
     }
 
     public void ResetContactState()
@@ -111,6 +265,11 @@ public sealed class PhysicsSystem2D :
 
             if (body.BodyType ==
                 PhysicsBodyType.Static)
+            {
+                continue;
+            }
+
+            if (body.BodyType == PhysicsBodyType.Dynamic && body.IsSleeping)
             {
                 continue;
             }

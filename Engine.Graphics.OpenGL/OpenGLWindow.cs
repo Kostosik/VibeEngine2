@@ -17,6 +17,9 @@ public sealed class OpenGLWindow : IDisposable
     private GL? _gl;
     private OpenGLGraphicsDevice? _graphicsDevice;
     private SilkNetInputBackend? _inputBackend;
+    public event Func<bool>? CloseRequested;
+    private bool _closeApproved;
+
     public ICursorService Cursor =>
     _inputBackend as ICursorService
     ?? throw new InvalidOperationException(
@@ -174,8 +177,48 @@ public sealed class OpenGLWindow : IDisposable
     size.X,
     size.Y);
     }
+
+    private bool CanClose()
+    {
+        var handlers =
+            CloseRequested?.GetInvocationList();
+
+        if (handlers is null)
+        {
+            return true;
+        }
+
+        foreach (var handler in handlers)
+        {
+            var closeHandler =
+                (Func<bool>)handler;
+
+            if (!closeHandler())
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public void Close()
+    {
+        _closeApproved = true;
+        _window.Close();
+    }
+
     private void OnClosing()
     {
+        if (!_closeApproved &&
+            !CanClose())
+        {
+            _window.IsClosing = false;
+            return;
+        }
+
+        _closeApproved = false;
+
         try
         {
             if (_gameLoop is not null &&

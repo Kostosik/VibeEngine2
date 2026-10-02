@@ -118,8 +118,20 @@ public sealed class EditorWorkspace
             return;
         }
 
-        panel.IsOpen =
-            isOpen;
+        panel.SetOpen(
+            isOpen);
+
+        if (!isOpen)
+        {
+            var layout =
+                Layout.GetPanel(id);
+
+            if (layout.IsActive)
+            {
+                layout.SetActive(
+                    false);
+            }
+        }
 
         Changed?.Invoke();
     }
@@ -224,7 +236,16 @@ public void ActivatePanel(
     var layout =
         Layout.GetPanel(id);
 
-    var changed =
+        var panel =
+    GetPanelOrThrow(id);
+
+        if (!panel.IsOpen)
+        {
+            panel.SetOpen(
+                true);
+        }
+
+        var changed =
         false;
 
     foreach (var other in Layout.Panels)
@@ -303,9 +324,8 @@ public void ActivatePanel(
             {
                 continue;
             }
-
-            panel.IsOpen =
-                savedPanel.IsOpen;
+            panel.SetOpen(
+                savedPanel.IsOpen);
         }
 
         // Restore is another entry point into the workspace state,

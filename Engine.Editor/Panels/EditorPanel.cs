@@ -20,5 +20,11 @@ public sealed class EditorPanel :
 
     public string Title { get; }
 
-    public bool IsOpen { get; set; }
+    public bool IsOpen { get; private set; }
+
+    public void SetOpen(
+        bool isOpen)
+    {
+        IsOpen = isOpen;
+    }
 }

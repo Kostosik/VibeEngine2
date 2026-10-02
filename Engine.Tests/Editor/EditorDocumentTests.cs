@@ -9,6 +9,41 @@ namespace Engine.Tests.Editor;
 public sealed class EditorDocumentTests
 {
     [Fact]
+    public void Reference_AfterWorldSnapshotRestore_IsNotAliveWhenEntityWasRemoved()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+        var snapshot =
+            ecsWorld.CreateSnapshot();
+
+        var entity =
+            ecsWorld.CreateEntity();
+
+        var document =
+            new EditorDocument(
+                world);
+
+        var reference =
+            document.GetEntityReference(
+                entity);
+
+        Assert.True(
+            reference.IsAlive);
+
+        ecsWorld.RestoreSnapshot(
+            snapshot);
+
+        Assert.False(
+            reference.IsAlive);
+    }
+
+    [Fact]
     public void EntityDestroyed_GetEntityReferenceThrows()
     {
         using var ecsWorld =

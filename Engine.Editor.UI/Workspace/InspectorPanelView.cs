@@ -82,42 +82,64 @@ public sealed class InspectorPanelView : UiPanel
         var addComponent =
             new UiDropdown();
 
-        foreach (var componentType in
-                 Editor.ComponentTypes.Types
-                     .OrderBy(
-                         static type =>
-                             type.FullName ??
-                             type.Name,
-                         StringComparer.Ordinal))
-        {
-            if (componentType ==
-                typeof(Engine.Worlds.Spatial.WorldPositionComponent))
-            {
-                continue;
-            }
+        var componentTypes =
+            Editor.ComponentTypes.Types
+                .Where(
+                    componentType =>
+                        componentType !=
+                        typeof(Engine.Worlds.Spatial.WorldPositionComponent) &&
+                        !document.Inspector
+                            .GetComponentTypes(entity)
+                            .Contains(componentType))
+                .OrderBy(
+                    static type =>
+                        type.FullName ??
+                        type.Name,
+                    StringComparer.Ordinal)
+                .ToArray();
 
-            if (document.Inspector
-                    .GetComponentTypes(entity)
-                    .Contains(componentType))
-            {
-                continue;
-            }
+        var duplicateNames =
+            componentTypes
+                .GroupBy(
+                    static type =>
+                        type.Name,
+                    StringComparer.Ordinal)
+                .Where(
+                    static group =>
+                        group.Count() > 1)
+                .Select(
+                    static group =>
+                        group.Key)
+                .ToHashSet(
+                    StringComparer.Ordinal);
+
+        var componentOptions =
+            new Dictionary<string, Type>(
+                StringComparer.Ordinal);
+
+        foreach (var componentType in componentTypes)
+        {
+            var optionText =
+                duplicateNames.Contains(
+                    componentType.Name)
+                    ? componentType.FullName ??
+                      componentType.Name
+                    : componentType.Name;
+
+            componentOptions.Add(
+                optionText,
+                componentType);
 
             addComponent.AddOption(
-                componentType.Name);
+                optionText);
         }
 
         addComponent.SelectionChanged +=
             (_, text) =>
             {
-                var componentType =
-                    Editor.ComponentTypes.Types
-                        .FirstOrDefault(
-                            type =>
-                                type.Name ==
-                                text);
-
-                if (componentType is null)
+                if (!componentOptions.TryGetValue(
+                        text,
+                        out var componentType))
                 {
                     return;
                 }
@@ -146,10 +168,6 @@ public sealed class InspectorPanelView : UiPanel
         _content.AddChild(
             addComponent);
 
-        var componentTypes =
-            document.Inspector.GetComponentTypes(
-                entity);
-
         foreach (var componentType in componentTypes)
         {
             AddComponentSection(
@@ -164,6 +182,14 @@ public sealed class InspectorPanelView : UiPanel
         EntityId entity,
         Type componentType)
     {
+        if (!document.Inspector.TryGetComponent(
+                entity,
+                componentType,
+                out _))
+        {
+            return;
+        }
+
         var header =
             new UiStackPanel
             {

@@ -357,18 +357,6 @@ public sealed class EditorWorkspaceView : UiPanel
             rect);
     }
 
-    private void SetPanelVisibility(
-        string panelId,
-        UiWidget view)
-    {
-        var panel =
-            Editor.Workspace.FindPanel(
-                panelId);
-
-        view.Visible =
-            panel?.IsOpen == true;
-    }
-
     protected override Vector2 MeasureCore(
         UiLayoutContext context,
         Vector2 availableSize)

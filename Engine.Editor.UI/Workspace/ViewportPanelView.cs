@@ -237,11 +237,16 @@ public sealed class ViewportPanelView :
             document.World.SpatialEntities.GetPosition(
                 entity);
 
-        var screen =
+        var localScreen =
             document.Viewport.Transform.WorldToScreen(
                 new Vector2(
                     position.X,
                     position.Y));
+
+        var screen =
+            new Vector2(
+                Bounds.X + localScreen.X,
+                Bounds.Y + localScreen.Y);
 
         var arm =
             _translationGizmo.ArmLength;

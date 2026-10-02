@@ -21,7 +21,9 @@ public sealed class EditorEntityReference
     public EntityId Entity { get; private set; }
 
     public bool IsAlive =>
-        Entity.IsValid;
+        Entity.IsValid &&
+        World.EcsWorld.Exists(
+            Entity);
 
     internal void EnsureWorld(
         World world)

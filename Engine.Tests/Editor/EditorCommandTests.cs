@@ -11,6 +11,231 @@ namespace Engine.Tests.Editor;
 public sealed class EditorCommandTests
 {
     [Fact]
+    public void DeleteEntity_ExecuteUndo_RestoresSelection()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+        var entity =
+            world.SpatialEntities.CreateEntity(
+                new WorldPosition(2, 3));
+
+        var document =
+            new EditorDocument(
+                world);
+
+        document.EntitySelection.Set(entity);
+
+        var command =
+            new DeleteEditorEntityCommand(
+                document,
+                entity);
+
+        command.Execute();
+
+        Assert.False(
+            document.EntitySelection.Contains(
+                entity));
+
+        command.Undo();
+
+        Assert.True(
+            document.EntitySelection.Contains(
+                command.Reference.Entity));
+    }
+
+    [Fact]
+    public void DeleteParent_ExecuteUndoRedo_HandlesMultipleChildren()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+        var parent =
+            world.SpatialEntities.CreateEntity(
+                new WorldPosition(2, 3));
+
+        var childA =
+            world.SpatialEntities.CreateEntity(
+                new WorldPosition(4, 5));
+
+        var childB =
+            world.SpatialEntities.CreateEntity(
+                new WorldPosition(6, 7));
+
+        ecsWorld.Add(
+            childA,
+            new Engine.ECS.Components.TransformParent2D(
+                parent));
+
+        ecsWorld.Add(
+            childB,
+            new Engine.ECS.Components.TransformParent2D(
+                parent));
+
+        var document =
+            new EditorDocument(
+                world);
+
+        var command =
+            new DeleteEditorEntityCommand(
+                document,
+                parent);
+
+        command.Execute();
+
+        Assert.False(
+            ecsWorld.Has<Engine.ECS.Components.TransformParent2D>(
+                childA));
+
+        Assert.False(
+            ecsWorld.Has<Engine.ECS.Components.TransformParent2D>(
+                childB));
+
+        command.Undo();
+
+        var restoredParent =
+            command.Reference.Entity;
+
+        Assert.Equal(
+            restoredParent,
+            ecsWorld.Get<Engine.ECS.Components.TransformParent2D>(
+                childA).Parent);
+
+        Assert.Equal(
+            restoredParent,
+            ecsWorld.Get<Engine.ECS.Components.TransformParent2D>(
+                childB).Parent);
+
+        command.Execute();
+
+        Assert.False(
+            ecsWorld.Has<Engine.ECS.Components.TransformParent2D>(
+                childA));
+
+        Assert.False(
+            ecsWorld.Has<Engine.ECS.Components.TransformParent2D>(
+                childB));
+    }
+
+    [Fact]
+    public void DeleteParent_ExecuteUndoRedo_DetachesChild()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+        var parent =
+            world.SpatialEntities.CreateEntity(
+                new WorldPosition(2, 3));
+
+        var child =
+            world.SpatialEntities.CreateEntity(
+                new WorldPosition(4, 5));
+
+        ecsWorld.Add(
+            child,
+            new Engine.ECS.Components.TransformParent2D(
+                parent));
+
+        var document =
+            new EditorDocument(
+                world);
+
+        var command =
+            new DeleteEditorEntityCommand(
+                document,
+                parent);
+
+        command.Execute();
+        command.Undo();
+        command.Execute();
+
+        Assert.False(
+            ecsWorld.Exists(
+                command.Reference.Entity));
+
+        Assert.True(
+            ecsWorld.Exists(
+                child));
+
+        Assert.False(
+            ecsWorld.Has<Engine.ECS.Components.TransformParent2D>(
+                child));
+    }
+
+    [Fact]
+    public void DeleteParent_ExecuteUndo_RestoresChildParentReference()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+        var parent =
+            world.SpatialEntities.CreateEntity(
+                new WorldPosition(2, 3));
+
+        var child =
+            world.SpatialEntities.CreateEntity(
+                new WorldPosition(4, 5));
+
+        ecsWorld.Add(
+            child,
+            new Engine.ECS.Components.TransformParent2D(
+                parent));
+
+        var document =
+            new EditorDocument(
+                world);
+
+        var parentReference =
+            document.GetEntityReference(
+                parent);
+
+        var command =
+            new DeleteEditorEntityCommand(
+                document,
+                parent);
+
+        command.Execute();
+
+        Assert.False(
+            ecsWorld.Exists(
+                parent));
+
+        command.Undo();
+
+        Assert.True(
+            parentReference.IsAlive);
+
+        Assert.True(
+            ecsWorld.Exists(
+                parentReference.Entity));
+
+        Assert.Equal(
+            parentReference.Entity,
+            ecsWorld.Get<Engine.ECS.Components.TransformParent2D>(
+                child).Parent);
+    }
+
+    [Fact]
     public void CreateEntity_ExecuteUndoRedo_RestoresEntityLifecycle()
     {
         using var ecsWorld =

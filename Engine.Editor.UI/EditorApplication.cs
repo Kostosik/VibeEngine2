@@ -1,6 +1,6 @@
 ﻿using Engine.Core.Application;
 using Engine.Core.Time;
-using Engine.Editor;
+using Engine.Editor.UI.Dialogs;
 using Engine.Editor.Documents;
 using Engine.Editor.Documents.Persistence;
 using Engine.Editor.UI.Authoring;
@@ -20,6 +20,7 @@ public sealed class EditorApplication :
     private readonly string _uiAssetPath;
     private readonly IEditorDocumentPersistence?
     _documentPersistence;
+    private readonly IEditorFileDialogService _fileDialogs;
     public EditorUiDocument UiDocument { get; }
     private readonly IEditorDocumentFileService?
     _documentFiles;
@@ -27,19 +28,12 @@ public sealed class EditorApplication :
     private readonly EditorDocumentCloseDialog
     _documentCloseDialog;
 
+    private bool _applicationClosePending;
+
+    public event Action? ApplicationCloseRequested;
+
     private EditorDocument? _pendingCloseDocument;
 
-    private readonly EditorDocumentPathDialog
-    _documentPathDialog;
-
-    private enum DocumentPathRequest
-    {
-        Open,
-        SaveAs
-    }
-
-    private DocumentPathRequest?
-        _documentPathRequest;
     private readonly EditorErrorDialog
     _errorDialog;
     public event Action? NewDocumentRequested;
@@ -51,7 +45,7 @@ public sealed class EditorApplication :
      IInputBackend input,
      ITextureResourceManager assetPreviewTextures,
      EditorUiDocument uiDocument,
-     string uiAssetPath, IEditorDocumentPersistence? documentPersistence = null, IEditorDocumentFileService? documentFiles = null)
+     string uiAssetPath, IEditorFileDialogService fileDialogs, IEditorDocumentPersistence? documentPersistence = null, IEditorDocumentFileService? documentFiles = null)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -68,11 +62,17 @@ public sealed class EditorApplication :
         ArgumentNullException.ThrowIfNull(
             uiDocument);
 
+        ArgumentNullException.ThrowIfNull(
+    fileDialogs);
+
         Editor = editor;
         Ui = ui;
         Input = input;
         AssetPreviewTextures = assetPreviewTextures;
         UiDocument = uiDocument;
+
+        _fileDialogs =
+    fileDialogs;
 
         UiHost =
             new EditorUiHost(
@@ -83,9 +83,6 @@ public sealed class EditorApplication :
     new EditorErrorDialog(
         ui.Overlays,
         ui.Focus);
-
-        UiHost.Root.AddChild(
-            _errorDialog);
 
         _documentCloseDialog =
     new EditorDocumentCloseDialog(
@@ -100,9 +97,6 @@ public sealed class EditorApplication :
 
         _documentCloseDialog.Closed +=
             ClearPendingCloseDocument;
-
-        UiHost.Root.AddChild(
-            _documentCloseDialog);
 
         _uiAssetPath = uiAssetPath;
         _documentPersistence =
@@ -147,17 +141,6 @@ public sealed class EditorApplication :
             editor.AssetBrowser.Changed +=
                 MarkUiDirty;
         }
-
-        _documentPathDialog =
-    new EditorDocumentPathDialog(
-        ui.Overlays,
-        ui.Focus);
-
-        _documentPathDialog.PathSubmitted +=
-            OnDocumentPathSubmitted;
-
-        UiHost.Root.AddChild(
-            _documentPathDialog);
 
         _documentFiles = documentFiles;
     }
@@ -341,9 +324,6 @@ public sealed class EditorApplication :
         MainShell.CloseRequested -=
             RequestCloseDocument;
 
-        _documentPathDialog.PathSubmitted -=
-    OnDocumentPathSubmitted;
-
         _documentCloseDialog.SaveRequested -=
     SavePendingDocument;
 
@@ -385,10 +365,24 @@ public sealed class EditorApplication :
             return;
         }
 
-        _documentPathRequest =
-            DocumentPathRequest.Open;
+        try
+        {
+            var path =
+                _fileDialogs.ShowOpenFile();
 
-        _documentPathDialog.ShowFor();
+            if (path is null)
+            {
+                return;
+            }
+
+            OpenDocument(
+                path);
+        }
+        catch (Exception exception)
+        {
+            _errorDialog.ShowError(
+                exception.Message);
+        }
     }
 
     private void RequestSaveDocumentAs()
@@ -398,35 +392,29 @@ public sealed class EditorApplication :
             return;
         }
 
-        _documentPathRequest =
-            DocumentPathRequest.SaveAs;
-
-        _documentPathDialog.ShowFor();
-    }
-
-    private void OnDocumentPathSubmitted(
-    string path)
-    {
-        var request =
-            _documentPathRequest;
-
-        _documentPathRequest =
-            null;
-
         try
         {
-            switch (request)
-            {
-                case DocumentPathRequest.Open:
-                    OpenDocument(
-                        path);
-                    break;
+            var document =
+                Editor.ActiveDocument;
 
-                case DocumentPathRequest.SaveAs:
-                    SaveDocumentAs(
-                        path);
-                    break;
+            var initialDirectory =
+                document?.FilePath is string filePath
+                    ? Path.GetDirectoryName(
+                        Path.GetFullPath(
+                            filePath))
+                    : null;
+
+            var path =
+                _fileDialogs.ShowSaveFile(
+                    initialDirectory);
+
+            if (path is null)
+            {
+                return;
             }
+
+            SaveDocumentAs(
+                path);
         }
         catch (Exception exception)
         {
@@ -434,6 +422,7 @@ public sealed class EditorApplication :
                 exception.Message);
         }
     }
+
 
     private void SubscribeDocument(
         EditorDocument document)
@@ -491,6 +480,60 @@ public sealed class EditorApplication :
         MarkUiDirty();
 
         return document;
+    }
+
+    public bool RequestApplicationClose()
+    {
+        var document =
+            Editor.Session.Documents
+                .FirstOrDefault(
+                    static document =>
+                        document.IsDirty);
+
+        if (document is null)
+        {
+            return true;
+        }
+
+        _applicationClosePending = true;
+
+        _pendingCloseDocument =
+            document;
+
+        _documentCloseDialog.ShowFor(
+            document);
+
+        return false;
+    }
+
+    private void ContinueApplicationClose()
+    {
+        if (!_applicationClosePending)
+        {
+            return;
+        }
+
+        var document =
+            Editor.Session.Documents
+                .FirstOrDefault(
+                    static document =>
+                        document.IsDirty);
+
+        if (document is not null)
+        {
+            _pendingCloseDocument =
+                document;
+
+            _documentCloseDialog.ShowFor(
+                document);
+
+            return;
+        }
+
+        _applicationClosePending = false;
+        _pendingCloseDocument = null;
+
+        ApplicationCloseRequested?.Invoke();
     }
 
     private void RefreshIfNeeded()
@@ -566,6 +609,7 @@ public sealed class EditorApplication :
 
             _documentCloseDialog.Close();
             MarkUiDirty();
+            ContinueApplicationClose();
         }
         catch (Exception exception)
         {
@@ -590,50 +634,8 @@ public sealed class EditorApplication :
 
         _documentCloseDialog.Close();
         MarkUiDirty();
+        ContinueApplicationClose();
     }
-
-    private void SaveRequested()
-    {
-        try
-        {
-            if (MainShell.IsUiMode)
-            {
-                SaveUiDocument();
-                return;
-            }
-
-            if (_documentFiles is null)
-            {
-                throw new InvalidOperationException(
-                    "Document file service is not configured.");
-            }
-
-            var document =
-                Editor.ActiveDocument;
-
-            if (document is null)
-            {
-                return;
-            }
-
-            if (document.FilePath is null)
-            {
-                RequestSaveDocumentAs();
-                return;
-            }
-
-            Editor.SaveDocument(
-                _documentFiles);
-
-            MarkUiDirty();
-        }
-        catch (Exception exception)
-        {
-            _errorDialog.ShowError(
-                exception.Message);
-        }
-    }
-
     private void ClearPendingCloseDocument()
     {
         _pendingCloseDocument =

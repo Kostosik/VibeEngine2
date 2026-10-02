@@ -32,40 +32,57 @@ public sealed class EditorTranslationGizmo
     public float HitRadius { get; }
 
     public EditorGizmoAxis HitTest(
-        Vector2 screenPosition,
-        Vector2 origin)
+     Vector2 screenPosition,
+     Vector2 origin)
     {
-        var xAxisStart = origin;
         var xAxisEnd =
             new Vector2(
                 origin.X + ArmLength,
                 origin.Y);
 
-        if (DistanceToSegmentSquared(
-                screenPosition,
-                xAxisStart,
-                xAxisEnd) <=
-            HitRadius * HitRadius)
-        {
-            return EditorGizmoAxis.X;
-        }
-
-        var yAxisStart = origin;
         var yAxisEnd =
             new Vector2(
                 origin.X,
                 origin.Y - ArmLength);
 
-        if (DistanceToSegmentSquared(
+        var xDistanceSquared =
+            DistanceToSegmentSquared(
                 screenPosition,
-                yAxisStart,
-                yAxisEnd) <=
-            HitRadius * HitRadius)
+                origin,
+                xAxisEnd);
+
+        var yDistanceSquared =
+            DistanceToSegmentSquared(
+                screenPosition,
+                origin,
+                yAxisEnd);
+
+        var hitRadiusSquared =
+            HitRadius * HitRadius;
+
+        var xHit =
+            xDistanceSquared <=
+            hitRadiusSquared;
+
+        var yHit =
+            yDistanceSquared <=
+            hitRadiusSquared;
+
+        if (!xHit && !yHit)
         {
-            return EditorGizmoAxis.Y;
+            return EditorGizmoAxis.None;
         }
 
-        return EditorGizmoAxis.None;
+        if (xHit && yHit)
+        {
+            return xDistanceSquared <= yDistanceSquared
+                ? EditorGizmoAxis.X
+                : EditorGizmoAxis.Y;
+        }
+
+        return xHit
+            ? EditorGizmoAxis.X
+            : EditorGizmoAxis.Y;
     }
 
     private static float DistanceToSegmentSquared(

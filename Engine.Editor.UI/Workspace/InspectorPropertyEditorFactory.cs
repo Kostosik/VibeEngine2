@@ -140,8 +140,20 @@ internal static class InspectorPropertyEditorFactory
             property.GetValue();
 
         var text =
-            currentValue?.ToString()
-            ?? string.Empty;
+            currentValue switch
+            {
+                float value =>
+                    value.ToString(
+                        CultureInfo.InvariantCulture),
+
+                double value =>
+                    value.ToString(
+                        CultureInfo.InvariantCulture),
+
+                _ =>
+                    currentValue?.ToString()
+                    ?? string.Empty
+            };
 
         var editor =
             new UiStackPanel

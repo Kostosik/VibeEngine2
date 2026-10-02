@@ -6,5 +6,8 @@ public interface IEditorPanel
 
     string Title { get; }
 
-    bool IsOpen { get; set; }
+    bool IsOpen { get; }
+
+    public void SetOpen(
+    bool isOpen);
 }

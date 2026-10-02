@@ -85,6 +85,38 @@ public sealed class EditorUiAssetConverterTests
             Assert.Equal(
                 first.Elements[i].Action,
                 second.Elements[i].Action);
+
+            Assert.Equal(
+                first.Elements[i].DropdownOptions,
+                second.Elements[i].DropdownOptions);
+
+            Assert.Equal(
+                first.Elements[i].SelectedIndex,
+                second.Elements[i].SelectedIndex);
+
+            Assert.Equal(
+                first.Elements[i].ToggleValue,
+                second.Elements[i].ToggleValue);
+
+            Assert.Equal(
+                first.Elements[i].Placeholder,
+                second.Elements[i].Placeholder);
+
+            Assert.Equal(
+                first.Elements[i].MaxLength,
+                second.Elements[i].MaxLength);
+
+            Assert.Equal(
+                first.Elements[i].Visible,
+                second.Elements[i].Visible);
+
+            Assert.Equal(
+                first.Elements[i].Enabled,
+                second.Elements[i].Enabled);
+
+            Assert.Equal(
+                first.Elements[i].ZIndex,
+                second.Elements[i].ZIndex);
         }
 
         Assert.Equal(

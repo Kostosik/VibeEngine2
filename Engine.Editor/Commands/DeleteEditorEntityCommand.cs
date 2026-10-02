@@ -1,4 +1,5 @@
-﻿using Engine.ECS.Entities;
+﻿using Engine.ECS.Components;
+using Engine.ECS.Entities;
 using Engine.Editor.Documents;
 using Engine.Editor.Entities;
 using Engine.Editor.Inspection;
@@ -10,13 +11,13 @@ public sealed class DeleteEditorEntityCommand : IEditorCommand
 {
     private readonly EditorDocument _document;
     private readonly EditorEntityReference _reference;
-
+    private List<EntityId>? _children;
     private WorldPosition _position;
     private bool _hadSpatialPosition;
 
     private List<(Type Type, object Value)>? _components;
     private bool _captured;
-
+    private bool _wasSelected;
     public DeleteEditorEntityCommand(
         EditorDocument document,
         EntityId entity)
@@ -55,6 +56,8 @@ public sealed class DeleteEditorEntityCommand : IEditorCommand
                 "Editor entity reference is not alive.");
         }
 
+        DetachChildren();
+
         if (_hadSpatialPosition)
         {
             _document.World.SpatialEntities.DestroyEntity(
@@ -68,6 +71,31 @@ public sealed class DeleteEditorEntityCommand : IEditorCommand
 
         _document.InvalidateEntityReference(
             _reference);
+    }
+
+    private void DetachChildren()
+    {
+        if (_children is null)
+        {
+            return;
+        }
+
+        foreach (var child in _children)
+        {
+            if (!_document.World.EcsWorld.Exists(child) ||
+                !_document.World.EcsWorld.Has<TransformParent2D>(child))
+            {
+                continue;
+            }
+
+            if (_document.World.EcsWorld.Get<TransformParent2D>(child).Parent !=
+                _reference.Entity)
+            {
+                continue;
+            }
+
+            _document.World.EcsWorld.Remove<TransformParent2D>(child);
+        }
     }
 
     public void Undo()
@@ -101,10 +129,47 @@ public sealed class DeleteEditorEntityCommand : IEditorCommand
                 component.Type,
                 component.Value);
         }
+
+        if (_children is null)
+        {
+            return;
+        }
+
+        foreach (var child in _children)
+        {
+            if (!_document.World.EcsWorld.Exists(child))
+            {
+                continue;
+            }
+
+            if (!_document.World.EcsWorld.Has<TransformParent2D>(child))
+            {
+                _document.World.EcsWorld.Add(
+                    child,
+                    new TransformParent2D(entity));
+
+                continue;
+            }
+
+            ref var parent =
+                ref _document.World.EcsWorld.Get<TransformParent2D>(
+                    child);
+
+            parent.Parent = entity;
+        }
+        if (_wasSelected)
+        {
+            _document.EntitySelection.Set(
+                entity);
+        }
     }
 
     private void Capture()
     {
+        _wasSelected =
+    _document.EntitySelection.Contains(
+        _reference.Entity);
+
         _hadSpatialPosition =
             _document.World.SpatialEntities.Contains(
                 _reference.Entity);
@@ -141,5 +206,17 @@ public sealed class DeleteEditorEntityCommand : IEditorCommand
                         return (type, value);
                     })
                 .ToList();
+
+        _children =
+    _document.World.EcsWorld.Inspector
+        .GetEntities()
+        .Where(
+            child =>
+                child != _reference.Entity &&
+                _document.World.EcsWorld.Has<TransformParent2D>(
+                    child) &&
+                _document.World.EcsWorld.Get<TransformParent2D>(
+                    child).Parent == _reference.Entity)
+        .ToList();
     }
 }

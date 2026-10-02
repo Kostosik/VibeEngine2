@@ -141,6 +141,11 @@ public sealed class EditorUiCanvasPreviewView :
     Vector2 canvasOrigin,
     float scale)
     {
+        if (!element.Visible)
+        {
+            return;
+        }
+
         var localRect =
             element.Layout.Resolve(
                 parentSize);
@@ -256,7 +261,10 @@ public sealed class EditorUiCanvasPreviewView :
             }
         }
 
-        foreach (var child in element.Children)
+        foreach (var child in element.Children
+                     .OrderBy(
+                         static child =>
+                             child.ZIndex))
         {
             RenderElement(
                 context,
@@ -285,6 +293,11 @@ public sealed class EditorUiCanvasPreviewView :
     Vector2 parentOrigin,
     Vector2 parentSize)
     {
+        if (!element.Visible)
+        {
+            return null;
+        }
+
         var localRect =
             element.Layout.Resolve(
                 parentSize);
@@ -296,14 +309,11 @@ public sealed class EditorUiCanvasPreviewView :
                 parentOrigin.Y +
                 localRect.Y);
 
-        for (var i =
-             element.Children.Count - 1;
-             i >= 0;
-             i--)
+        foreach (var child in element.Children
+             .OrderByDescending(
+                 static child =>
+                     child.ZIndex))
         {
-            var child =
-                element.Children[i];
-
             var hit =
                 FindElementAt(
                     child,

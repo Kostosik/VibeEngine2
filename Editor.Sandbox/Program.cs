@@ -1,4 +1,5 @@
-﻿using Engine.Content;
+﻿using Editor.Sandbox;
+using Engine.Content;
 using Engine.Content.Assets;
 using Engine.Content.Loading;
 using Engine.Core.Application;
@@ -155,6 +156,10 @@ var documentPersistence =
     new BinaryEditorDocumentPersistence(
         serializers);
 
+var documentFiles =
+    editor.CreateDocumentFileService(
+        documentPersistence);
+
 var worldPath =
     Path.Combine(
         AppContext.BaseDirectory,
@@ -165,6 +170,9 @@ Directory.CreateDirectory(
     Path.GetDirectoryName(
         worldPath)!);
 
+var fileDialogs =
+    new WindowsFileDialogService();
+
 var application =
     new EditorApplication(
         editor,
@@ -172,8 +180,15 @@ var application =
         window.InputBackend,
         assetPreviewTextures,
         uiDocument,
-        uiAssetPath,
-        documentPersistence);
+        uiAssetPath, fileDialogs,
+        documentPersistence,
+        documentFiles);
+
+window.CloseRequested +=
+    application.RequestApplicationClose;
+
+application.ApplicationCloseRequested +=
+    window.Close;
 
 application.NewDocumentRequested +=
     () =>

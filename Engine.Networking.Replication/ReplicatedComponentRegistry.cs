@@ -104,6 +104,14 @@ public sealed class ReplicatedComponentRegistry
             Engine.ECS.Entities.EntityId entity,
             ReadOnlySpan<byte> payload,
             SerializationContext context);
+
+        public abstract void Remove(
+    Engine.ECS.World world,
+    Engine.ECS.Entities.EntityId entity);
+
+        public abstract void Validate(
+    ReadOnlySpan<byte> payload,
+    SerializationContext context);
     }
 
     public sealed class Entry<T> :
@@ -131,6 +139,16 @@ public sealed class ReplicatedComponentRegistry
         internal IBinarySerializer<T> Serializer =>
             _serializer;
 
+        public override void Validate(
+    ReadOnlySpan<byte> payload,
+    SerializationContext context)
+        {
+            BinarySerializer.Deserialize(
+                payload,
+                _serializer,
+                context);
+        }
+
         public override byte[] Capture(
     Engine.ECS.World world,
     Engine.ECS.Entities.EntityId entity,
@@ -155,6 +173,16 @@ public sealed class ReplicatedComponentRegistry
                 value,
                 _serializer,
                 context);
+        }
+
+        public override void Remove(
+    Engine.ECS.World world,
+    Engine.ECS.Entities.EntityId entity)
+        {
+            if (world.Has<T>(entity))
+            {
+                world.Remove<T>(entity);
+            }
         }
 
         public override void Apply(

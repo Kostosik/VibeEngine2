@@ -75,10 +75,10 @@ public sealed class ReplicationStateService
     }
 
     public void Apply(
-        World world,
-        NetworkEntityMap entityMap,
-        ReplicatedEntityState state,
-        SerializationContext context)
+     World world,
+     NetworkEntityMap entityMap,
+     ReplicatedEntityState state,
+     SerializationContext context)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(entityMap);
@@ -98,8 +98,22 @@ public sealed class ReplicationStateService
                 $"Mapped local entity '{entity}' does not exist.");
         }
 
+        var entries =
+            new Dictionary<
+                string,
+                ReplicatedComponentRegistry.Entry>(
+                    StringComparer.Ordinal);
+
         foreach (var component in state.Components)
         {
+            if (!entries.TryAdd(
+                    component.Id,
+                    null!))
+            {
+                throw new InvalidDataException(
+                    $"Replicated component '{component.Id}' appears more than once.");
+            }
+
             if (!_registry.TryGetById(
                     component.Id,
                     out var entry))
@@ -108,7 +122,40 @@ public sealed class ReplicationStateService
                     $"Replicated component '{component.Id}' is not registered.");
             }
 
-            entry.Apply(
+            entry.Validate(
+                component.Payload.Span,
+                context);
+
+            entries[component.Id] =
+                entry;
+        }
+
+        var incomingIds =
+            entries.Keys.ToHashSet(
+                StringComparer.Ordinal);
+
+        foreach (var componentType in
+                 world.Inspector.GetComponentTypes(entity))
+        {
+            if (!_registry.TryGetByType(
+                    componentType,
+                    out var entry))
+            {
+                continue;
+            }
+
+            if (!incomingIds.Contains(
+                    entry.Id))
+            {
+                entry.Remove(
+                    world,
+                    entity);
+            }
+        }
+
+        foreach (var component in state.Components)
+        {
+            entries[component.Id].Apply(
                 world,
                 entity,
                 component.Payload.Span,

@@ -8,6 +8,80 @@ namespace Engine.Tests.Networking.Replication;
 public sealed class ReplicationEntityServiceTests
 {
     [Fact]
+    public void Spawn_WhenApplyingStateFails_RollsBackEntityAndMapping()
+    {
+        using var world =
+            new World();
+
+        var map =
+            new NetworkEntityMap(
+                world);
+
+        var registry =
+            new ReplicatedComponentRegistry();
+
+        registry.Register(
+            "test.component",
+            new TestComponentSerializer());
+
+        registry.Register(
+            "second.component",
+            new SecondTestComponentSerializer());
+
+        var stateService =
+            new ReplicationStateService(
+                registry);
+
+        var entityService =
+            new ReplicationEntityService(
+                stateService);
+
+        var networkId =
+            new NetworkEntityId(400);
+
+        var validPayload =
+            BinarySerializer.Serialize(
+                new TestComponent
+                {
+                    Value = 10
+                },
+                new TestComponentSerializer(),
+                SerializationContext.Default);
+
+        var state =
+            new ReplicatedEntityState(
+                networkId,
+                new[]
+                {
+                new ReplicatedComponentState(
+                    "test.component",
+                    validPayload),
+
+                new ReplicatedComponentState(
+                    "second.component",
+                    new byte[]
+                    {
+                        1
+                    })
+                });
+
+        Assert.Throws<InvalidDataException>(
+            () =>
+                entityService.Spawn(
+                    world,
+                    map,
+                    state,
+                    SerializationContext.Default));
+
+        Assert.Equal(
+            0,
+            map.Count);
+
+        Assert.Empty(
+            world.Inspector.GetEntities());
+    }
+
+    [Fact]
     public void Spawn_CreatesMappedEntityWithReplicatedComponents()
     {
         using var sourceWorld =
@@ -217,6 +291,33 @@ public sealed class ReplicationEntityServiceTests
     private struct TestComponent
     {
         public int Value { get; set; }
+    }
+
+    private struct SecondTestComponent
+    {
+        public int Value { get; set; }
+    }
+
+    private sealed class SecondTestComponentSerializer :
+    IBinarySerializer<SecondTestComponent>
+    {
+        public void Serialize(
+            ref SerializationWriter writer,
+            SecondTestComponent value)
+        {
+            writer.WriteInt32(
+                value.Value);
+        }
+
+        public SecondTestComponent Deserialize(
+            ref SerializationReader reader)
+        {
+            return new SecondTestComponent
+            {
+                Value =
+                    reader.ReadInt32()
+            };
+        }
     }
 
     private sealed class TestComponentSerializer :

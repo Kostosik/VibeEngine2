@@ -27,6 +27,17 @@ public sealed class NetworkEntityMap
             world;
     }
 
+    public IReadOnlyList<(
+    EntityId Entity,
+    NetworkEntityId NetworkId)> GetMappings()
+    {
+        return _networkIds
+            .Select(
+                static pair =>
+                    (pair.Key, pair.Value))
+            .ToArray();
+    }
+
     public int Count =>
         _networkIds.Count;
 

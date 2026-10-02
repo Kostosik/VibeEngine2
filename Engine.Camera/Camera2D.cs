@@ -1,21 +1,38 @@
 ﻿using Engine.Core.Math;
 
-namespace Engine.Graphics.Cameras;
+namespace Engine.Camera;
 
-public sealed class Camera
+public sealed class Camera2D
 {
     private Vector2 _position;
     private float _zoom = 1.0f;
     private Vector2 _viewportSize;
 
-    public Camera(
+    public Camera2D(
         Vector2 viewportSize)
     {
         SetViewportSize(
             viewportSize);
     }
 
-    public Engine.Core.Math.Rectangle WorldBounds
+    public bool IsVisible(
+    Rectangle bounds)
+    {
+        var view =
+            WorldBounds;
+
+        return
+            bounds.X <
+                view.X + view.Width &&
+            bounds.X + bounds.Width >
+                view.X &&
+            bounds.Y <
+                view.Y + view.Height &&
+            bounds.Y + bounds.Height >
+                view.Y;
+    }
+
+    public Rectangle WorldBounds
     {
         get
         {
@@ -25,13 +42,14 @@ public sealed class Camera
             var height =
                 _viewportSize.Y / _zoom;
 
-            return new Engine.Core.Math.Rectangle(
+            return new Rectangle(
                 _position.X - width * 0.5f,
                 _position.Y - height * 0.5f,
                 width,
                 height);
         }
     }
+
     public Vector2 Position
     {
         get => _position;

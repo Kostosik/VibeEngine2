@@ -5,9 +5,12 @@ public readonly record struct RenderState(
     bool DepthTestEnabled,
     RenderCullMode CullMode)
 {
-    public static RenderState Default2D =>
+    public static RenderState Default =>
         new(
             RenderBlendMode.Alpha,
             DepthTestEnabled: false,
             RenderCullMode.Disabled);
+
+    public static RenderState Default2D =>
+    Default;
 }

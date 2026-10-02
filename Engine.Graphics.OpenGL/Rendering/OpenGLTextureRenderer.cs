@@ -1,5 +1,5 @@
-﻿using Engine.Core.Math;
-using Engine.Graphics.Cameras;
+﻿using Engine.Camera;
+using Engine.Core.Math;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Resources;
 using Silk.NET.OpenGL;
@@ -11,7 +11,7 @@ internal sealed class OpenGLTextureRenderer : IDisposable
     private const int SpritesPerBatch = 1024;
 
     private readonly GL _gl;
-    private readonly Camera _camera;
+    private readonly Camera2D _camera;
     private readonly OpenGLShaderProgram _shader;
 
     private readonly uint _vao;
@@ -40,7 +40,7 @@ internal sealed class OpenGLTextureRenderer : IDisposable
         GL gl,
         int width,
         int height,
-        Camera camera)
+        Camera2D camera)
     {
         ArgumentNullException.ThrowIfNull(
             gl);

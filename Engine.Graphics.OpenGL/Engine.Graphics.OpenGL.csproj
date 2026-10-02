@@ -11,6 +11,7 @@
     <PackageReference Include="Silk.NET.Windowing" Version="2.23.0" />
     <PackageReference Include="StbTrueTypeSharp" Version="1.26.13" />
     <ProjectReference Include="..\Engine.Core\Engine.Core.csproj" />
+    <ProjectReference Include="..\Engine.Graphics.2D\Engine.Graphics2D.csproj" />
 	 <ProjectReference Include="..\Engine.Graphics\Engine.Graphics.csproj" />
 	 <ProjectReference Include="..\Engine.Input.SilkNet\Engine.Input.SilkNet.csproj" />
 	 <ProjectReference Include="..\Engine.Input\Engine.Input.csproj" />

@@ -6,7 +6,7 @@ using Engine.Core.Application;
 using Engine.Core.Assets;
 using Engine.Core.Diagnostics;
 using Engine.Graphics;
-using Engine.Graphics.Cameras;
+using Engine.Camera;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.Rendering;
@@ -201,7 +201,7 @@ public sealed class EngineRuntimeTests
     private static EngineRuntime CreateRuntime()
     {
         var camera =
-            new Camera(
+            new Camera2D(
                 new Engine.Core.Math.Vector2(
                     1280,
                     720));

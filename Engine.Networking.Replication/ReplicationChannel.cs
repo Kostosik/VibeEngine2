@@ -40,6 +40,7 @@ public sealed class ReplicationChannel :
         ArgumentNullException.ThrowIfNull(entityMap);
         ArgumentNullException.ThrowIfNull(entityService);
         ArgumentNullException.ThrowIfNull(authority);
+        ArgumentNullException.ThrowIfNull(stateService);
 
         if (!authorityNode.Id.IsValid)
         {
@@ -47,7 +48,13 @@ public sealed class ReplicationChannel :
                 "Authority node ID must be valid.",
                 nameof(authorityNode));
         }
-
+        if (authorityNode.Id !=
+    authority.AuthorityNode)
+        {
+            throw new ArgumentException(
+                "Authority node does not match the configured authority.",
+                nameof(authorityNode));
+        }
         _stateService = stateService;
 
         _authority =
@@ -158,8 +165,6 @@ public sealed class ReplicationChannel :
 
         _session.ConnectionAccepted -=
             OnConnectionReady;
-
-        _messages.Dispose();
 
         _messages.Dispose();
 

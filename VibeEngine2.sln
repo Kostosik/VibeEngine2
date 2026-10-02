@@ -72,6 +72,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Engine.Transform", "Engine.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Engine.Networking.Replication", "Engine.Networking.Replication\Engine.Networking.Replication.csproj", "{1055D9E9-BB19-4EB2-A601-F8C4F2B405B0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Engine.Camera", "Engine.Camera\Engine.Camera.csproj", "{6413BCEA-1D52-48F6-A674-3E5374B1FF81}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Engine.Graphics2D", "Engine.Graphics.2D\Engine.Graphics2D.csproj", "{78294C86-C0F5-467D-845F-4A5AFD14C4CE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -202,6 +206,14 @@ Global
 		{1055D9E9-BB19-4EB2-A601-F8C4F2B405B0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1055D9E9-BB19-4EB2-A601-F8C4F2B405B0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1055D9E9-BB19-4EB2-A601-F8C4F2B405B0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6413BCEA-1D52-48F6-A674-3E5374B1FF81}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6413BCEA-1D52-48F6-A674-3E5374B1FF81}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6413BCEA-1D52-48F6-A674-3E5374B1FF81}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6413BCEA-1D52-48F6-A674-3E5374B1FF81}.Release|Any CPU.Build.0 = Release|Any CPU
+		{78294C86-C0F5-467D-845F-4A5AFD14C4CE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{78294C86-C0F5-467D-845F-4A5AFD14C4CE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{78294C86-C0F5-467D-845F-4A5AFD14C4CE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{78294C86-C0F5-467D-845F-4A5AFD14C4CE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

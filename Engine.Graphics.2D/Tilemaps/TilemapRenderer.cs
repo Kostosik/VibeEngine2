@@ -1,5 +1,5 @@
-﻿using Engine.Core.Math;
-using Engine.Graphics.Cameras;
+﻿using Engine.Camera;
+using Engine.Core.Math;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Resources;
 
@@ -8,13 +8,13 @@ namespace Engine.Graphics.Tilemaps;
 public sealed class TilemapRenderer
 {
     private readonly IGraphicsDevice _graphics;
-    private readonly Camera _camera;
+    private readonly Camera2D _camera;
     private readonly TextureAtlas _atlas;
     private readonly float _tileSize;
 
     public TilemapRenderer(
         IGraphicsDevice graphics,
-        Camera camera,
+        Camera2D camera,
         TextureAtlas atlas,
         float tileSize)
     {

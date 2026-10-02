@@ -1,5 +1,5 @@
 ﻿using Engine.Core.Application;
-using Engine.Graphics.Cameras;
+using Engine.Camera;
 using Engine.Input;
 using Engine.Input.Cursors;
 using Engine.Input.SilkNet;
@@ -56,7 +56,7 @@ public sealed class OpenGLWindow : IDisposable
             Window.Create(options);
 
         Camera =
-            new Camera(
+            new Camera2D(
                 new Engine.Core.Math.Vector2(
                     width,
                     height));
@@ -71,7 +71,7 @@ public sealed class OpenGLWindow : IDisposable
             OnClosing;
     }
 
-    public Camera Camera { get; }
+    public Camera2D Camera { get; }
 
     public IInputBackend InputBackend =>
         _inputBackend

@@ -1,5 +1,5 @@
 ﻿using Engine.Core.Math;
-using Engine.Graphics.Cameras;
+using Engine.Camera;
 
 namespace Engine.Tests.Graphics;
 
@@ -9,7 +9,7 @@ public sealed class CameraTests
     public void WorldCenterMapsToScreenCenter()
     {
         var camera =
-            new Camera(
+            new Camera2D(
                 new Vector2(
                     1280,
                     720));
@@ -36,7 +36,7 @@ public sealed class CameraTests
     public void ZoomChangesScreenDistance()
     {
         var camera =
-            new Camera(
+            new Camera2D(
                 new Vector2(
                     1280,
                     720));
@@ -66,7 +66,7 @@ public sealed class CameraTests
     public void ScreenToWorldIsInverseOfWorldToScreen()
     {
         var camera =
-            new Camera(
+            new Camera2D(
                 new Vector2(
                     1280,
                     720));

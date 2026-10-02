@@ -1,7 +1,7 @@
 ﻿using Engine.Audio;
 using Engine.Content;
 using Engine.Graphics;
-using Engine.Graphics.Cameras;
+using Engine.Camera;
 using Engine.Input;
 
 namespace Engine.Runtime;
@@ -11,7 +11,7 @@ public sealed class EngineRuntimeServices
     public EngineRuntimeServices(
         IGraphicsDevice graphics,
         IInput input,
-        Camera camera,
+        Camera2D camera,
         IAudioManager audio,
         IContentManager content)
     {
@@ -32,7 +32,7 @@ public sealed class EngineRuntimeServices
 
     public IInput Input { get; }
 
-    public Camera Camera { get; }
+    public Camera2D Camera { get; }
 
     public IAudioManager Audio { get; }
 

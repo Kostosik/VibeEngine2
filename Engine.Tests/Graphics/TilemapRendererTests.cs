@@ -1,4 +1,5 @@
-﻿using Engine.Graphics;
+﻿using Engine.Camera;
+using Engine.Graphics;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.Rendering;
@@ -26,7 +27,7 @@ public sealed class TilemapRendererTests
                 32);
 
         var camera =
-            new Engine.Graphics.Cameras.Camera(
+            new Camera2D(
                 new Engine.Core.Math.Vector2(
                     64,
                     64));
@@ -99,7 +100,7 @@ public sealed class TilemapRendererTests
             new TestGraphicsDevice();
 
         var camera =
-            new Engine.Graphics.Cameras.Camera(
+            new Camera2D(
                 new Engine.Core.Math.Vector2(
                     64,
                     64));

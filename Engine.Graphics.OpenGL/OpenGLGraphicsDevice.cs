@@ -1,4 +1,4 @@
-﻿using Engine.Graphics.Cameras;
+﻿using Engine.Camera;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.OpenGL.Fonts;
@@ -6,6 +6,7 @@ using Engine.Graphics.OpenGL.Rendering;
 using Engine.Graphics.OpenGL.Resources;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
+using Engine.Graphics2D.Rendering;
 using Silk.NET.OpenGL;
 
 namespace Engine.Graphics.OpenGL;
@@ -55,7 +56,7 @@ public sealed class OpenGLGraphicsDevice
         GL gl,
         int width,
         int height,
-        Camera camera)
+        Camera2D camera)
     {
         ArgumentNullException.ThrowIfNull(camera);
 
@@ -128,13 +129,13 @@ public sealed class OpenGLGraphicsDevice
             new RenderPipeline();
 
         _renderPipeline.AddPass(
-    RenderPass.World2D);
+    RenderPass2D.World);
 
         _renderPipeline.AddPass(
-            RenderPass.Ui);
+            RenderPass2D.Ui);
 
         _renderPipeline.AddPass(
-            RenderPass.Debug);
+            RenderPass2D.Debug);
 
         Configure();
     }

@@ -1,13 +1,13 @@
 ﻿using Engine.Core.Math;
 using Engine.Core.Time;
-using Engine.Graphics.Cameras;
+using Engine.Camera;
 using Engine.Input;
 
 namespace Game.Sandbox.Camera;
 
 public sealed class CameraController
 {
-    private readonly Engine.Graphics.Cameras.Camera _camera;
+    private readonly Camera2D _camera;
     private readonly IInput _input;
 
     private readonly InputAction _moveUp;
@@ -19,7 +19,7 @@ public sealed class CameraController
     private readonly InputAction _zoomOut;
 
     public CameraController(
-        Engine.Graphics.Cameras.Camera camera,
+        Camera2D camera,
         IInput input,
         InputAction moveUp,
         InputAction moveDown,

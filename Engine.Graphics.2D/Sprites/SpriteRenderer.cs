@@ -1,4 +1,5 @@
-﻿using Engine.Core.Math;
+﻿using Engine.Camera;
+using Engine.Core.Math;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Resources;
 
@@ -15,6 +16,39 @@ public sealed class SpriteRenderer
             graphics);
 
         _graphics = graphics;
+    }
+
+    public void DrawWorld(
+    Sprite sprite,
+    Vector2 position,
+    Camera2D camera)
+    {
+        ArgumentNullException.ThrowIfNull(camera);
+
+        if (!sprite.Texture.IsValid)
+        {
+            return;
+        }
+
+        var bounds =
+            new Rectangle(
+                position.X,
+                position.Y,
+                sprite.Size.X,
+                sprite.Size.Y);
+
+        if (!camera.IsVisible(bounds))
+        {
+            return;
+        }
+
+        _graphics.Submit(
+            new DrawWorldTextureCommand(
+                sprite.Texture,
+                position,
+                sprite.Size,
+                sprite.UV,
+                sprite.Layer));
     }
 
     public void Draw(

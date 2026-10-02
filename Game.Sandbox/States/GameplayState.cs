@@ -1,10 +1,10 @@
 ﻿using Engine.Audio;
+using Engine.Camera;
 using Engine.Core.Math;
 using Engine.Core.Time;
 using Engine.ECS.Components;
 using Engine.ECS.Entities;
 using Engine.Graphics;
-using Engine.Graphics.Cameras;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
@@ -15,7 +15,7 @@ using Engine.Physics.Components;
 using Engine.Runtime;
 using Engine.Simulations;
 using Engine.Tooling.Debugging;
-using Engine.UI.Controls;
+using Engine.Graphics2D.Rendering;
 using Engine.UI.Core;
 using Engine.Worlds;
 using Game.Sandbox.Camera;
@@ -28,7 +28,7 @@ public sealed class GameplayState :
     SimulationState
 {
     private readonly IInput _input;
-    private readonly Engine.Graphics.Cameras.Camera _camera;
+    private readonly Camera2D _camera;
     private readonly IGraphicsDevice _graphics;
     private readonly RenderTargetHandle _worldRenderTarget;
     private int _renderWidth = 1280;
@@ -76,7 +76,7 @@ public sealed class GameplayState :
         EngineRuntime runtime,
         Simulation simulation,
         IInput input,
-        Engine.Graphics.Cameras.Camera camera,
+        Camera2D camera,
         IGraphicsDevice graphics,
         Engine.ECS.World ecsWorld,
         World world,
@@ -138,13 +138,13 @@ public sealed class GameplayState :
                     RenderLayers.Present - 1)));
 
         _graphics.Pipeline.AddPass(
-            RenderPass.Present2D);
+            RenderPass2D.Present);
 
         _graphics.Pipeline.AddPass(
-            RenderPass.Ui);
+            RenderPass2D.Ui);
 
         _graphics.Pipeline.AddPass(
-            RenderPass.Debug);
+            RenderPass2D.Debug);
 
         _ecsWorld = ecsWorld;
         _world = world;

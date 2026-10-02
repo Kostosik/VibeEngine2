@@ -28,13 +28,16 @@ public sealed class NetworkEntityMap
     }
 
     public IReadOnlyList<(
-    EntityId Entity,
-    NetworkEntityId NetworkId)> GetMappings()
+        EntityId Entity,
+        NetworkEntityId NetworkId)> GetMappings()
     {
         return _networkIds
             .Select(
                 static pair =>
                     (pair.Key, pair.Value))
+            .OrderBy(
+                static mapping =>
+                    mapping.Item2.Value)
             .ToArray();
     }
 

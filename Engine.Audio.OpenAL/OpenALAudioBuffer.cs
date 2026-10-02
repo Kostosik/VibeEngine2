@@ -65,6 +65,8 @@ public sealed class OpenALAudioBuffer : IAudioBuffer
         }
     }
 
+
+
     public void Dispose()
     {
         if (_disposed)
@@ -93,6 +95,14 @@ public sealed class OpenALAudioBuffer : IAudioBuffer
                 format,
                 "Unsupported audio format.")
         };
+    }
+
+    internal bool BelongsTo(
+    OpenALAudioDevice device)
+    {
+        return ReferenceEquals(
+            _device,
+            device);
     }
 
     private void ThrowIfDisposed()

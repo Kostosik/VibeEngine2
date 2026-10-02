@@ -27,7 +27,9 @@ internal static class WavAudioDecoder
 
         ushort channels = 0;
         ushort bitsPerSample = 0;
+        ushort blockAlign = 0;
         uint sampleRate = 0;
+        uint byteRate = 0;
 
         ReadOnlySpan<byte> samples = default;
         bool formatFound = false;
@@ -64,7 +66,9 @@ internal static class WavAudioDecoder
                     path,
                     out channels,
                     out sampleRate,
-                    out bitsPerSample);
+                    out bitsPerSample,
+                    out blockAlign,
+                    out byteRate);
 
                 formatFound = true;
             }
@@ -103,6 +107,13 @@ internal static class WavAudioDecoder
             bitsPerSample,
             path);
 
+        if (samples.Length % blockAlign != 0)
+        {
+            throw new InvalidDataException(
+                $"WAV file '{path}' contains audio data " +
+                "that is not aligned to complete samples.");
+        }
+
         return new AudioData(
             checked((int)sampleRate),
             format,
@@ -110,11 +121,13 @@ internal static class WavAudioDecoder
     }
 
     private static void ReadFormat(
-        ReadOnlySpan<byte> chunk,
-        AssetPath path,
-        out ushort channels,
-        out uint sampleRate,
-        out ushort bitsPerSample)
+    ReadOnlySpan<byte> chunk,
+    AssetPath path,
+    out ushort channels,
+    out uint sampleRate,
+    out ushort bitsPerSample,
+    out ushort blockAlign,
+    out uint byteRate)
     {
         if (chunk.Length < 16)
         {
@@ -123,16 +136,28 @@ internal static class WavAudioDecoder
         }
 
         var audioFormat =
-            BinaryPrimitives.ReadUInt16LittleEndian(chunk[..2]);
+            BinaryPrimitives.ReadUInt16LittleEndian(
+                chunk[..2]);
 
         channels =
-            BinaryPrimitives.ReadUInt16LittleEndian(chunk.Slice(2, 2));
+            BinaryPrimitives.ReadUInt16LittleEndian(
+                chunk.Slice(2, 2));
 
         sampleRate =
-            BinaryPrimitives.ReadUInt32LittleEndian(chunk.Slice(4, 4));
+            BinaryPrimitives.ReadUInt32LittleEndian(
+                chunk.Slice(4, 4));
+
+        byteRate =
+            BinaryPrimitives.ReadUInt32LittleEndian(
+                chunk.Slice(8, 4));
+
+        blockAlign =
+            BinaryPrimitives.ReadUInt16LittleEndian(
+                chunk.Slice(12, 2));
 
         bitsPerSample =
-            BinaryPrimitives.ReadUInt16LittleEndian(chunk.Slice(14, 2));
+            BinaryPrimitives.ReadUInt16LittleEndian(
+                chunk.Slice(14, 2));
 
         if (audioFormat != 1)
         {
@@ -157,6 +182,30 @@ internal static class WavAudioDecoder
         {
             throw new NotSupportedException(
                 $"WAV bit depth '{bitsPerSample}' is not supported.");
+        }
+
+        var bytesPerSample =
+            bitsPerSample / 8;
+
+        var expectedBlockAlign =
+            (ushort)(
+                channels *
+                bytesPerSample);
+
+        if (blockAlign != expectedBlockAlign)
+        {
+            throw new InvalidDataException(
+                $"WAV file '{path}' has an invalid block alignment.");
+        }
+
+        var expectedByteRate =
+            (ulong)sampleRate *
+            expectedBlockAlign;
+
+        if (byteRate != expectedByteRate)
+        {
+            throw new InvalidDataException(
+                $"WAV file '{path}' has an invalid byte rate.");
         }
     }
 

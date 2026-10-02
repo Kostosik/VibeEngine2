@@ -27,8 +27,36 @@ public sealed class AudioData
                 nameof(samples));
         }
 
+        var bytesPerFrame =
+            GetBytesPerFrame(format);
+
+        if (samples.Length % bytesPerFrame != 0)
+        {
+            throw new ArgumentException(
+                $"Audio sample data length must be a multiple of " +
+                $"{bytesPerFrame} bytes for format '{format}'.",
+                nameof(samples));
+        }
+
         SampleRate = sampleRate;
         Format = format;
         Samples = samples;
+    }
+
+    private static int GetBytesPerFrame(
+        AudioFormat format)
+    {
+        return format switch
+        {
+            AudioFormat.Mono8 => 1,
+            AudioFormat.Stereo8 => 2,
+            AudioFormat.Mono16 => 2,
+            AudioFormat.Stereo16 => 4,
+
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(format),
+                format,
+                "Unsupported audio format.")
+        };
     }
 }

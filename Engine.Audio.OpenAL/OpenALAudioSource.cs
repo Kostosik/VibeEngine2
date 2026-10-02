@@ -41,6 +41,13 @@ public sealed class OpenALAudioSource : IAudioSource
                 nameof(buffer));
         }
 
+        if (!openALBuffer.BelongsTo(_device))
+        {
+            throw new ArgumentException(
+                "Audio buffer must belong to the same OpenAL audio device.",
+                nameof(buffer));
+        }
+
         _handle =
             _device.AL.GenSource();
 
@@ -77,6 +84,13 @@ public sealed class OpenALAudioSource : IAudioSource
         {
             throw new ArgumentException(
                 "The audio buffer must be created by the same audio backend.",
+                nameof(buffer));
+        }
+
+        if (!openALBuffer.BelongsTo(_device))
+        {
+            throw new ArgumentException(
+                "The audio buffer must belong to the same OpenAL audio device.",
                 nameof(buffer));
         }
 

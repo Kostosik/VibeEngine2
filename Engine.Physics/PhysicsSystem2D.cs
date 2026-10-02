@@ -205,6 +205,26 @@ public sealed class PhysicsSystem2D :
                 manifold.Pair.Second,
                 manifold.Pair.First);
         }
+
+        foreach (var item
+                 in _world.Query<DistanceJoint2D>())
+        {
+            var joint =
+                item.Component;
+
+            if (!joint.Enabled)
+            {
+                continue;
+            }
+
+            WakeBodyFromContact(
+                joint.First,
+                joint.Second);
+
+            WakeBodyFromContact(
+                joint.Second,
+                joint.First);
+        }
     }
 
     private void WakeBodyFromContact(

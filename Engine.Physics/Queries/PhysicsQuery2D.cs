@@ -611,6 +611,7 @@ public sealed class PhysicsQuery2D
             if (ContainsPoint(
                     collider.Shape,
                     position,
+                    transform.Rotation,
                     point))
             {
                 results.Add(
@@ -707,7 +708,14 @@ public sealed class PhysicsQuery2D
                 new PhysicsColliderProxy(
                     entity,
                     colliderBounds,
-                    collider);
+                    collider)
+                {
+                    WorldPosition =
+                        position,
+
+                    WorldRotation =
+                        transform.Rotation
+                };
 
             if (detector.TryDetect(
                     colliderProxy,
@@ -724,9 +732,10 @@ public sealed class PhysicsQuery2D
     }
 
     private static bool ContainsPoint(
-        PhysicsShape2D shape,
-        FixedVector2 position,
-        FixedVector2 point)
+    PhysicsShape2D shape,
+    FixedVector2 position,
+    Fixed32 rotation,
+    FixedVector2 point)
     {
         return shape.Type switch
         {
@@ -745,6 +754,7 @@ public sealed class PhysicsQuery2D
                 ContainsPointPolygon(
                     shape.Polygon,
                     position,
+                    rotation,
                     point),
 
             _ =>
@@ -754,9 +764,10 @@ public sealed class PhysicsQuery2D
     }
 
     private static bool ContainsPointPolygon(
-        PolygonShape2D polygon,
-        FixedVector2 position,
-        FixedVector2 point)
+    PolygonShape2D polygon,
+    FixedVector2 position,
+    Fixed32 rotation,
+    FixedVector2 point)
     {
         for (var i = 0;
              i < polygon.VertexCount;
@@ -767,11 +778,15 @@ public sealed class PhysicsQuery2D
                 polygon.VertexCount;
 
             var current =
-                polygon.GetVertex(i) +
+                Rotate(
+                    polygon.GetVertex(i),
+                    rotation) +
                 position;
 
             var next =
-                polygon.GetVertex(nextIndex) +
+                Rotate(
+                    polygon.GetVertex(nextIndex),
+                    rotation) +
                 position;
 
             var edge =
@@ -802,6 +817,24 @@ public sealed class PhysicsQuery2D
             static (left, right) =>
                 left.Index.CompareTo(
                     right.Index));
+    }
+
+    private static FixedVector2 Rotate(
+    FixedVector2 value,
+    Fixed32 angle)
+    {
+        var cosine =
+            Fixed32.Cos(angle);
+
+        var sine =
+            Fixed32.Sin(angle);
+
+        return new FixedVector2(
+            value.X * cosine -
+            value.Y * sine,
+
+            value.X * sine +
+            value.Y * cosine);
     }
 
     private static Fixed32 Cross(

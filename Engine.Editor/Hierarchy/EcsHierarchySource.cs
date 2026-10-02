@@ -1,4 +1,5 @@
-﻿using Engine.ECS.Entities;
+﻿using Engine.ECS.Components;
+using Engine.ECS.Entities;
 using Engine.Worlds;
 
 namespace Engine.Editor.Hierarchy;
@@ -35,9 +36,25 @@ public sealed class EcsHierarchySource :
                 new EditorHierarchyNode(
                     entity,
                     $"Entity {entity.Index}",
-                    null));
+                    GetParentId(entity)));
         }
 
         return nodes;
+    }
+
+    private object? GetParentId(
+        EntityId entity)
+    {
+        if (!_world.EcsWorld.Has<TransformParent2D>(
+                entity))
+        {
+            return null;
+        }
+
+        return _world
+            .EcsWorld
+            .Get<TransformParent2D>(
+                entity)
+            .Parent;
     }
 }

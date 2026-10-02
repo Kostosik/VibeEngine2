@@ -11,6 +11,76 @@ namespace Engine.Tests.Physics;
 public sealed class PhysicsQueryOverlap2DTests
 {
     [Fact]
+    public void OverlapBounds_FindsRotatedPolygon()
+    {
+        using var world =
+            new World();
+
+        var entity =
+            world.CreateEntity();
+
+        world.Add(
+            entity,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromInt(2),
+                    Fixed32.Zero))
+            {
+                Rotation =
+                    Fixed32.Pi /
+                    Fixed32.FromInt(4)
+            });
+
+        world.Add(
+            entity,
+            new Collider2D(
+                new PolygonShape2D(
+                    new[]
+                    {
+                    new FixedVector2(
+                        Fixed32.FromInt(-1),
+                        Fixed32.FromInt(-1)),
+
+                    new FixedVector2(
+                        Fixed32.One,
+                        Fixed32.FromInt(-1)),
+
+                    new FixedVector2(
+                        Fixed32.One,
+                        Fixed32.One),
+
+                    new FixedVector2(
+                        Fixed32.FromInt(-1),
+                        Fixed32.One)
+                    })));
+
+        var query =
+            new PhysicsQuery2D(
+                world);
+
+        var results =
+            new List<EntityId>();
+
+        query.OverlapBounds(
+            new FixedBounds2(
+                new FixedVector2(
+                    Fixed32.FromFloat(0.5f),
+                    Fixed32.FromFloat(-0.5f)),
+
+                new FixedVector2(
+                    Fixed32.FromInt(2),
+                    Fixed32.FromFloat(0.5f))),
+            results);
+
+        Assert.Single(
+            results);
+
+        Assert.Equal(
+            entity,
+            results[0]);
+    }
+
+    [Fact]
     public void OverlapPoint_FindsContainingCircle()
     {
         var world =

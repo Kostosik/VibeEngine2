@@ -14,6 +14,77 @@ namespace Engine.Tests.Physics;
 public sealed class DistanceJoint2DTests
 {
     [Fact]
+    public void DistanceJoint_WakesSleepingBodyWhenConnectedBodyIsActive()
+    {
+        using var world =
+            new World();
+
+        var sleepingEntity =
+            world.CreateEntity();
+
+        var activeEntity =
+            world.CreateEntity();
+
+        world.Add(
+            sleepingEntity,
+            new WorldTransform2D(
+                FixedVector2.Zero));
+
+        world.Add(
+            activeEntity,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromInt(4),
+                    Fixed32.Zero)));
+
+        world.Add(
+            sleepingEntity,
+            PhysicsBody2D.Dynamic(
+                Fixed32.One));
+
+        world.Add(
+            activeEntity,
+            PhysicsBody2D.Dynamic(
+                Fixed32.One));
+
+        ref var sleepingBody =
+            ref world.Get<PhysicsBody2D>(
+                sleepingEntity);
+
+        sleepingBody.Sleep();
+
+        world.Add(
+            world.CreateEntity(),
+            new DistanceJoint2D(
+                sleepingEntity,
+                activeEntity,
+                Fixed32.FromInt(2)));
+
+        var physics =
+            new PhysicsSystem2D(
+                world,
+                new PhysicsSettings2D
+                {
+                    Gravity =
+                        FixedVector2.Zero,
+
+                    PositionIterations = 1,
+                    VelocityIterations = 0
+                },
+                new EventBus());
+
+        physics.FixedUpdate(
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.FromFloat(0.1f),
+                    new Tick(1))));
+
+        Assert.False(
+            world.Get<PhysicsBody2D>(
+                sleepingEntity).IsSleeping);
+    }
+
+    [Fact]
     public void DistanceJoint_CorrectsPositionToTargetLength()
     {
         var world =

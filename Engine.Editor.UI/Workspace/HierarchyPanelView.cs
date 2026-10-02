@@ -179,45 +179,10 @@ public sealed class HierarchyPanelView :
             new EcsHierarchySource(
                 document.World);
 
-        foreach (var node in
-                 source.GetNodes())
-        {
-            if (node.Id is not EntityId entity)
-            {
-                continue;
-            }
+        var nodes =
+            source.GetNodes();
 
-            var selected =
-                document.EntitySelection.Contains(
-                    entity);
-
-            var prefix =
-                selected
-                    ? "● "
-                    : "  ";
-
-            var button =
-                new UiButton(
-                    prefix + node.Name)
-                {
-                    Height = 30.0f,
-
-                    HorizontalAlignment =
-                        UiHorizontalAlignment.Stretch
-                };
-
-            button.Clicked +=
-                () =>
-                {
-                    document.EntitySelection.Set(
-                        entity);
-                };
-
-            _items.AddChild(
-                button);
-        }
-
-        if (source.GetNodes().Count == 0)
+        if (nodes.Count == 0)
         {
             _items.AddChild(
                 new UiLabel(
@@ -232,6 +197,176 @@ public sealed class HierarchyPanelView :
                             150,
                             255)
                 });
+
+            return;
         }
+
+        var children =
+            new Dictionary<
+                EntityId,
+                List<EditorHierarchyNode>>();
+
+        var nodeByEntity =
+            nodes
+                .OfType<EditorHierarchyNode>()
+                .Where(
+                    node =>
+                        node.Id is EntityId)
+                .ToDictionary(
+                    node =>
+                        (EntityId)node.Id);
+
+        foreach (var node in nodes)
+        {
+            if (node.Id is not EntityId entity)
+            {
+                continue;
+            }
+
+            if (node.ParentId is not EntityId parent ||
+                !nodeByEntity.ContainsKey(parent))
+            {
+                continue;
+            }
+
+            if (!children.TryGetValue(
+                    parent,
+                    out var list))
+            {
+                list =
+                    new List<EditorHierarchyNode>();
+
+                children.Add(
+                    parent,
+                    list);
+            }
+
+            list.Add(
+                node);
+        }
+
+        foreach (var node in nodes)
+        {
+            if (node.Id is not EntityId entity)
+            {
+                continue;
+            }
+
+            if (node.ParentId is EntityId parent &&
+                nodeByEntity.ContainsKey(parent))
+            {
+                continue;
+            }
+
+            AddHierarchyNode(
+                document,
+                node,
+                0,
+                children,
+                new HashSet<EntityId>());
+        }
+
+        foreach (var node in nodes)
+        {
+            if (node.Id is not EntityId entity ||
+                children.ContainsKey(entity))
+            {
+                continue;
+            }
+
+            if (node.ParentId is EntityId parent &&
+                nodeByEntity.ContainsKey(parent))
+            {
+                AddHierarchyNode(
+                    document,
+                    node,
+                    0,
+                    children,
+                    new HashSet<EntityId>());
+            }
+        }
+    }
+
+    private void AddHierarchyNode(
+        Editor.Documents.EditorDocument document,
+        EditorHierarchyNode node,
+        int depth,
+        IReadOnlyDictionary<
+            EntityId,
+            List<EditorHierarchyNode>> children,
+        HashSet<EntityId> path)
+    {
+        if (node.Id is not EntityId entity)
+        {
+            return;
+        }
+
+        if (!path.Add(
+                entity))
+        {
+            return;
+        }
+
+        var selected =
+            document.EntitySelection.Contains(
+                entity);
+
+        var prefix =
+            selected
+                ? "● "
+                : "  ";
+
+        var button =
+            new UiButton(
+                prefix + node.Name)
+            {
+                Height = 30.0f,
+
+                HorizontalAlignment =
+                    UiHorizontalAlignment.Stretch,
+
+                Margin =
+                    new UiThickness(
+                        depth * 16.0f,
+                        0.0f,
+                        0.0f,
+                        0.0f)
+            };
+
+        button.Clicked +=
+            () =>
+            {
+                if (!document.World.EcsWorld.Exists(
+                        entity))
+                {
+                    document.EntitySelection.Clear();
+                    return;
+                }
+
+                document.EntitySelection.Set(
+                    entity);
+            };
+
+        _items.AddChild(
+            button);
+
+        if (children.TryGetValue(
+                entity,
+                out var childNodes))
+        {
+            foreach (var child in childNodes)
+            {
+                AddHierarchyNode(
+                    document,
+                    child,
+                    depth + 1,
+                    children,
+                    new HashSet<EntityId>(
+                        path));
+            }
+        }
+
+        path.Remove(
+            entity);
     }
 }

@@ -8,6 +8,74 @@ namespace Engine.Tests.Networking.Topology;
 public sealed class NetworkTopologyConnectorTests
 {
     [Fact]
+    public void Update_RetriesUnavailableInitiatedPeer()
+    {
+        using var localTransport =
+            new LoopbackTransport();
+
+        using var remoteTransport =
+            new LoopbackTransport();
+
+        using var localSession =
+            new NetworkSession(
+                localTransport);
+
+        using var remoteSession =
+            new NetworkSession(
+                remoteTransport);
+
+        var localNode =
+            CreateNode(
+                1,
+                3501);
+
+        var remoteNode =
+            CreateNode(
+                2,
+                3502);
+
+        localSession.Start(
+            localNode.Endpoint);
+
+        var connector =
+            new NetworkTopologyConnector(
+                localSession,
+                localNode,
+                new[]
+                {
+                localNode,
+                remoteNode
+                });
+
+        var plan =
+            new FullMeshTopology()
+                .Build(
+                    new[]
+                    {
+                    localNode,
+                    remoteNode
+                    });
+
+        connector.Apply(
+            plan);
+
+        Assert.Empty(
+            connector.Connections);
+
+        remoteSession.Start(
+            remoteNode.Endpoint);
+
+        connector.Update();
+
+        Assert.Single(
+            connector.Connections);
+
+        Assert.Equal(
+            remoteNode.Id,
+            connector.Connections.Keys.Single());
+    }
+
+    [Fact]
     public void Update_TracksInboundConnectionFromTopologyPeer()
     {
         using var serverTransport =

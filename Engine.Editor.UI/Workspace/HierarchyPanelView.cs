@@ -201,20 +201,20 @@ public sealed class HierarchyPanelView :
             return;
         }
 
-        var children =
-            new Dictionary<
-                EntityId,
-                List<EditorHierarchyNode>>();
-
         var nodeByEntity =
             nodes
                 .OfType<EditorHierarchyNode>()
                 .Where(
-                    node =>
+                    static node =>
                         node.Id is EntityId)
                 .ToDictionary(
-                    node =>
+                    static node =>
                         (EntityId)node.Id);
+
+        var children =
+            new Dictionary<
+                EntityId,
+                List<EditorHierarchyNode>>();
 
         foreach (var node in nodes)
         {
@@ -245,6 +245,9 @@ public sealed class HierarchyPanelView :
                 node);
         }
 
+        var rendered =
+            new HashSet<EntityId>();
+
         foreach (var node in nodes)
         {
             if (node.Id is not EntityId entity)
@@ -252,8 +255,11 @@ public sealed class HierarchyPanelView :
                 continue;
             }
 
-            if (node.ParentId is EntityId parent &&
-                nodeByEntity.ContainsKey(parent))
+            var hasValidParent =
+                node.ParentId is EntityId parent &&
+                nodeByEntity.ContainsKey(parent);
+
+            if (hasValidParent)
             {
                 continue;
             }
@@ -263,27 +269,29 @@ public sealed class HierarchyPanelView :
                 node,
                 0,
                 children,
-                new HashSet<EntityId>());
+                rendered);
         }
 
+        // Fallback for malformed hierarchies, including cycles.
         foreach (var node in nodes)
         {
-            if (node.Id is not EntityId entity ||
-                children.ContainsKey(entity))
+            if (node.Id is not EntityId entity)
             {
                 continue;
             }
 
-            if (node.ParentId is EntityId parent &&
-                nodeByEntity.ContainsKey(parent))
+            if (rendered.Contains(
+                    entity))
             {
-                AddHierarchyNode(
-                    document,
-                    node,
-                    0,
-                    children,
-                    new HashSet<EntityId>());
+                continue;
             }
+
+            AddHierarchyNode(
+                document,
+                node,
+                0,
+                children,
+                rendered);
         }
     }
 
@@ -294,14 +302,14 @@ public sealed class HierarchyPanelView :
         IReadOnlyDictionary<
             EntityId,
             List<EditorHierarchyNode>> children,
-        HashSet<EntityId> path)
+        HashSet<EntityId> rendered)
     {
         if (node.Id is not EntityId entity)
         {
             return;
         }
 
-        if (!path.Add(
+        if (!rendered.Add(
                 entity))
         {
             return;
@@ -350,23 +358,21 @@ public sealed class HierarchyPanelView :
         _items.AddChild(
             button);
 
-        if (children.TryGetValue(
+        if (!children.TryGetValue(
                 entity,
                 out var childNodes))
         {
-            foreach (var child in childNodes)
-            {
-                AddHierarchyNode(
-                    document,
-                    child,
-                    depth + 1,
-                    children,
-                    new HashSet<EntityId>(
-                        path));
-            }
+            return;
         }
 
-        path.Remove(
-            entity);
+        foreach (var child in childNodes)
+        {
+            AddHierarchyNode(
+                document,
+                child,
+                depth + 1,
+                children,
+                rendered);
+        }
     }
 }

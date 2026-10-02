@@ -58,7 +58,7 @@ public sealed class NetworkTopologyConnector
             _connections);
 
     public void Apply(
-        NetworkTopologyPlan plan)
+    NetworkTopologyPlan plan)
     {
         ArgumentNullException.ThrowIfNull(
             plan);
@@ -77,8 +77,36 @@ public sealed class NetworkTopologyConnector
         ReconcileActiveConnections(
             desiredPeers);
 
+        TryConnectInitiatedPeers();
+    }
+
+    public void Update()
+    {
+        if (_plan is null)
+        {
+            return;
+        }
+
+        var desiredPeers =
+            _plan.GetPeers(
+                    _localNode.Id)
+                .ToHashSet();
+
+        ReconcileActiveConnections(
+            desiredPeers);
+
+        TryConnectInitiatedPeers();
+    }
+
+    private void TryConnectInitiatedPeers()
+    {
+        if (_plan is null)
+        {
+            return;
+        }
+
         foreach (var peerId in
-                 plan.GetInitiatedPeers(
+                 _plan.GetInitiatedPeers(
                      _localNode.Id))
         {
             if (!_nodes.TryGetValue(
@@ -107,32 +135,30 @@ public sealed class NetworkTopologyConnector
                 FindExistingConnection(
                     peer);
 
-            if (connection is null)
+            if (connection is not null)
+            {
+                _connections[peerId] =
+                    connection;
+
+                continue;
+            }
+
+            try
             {
                 connection =
                     _session.Connect(
                         peer.Endpoint);
             }
+            catch (InvalidOperationException)
+            {
+                // The remote node may not be available yet.
+                // The next Update() will retry.
+                continue;
+            }
 
             _connections[peerId] =
                 connection;
         }
-    }
-
-    public void Update()
-    {
-        if (_plan is null)
-        {
-            return;
-        }
-
-        var desiredPeers =
-            _plan.GetPeers(
-                    _localNode.Id)
-                .ToHashSet();
-
-        ReconcileActiveConnections(
-            desiredPeers);
     }
 
     private void ReconcileActiveConnections(

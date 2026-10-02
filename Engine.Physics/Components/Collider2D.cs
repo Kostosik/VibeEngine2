@@ -74,6 +74,116 @@ public struct Collider2D :
             bodyPosition + Offset);
     }
 
+    public FixedVector2 GetWorldPosition(
+    FixedVector2 bodyPosition,
+    Fixed32 bodyRotation)
+    {
+        return bodyPosition +
+               Rotate(
+                   Offset,
+                   bodyRotation);
+    }
+
+    public FixedBounds2 GetWorldBounds(
+        FixedVector2 bodyPosition,
+        Fixed32 bodyRotation)
+    {
+        var position =
+            GetWorldPosition(
+                bodyPosition,
+                bodyRotation);
+
+        return Shape.Type switch
+        {
+            PhysicsShapeType.Aabb =>
+                Shape.Aabb.GetBounds(
+                    position),
+
+            PhysicsShapeType.Circle =>
+                Shape.Circle.GetBounds(
+                    position),
+
+            PhysicsShapeType.Polygon =>
+                GetPolygonWorldBounds(
+                    position,
+                    bodyRotation),
+
+            _ =>
+                throw new InvalidOperationException(
+                    $"Unsupported physics shape type '{Shape.Type}'.")
+        };
+    }
+
+    private FixedBounds2 GetPolygonWorldBounds(
+        FixedVector2 position,
+        Fixed32 rotation)
+    {
+        var polygon =
+            Shape.Polygon;
+
+        var first =
+            Rotate(
+                polygon.GetVertex(0),
+                rotation) +
+            position;
+
+        var minimum =
+            first;
+
+        var maximum =
+            first;
+
+        for (var i = 1;
+             i < polygon.VertexCount;
+             i++)
+        {
+            var vertex =
+                Rotate(
+                    polygon.GetVertex(i),
+                    rotation) +
+                position;
+
+            minimum =
+                new FixedVector2(
+                    Fixed32.Min(
+                        minimum.X,
+                        vertex.X),
+                    Fixed32.Min(
+                        minimum.Y,
+                        vertex.Y));
+
+            maximum =
+                new FixedVector2(
+                    Fixed32.Max(
+                        maximum.X,
+                        vertex.X),
+                    Fixed32.Max(
+                        maximum.Y,
+                        vertex.Y));
+        }
+
+        return new FixedBounds2(
+            minimum,
+            maximum);
+    }
+
+    private static FixedVector2 Rotate(
+        FixedVector2 value,
+        Fixed32 angle)
+    {
+        var cosine =
+            Fixed32.Cos(angle);
+
+        var sine =
+            Fixed32.Sin(angle);
+
+        return new FixedVector2(
+            value.X * cosine -
+            value.Y * sine,
+
+            value.X * sine +
+            value.Y * cosine);
+    }
     public bool CanCollideWith(
         Collider2D other)
     {

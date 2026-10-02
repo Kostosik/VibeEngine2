@@ -94,12 +94,14 @@ public sealed class PhysicsQuery2D
                     entity);
 
             var position =
-                transform.Position +
-                collider.Offset;
+                collider.GetWorldPosition(
+                    transform.Position,
+                    transform.Rotation);
 
             if (!TryRaycastShape(
                     collider.Shape,
                     position,
+                    transform.Rotation,
                     origin,
                     direction,
                     closestDistance,
@@ -134,6 +136,7 @@ public sealed class PhysicsQuery2D
     private static bool TryRaycastShape(
         PhysicsShape2D shape,
         FixedVector2 position,
+        Fixed32 rotation,
         FixedVector2 origin,
         FixedVector2 direction,
         Fixed32 maxDistance,
@@ -166,6 +169,7 @@ public sealed class PhysicsQuery2D
                 TryRaycastPolygon(
                     shape.Polygon,
                     position,
+                    rotation,
                     origin,
                     direction,
                     maxDistance,
@@ -419,6 +423,7 @@ public sealed class PhysicsQuery2D
     private static bool TryRaycastPolygon(
         PolygonShape2D shape,
         FixedVector2 position,
+        Fixed32 rotation,
         FixedVector2 origin,
         FixedVector2 direction,
         Fixed32 maxDistance,
@@ -446,11 +451,15 @@ public sealed class PhysicsQuery2D
                 shape.VertexCount;
 
             var start =
-                shape.GetVertex(i) +
+                Rotate(
+                    shape.GetVertex(i),
+                    rotation) +
                 position;
 
             var end =
-                shape.GetVertex(nextIndex) +
+                Rotate(
+                    shape.GetVertex(nextIndex),
+                    rotation) +
                 position;
 
             var edge =
@@ -595,8 +604,9 @@ public sealed class PhysicsQuery2D
                     entity);
 
             var position =
-                transform.Position +
-                collider.Offset;
+                collider.GetWorldPosition(
+                    transform.Position,
+                    transform.Rotation);
 
             if (ContainsPoint(
                     collider.Shape,
@@ -684,7 +694,8 @@ public sealed class PhysicsQuery2D
 
             var colliderBounds =
                 collider.GetWorldBounds(
-                    transform.Position);
+                    transform.Position,
+                    transform.Rotation);
 
             if (!colliderBounds.Intersects(
                     bounds))

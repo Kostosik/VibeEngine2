@@ -32,10 +32,10 @@ public sealed class CollisionDetector2D
         }
 
         var firstPosition =
-            first.Bounds.Center;
+            first.WorldPosition;
 
         var secondPosition =
-            second.Bounds.Center;
+            second.WorldPosition;
 
         var firstShape =
             first.Collider.Shape;
@@ -125,31 +125,9 @@ public sealed class CollisionDetector2D
         var secondPolygon =
             second.Collider.Shape.Polygon;
 
-        var firstLocalBounds =
-            firstPolygon.GetBounds(
-                FixedVector2.Zero);
-
-        var secondLocalBounds =
-            secondPolygon.GetBounds(
-                FixedVector2.Zero);
-
-        var firstTranslation =
-            first.Bounds.Min -
-            firstLocalBounds.Min;
-
-        var secondTranslation =
-            second.Bounds.Min -
-            secondLocalBounds.Min;
-
-        var firstCenter =
-            first.Bounds.Center;
-
-        var secondCenter =
-            second.Bounds.Center;
-
         var centerDelta =
-            secondCenter -
-            firstCenter;
+            second.WorldPosition -
+            first.WorldPosition;
 
         var bestPenetration =
             Fixed32.Zero;
@@ -161,11 +139,8 @@ public sealed class CollisionDetector2D
             false;
 
         if (!EvaluatePolygonAxes(
-                firstPolygon,
-                firstTranslation,
-                secondPolygon,
-                secondTranslation,
-                centerDelta,
+                first,
+                second,
                 ref bestPenetration,
                 ref bestAxis,
                 ref hasBestAxis))
@@ -174,11 +149,8 @@ public sealed class CollisionDetector2D
         }
 
         if (!EvaluatePolygonAxes(
-                secondPolygon,
-                secondTranslation,
-                firstPolygon,
-                firstTranslation,
-                -centerDelta,
+                second,
+                first,
                 ref bestPenetration,
                 ref bestAxis,
                 ref hasBestAxis))
@@ -192,14 +164,12 @@ public sealed class CollisionDetector2D
 
         var firstSupport =
             GetPolygonSupport(
-                firstPolygon,
-                firstTranslation,
+                first,
                 bestAxis);
 
         var secondSupport =
             GetPolygonSupport(
-                secondPolygon,
-                secondTranslation,
+                second,
                 -bestAxis);
 
         var contactPoint =
@@ -223,30 +193,30 @@ public sealed class CollisionDetector2D
     }
 
     private static bool EvaluatePolygonAxes(
-        PolygonShape2D first,
-        FixedVector2 firstTranslation,
-        PolygonShape2D second,
-        FixedVector2 secondTranslation,
-        FixedVector2 centerDelta,
+        PhysicsColliderProxy first,
+        PhysicsColliderProxy second,
         ref Fixed32 bestPenetration,
         ref FixedVector2 bestAxis,
         ref bool hasBestAxis)
     {
+        var polygon =
+     first.Collider.Shape.Polygon;
+
         for (var i = 0;
-             i < first.VertexCount;
+             i < polygon.VertexCount;
              i++)
         {
             var nextIndex =
                 (i + 1) %
-                first.VertexCount;
+                polygon.VertexCount;
 
             var current =
-                first.GetVertex(i) +
-                firstTranslation;
+                first.GetWorldPolygonVertex(
+                    i);
 
             var next =
-                first.GetVertex(nextIndex) +
-                firstTranslation;
+                first.GetWorldPolygonVertex(
+                    nextIndex);
 
             var edge =
                 next -
@@ -271,13 +241,11 @@ public sealed class CollisionDetector2D
             var firstProjection =
                 ProjectPolygon(
                     first,
-                    firstTranslation,
                     axis);
 
             var secondProjection =
                 ProjectPolygon(
                     second,
-                    secondTranslation,
                     axis);
 
             var overlap =
@@ -320,19 +288,11 @@ public sealed class CollisionDetector2D
         var circle =
             first.Collider.Shape.Circle;
 
+        var circleCenter =
+            first.WorldPosition;
+
         var polygon =
             second.Collider.Shape.Polygon;
-
-        var circleCenter =
-            first.Bounds.Center;
-
-        var polygonBounds =
-            polygon.GetBounds(
-                FixedVector2.Zero);
-
-        var polygonTranslation =
-            second.Bounds.Min -
-            polygonBounds.Min;
 
         var bestPenetration =
             Fixed32.Zero;
@@ -352,12 +312,12 @@ public sealed class CollisionDetector2D
                 polygon.VertexCount;
 
             var current =
-                polygon.GetVertex(i) +
-                polygonTranslation;
+                second.GetWorldPolygonVertex(
+                    i);
 
             var next =
-                polygon.GetVertex(nextIndex) +
-                polygonTranslation;
+                second.GetWorldPolygonVertex(
+                    nextIndex);
 
             var edge =
                 next -
@@ -381,8 +341,7 @@ public sealed class CollisionDetector2D
 
             var polygonProjection =
                 ProjectPolygon(
-                    polygon,
-                    polygonTranslation,
+                    second,
                     axis);
 
             var circleProjection =
@@ -419,10 +378,9 @@ public sealed class CollisionDetector2D
         }
 
         var closestPoint =
-            FindClosestPointOnPolygon(
-                polygon,
-                polygonTranslation,
-                circleCenter);
+                FindClosestPointOnPolygon(
+                    second,
+                    circleCenter);
 
         var circleAxis =
             closestPoint -
@@ -438,8 +396,7 @@ public sealed class CollisionDetector2D
 
             var polygonProjection =
                 ProjectPolygon(
-                    polygon,
-                    polygonTranslation,
+                    second,
                     circleAxis);
 
             var circleProjection =
@@ -476,11 +433,8 @@ public sealed class CollisionDetector2D
         }
 
         var centerDelta =
-            new FixedVector2(
-                second.Bounds.Center.X -
-                circleCenter.X,
-                second.Bounds.Center.Y -
-                circleCenter.Y);
+            second.WorldPosition -
+            circleCenter;
 
         OrientAxis(
             ref bestAxis,
@@ -493,8 +447,7 @@ public sealed class CollisionDetector2D
 
         var polygonContact =
             GetPolygonSupport(
-                polygon,
-                polygonTranslation,
+                second,
                 -bestAxis);
 
         var contactPoint =
@@ -522,13 +475,11 @@ public sealed class CollisionDetector2D
     Fixed32 Max);
 
     private static Projection ProjectPolygon(
-        PolygonShape2D polygon,
-        FixedVector2 translation,
-        FixedVector2 axis)
+    PhysicsColliderProxy proxy,
+    FixedVector2 axis)
     {
         var firstVertex =
-            polygon.GetVertex(0) +
-            translation;
+            proxy.GetWorldPolygonVertex(0);
 
         var firstProjection =
             firstVertex.Dot(axis);
@@ -540,12 +491,11 @@ public sealed class CollisionDetector2D
             firstProjection;
 
         for (var i = 1;
-             i < polygon.VertexCount;
+             i < proxy.Collider.Shape.Polygon.VertexCount;
              i++)
         {
             var vertex =
-                polygon.GetVertex(i) +
-                translation;
+                proxy.GetWorldPolygonVertex(i);
 
             var projection =
                 vertex.Dot(axis);
@@ -580,13 +530,14 @@ public sealed class CollisionDetector2D
     }
 
     private static FixedVector2 FindClosestPointOnPolygon(
-        PolygonShape2D polygon,
-        FixedVector2 translation,
-        FixedVector2 point)
+    PhysicsColliderProxy proxy,
+    FixedVector2 point)
     {
+        var polygon =
+            proxy.Collider.Shape.Polygon;
+
         var bestPoint =
-            polygon.GetVertex(0) +
-            translation;
+            proxy.GetWorldPolygonVertex(0);
 
         var bestDistanceSquared =
             FixedVector2.DistanceSquared(
@@ -602,12 +553,11 @@ public sealed class CollisionDetector2D
                 polygon.VertexCount;
 
             var start =
-                polygon.GetVertex(i) +
-                translation;
+                proxy.GetWorldPolygonVertex(i);
 
             var end =
-                polygon.GetVertex(nextIndex) +
-                translation;
+                proxy.GetWorldPolygonVertex(
+                    nextIndex);
 
             var edge =
                 end -
@@ -689,17 +639,6 @@ public sealed class CollisionDetector2D
     {
         manifold = default;
 
-        var polygon =
-            first.Collider.Shape.Polygon;
-
-        var polygonLocalBounds =
-            polygon.GetBounds(
-                FixedVector2.Zero);
-
-        var polygonTranslation =
-            first.Bounds.Min -
-            polygonLocalBounds.Min;
-
         var boxBounds =
             second.Bounds;
 
@@ -713,14 +652,12 @@ public sealed class CollisionDetector2D
             false;
 
         var delta =
-            boxBounds.Center -
-            first.Bounds.Center;
+            second.WorldPosition -
+            first.WorldPosition;
 
         if (!TryFindMinimumSeparatingAxis(
-                polygon,
-                polygonTranslation,
-                boxBounds,
-                delta,
+                first,
+                second.Bounds,
                 ref bestPenetration,
                 ref bestAxis,
                 ref hasBestAxis))
@@ -734,8 +671,7 @@ public sealed class CollisionDetector2D
 
         var polygonSupport =
             GetPolygonSupport(
-                polygon,
-                polygonTranslation,
+                first,
                 bestAxis);
 
         var boxSupport =
@@ -792,17 +728,15 @@ public sealed class CollisionDetector2D
     }
 
     private static bool TryFindMinimumSeparatingAxis(
-        PolygonShape2D polygon,
-        FixedVector2 polygonTranslation,
-        FixedBounds2 boxBounds,
-        FixedVector2 centerDelta,
-        ref Fixed32 bestPenetration,
-        ref FixedVector2 bestAxis,
-        ref bool hasBestAxis)
+    PhysicsColliderProxy polygonProxy,
+    FixedBounds2 boxBounds,
+    ref Fixed32 bestPenetration,
+    ref FixedVector2 bestAxis,
+    ref bool hasBestAxis)
     {
         var axes =
             new List<FixedVector2>(
-                polygon.VertexCount + 2)
+                polygonProxy.Collider.Shape.Polygon.VertexCount + 2)
             {
             new FixedVector2(
                 Fixed32.One,
@@ -813,6 +747,9 @@ public sealed class CollisionDetector2D
                 Fixed32.One)
             };
 
+        var polygon =
+            polygonProxy.Collider.Shape.Polygon;
+
         for (var i = 0;
              i < polygon.VertexCount;
              i++)
@@ -822,12 +759,12 @@ public sealed class CollisionDetector2D
                 polygon.VertexCount;
 
             var current =
-                polygon.GetVertex(i) +
-                polygonTranslation;
+                polygonProxy.GetWorldPolygonVertex(
+                    i);
 
             var next =
-                polygon.GetVertex(nextIndex) +
-                polygonTranslation;
+                polygonProxy.GetWorldPolygonVertex(
+                    nextIndex);
 
             var edge =
                 next -
@@ -852,40 +789,10 @@ public sealed class CollisionDetector2D
 
         foreach (var axis in axes)
         {
-            var firstVertex =
-                polygon.GetVertex(0) +
-                polygonTranslation;
-
-            var firstProjection =
-                firstVertex.Dot(axis);
-
-            var polygonMin =
-                firstProjection;
-
-            var polygonMax =
-                firstProjection;
-
-            for (var i = 0;
-                 i < polygon.VertexCount;
-                 i++)
-            {
-                var vertex =
-                    polygon.GetVertex(i) +
-                    polygonTranslation;
-
-                var projection =
-                    vertex.Dot(axis);
-
-                polygonMin =
-                    Fixed32.Min(
-                        polygonMin,
-                        projection);
-
-                polygonMax =
-                    Fixed32.Max(
-                        polygonMax,
-                        projection);
-            }
+            var polygonProjection =
+                ProjectPolygon(
+                    polygonProxy,
+                    axis);
 
             var boxCenter =
                 boxBounds.Center;
@@ -915,10 +822,10 @@ public sealed class CollisionDetector2D
 
             var overlap =
                 Fixed32.Min(
-                    polygonMax,
+                    polygonProjection.Max,
                     boxMax) -
                 Fixed32.Max(
-                    polygonMin,
+                    polygonProjection.Min,
                     boxMin);
 
             if (overlap < Fixed32.Zero)
@@ -944,24 +851,21 @@ public sealed class CollisionDetector2D
     }
 
     private static FixedVector2 GetPolygonSupport(
-        PolygonShape2D polygon,
-        FixedVector2 translation,
-        FixedVector2 direction)
+    PhysicsColliderProxy proxy,
+    FixedVector2 direction)
     {
         var best =
-            polygon.GetVertex(0) +
-            translation;
+            proxy.GetWorldPolygonVertex(0);
 
         var bestProjection =
             best.Dot(direction);
 
         for (var i = 1;
-             i < polygon.VertexCount;
+             i < proxy.Collider.Shape.Polygon.VertexCount;
              i++)
         {
             var vertex =
-                polygon.GetVertex(i) +
-                translation;
+                proxy.GetWorldPolygonVertex(i);
 
             var projection =
                 vertex.Dot(direction);

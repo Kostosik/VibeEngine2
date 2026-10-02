@@ -583,15 +583,28 @@ public sealed class PhysicsSystem2D :
                 ref _world.Get<WorldTransform2D>(
                     entity);
 
+            var worldPosition =
+                collider.GetWorldPosition(
+                    transform.Position,
+                    transform.Rotation);
+
             var bounds =
                 collider.GetWorldBounds(
-                    transform.Position);
+                    transform.Position,
+                    transform.Rotation);
 
             _colliders.Add(
                 new PhysicsColliderProxy(
                     entity,
                     bounds,
-                    collider));
+                    collider)
+                {
+                    WorldPosition =
+                        worldPosition,
+
+                    WorldRotation =
+                        transform.Rotation
+                });
         }
 
         _colliders.Sort(

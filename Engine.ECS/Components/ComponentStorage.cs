@@ -230,6 +230,9 @@ internal sealed class ComponentStorage<T> :
         _components.AddRange(
             state.Components);
 
+        _dirtyEntities.EnsureCapacity(
+    _entities.Count);
+
         for (var i = 0;
              i < _entities.Count;
              i++)
@@ -502,6 +505,9 @@ internal sealed class ComponentStorage<T> :
 
         _components.AddRange(
             typedSnapshot.Components);
+
+        _dirtyEntities.EnsureCapacity(
+            _entities.Count);
 
         if (_entities.Count !=
             _components.Count)

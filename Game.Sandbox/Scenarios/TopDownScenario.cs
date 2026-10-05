@@ -28,6 +28,9 @@ public sealed class TopDownScenario :
     private readonly Camera2D _camera;
     private readonly IInput _input;
 
+    private FixedVector2 _previousPlayerPosition;
+    private FixedVector2 _currentPlayerPosition;
+
     private readonly InputAction _moveUp;
     private readonly InputAction _moveDown;
     private readonly InputAction _moveLeft;
@@ -36,6 +39,12 @@ public sealed class TopDownScenario :
     private readonly TilemapRenderer _tilemapRenderer;
     private readonly SpriteRenderer _spriteRenderer;
     private readonly Sprite _playerSprite;
+
+    private EntityId _visibleSimulationEntity;
+    private EntityId _alwaysSimulationEntity;
+
+    private int _visibleSimulationTicks;
+    private int _alwaysSimulationTicks;
 
     private readonly CommandHandlerSubscription _movementSubscription;
     private readonly EventSubscription _physicsSubscription;
@@ -111,7 +120,8 @@ public sealed class TopDownScenario :
 
         Reset();
     }
-
+    public event Action<string?>? InteractionChanged;
+    private bool _playerInsideTrigger;
     public EntityId Player =>
         _player;
 
@@ -171,7 +181,8 @@ public sealed class TopDownScenario :
                 FixedVector2.Zero));
     }
 
-    public void Render()
+    public void Render(
+    double interpolationAlpha)
     {
         if (!_ecsWorld.Exists(_player) ||
             !_ecsWorld.Has<WorldTransform2D>(_player))
@@ -179,14 +190,30 @@ public sealed class TopDownScenario :
             return;
         }
 
-        var playerPosition =
+        _currentPlayerPosition =
             _ecsWorld.Get<WorldTransform2D>(
                 _player).Position;
 
+        var alpha =
+            Fixed32.FromFloat(
+                (float)interpolationAlpha);
+
+        var renderPosition =
+            _previousPlayerPosition +
+            (_currentPlayerPosition -
+             _previousPlayerPosition) *
+            alpha;
+
+        RenderSimulationObject(
+    _visibleSimulationEntity);
+
+        RenderSimulationObject(
+            _alwaysSimulationEntity);
+
         _camera.Position =
             new Engine.Core.Math.Vector2(
-                playerPosition.X.ToFloat(),
-                playerPosition.Y.ToFloat());
+                renderPosition.X.ToFloat(),
+                renderPosition.Y.ToFloat());
 
         foreach (var chunk in _world.GetChunks())
         {
@@ -201,8 +228,48 @@ public sealed class TopDownScenario :
         _spriteRenderer.DrawWorld(
             _playerSprite,
             new Engine.Core.Math.Vector2(
-                playerPosition.X.ToFloat() - 0.5f,
-                playerPosition.Y.ToFloat() - 0.5f));
+                renderPosition.X.ToFloat() - 0.5f,
+                renderPosition.Y.ToFloat() - 0.5f));
+    }
+
+    public void RefreshAfterWorldRestore()
+    {
+        if (!_ecsWorld.Exists(_player) ||
+            !_ecsWorld.Has<WorldTransform2D>(
+                _player))
+        {
+            return;
+        }
+
+        var position =
+            _ecsWorld.Get<WorldTransform2D>(
+                _player).Position;
+
+        _previousPlayerPosition =
+            position;
+
+        _currentPlayerPosition =
+            position;
+    }
+
+    private void RenderSimulationObject(
+    EntityId entity)
+    {
+        if (!_ecsWorld.Exists(entity) ||
+            !_ecsWorld.Has<WorldTransform2D>(entity))
+        {
+            return;
+        }
+
+        var position =
+            _ecsWorld.Get<WorldTransform2D>(
+                entity).Position;
+
+        _spriteRenderer.DrawWorld(
+            _playerSprite,
+            new Engine.Core.Math.Vector2(
+                position.X.ToFloat() - 0.5f,
+                position.Y.ToFloat() - 0.5f));
     }
 
     public void Reset()
@@ -212,9 +279,37 @@ public sealed class TopDownScenario :
         _collisionCount = 0;
         _triggerCount = 0;
 
+        _playerInsideTrigger =
+    false;
+
+        InteractionChanged?.Invoke(
+            null);
+
         BuildMap();
 
         CreatePlayer();
+
+        _currentPlayerPosition =
+            _ecsWorld.Get<WorldTransform2D>(
+                _player).Position;
+
+        _previousPlayerPosition =
+            _currentPlayerPosition;
+
+        _visibleSimulationTicks = 0;
+        _alwaysSimulationTicks = 0;
+
+        _visibleSimulationEntity =
+            CreateSimulationObject(
+                new FixedVector2(
+                    Fixed32.FromInt(8),
+                    Fixed32.FromInt(2)));
+
+        _alwaysSimulationEntity =
+            CreateSimulationObject(
+                new FixedVector2(
+                    Fixed32.FromInt(40),
+                    Fixed32.FromInt(2)));
 
         CreateBoundaries();
 
@@ -248,6 +343,117 @@ public sealed class TopDownScenario :
                 new FixedVector2(
                     Fixed32.FromInt(6),
                     Fixed32.FromInt(4)));
+    }
+
+    public void FixedUpdate()
+    {
+        SimulateVisibleObject();
+        SimulateAlwaysObject();
+    }
+
+    private void SimulateAlwaysObject()
+    {
+        if (!_ecsWorld.Exists(_alwaysSimulationEntity) ||
+            !_ecsWorld.Has<WorldTransform2D>(
+                _alwaysSimulationEntity))
+        {
+            return;
+        }
+
+        ref var transform =
+            ref _ecsWorld.Get<WorldTransform2D>(
+                _alwaysSimulationEntity);
+
+        transform.Position +=
+            new FixedVector2(
+                Fixed32.Zero,
+                Fixed32.FromFloat(0.05f));
+
+        if (transform.Position.Y >
+            Fixed32.FromInt(6))
+        {
+            transform.Position =
+                new FixedVector2(
+                    transform.Position.X,
+                    Fixed32.FromInt(-6));
+        }
+
+        _alwaysSimulationTicks++;
+    }
+
+    private void SimulateVisibleObject()
+    {
+        if (!_ecsWorld.Exists(_visibleSimulationEntity) ||
+            !_ecsWorld.Has<WorldTransform2D>(
+                _visibleSimulationEntity))
+        {
+            return;
+        }
+
+        var transform =
+            _ecsWorld.Get<WorldTransform2D>(
+                _visibleSimulationEntity);
+
+        var bounds =
+            new Rectangle(
+                transform.Position.X.ToFloat() - 0.5f,
+                transform.Position.Y.ToFloat() - 0.5f,
+                1.0f,
+                1.0f);
+
+        if (!_camera.IsVisible(bounds))
+        {
+            return;
+        }
+
+        ref var mutableTransform =
+            ref _ecsWorld.Get<WorldTransform2D>(
+                _visibleSimulationEntity);
+
+        mutableTransform.Position +=
+            new FixedVector2(
+                Fixed32.Zero,
+                Fixed32.FromFloat(0.05f));
+
+        if (mutableTransform.Position.Y >
+            Fixed32.FromInt(6))
+        {
+            mutableTransform.Position =
+                new FixedVector2(
+                    mutableTransform.Position.X,
+                    Fixed32.FromInt(-6));
+        }
+
+        _visibleSimulationTicks++;
+    }
+
+    private EntityId CreateSimulationObject(
+    FixedVector2 position)
+    {
+        var entity =
+            _ecsWorld.CreateEntity();
+
+        _ecsWorld.Add(
+            entity,
+            new WorldTransform2D(
+                position));
+
+        _entities.Add(entity);
+
+        return entity;
+    }
+
+    public void BeginFixedStep()
+    {
+        if (!_ecsWorld.Exists(_player) ||
+            !_ecsWorld.Has<WorldTransform2D>(_player))
+        {
+            return;
+        }
+
+        _previousPlayerPosition =
+            _ecsWorld.Get<WorldTransform2D>(
+                _player).Position;
     }
 
     public void SpawnStressBatch()
@@ -361,6 +567,8 @@ public sealed class TopDownScenario :
             $"World mapping  {Pass(worldPass)}\n" +
             $"Collisions     {_collisionCount}\n" +
             $"Triggers       {_triggerCount}\n" +
+            $"Visible sim     {_visibleSimulationTicks}\n" +
+            $"Always sim      {_alwaysSimulationTicks}\n" +
             $"Chunks         {_world.ChunkCount}";
     }
 
@@ -578,18 +786,47 @@ public sealed class TopDownScenario :
     private void OnPhysicsContact(
         PhysicsContactEvent @event)
     {
-        if (@event.Phase !=
-            PhysicsContactPhase.Enter)
-        {
-            return;
-        }
-
         if (@event.Type ==
             PhysicsContactType.Trigger)
         {
-            _triggerCount++;
+            var pair =
+                @event.Manifold.Pair;
+
+            var isPlayerTrigger =
+                (pair.First == _player &&
+                 pair.Second == _trigger) ||
+                (pair.First == _trigger &&
+                 pair.Second == _player);
+
+            if (isPlayerTrigger)
+            {
+                switch (@event.Phase)
+                {
+                    case PhysicsContactPhase.Enter:
+                        _playerInsideTrigger =
+                            true;
+
+                        _triggerCount++;
+
+                        InteractionChanged?.Invoke(
+                            "TRIGGER ACTIVATED");
+                        break;
+
+                    case PhysicsContactPhase.Exit:
+                        _playerInsideTrigger =
+                            false;
+
+                        InteractionChanged?.Invoke(
+                            null);
+                        break;
+                }
+            }
+
+            return;
         }
-        else
+
+        if (@event.Phase ==
+            PhysicsContactPhase.Enter)
         {
             _collisionCount++;
         }

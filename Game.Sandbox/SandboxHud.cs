@@ -11,6 +11,7 @@ public sealed class SandboxHud :
     private readonly UiLabel _mode;
     private readonly UiLabel _status;
     private readonly UiLabel _performance;
+    private readonly UiLabel _interaction;
     public SandboxHud()
     {
         HorizontalAlignment =
@@ -25,7 +26,7 @@ public sealed class SandboxHud :
             new UiPanel
             {
                 Width = 390.0f,
-                Height = 330.0f,
+                Height = 400.0f,
                 Padding =
                     new UiThickness(12.0f),
 
@@ -76,6 +77,18 @@ public sealed class SandboxHud :
                 FontSize = 13.0f
             };
 
+        _interaction =
+    new UiLabel
+    {
+        FontSize = 16.0f
+    };
+
+        _interaction.Visible =
+            false;
+
+        stack.AddChild(
+            _interaction);
+
         stack.AddChild(_mode);
 
         stack.AddChild(
@@ -118,6 +131,16 @@ public sealed class SandboxHud :
     {
         _performance.Text =
             text;
+    }
+
+    public void SetInteraction(
+    string? text)
+    {
+        _interaction.Text =
+            text ?? string.Empty;
+
+        _interaction.Visible =
+            !string.IsNullOrEmpty(text);
     }
 
     public void SetMode(

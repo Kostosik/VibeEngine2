@@ -11,6 +11,9 @@ using Engine.Graphics.Resources;
 using Engine.Input;
 using Engine.Runtime;
 using Engine.Serialization.Content;
+using Engine.Serialization.SaveLoad.Ecs;
+using Engine.Serialization.SaveLoad.Game;
+using Engine.Serialization.Types;
 using Engine.Serialization.UI;
 using Engine.Tooling.Debugging;
 using Engine.UI.Actions;
@@ -21,6 +24,12 @@ using Game.Sandbox;
 
 var actionMap =
     new InputActionMap();
+
+var saveAction =
+    new InputAction("Save");
+
+var loadAction =
+    new InputAction("Load");
 
 var resetAction =
     new InputAction("Reset");
@@ -54,6 +63,16 @@ var moveRight =
 
 var switchModeAction =
     new InputAction("SwitchMode");
+
+actionMap.Bind(
+    saveAction,
+    new InputBinding(
+        "Keyboard.F6"));
+
+actionMap.Bind(
+    loadAction,
+    new InputBinding(
+        "Keyboard.F7"));
 
 actionMap.Bind(
     moveUp,
@@ -160,6 +179,15 @@ using var content =
         contentCatalog,
         contentLoaders);
 
+var mainMenuAsset =
+    content.Load<UiAsset>(
+        new AssetPath(
+            "UI/MainMenu.ui"));
+
+Console.WriteLine(
+    $"Content loaded: {mainMenuAsset.Name} " +
+    $"({mainMenuAsset.Elements.Count} elements)");
+
 using var resources =
     new TextureResourceManager(
         content,
@@ -241,6 +269,37 @@ if (runtime.Console is not null)
         console.Resize;
 }
 
+var ecsSerializers =
+    new EcsComponentSerializerRegistry();
+
+ecsSerializers.Register(
+    "engine.world.transform2d",
+    new WorldTransform2DSerializer());
+
+ecsSerializers.Register(
+    "engine.physics.body2d",
+    new PhysicsBody2DSerializer());
+
+ecsSerializers.Register(
+    "engine.physics.collider2d",
+    new Collider2DSerializer());
+
+ecsSerializers.Register(
+    "engine.physics.joint.distance2d",
+    new DistanceJoint2DSerializer());
+
+ecsSerializers.Register(
+    "engine.world.position",
+    new WorldPositionComponentSerializer());
+
+var persistentStates =
+    new PersistentStateRegistry();
+
+var saveLoad =
+    new GameSaveLoadService(
+        ecsSerializers,
+        persistentStates);
+
 var sandbox =
     new SandboxState(
         runtime,
@@ -259,7 +318,7 @@ var sandbox =
         clearAction,
         forceAction,
         triggerAction,
-        rotateAction,
+        rotateAction,saveLoad,saveAction,loadAction,
         console);
 
 var application =

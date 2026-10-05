@@ -9,9 +9,11 @@ using Engine.Graphics.Resources;
 using Engine.Graphics2D.Rendering;
 using Engine.Input;
 using Engine.Runtime;
+using Engine.Serialization.SaveLoad.Game;
 using Engine.Simulations;
 using Engine.Tooling.Debugging;
 using Engine.UI.Core;
+using Engine.Worlds.Chunks;
 using Game.Sandbox.Scenarios;
 
 namespace Game.Sandbox;
@@ -59,6 +61,16 @@ public sealed class SandboxState :
     private int _width = 1280;
     private int _height = 720;
 
+    private readonly GameSaveLoadService _saveLoad;
+
+    private readonly InputAction _saveAction;
+    private readonly InputAction _loadAction;
+
+    private readonly string _savePath;
+
+    private string _serializationStatus =
+        "READY";
+
     public SandboxState(
         EngineRuntime runtime,
         IInput input,
@@ -76,7 +88,9 @@ public sealed class SandboxState :
         InputAction clearAction,
         InputAction forceAction,
         InputAction triggerAction,
-        InputAction rotateAction,
+        InputAction rotateAction, GameSaveLoadService saveLoad,
+InputAction saveAction,
+InputAction loadAction,
         DebugConsoleOverlay? console = null)
         : base(runtime.Simulation)
     {
@@ -86,6 +100,29 @@ public sealed class SandboxState :
         ArgumentNullException.ThrowIfNull(graphics);
         ArgumentNullException.ThrowIfNull(ui);
         ArgumentNullException.ThrowIfNull(tileAtlas);
+        ArgumentNullException.ThrowIfNull(
+    saveLoad);
+
+        ArgumentNullException.ThrowIfNull(
+            saveAction);
+
+        ArgumentNullException.ThrowIfNull(
+            loadAction);
+
+        _saveLoad =
+    saveLoad;
+
+        _saveAction =
+            saveAction;
+
+        _loadAction =
+            loadAction;
+
+        _savePath =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "Saves",
+                "sandbox.vbe");
 
         _runtime = runtime;
         _input = input;
@@ -145,6 +182,9 @@ public sealed class SandboxState :
                 moveDown,
                 moveLeft,
                 moveRight);
+
+        _topDown.InteractionChanged +=
+    _hud.SetInteraction;
 
         _physics = null;
 
@@ -215,6 +255,18 @@ public sealed class SandboxState :
         }
 
         if (_input.IsPressed(
+        _saveAction))
+        {
+            SaveGame();
+        }
+
+        if (_input.IsPressed(
+                _loadAction))
+        {
+            LoadGame();
+        }
+
+        if (_input.IsPressed(
                 _rotateAction))
         {
             RotateObstacle();
@@ -251,6 +303,105 @@ public sealed class SandboxState :
         UpdateHud();
     }
 
+    private void SaveGame()
+    {
+        if (_mode !=
+            SandboxMode.TopDown)
+        {
+            _serializationStatus =
+                "SAVE: TOP-DOWN ONLY";
+
+            return;
+        }
+
+        try
+        {
+            var directory =
+                Path.GetDirectoryName(
+                    _savePath);
+
+            if (!string.IsNullOrWhiteSpace(
+                    directory))
+            {
+                Directory.CreateDirectory(
+                    directory);
+            }
+
+            _saveLoad.Save(
+                _savePath,
+                _runtime.World);
+
+            _serializationStatus =
+                $"SAVE OK  {_runtime.World.ChunkCount} chunks";
+        }
+        catch (Exception exception)
+        {
+            _serializationStatus =
+                $"SAVE FAILED  {exception.GetType().Name}";
+
+            Console.WriteLine(
+                exception);
+        }
+    }
+
+    private void LoadGame()
+    {
+        if (_mode !=
+            SandboxMode.TopDown)
+        {
+            _serializationStatus =
+                "LOAD: TOP-DOWN ONLY";
+
+            return;
+        }
+
+        try
+        {
+            PrepareWorldForLoad();
+
+            _runtime.Physics.ResetContactState();
+
+            _saveLoad.Load(
+                _savePath,
+                _runtime.World);
+
+            _topDown?.RefreshAfterWorldRestore();
+
+            _serializationStatus =
+                $"LOAD OK  {_runtime.World.ChunkCount} chunks";
+        }
+        catch (Exception exception)
+        {
+            _serializationStatus =
+                $"LOAD FAILED  {exception.GetType().Name}";
+
+            Console.WriteLine(
+                exception);
+        }
+    }
+
+    private void PrepareWorldForLoad()
+    {
+        _runtime.World.SpatialIndex.Clear();
+
+        foreach (var record
+                 in _runtime.World
+                     .GetChunkRecords()
+                     .ToArray())
+        {
+            if (record.Chunk is not null &&
+                record.Lifecycle.Simulation !=
+                    ChunkSimulationState.Suspended)
+            {
+                record.Lifecycle.SetSimulation(
+                    ChunkSimulationState.Suspended);
+            }
+
+            _runtime.World.RemoveChunk(
+                record.Lifecycle.Position);
+        }
+    }
+
     public override void Render(
     double interpolationAlpha)
     {
@@ -261,7 +412,8 @@ public sealed class SandboxState :
         if (_mode ==
             SandboxMode.TopDown)
         {
-            _topDown?.Render();
+            _topDown?.Render(
+    interpolationAlpha);
         }
         else
         {
@@ -296,13 +448,33 @@ public sealed class SandboxState :
         _console?.Render();
     }
 
+    public override void FixedUpdate(
+        SimulationTime time)
+    {
+        if (_mode ==
+            SandboxMode.TopDown)
+        {
+            _topDown?.BeginFixedStep();
+            _topDown?.FixedUpdate();
+        }
+
+        base.FixedUpdate(
+            time);
+    }
+
     private void DisposeCurrentScenario()
     {
         if (_mode ==
             SandboxMode.TopDown)
         {
-            _topDown?.Dispose();
-            _topDown = null;
+            if (_topDown is not null)
+            {
+                _topDown.InteractionChanged -=
+                    _hud.SetInteraction;
+
+                _topDown.Dispose();
+                _topDown = null;
+            }
         }
         else
         {
@@ -355,15 +527,21 @@ public sealed class SandboxState :
 
     private TopDownScenario CreateTopDownScenario()
     {
-        return new TopDownScenario(
-            _runtime,
-            _camera,
-            _input,
-            _tileAtlas,
-            _moveUp,
-            _moveDown,
-            _moveLeft,
-            _moveRight);
+        var scenario =
+            new TopDownScenario(
+                _runtime,
+                _camera,
+                _input,
+                _tileAtlas,
+                _moveUp,
+                _moveDown,
+                _moveLeft,
+                _moveRight);
+
+        scenario.InteractionChanged +=
+            _hud.SetInteraction;
+
+        return scenario;
     }
 
     private void ResetCurrentScenario()
@@ -451,11 +629,17 @@ public sealed class SandboxState :
         _hud.SetMode(
             modeText);
 
-        _hud.SetStatus(
+        var status =
             _mode ==
             SandboxMode.TopDown
                 ? _topDown?.GetStatus() ?? "TOP-DOWN NOT ACTIVE"
-                : _physics?.GetStatus() ?? "PHYSICS NOT ACTIVE");
+                : _physics?.GetStatus() ?? "PHYSICS NOT ACTIVE";
+
+        _hud.SetStatus(
+            $"{status}\n" +
+            $"Save/Load      {_serializationStatus}");
+
+
 
         var openGlGraphics =
             _graphics as Engine.Graphics.OpenGL.OpenGLGraphicsDevice;

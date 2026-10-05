@@ -639,9 +639,6 @@ public sealed class PhysicsSystem2D :
                 continue;
             }
 
-            ref var body =
-                ref item.Component;
-
             ref var collider =
                 ref _world.Get<Collider2D>(
                     entity);
@@ -659,23 +656,22 @@ public sealed class PhysicsSystem2D :
                     transform.Rotation);
 
             var bounds =
-    collider.GetWorldBounds(
-        transform.Position,
-        transform.Rotation);
-
-            if (_settings.PenetrationSlop >
-                Fixed32.Zero)
-            {
-                bounds =
-                    bounds.Expand(
-                        _settings.PenetrationSlop);
-            }
+                collider.GetWorldBounds(
+                    transform.Position,
+                    transform.Rotation);
 
             _colliders.Add(
                 new PhysicsColliderProxy(
                     entity,
                     bounds,
-                    collider));
+                    collider)
+                {
+                    WorldPosition =
+                        worldPosition,
+
+                    WorldRotation =
+                        transform.Rotation
+                });
         }
 
         _colliders.Sort(

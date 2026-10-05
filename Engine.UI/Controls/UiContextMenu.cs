@@ -109,8 +109,8 @@ public sealed class UiContextMenu : UiCanvas
         button.Clicked +=
             () =>
             {
-                action();
                 Close();
+                action();
             };
 
         _itemsPanel.AddChild(

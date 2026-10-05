@@ -28,15 +28,18 @@ public sealed class EditorMainShell :
     _uiWorkspaceView.Visible;
 
     public event Action? NewRequested;
-public event Action? OpenRequested;
-public event Action? SaveRequested;
-public event Action? SaveAsRequested;
-public event Action? CloseRequested;
+    public event Action? OpenRequested;
+    public event Action? SaveRequested;
+    public event Action? SaveAsRequested;
+    public event Action? CloseRequested;
+    public event Action<UiRect>? ToolsRequested;
+    public event Action<UiRect>? ViewRequested;
     private readonly UiPanel _documentTabs;
     private UiButton _undoButton;
     private UiButton _redoButton;
     private UiButton _worldButton;
     private UiButton _uiButton;
+    private UiButton _toolsButton;
     public EditorMainShell(
         EditorContext editor,
         ITextureResourceManager assetPreviewTextures,
@@ -284,9 +287,11 @@ public event Action? CloseRequested;
             _documentLabel.Text =
                 worldDocument is null
                     ? "No document"
-                    : worldDocument.IsDirty
-                        ? "World • Unsaved changes"
-                        : "World • Saved";
+                    : BuildDocumentStatus(
+                        worldDocument,
+                        worldDocument.IsDirty
+                            ? "Unsaved changes"
+                            : "Saved");
 
             _undoButton.Enabled =
                 worldDocument?.CommandHistory.CanUndo == true;
@@ -664,11 +669,39 @@ public event Action? CloseRequested;
         buttons.AddChild(
             _redoButton);
 
-        buttons.AddChild(
-            new UiButton("View"));
+        var viewButton =
+            new UiButton("View")
+            {
+                Width = 80.0f,
+                Height = 30.0f
+            };
+
+        viewButton.Clicked +=
+            () =>
+            {
+                ViewRequested?.Invoke(
+                    viewButton.Bounds);
+            };
 
         buttons.AddChild(
-            new UiButton("Tools"));
+            viewButton);
+
+        _toolsButton =
+            new UiButton("Tools")
+            {
+                Width = 80.0f,
+                Height = 30.0f
+            };
+
+        _toolsButton.Clicked +=
+            () =>
+            {
+                ToolsRequested?.Invoke(
+                    _toolsButton.Bounds);
+            };
+
+        buttons.AddChild(
+            _toolsButton);
 
         panel.AddChild(
             buttons);

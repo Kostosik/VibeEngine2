@@ -4,16 +4,22 @@ using Engine.Content.Assets;
 using Engine.Content.Loading;
 using Engine.Core.Application;
 using Engine.Core.Assets;
+using Engine.Core.Math;
 using Engine.Editor;
 using Engine.Editor.Documents.Persistence;
 using Engine.Editor.UI;
 using Engine.Editor.UI.Authoring;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.OpenGL;
+using Engine.Input;
 using Engine.Serialization.Binary;
 using Engine.Serialization.SaveLoad.Ecs;
 using Engine.Serialization.Types;
+using Engine.Tooling.Debugging;
+using Engine.Tooling.Inspection;
+using Engine.UI.Controls;
 using Engine.UI.Core;
+using Engine.UI.Layout;
 using Engine.UI.Styling;
 using Engine.Worlds;
 using Engine.Worlds.Spatial;
@@ -25,6 +31,55 @@ using var window =
         "VibeEngine Editor");
 
 window.Initialize();
+
+var actionMap =
+    new InputActionMap();
+
+var consoleScroll =
+    new InputAction(
+        "ConsoleScroll");
+
+actionMap.Bind(
+    consoleScroll,
+    new InputBinding(
+        "Mouse.Scroll"));
+
+var input =
+    new ActionInput(
+        window.InputBackend,
+        actionMap);
+
+var debugRegistry =
+    new DebugCommandRegistry();
+
+var debugConsole =
+    new DebugConsole(
+        debugRegistry);
+
+
+
+debugRegistry.Register(
+    new HelpDebugCommand(
+        debugRegistry));
+
+
+
+var consoleOverlay =
+    new DebugConsoleOverlay(
+        debugConsole,
+        window.TextInput,
+        input,
+        consoleScroll,
+        window.GraphicsDevice,
+        1280,
+        720);
+
+
+
+
+
+window.Resized +=
+    consoleOverlay.Resize;
 
 var pointerInput =
     window.InputBackend as Engine.Input.IPointerInput
@@ -64,6 +119,17 @@ var ui =
         window.TextInput,
         window.Cursor,
         uiTheme);
+
+var toolsMenu =
+    new UiContextMenu(
+        ui.Overlays);
+
+toolsMenu.AddItem(
+    "Console",
+    consoleOverlay.Toggle);
+
+consoleOverlay.Opened +=
+    ui.Focus.ClearFocus;
 
 window.Resized +=
     ui.Resize;
@@ -109,6 +175,18 @@ var contentCatalog =
         Path.Combine(
             AppContext.BaseDirectory,
             "Assets"));
+
+var inspection =
+    new WorldInspectionService(
+        ecsWorld.Inspector);
+
+debugRegistry.Register(
+    new EntitiesDebugCommand(
+        inspection));
+
+debugRegistry.Register(
+    new InspectDebugCommand(
+        inspection));
 
 var contentLoaders =
     new ContentLoaderRegistry();
@@ -184,6 +262,11 @@ var application =
         documentPersistence,
         documentFiles);
 
+var toolingApplication =
+    new EditorToolingApplication(
+        application,
+        consoleOverlay);
+
 window.CloseRequested +=
     application.RequestApplicationClose;
 
@@ -230,9 +313,97 @@ document.EntitySelection.Changed +=
         }
     };
 
+Action<UiRect> toolsRequested =
+    bounds =>
+    {
+        toolsMenu.Open(
+            new Vector2(
+                bounds.X,
+                bounds.Bottom));
+    };
+
+var viewMenu =
+    new UiContextMenu(
+        ui.Overlays);
+
+viewMenu.AddItem(
+    "Hierarchy",
+    () =>
+    {
+        editor.Workspace.SetPanelOpen(
+            "Hierarchy",
+            !editor.Workspace.FindPanel(
+                "Hierarchy")!.IsOpen);
+
+        application.MainShell.Refresh();
+    });
+
+viewMenu.AddItem(
+    "Viewport",
+    () =>
+    {
+        editor.Workspace.SetPanelOpen(
+            "Viewport",
+            !editor.Workspace.FindPanel(
+                "Viewport")!.IsOpen);
+
+        application.MainShell.Refresh();
+    });
+
+viewMenu.AddItem(
+    "Inspector",
+    () =>
+    {
+        editor.Workspace.SetPanelOpen(
+            "Inspector",
+            !editor.Workspace.FindPanel(
+                "Inspector")!.IsOpen);
+
+        application.MainShell.Refresh();
+    });
+
+viewMenu.AddItem(
+    "Asset Browser",
+    () =>
+    {
+        editor.Workspace.SetPanelOpen(
+            "AssetBrowser",
+            !editor.Workspace.FindPanel(
+                "AssetBrowser")!.IsOpen);
+
+        application.MainShell.Refresh();
+    });
+
+viewMenu.AddItem(
+    "Asset Preview",
+    () =>
+    {
+        editor.Workspace.SetPanelOpen(
+            "AssetPreview",
+            !editor.Workspace.FindPanel(
+                "AssetPreview")!.IsOpen);
+
+        application.MainShell.Refresh();
+    });
+
+Action<UiRect> viewRequested =
+    bounds =>
+    {
+        viewMenu.Open(
+            new Vector2(
+                bounds.X,
+                bounds.Bottom));
+    };
+
+application.MainShell.ViewRequested +=
+    viewRequested;
+
+application.MainShell.ToolsRequested +=
+    toolsRequested;
+
 var gameLoop =
     new GameLoop(
-        application,
+        toolingApplication,
         new Engine.Core.Time.SimulationRate(
             60));
 
@@ -247,6 +418,13 @@ try
 }
 finally
 {
+    application.MainShell.ToolsRequested -=
+        toolsRequested;
+
+    consoleOverlay.Opened -=
+        ui.Focus.ClearFocus;
+    application.MainShell.ViewRequested -=
+    viewRequested;
     if (!gameLoop.IsShutdown)
     {
         gameLoop.Shutdown();

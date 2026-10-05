@@ -10,16 +10,24 @@ using Engine.UI.Layout;
 
 namespace Engine.Editor.UI.Workspace;
 
-public sealed class EditorWorkspaceView : UiPanel
+public sealed class EditorWorkspaceView :
+    UiPanel
 {
+    private const float DockSplitterThickness = 6.0f;
+    private const float MinDockSize = 120.0f;
+    private const float MinCenterSize = 160.0f;
+
     private readonly UiPanel _hierarchyHost;
     private readonly UiPanel _viewportHost;
     private readonly UiPanel _inspectorHost;
     private readonly AssetBrowserPanelView _assetBrowser;
     private readonly AssetPreviewPanelView _assetPreview;
 
-    public AssetPreviewPanelView AssetPreview =>
-    _assetPreview;
+    private readonly EditorDockSplitter _leftSplitter;
+    private readonly EditorDockSplitter _rightSplitter;
+    private readonly EditorDockSplitter _topSplitter;
+    private readonly EditorDockSplitter _bottomSplitter;
+
     public EditorWorkspaceView(
         EditorContext editor,
         ITextureResourceManager assetPreviewTextures)
@@ -27,7 +35,11 @@ public sealed class EditorWorkspaceView : UiPanel
         ArgumentNullException.ThrowIfNull(
             editor);
 
-        Editor = editor;
+        ArgumentNullException.ThrowIfNull(
+            assetPreviewTextures);
+
+        Editor =
+            editor;
 
         Background =
             new UiColor(
@@ -83,17 +95,75 @@ public sealed class EditorWorkspaceView : UiPanel
                 editor);
 
         _assetPreview =
-    new AssetPreviewPanelView(
-        editor,
-        assetPreviewTextures);
-
-
+            new AssetPreviewPanelView(
+                editor,
+                assetPreviewTextures);
 
         AddChild(
             _assetPreview);
 
         AddChild(
             _assetBrowser);
+
+        _leftSplitter =
+            new EditorDockSplitter(
+                EditorDockResizeAxis.Horizontal,
+                1.0f,
+                () =>
+                    GetDockSize(
+                        EditorDockArea.Left),
+                size =>
+                    SetDockSize(
+                        EditorDockArea.Left,
+                        size));
+
+        _rightSplitter =
+            new EditorDockSplitter(
+                EditorDockResizeAxis.Horizontal,
+                -1.0f,
+                () =>
+                    GetDockSize(
+                        EditorDockArea.Right),
+                size =>
+                    SetDockSize(
+                        EditorDockArea.Right,
+                        size));
+
+        _topSplitter =
+            new EditorDockSplitter(
+                EditorDockResizeAxis.Vertical,
+                1.0f,
+                () =>
+                    GetDockSize(
+                        EditorDockArea.Top),
+                size =>
+                    SetDockSize(
+                        EditorDockArea.Top,
+                        size));
+
+        _bottomSplitter =
+            new EditorDockSplitter(
+                EditorDockResizeAxis.Vertical,
+                -1.0f,
+                () =>
+                    GetDockSize(
+                        EditorDockArea.Bottom),
+                size =>
+                    SetDockSize(
+                        EditorDockArea.Bottom,
+                        size));
+
+        AddChild(
+            _leftSplitter);
+
+        AddChild(
+            _rightSplitter);
+
+        AddChild(
+            _topSplitter);
+
+        AddChild(
+            _bottomSplitter);
     }
 
     public EditorContext Editor { get; }
@@ -106,6 +176,9 @@ public sealed class EditorWorkspaceView : UiPanel
 
     public AssetBrowserPanelView AssetBrowser =>
         _assetBrowser;
+
+    public AssetPreviewPanelView AssetPreview =>
+        _assetPreview;
 
     public void Refresh()
     {
@@ -132,27 +205,41 @@ public sealed class EditorWorkspaceView : UiPanel
             GetPanels(
                 EditorDockArea.Center);
 
-        if (centerPanels.Count == 0)
+        if (centerPanels.Count > 0)
         {
-            return;
+            var activeCenter =
+                centerPanels.FirstOrDefault(
+                    static panel =>
+                        panel.Layout.IsActive);
+
+            var visibleCenter =
+                activeCenter.View ??
+                centerPanels[0].View;
+
+            foreach (var panel in centerPanels)
+            {
+                panel.View.Visible =
+                    ReferenceEquals(
+                        panel.View,
+                        visibleCenter);
+            }
         }
 
-        var activeCenter =
-            centerPanels.FirstOrDefault(
-                static panel =>
-                    panel.Layout.IsActive);
+        _leftSplitter.Visible =
+            GetPanels(
+                EditorDockArea.Left).Count > 0;
 
-        var visibleCenter =
-            activeCenter.View
-            ?? centerPanels[0].View;
+        _rightSplitter.Visible =
+            GetPanels(
+                EditorDockArea.Right).Count > 0;
 
-        foreach (var panel in centerPanels)
-        {
-            panel.View.Visible =
-                ReferenceEquals(
-                    panel.View,
-                    visibleCenter);
-        }
+        _topSplitter.Visible =
+            GetPanels(
+                EditorDockArea.Top).Count > 0;
+
+        _bottomSplitter.Visible =
+            GetPanels(
+                EditorDockArea.Bottom).Count > 0;
     }
 
     private List<
@@ -168,7 +255,8 @@ public sealed class EditorWorkspaceView : UiPanel
                     panel.Panel.IsOpen &&
                     panel.Layout.Area == area)
             .OrderBy(
-                panel => panel.Layout.Order)
+                panel =>
+                    panel.Layout.Order)
             .ToList();
     }
 
@@ -221,6 +309,73 @@ public sealed class EditorWorkspaceView : UiPanel
             panel,
             layout,
             view);
+    }
+
+    private float GetDockSize(
+        EditorDockArea area)
+    {
+        var panels =
+            GetPanels(
+                area);
+
+        if (panels.Count == 0)
+        {
+            return 0.0f;
+        }
+
+        var fallback =
+            area is EditorDockArea.Left or
+            EditorDockArea.Right
+                ? 280.0f
+                : 220.0f;
+
+        var size =
+            panels
+                .Select(
+                    static panel =>
+                        panel.Layout.Size)
+                .DefaultIfEmpty(
+                    fallback)
+                .Max();
+
+        if (size <= 0.0f)
+        {
+            size =
+                fallback;
+        }
+
+        return size;
+    }
+
+    private void SetDockSize(
+        EditorDockArea area,
+        float size)
+    {
+        var maximum =
+            area is EditorDockArea.Left or
+            EditorDockArea.Right
+                ? MathF.Max(
+                    MinDockSize,
+                    Bounds.Width -
+                    MinCenterSize)
+                : MathF.Max(
+                    MinDockSize,
+                    Bounds.Height -
+                    MinCenterSize);
+
+        var clamped =
+            Math.Clamp(
+                size,
+                MinDockSize,
+                maximum);
+
+        foreach (var panel in
+                 GetPanels(area))
+        {
+            Editor.Workspace.SetPanelSize(
+                panel.Panel.Id,
+                clamped);
+        }
     }
 
     private static float GetDockSize(
@@ -378,14 +533,30 @@ public sealed class EditorWorkspaceView : UiPanel
             availableSize);
 
         _assetPreview.Measure(
-    context,
-    availableSize);
+            context,
+            availableSize);
+
+        _leftSplitter.Measure(
+            context,
+            availableSize);
+
+        _rightSplitter.Measure(
+            context,
+            availableSize);
+
+        _topSplitter.Measure(
+            context,
+            availableSize);
+
+        _bottomSplitter.Measure(
+            context,
+            availableSize);
 
         return availableSize;
     }
 
     protected override void ArrangeCore(
-    UiRect finalRect)
+        UiRect finalRect)
     {
         var leftPanels =
             GetPanels(
@@ -458,9 +629,9 @@ public sealed class EditorWorkspaceView : UiPanel
             ArrangeHorizontalPanels(
                 topPanels,
                 new UiRect(
-                    contentX,
+                    finalRect.X,
                     finalRect.Y,
-                    contentWidth,
+                    finalRect.Width,
                     topHeight));
         }
 
@@ -469,10 +640,10 @@ public sealed class EditorWorkspaceView : UiPanel
             ArrangeHorizontalPanels(
                 bottomPanels,
                 new UiRect(
-                    contentX,
+                    finalRect.X,
                     finalRect.Bottom -
                     bottomHeight,
-                    contentWidth,
+                    finalRect.Width,
                     bottomHeight));
         }
 
@@ -506,6 +677,42 @@ public sealed class EditorWorkspaceView : UiPanel
                 contentY,
                 contentWidth,
                 contentHeight));
+
+        _leftSplitter.Arrange(
+            new UiRect(
+                finalRect.X +
+                leftWidth -
+                DockSplitterThickness * 0.5f,
+                contentY,
+                DockSplitterThickness,
+                contentHeight));
+
+        _rightSplitter.Arrange(
+            new UiRect(
+                finalRect.Right -
+                rightWidth -
+                DockSplitterThickness * 0.5f,
+                contentY,
+                DockSplitterThickness,
+                contentHeight));
+
+        _topSplitter.Arrange(
+            new UiRect(
+                finalRect.X,
+                finalRect.Y +
+                topHeight -
+                DockSplitterThickness * 0.5f,
+                finalRect.Width,
+                DockSplitterThickness));
+
+        _bottomSplitter.Arrange(
+            new UiRect(
+                finalRect.X,
+                finalRect.Bottom -
+                bottomHeight -
+                DockSplitterThickness * 0.5f,
+                finalRect.Width,
+                DockSplitterThickness));
     }
 
     private static UiPanel CreateHost(

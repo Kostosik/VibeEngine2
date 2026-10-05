@@ -17,6 +17,7 @@
     <ProjectReference Include="..\Engine.Graphics.OpenGL\Engine.Graphics.OpenGL.csproj" />
     <ProjectReference Include="..\Engine.Serialization\Engine.Serialization.csproj" />
     <ProjectReference Include="..\Engine.Simulations\Engine.Simulations.csproj" />
+    <ProjectReference Include="..\Engine.Tooling\Engine.Tooling.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -64,7 +64,7 @@ public sealed class DebugConsoleOverlay
     }
 
     public bool IsOpen { get; private set; }
-
+    public event Action? Opened;
     public void Resize(
         int width,
         int height)
@@ -81,25 +81,26 @@ public sealed class DebugConsoleOverlay
         _height = height;
     }
 
+    public void Toggle()
+    {
+        IsOpen =
+            !IsOpen;
+
+        if (IsOpen)
+        {
+            _outputScrollOffset = 0;
+            ResetHistoryNavigation();
+
+            Opened?.Invoke();
+        }
+    }
+
     public void Update()
     {
         if (_textInput.IsPressed(
                 TextInputKey.F1))
         {
-            IsOpen =
-                !IsOpen;
-
-            if (IsOpen)
-            {
-                _outputScrollOffset = 0;
-                ResetHistoryNavigation();
-            }
-
-            return;
-        }
-
-        if (!IsOpen)
-        {
+            Toggle();
             return;
         }
 

@@ -31,7 +31,6 @@
     <Folder Include="Assets\Textures\" />
     <Folder Include="Assets\Audio\" />
     <Folder Include="Assets\UI\" />
-    <Folder Include="Rendering\" />
   </ItemGroup>
 
   <ItemGroup>

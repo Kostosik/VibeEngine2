@@ -34,9 +34,8 @@ public sealed class EditorMainShell :
     public event Action? CloseRequested;
     public event Action<UiRect>? ToolsRequested;
     public event Action<UiRect>? ViewRequested;
+    public event Action<UiRect>? EditRequested;
     private readonly UiPanel _documentTabs;
-    private UiButton _undoButton;
-    private UiButton _redoButton;
     private UiButton _worldButton;
     private UiButton _uiButton;
     private UiButton _toolsButton;
@@ -276,11 +275,6 @@ public sealed class EditorMainShell :
                             worldDocument,
                             "Saved");
 
-            _undoButton.Enabled =
-                UiDocument.CommandHistory.CanUndo;
-
-            _redoButton.Enabled =
-                UiDocument.CommandHistory.CanRedo;
         }
         else
         {
@@ -292,12 +286,6 @@ public sealed class EditorMainShell :
                         worldDocument.IsDirty
                             ? "Unsaved changes"
                             : "Saved");
-
-            _undoButton.Enabled =
-                worldDocument?.CommandHistory.CanUndo == true;
-
-            _redoButton.Enabled =
-                worldDocument?.CommandHistory.CanRedo == true;
         }
 
         _workspaceView.Refresh();
@@ -440,7 +428,7 @@ public sealed class EditorMainShell :
         Refresh();
     }
 
-    private void Undo()
+    public void Undo()
     {
         if (_uiWorkspaceView.Visible)
         {
@@ -456,7 +444,7 @@ public sealed class EditorMainShell :
         Refresh();
     }
 
-    private void Redo()
+    public void Redo()
     {
         if (_uiWorkspaceView.Visible)
         {
@@ -594,8 +582,22 @@ public sealed class EditorMainShell :
             closeButton);
 
 
+        var editButton =
+            new UiButton("Edit")
+            {
+                Width = 70.0f,
+                Height = 30.0f
+            };
+
+        editButton.Clicked +=
+            () =>
+            {
+                EditRequested?.Invoke(
+                    editButton.Bounds);
+            };
+
         buttons.AddChild(
-            new UiButton("Edit"));
+            editButton);
 
         _worldButton =
             new UiButton("World")
@@ -637,37 +639,11 @@ public sealed class EditorMainShell :
         buttons.AddChild(
             _validateButton);
 
-        _undoButton =
-            new UiButton("Undo")
-            {
-                Width = 80.0f,
-                Height = 30.0f
-            };
-
-        _undoButton.Clicked +=
-            Undo;
-
-        _redoButton =
-            new UiButton("Redo")
-            {
-                Width = 80.0f,
-                Height = 30.0f
-            };
-
-        _redoButton.Clicked +=
-            Redo;
-
         buttons.AddChild(
             _worldButton);
 
         buttons.AddChild(
             _uiButton);
-
-        buttons.AddChild(
-            _undoButton);
-
-        buttons.AddChild(
-            _redoButton);
 
         var viewButton =
             new UiButton("View")

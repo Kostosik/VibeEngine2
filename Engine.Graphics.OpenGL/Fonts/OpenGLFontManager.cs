@@ -300,17 +300,38 @@ internal sealed class OpenGLFontManager :
                 metrics.LineHeight);
         }
 
-        var width = 0.0f;
+        var maximumWidth = 0.0f;
+        var currentWidth = 0.0f;
+        var lineCount = 1;
         var previousCodepoint = -1;
 
         foreach (var rune in text.EnumerateRunes())
         {
+            if (rune.Value == '\n')
+            {
+                maximumWidth =
+                    MathF.Max(
+                        maximumWidth,
+                        currentWidth);
+
+                currentWidth = 0.0f;
+                lineCount++;
+                previousCodepoint = -1;
+
+                continue;
+            }
+
+            if (rune.Value == '\r')
+            {
+                continue;
+            }
+
             var codepoint =
                 rune.Value;
 
             if (previousCodepoint >= 0)
             {
-                width +=
+                currentWidth +=
                     GetKerning(
                         font,
                         previousCodepoint,
@@ -322,16 +343,21 @@ internal sealed class OpenGLFontManager :
                     font,
                     codepoint);
 
-            width +=
+            currentWidth +=
                 glyph.Advance;
 
             previousCodepoint =
                 codepoint;
         }
 
+        maximumWidth =
+            MathF.Max(
+                maximumWidth,
+                currentWidth);
+
         return new FontTextMetrics(
-            width,
-            metrics.LineHeight,
+            maximumWidth,
+            metrics.LineHeight * lineCount,
             metrics.Ascent,
             metrics.Descent,
             metrics.LineHeight);

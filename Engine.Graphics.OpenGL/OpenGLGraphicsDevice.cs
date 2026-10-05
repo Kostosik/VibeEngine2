@@ -152,6 +152,8 @@ public sealed class OpenGLGraphicsDevice
             command);
     }
 
+    public TimeSpan LastEndFrameTime { get; private set; }
+
     public void EndFrame()
     {
         _renderPipeline.Execute(

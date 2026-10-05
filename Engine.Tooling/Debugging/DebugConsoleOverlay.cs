@@ -83,16 +83,19 @@ public sealed class DebugConsoleOverlay
 
     public void Toggle()
     {
-        IsOpen =
-            !IsOpen;
-
         if (IsOpen)
         {
-            _outputScrollOffset = 0;
-            ResetHistoryNavigation();
-
-            Opened?.Invoke();
+            Close();
+            return;
         }
+
+        IsOpen = true;
+
+        _outputScrollOffset = 0;
+
+        ResetHistoryNavigation();
+
+        Opened?.Invoke();
     }
 
     public void Update()
@@ -104,10 +107,17 @@ public sealed class DebugConsoleOverlay
             return;
         }
 
+        if (!IsOpen)
+        {
+            return;
+        }
+
         if (_textInput.IsPressed(
                 TextInputKey.Escape))
         {
             IsOpen = false;
+            _inputText = string.Empty;
+            ResetHistoryNavigation();
             return;
         }
 
@@ -157,6 +167,14 @@ public sealed class DebugConsoleOverlay
         {
             ExecuteInput();
         }
+    }
+
+    private void Close()
+    {
+        IsOpen = false;
+        _inputText = string.Empty;
+
+        ResetHistoryNavigation();
     }
 
     public void Render()

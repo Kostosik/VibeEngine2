@@ -8,6 +8,65 @@ namespace Engine.Tests.Content;
 public sealed class ContentManagerTests
 {
     [Fact]
+    public async Task Load_ConcurrentSyncRequestsDoNotShareLoadingState()
+    {
+        var dependencyPath =
+            new AssetPath(
+                "dependency.asset");
+
+        var wrapperPath =
+            new AssetPath(
+                "wrapper.asset");
+
+        var loaders =
+            new ContentLoaderRegistry();
+
+        using var content =
+            new ContentManager(
+                new TestAssetSource(),
+                new TestCatalog(
+                    dependencyPath,
+                    wrapperPath),
+                loaders);
+
+        var dependencyLoader =
+            new BlockingSyncLoader();
+
+        content.Register(
+            dependencyLoader);
+
+        content.Register(
+            new SyncWrapperLoader(
+                dependencyPath));
+
+        var dependencyTask =
+            Task.Run(
+                () =>
+                    content.Load<TestAsset>(
+                        dependencyPath));
+
+        await dependencyLoader.Started.Task;
+
+        var wrapperTask =
+            Task.Run(
+                () =>
+                    content.Load<SyncWrapperAsset>(
+                        wrapperPath));
+
+        dependencyLoader.Release();
+
+        var dependency =
+            await dependencyTask;
+
+        var wrapper =
+            await wrapperTask;
+
+        Assert.Same(
+            dependency,
+            wrapper.Value);
+    }
+
+    [Fact]
     public async Task LoadAsync_CanLoadDependentAssetThroughContext()
     {
         var dependencyPath =
@@ -785,6 +844,130 @@ public sealed class ContentManagerTests
         {
             return new TestAssetA(
                 context.Load<TestAssetB>(
+                    _dependencyPath));
+        }
+
+        object IContentLoader.Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            return Load(
+                path,
+                context);
+        }
+
+        public bool CanLoad(
+            ContentAsset asset)
+        {
+            ArgumentNullException.ThrowIfNull(
+                asset);
+
+            return true;
+        }
+    }
+
+    private sealed class BlockingSyncLoader :
+    IContentLoader<TestAsset>
+    {
+        private readonly
+            TaskCompletionSource<bool> _release =
+            new(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> Started { get; } =
+            new(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Type AssetType =>
+            typeof(TestAsset);
+
+        public TestAsset Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            Started.TrySetResult(
+                true);
+
+            _release.Task.GetAwaiter().GetResult();
+
+            return new TestAsset();
+        }
+
+        public ValueTask<TestAsset> LoadAsync(
+            AssetPath path,
+            IContentLoadContext context,
+            CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<TestAsset>(
+                Task.Run(
+                    () =>
+                        Load(
+                            path,
+                            context),
+                    cancellationToken));
+        }
+
+        public void Release()
+        {
+            _release.TrySetResult(
+                true);
+        }
+
+        object IContentLoader.Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            return Load(
+                path,
+                context);
+        }
+
+        public bool CanLoad(
+            ContentAsset asset)
+        {
+            ArgumentNullException.ThrowIfNull(
+                asset);
+
+            return true;
+        }
+    }
+
+    private sealed class SyncWrapperAsset
+    {
+        public SyncWrapperAsset(
+            TestAsset value)
+        {
+            Value =
+                value;
+        }
+
+        public TestAsset Value
+        {
+            get;
+        }
+    }
+
+    private sealed class SyncWrapperLoader :
+        IContentLoader<SyncWrapperAsset>
+    {
+        private readonly AssetPath _dependencyPath;
+
+        public SyncWrapperLoader(
+            AssetPath dependencyPath)
+        {
+            _dependencyPath =
+                dependencyPath;
+        }
+
+        public Type AssetType =>
+            typeof(SyncWrapperAsset);
+
+        public SyncWrapperAsset Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            return new SyncWrapperAsset(
+                context.Load<TestAsset>(
                     _dependencyPath));
         }
 

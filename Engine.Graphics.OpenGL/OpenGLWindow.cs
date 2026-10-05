@@ -46,6 +46,10 @@ public sealed class OpenGLWindow : IDisposable
     {
         var options =
             WindowOptions.Default;
+        
+        options.VSync = false;
+
+
 
         options.Size =
             new Vector2D<int>(

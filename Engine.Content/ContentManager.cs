@@ -29,8 +29,10 @@ public sealed class ContentManager :
             Lazy<Task<ContentEntry>>> _inFlightLoads =
             new();
 
-    private readonly Stack<ContentLoadFrame> _loading =
-        new();
+    private readonly ThreadLocal<Stack<ContentLoadFrame>> _loading =
+        new(
+            static () => new Stack<ContentLoadFrame>(),
+            trackAllValues: false);
 
     private bool _disposed;
 
@@ -166,9 +168,8 @@ public sealed class ContentManager :
                     }
                 }
             }
-
             _cache.Clear();
-            _loading.Clear();
+            _loading.Value.Clear();
         }
     }
 
@@ -182,6 +183,7 @@ public sealed class ContentManager :
         ClearCache();
 
         _loaders.Clear();
+        _loading.Dispose();
 
         _disposed = true;
     }
@@ -362,7 +364,7 @@ public sealed class ContentManager :
         ContentLoadFrame? ownerFrame =
             null;
 
-        foreach (var frame in _loading)
+        foreach (var frame in _loading.Value)
         {
             if (frame.Key == owner)
             {
@@ -481,7 +483,7 @@ public sealed class ContentManager :
     private bool IsLoading(
         ContentKey key)
     {
-        foreach (var frame in _loading)
+        foreach (var frame in _loading.Value)
         {
             if (frame.Key == key)
             {
@@ -826,7 +828,7 @@ public sealed class ContentManager :
             new ContentLoadFrame(
                 key);
 
-        _loading.Push(
+        _loading.Value.Push(
             frame);
 
         try
@@ -891,7 +893,7 @@ public sealed class ContentManager :
         }
         finally
         {
-            _loading.Pop();
+            _loading.Value.Pop();
         }
     }
     private async Task<ContentEntry> LoadFreshAsync<T>(
@@ -995,9 +997,12 @@ public sealed class ContentManager :
 
     private ContentLoadFrame? GetCurrentLoadingFrame()
     {
-        if (_loading.Count > 0)
+        var loading =
+            _loading.Value;
+
+        if (loading.Count > 0)
         {
-            return _loading.Peek();
+            return loading.Peek();
         }
 
         var asyncLoading =

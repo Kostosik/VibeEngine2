@@ -395,6 +395,32 @@ Action<UiRect> viewRequested =
                 bounds.Bottom));
     };
 
+var editMenu =
+    new UiContextMenu(
+        ui.Overlays);
+
+Action<UiRect> editRequested =
+    bounds =>
+    {
+        editMenu.Open(
+            new Vector2(
+                bounds.X,
+                bounds.Bottom));
+    };
+
+application.MainShell.EditRequested +=
+    editRequested;
+
+
+
+editMenu.AddItem(
+    "Undo",
+    application.MainShell.Undo);
+
+editMenu.AddItem(
+    "Redo",
+    application.MainShell.Redo);
+
 application.MainShell.ViewRequested +=
     viewRequested;
 
@@ -425,6 +451,10 @@ finally
         ui.Focus.ClearFocus;
     application.MainShell.ViewRequested -=
     viewRequested;
+
+    application.MainShell.EditRequested -=
+    editRequested;
+
     if (!gameLoop.IsShutdown)
     {
         gameLoop.Shutdown();

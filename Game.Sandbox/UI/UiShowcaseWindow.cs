@@ -15,6 +15,9 @@ public sealed class UiShowcaseWindow
     private readonly UiModal _modal;
     private readonly UiContextMenu _contextMenu;
 
+    public bool IsOpen =>
+    _window.IsOpen;
+
     public UiShowcaseWindow(
         UiSystem ui,
         TextureHandle imageTexture)

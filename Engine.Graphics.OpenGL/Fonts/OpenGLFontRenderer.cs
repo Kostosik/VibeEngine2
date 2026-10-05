@@ -242,6 +242,23 @@ internal sealed class OpenGLFontRenderer :
 
         foreach (var rune in command.Text.EnumerateRunes())
         {
+            if (rune.Value == '\n')
+            {
+                x =
+                    command.Position.X;
+
+                baseline +=
+                    metrics.LineHeight *
+                    scale;
+
+                continue;
+            }
+
+            if (rune.Value == '\r')
+            {
+                continue;
+            }
+
             var glyph =
                 _fonts.GetGlyph(
                     command.Font,

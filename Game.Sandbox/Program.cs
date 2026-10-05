@@ -5,15 +5,10 @@ using Engine.Content.Assets;
 using Engine.Content.Loading;
 using Engine.Core.Application;
 using Engine.Core.Assets;
-using Engine.Core.Math;
-using Engine.ECS.Components;
-using Engine.ECS.Entities;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.OpenGL;
 using Engine.Graphics.Resources;
 using Engine.Input;
-using Engine.Physics.Components;
-using Engine.Physics.Shapes;
 using Engine.Runtime;
 using Engine.Serialization.Content;
 using Engine.Serialization.UI;
@@ -22,13 +17,28 @@ using Engine.UI.Actions;
 using Engine.UI.Assets;
 using Engine.UI.Core;
 using Engine.UI.Styling;
-using Engine.Worlds.Spatial;
-using Engine.Worlds.Tiles;
-using Game.Sandbox.Gameplay;
-using Game.Sandbox.States;
+using Game.Sandbox;
 
 var actionMap =
     new InputActionMap();
+
+var resetAction =
+    new InputAction("Reset");
+
+var spawnAction =
+    new InputAction("Spawn");
+
+var clearAction =
+    new InputAction("Clear");
+
+var forceAction =
+    new InputAction("Force");
+
+var triggerAction =
+    new InputAction("ToggleTrigger");
+
+var rotateAction =
+    new InputAction("Rotate");
 
 var moveUp =
     new InputAction("MoveUp");
@@ -42,15 +52,8 @@ var moveLeft =
 var moveRight =
     new InputAction("MoveRight");
 
-var zoomIn =
-    new InputAction("ZoomIn");
-
-var zoomOut =
-    new InputAction("ZoomOut");
-
-var interaction = new InputAction("Interact");
-
-actionMap.Bind(interaction, new InputBinding("Keyboard.F"));
+var switchModeAction =
+    new InputAction("SwitchMode");
 
 actionMap.Bind(
     moveUp,
@@ -69,27 +72,38 @@ actionMap.Bind(
     new InputBinding("Keyboard.D"));
 
 actionMap.Bind(
-    zoomIn,
-    new InputBinding("Keyboard.Q"));
+    switchModeAction,
+    new InputBinding("Keyboard.F2"));
 
 actionMap.Bind(
-    zoomOut,
-    new InputBinding("Keyboard.E"));
-
-var consoleScroll =
-    new InputAction(
-        "ConsoleScroll");
+    resetAction,
+    new InputBinding("Keyboard.F3"));
 
 actionMap.Bind(
-    consoleScroll,
-    new InputBinding(
-        "Mouse.Scroll"));
+    spawnAction,
+    new InputBinding("Keyboard.F4"));
+
+actionMap.Bind(
+    clearAction,
+    new InputBinding("Keyboard.F5"));
+
+actionMap.Bind(
+    forceAction,
+    new InputBinding("Keyboard.Space"));
+
+actionMap.Bind(
+    triggerAction,
+    new InputBinding("Keyboard.T"));
+
+actionMap.Bind(
+    rotateAction,
+    new InputBinding("Keyboard.R"));
 
 using var window =
     new OpenGLWindow(
         1280,
         720,
-        "VibeEngine");
+        "VibeEngine2 Sandbox");
 
 window.Initialize();
 
@@ -102,8 +116,6 @@ var pointerInput =
     window.InputBackend as IPointerInput
     ?? throw new InvalidOperationException(
         "Input backend does not support pointer input.");
-
-
 
 var assetSource =
     new FileAssetSource(
@@ -120,7 +132,7 @@ var defaultFont =
     window.GraphicsDevice.Fonts.Create(
         fontData,
         new FontDescription(
-            32));
+            24));
 
 var contentCatalog =
     new FileContentCatalog(
@@ -148,6 +160,17 @@ using var content =
         contentCatalog,
         contentLoaders);
 
+using var resources =
+    new TextureResourceManager(
+        content,
+        window.GraphicsDevice.Textures);
+
+var tileAtlas =
+    resources.LoadAtlas(
+        new AssetPath(
+            "Textures/test.png"),
+        32,
+        32);
 
 var uiTheme =
     new UiTheme
@@ -165,18 +188,9 @@ var ui =
         window.TextInput,
         window.Cursor,
         uiTheme);
-window.Resized += ui.Resize;
-using var resources =
-    new TextureResourceManager(
-        content,
-        window.GraphicsDevice.Textures);
 
-var tileAtlas =
-    resources.LoadAtlas(
-        new AssetPath(
-            "Textures/test.png"),
-        32,
-        32);
+window.Resized +=
+    ui.Resize;
 
 using var audioDevice =
     new OpenALAudioDevice();
@@ -185,11 +199,6 @@ using var audio =
     new AudioManager(
         assetSource,
         audioDevice);
-
-var playerMoveSound =
-    audio.Load(
-        new AssetPath(
-            "Sounds/smoke.wav"));
 
 var runtimeServices =
     new EngineRuntimeServices(
@@ -204,107 +213,21 @@ using var runtime =
         new EngineRuntimeOptions(),
         runtimeServices);
 
-var player =
-    runtime.EcsWorld.CreateEntity();
-
-var interactionTargets =
-    new List<EntityId>();
-
-var terminal =
-    runtime.EcsWorld.CreateEntity();
-
-runtime.EcsWorld.Add(
-    terminal,
-    new WorldTransform2D(
-        new FixedVector2(
-            Fixed32.FromInt(20),
-            Fixed32.FromInt(16))));
-
-runtime.EcsWorld.Add(
-    terminal,
-    new InteractionTarget(
-        Fixed32.FromInt(2)));
-
-interactionTargets.Add(
-    terminal);
-
-runtime.EcsWorld.Add(
-    player,
-    new WorldTransform2D(
-        new FixedVector2(
-            Fixed32.FromInt(16),
-            Fixed32.FromInt(16))));
-
-runtime.EcsWorld.Add(
-    player,
-    PhysicsBody2D.Dynamic(
-        Fixed32.One));
-
-runtime.EcsWorld.Add(
-    player,
-    new Collider2D(
-        new AabbShape2D(
-            new FixedVector2(
-                Fixed32.One,
-                Fixed32.One))));
-
-using var playerMovementSubscription =
-    runtime.Simulation.CommandDispatcher.Register(
-        new PlayerMovementCommandHandler(
-            runtime.EcsWorld,
-            Fixed32.FromInt(4)));
-
-runtime.Simulation.CommandDispatcher.Register(
-    new InteractCommandHandler(
-        runtime.EcsWorld));
-
-var walls =
-    new List<EntityId>();
-
-walls.Add(
-    CreateStaticWall(
-        runtime.EcsWorld,
-        new FixedVector2(
-            Fixed32.FromFloat(-0.5f),
-            Fixed32.FromInt(16)),
-        new FixedVector2(
-            Fixed32.One,
-            Fixed32.FromInt(32))));
-
-walls.Add(
-    CreateStaticWall(
-        runtime.EcsWorld,
-        new FixedVector2(
-            Fixed32.FromFloat(32.5f),
-            Fixed32.FromInt(16)),
-        new FixedVector2(
-            Fixed32.One,
-            Fixed32.FromInt(32))));
-
-walls.Add(
-    CreateStaticWall(
-        runtime.EcsWorld,
-        new FixedVector2(
-            Fixed32.FromInt(16),
-            Fixed32.FromFloat(-0.5f)),
-        new FixedVector2(
-            Fixed32.FromInt(32),
-            Fixed32.One)));
-
-walls.Add(
-    CreateStaticWall(
-        runtime.EcsWorld,
-        new FixedVector2(
-            Fixed32.FromInt(16),
-            Fixed32.FromFloat(32.5f)),
-        new FixedVector2(
-            Fixed32.FromInt(32),
-            Fixed32.One)));
-DebugConsoleOverlay? consoleOverlay = null;
+DebugConsoleOverlay? console =
+    null;
 
 if (runtime.Console is not null)
 {
-    consoleOverlay =
+    var consoleScroll =
+        new InputAction(
+            "ConsoleScroll");
+
+    actionMap.Bind(
+        consoleScroll,
+        new InputBinding(
+            "Mouse.Scroll"));
+
+    console =
         new DebugConsoleOverlay(
             runtime.Console,
             window.TextInput,
@@ -315,96 +238,46 @@ if (runtime.Console is not null)
             720);
 
     window.Resized +=
-        consoleOverlay.Resize;
+        console.Resize;
 }
 
-var uiActions =
-    new UiActionRegistry();
-
-
-var mainMenuAsset =
-    content.Load<UiAsset>(
-        new AssetPath(
-            "UI/MainMenu.ui"));
-
-var mainMenu =
-    new UiAssetLoader(
-        resources,
-        uiActions)
-        .Load(
-            mainMenuAsset);
-
-ui.Root.AddChild(
-    mainMenu.Root);
-
-uiActions.Register(
-    "StartGame",
-    () =>
-    {
-        mainMenu.Root.Visible =
-            false;
-    });
-
-IGameLoopController? gameLoopController = null;
-
-var gameplayState =
-    new GameplayState(
+var sandbox =
+    new SandboxState(
         runtime,
-        runtime.Simulation,
-        runtime.Services.Input,
-        runtime.Services.Camera,
-        runtime.Services.Graphics,
-        runtime.EcsWorld,
-        runtime.World,
+        input,
+        window.Camera,
+        window.GraphicsDevice,
+        ui,
         tileAtlas,
         moveUp,
         moveDown,
         moveLeft,
         moveRight,
-        zoomIn,
-        zoomOut, interaction,
-        player, walls, interactionTargets,
-        runtime.Services.Audio,
-        playerMoveSound, ui,
-window.TextInput,
-() => gameLoopController?.Pause(),
-() => gameLoopController?.Resume(), consoleOverlay);
+        switchModeAction,
+        resetAction,
+        spawnAction,
+        clearAction,
+        forceAction,
+        triggerAction,
+        rotateAction,
+        console);
+
 var application =
     new StatefulApplication(
-        gameplayState);
+        sandbox);
 
 var gameLoop =
     new GameLoop(
         application,
         runtime.SimulationRate);
 
-gameLoopController =
-    gameLoop;
-
 runtime.AttachGameLoopController(
     gameLoop);
-
-var chunk =
-    runtime.World.CreateChunk(
-        new ChunkPosition(
-            0,
-            0));
-
-chunk.Tiles.Fill(
-    new Tile(2));
-
-runtime.Services.Camera.Position =
-    new Vector2(
-        16,
-        16);
-
-runtime.Services.Camera.Zoom =
-    32.0f;
 
 gameLoop.Initialize();
 
 window.Resized +=
-    gameplayState.Resize;
+    sandbox.Resize;
 
 try
 {
@@ -417,31 +290,4 @@ finally
     {
         gameLoop.Shutdown();
     }
-}
-
-
-static EntityId CreateStaticWall(
-    Engine.ECS.World world,
-    FixedVector2 position,
-    FixedVector2 size)
-{
-    var entity =
-        world.CreateEntity();
-
-    world.Add(
-        entity,
-        new WorldTransform2D(
-            position));
-
-    world.Add(
-        entity,
-        PhysicsBody2D.Static());
-
-    world.Add(
-        entity,
-        new Collider2D(
-            new AabbShape2D(
-                size)));
-
-    return entity;
 }

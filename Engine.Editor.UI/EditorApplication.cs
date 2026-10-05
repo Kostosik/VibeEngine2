@@ -223,9 +223,18 @@ public sealed class EditorApplication :
         var document =
             Editor.ActiveDocument;
 
-        if (document is null ||
-            document.FilePath is null ||
-            _documentPersistence is null)
+        if (document is null)
+        {
+            return;
+        }
+
+        if (document.FilePath is null)
+        {
+            RequestSaveDocumentAs();
+            return;
+        }
+
+        if (_documentPersistence is null)
         {
             return;
         }

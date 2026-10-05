@@ -3,6 +3,7 @@ using Engine.ECS;
 using Engine.ECS.Components;
 using Engine.Physics.Components;
 using Engine.Physics.Materials;
+using Engine.Physics.Shapes;
 
 namespace Engine.Physics.Collision;
 
@@ -160,6 +161,24 @@ public sealed class CollisionResolver2D
         var velocityAlongNormal =
             relativeVelocity.Dot(
                 normal);
+
+        var firstShape =
+            world.Get<Collider2D>(
+                firstEntity)
+                .Shape
+                .Type;
+
+        var secondShape =
+            world.Get<Collider2D>(
+                secondEntity)
+                .Shape
+                .Type;
+
+        var isCircleAabb =
+            (firstShape == PhysicsShapeType.Circle &&
+             secondShape == PhysicsShapeType.Aabb) ||
+            (firstShape == PhysicsShapeType.Aabb &&
+             secondShape == PhysicsShapeType.Circle);
 
         if (velocityAlongNormal > Fixed32.Zero)
         {

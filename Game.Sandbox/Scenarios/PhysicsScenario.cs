@@ -231,8 +231,8 @@ public sealed class PhysicsScenario :
         var polygonState =
             GetBodyState(
                 _polygon);
-        DumpPolygonDiagnostic();
-        DumpCircleDiagnostic();
+        //DumpPolygonDiagnostic();
+        //DumpCircleDiagnostic();
         return
             $"Entities       {_world.EntityCount}\n" +
             $"Collisions     {_collisionCount}\n" +

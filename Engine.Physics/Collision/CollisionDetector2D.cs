@@ -1463,7 +1463,11 @@ public sealed class CollisionDetector2D
         var distanceSquared =
             delta.LengthSquared();
 
-        if (distanceSquared > circle.Radius * circle.Radius)
+        var radiusSquared =
+            circle.Radius *
+            circle.Radius;
+
+        if (distanceSquared > radiusSquared)
         {
             return false;
         }
@@ -1478,13 +1482,33 @@ public sealed class CollisionDetector2D
                 Fixed32.Sqrt(
                     distanceSquared);
 
+            var normalX =
+                Fixed32.Clamp(
+                    delta.X /
+                    distance,
+                    Fixed32.FromInt(-1),
+                    Fixed32.One);
+
+            var normalY =
+                Fixed32.Clamp(
+                    delta.Y /
+                    distance,
+                    Fixed32.FromInt(-1),
+                    Fixed32.One);
+
             normal =
-                delta /
-                distance;
+                new FixedVector2(
+                    normalX,
+                    normalY);
 
             penetration =
                 circle.Radius -
                 distance;
+
+            if (penetration < Fixed32.Zero)
+            {
+                return false;
+            }
 
             contactPoint =
                 closest;

@@ -15,6 +15,1072 @@ namespace Engine.Tests.Physics;
 public sealed class PhysicsSystem2DTests
 {
     [Fact]
+    public void CircleRestingOnFloorCancelsGravity()
+    {
+        using var world =
+            new World();
+
+        var floor =
+            world.CreateEntity();
+
+        var circle =
+            world.CreateEntity();
+
+        world.Add(
+            floor,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.Zero,
+                    Fixed32.FromFloat(4f))));
+
+        world.Add(
+            floor,
+            PhysicsBody2D.Static());
+
+        world.Add(
+            floor,
+            new Collider2D(
+                new AabbShape2D(
+                    new FixedVector2(
+                        Fixed32.FromInt(32),
+                        Fixed32.One))));
+
+        world.Add(
+            circle,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.Zero,
+                    Fixed32.FromFloat(5.5f))));
+
+        world.Add(
+            circle,
+            PhysicsBody2D.Dynamic(
+                Fixed32.One));
+
+        world.Add(
+            circle,
+            new Collider2D(
+                new CircleShape2D(
+                    Fixed32.One)));
+
+        var settings =
+            new PhysicsSettings2D
+            {
+                Gravity =
+                    new FixedVector2(
+                        Fixed32.Zero,
+                        Fixed32.FromFloat(-9.8f)),
+
+                Substeps = 4,
+                PositionIterations = 2,
+                VelocityIterations = 4
+            };
+
+        var physics =
+            new PhysicsSystem2D(
+                world,
+                settings,
+                new EventBus());
+
+        physics.FixedUpdate(
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.FromFloat(1f / 60f),
+                    Tick.Zero)));
+
+        var body =
+            world.Get<PhysicsBody2D>(
+                circle);
+
+        var transform =
+            world.Get<WorldTransform2D>(
+                circle);
+
+        Assert.True(
+            Fixed32.Abs(
+                body.Velocity.Y) <=
+            Fixed32.FromFloat(0.001f),
+            $"Velocity.Y={body.Velocity.Y.ToFloat():F6}, " +
+            $"Position.Y={transform.Position.Y.ToFloat():F6}, " +
+            $"Contacts={physics.Contacts.Count}");
+    }
+
+    [Fact]
+    public void SlightlyRotatedTriangleSettlesOnFloor()
+    {
+        using var world =
+            new World();
+
+        var floor =
+            world.CreateEntity();
+
+        var triangle =
+            world.CreateEntity();
+
+        world.Add(
+            floor,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.Zero,
+                    Fixed32.FromFloat(4f))));
+
+        world.Add(
+            floor,
+            PhysicsBody2D.Static());
+
+        world.Add(
+            floor,
+            new Collider2D(
+                new AabbShape2D(
+                    new FixedVector2(
+                        Fixed32.FromInt(32),
+                        Fixed32.One))));
+
+        world.Add(
+            triangle,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.Zero,
+                    Fixed32.FromFloat(5.55f)))
+            {
+                Rotation =
+                    Fixed32.FromFloat(0.05f)
+            });
+
+        world.Add(
+            triangle,
+            PhysicsBody2D.Dynamic(
+                Fixed32.One));
+
+        world.Add(
+            triangle,
+            new Collider2D(
+                new PolygonShape2D(
+                    new[]
+                    {
+                    new FixedVector2(
+                        -Fixed32.One,
+                        -Fixed32.One),
+
+                    new FixedVector2(
+                        Fixed32.One,
+                        -Fixed32.One),
+
+                    new FixedVector2(
+                        Fixed32.Zero,
+                        Fixed32.One)
+                    })));
+
+        var settings =
+            new PhysicsSettings2D
+            {
+                Gravity =
+                    new FixedVector2(
+                        Fixed32.Zero,
+                        Fixed32.FromFloat(-9.8f)),
+
+                Substeps = 4,
+                PositionIterations = 2,
+                VelocityIterations = 4
+            };
+
+        var physics =
+            new PhysicsSystem2D(
+                world,
+                settings,
+                new EventBus());
+
+        for (var i = 0; i < 240; i++)
+        {
+            physics.FixedUpdate(
+                new FixedSystemContext(
+                    new SimulationTime(
+                        Fixed32.FromFloat(1f / 20f),
+                        new Tick((ulong)i))));
+        }
+
+        var body =
+            world.Get<PhysicsBody2D>(
+                triangle);
+
+        var transform =
+            world.Get<WorldTransform2D>(
+                triangle);
+
+        Assert.True(
+            body.IsSleeping,
+            $"Y={transform.Position.Y.ToFloat():F6}, " +
+            $"Rotation={transform.Rotation.ToFloat():F6}, " +
+            $"VY={body.Velocity.Y.ToFloat():F6}, " +
+            $"W={body.AngularVelocity.ToFloat():F6}");
+
+        Assert.True(
+            Fixed32.Abs(
+                body.AngularVelocity) <=
+            Fixed32.FromFloat(0.01f));
+
+        Assert.True(
+            Fixed32.Abs(
+                transform.Rotation) <=
+            Fixed32.FromFloat(0.01f));
+    }
+
+
+    [Fact]
+    public void CircleFloorContactCancelsDownwardVelocity()
+    {
+        using var world =
+            new World();
+
+        var floor =
+            world.CreateEntity();
+
+        var circle =
+            world.CreateEntity();
+
+        world.Add(
+            floor,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.Zero,
+                    Fixed32.FromFloat(4f))));
+
+        world.Add(
+            floor,
+            PhysicsBody2D.Static());
+
+        world.Add(
+            floor,
+            new Collider2D(
+                new AabbShape2D(
+                    new FixedVector2(
+                        Fixed32.FromInt(32),
+                        Fixed32.One))));
+
+        world.Add(
+            circle,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.Zero,
+                    Fixed32.FromFloat(5.49f))));
+
+        var body =
+            PhysicsBody2D.Dynamic(
+                Fixed32.One);
+
+        body.Velocity =
+            new FixedVector2(
+                Fixed32.Zero,
+                Fixed32.FromInt(-1));
+
+        world.Add(
+            circle,
+            body);
+
+        world.Add(
+            circle,
+            new Collider2D(
+                new CircleShape2D(
+                    Fixed32.One)));
+
+        var settings =
+            new PhysicsSettings2D
+            {
+                Gravity =
+                    FixedVector2.Zero,
+
+                PositionIterations = 0,
+                VelocityIterations = 1
+            };
+
+        var physics =
+            new PhysicsSystem2D(
+                world,
+                settings,
+                new EventBus());
+
+        physics.FixedUpdate(
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.Zero,
+                    Tick.Zero)));
+
+        var result =
+            world.Get<PhysicsBody2D>(
+                circle);
+
+        Assert.True(
+            Fixed32.Abs(
+                result.Velocity.Y) <=
+            Fixed32.FromRatio(
+                2,
+                65536));
+    }
+
+    [Fact]
+    public void CircleSettlesOnFloorAndSleeps()
+    {
+        using var world =
+            new World();
+
+        var floor =
+            world.CreateEntity();
+
+        var circle =
+            world.CreateEntity();
+
+        world.Add(
+            floor,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.Zero,
+                    Fixed32.FromFloat(4f))));
+
+        world.Add(
+            floor,
+            PhysicsBody2D.Static());
+
+        world.Add(
+            floor,
+            new Collider2D(
+                new AabbShape2D(
+                    new FixedVector2(
+                        Fixed32.FromInt(32),
+                        Fixed32.One))));
+
+        world.Add(
+            circle,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.Zero,
+                    Fixed32.FromFloat(18f))));
+
+        world.Add(
+            circle,
+            PhysicsBody2D.Dynamic(
+                Fixed32.One));
+
+        world.Add(
+            circle,
+            new Collider2D(
+                new CircleShape2D(
+                    Fixed32.One)));
+
+        var settings =
+            new PhysicsSettings2D
+            {
+                Gravity =
+                    new FixedVector2(
+                        Fixed32.Zero,
+                        Fixed32.FromFloat(-9.8f)),
+
+                Substeps = 4,
+
+                PositionIterations = 2,
+                VelocityIterations = 4
+            };
+
+        var physics =
+            new PhysicsSystem2D(
+                world,
+                settings,
+                new EventBus());
+
+        for (var i = 0; i < 240; i++)
+        {
+            physics.FixedUpdate(
+                new FixedSystemContext(
+                    new SimulationTime(
+                        Fixed32.FromFloat(1f / 20f),
+                        new Tick((ulong)i))));
+        }
+
+        var body =
+            world.Get<PhysicsBody2D>(
+                circle);
+
+        Assert.True(
+            body.IsSleeping,
+            $"Velocity=({body.Velocity.X.ToFloat():F6}, {body.Velocity.Y.ToFloat():F6}), " +
+            $"AngularVelocity={body.AngularVelocity.ToFloat():F6}, " +
+            $"SleepTimer={body.SleepTimer.ToFloat():F6}");
+
+        Assert.Equal(
+            FixedVector2.Zero,
+            body.Velocity);
+
+        Assert.Equal(
+            Fixed32.Zero,
+            body.AngularVelocity);
+    }
+
+    [Fact]
+    public void TriangleRestingContactDoesNotGainEnergy()
+    {
+        using var world =
+            new World();
+
+        var floor =
+            world.CreateEntity();
+
+        var triangle =
+            world.CreateEntity();
+
+        world.Add(
+            floor,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.Zero,
+                    Fixed32.FromFloat(4f))));
+
+        world.Add(
+            floor,
+            PhysicsBody2D.Static());
+
+        world.Add(
+            floor,
+            new Collider2D(
+                new AabbShape2D(
+                    new FixedVector2(
+                        Fixed32.FromInt(32),
+                        Fixed32.One))));
+
+        world.Add(
+            triangle,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.Zero,
+                    Fixed32.FromFloat(5.5f))));
+
+        var body =
+            PhysicsBody2D.Dynamic(
+                Fixed32.One,
+                Fixed32.One);
+
+        body.IsSleeping = true;
+
+        world.Add(
+            triangle,
+            body);
+
+        world.Add(
+            triangle,
+            new Collider2D(
+                new PolygonShape2D(
+                    new[]
+                    {
+                    new FixedVector2(
+                        -Fixed32.One,
+                        -Fixed32.One),
+
+                    new FixedVector2(
+                        Fixed32.One,
+                        -Fixed32.One),
+
+                    new FixedVector2(
+                        Fixed32.Zero,
+                        Fixed32.One)
+                    })));
+
+        var settings =
+            new PhysicsSettings2D
+            {
+                Gravity =
+                    new FixedVector2(
+                        Fixed32.Zero,
+                        Fixed32.FromFloat(-9.8f)),
+
+                Substeps = 4,
+
+                PositionIterations = 2,
+                VelocityIterations = 4
+            };
+
+        var physics =
+            new PhysicsSystem2D(
+                world,
+                settings,
+                new EventBus());
+
+        ref var triangleBody =
+            ref world.Get<PhysicsBody2D>(
+                triangle);
+
+        triangleBody.WakeUp();
+
+        for (var i = 0; i < 120; i++)
+        {
+            physics.FixedUpdate(
+                new FixedSystemContext(
+                    new SimulationTime(
+                        Fixed32.FromFloat(
+                            1f / 60f),
+                        new Tick((ulong)i))));
+        }
+
+        var result =
+            world.Get<PhysicsBody2D>(
+                triangle);
+
+        Assert.True(
+            Fixed32.Abs(
+                result.Velocity.X) <=
+            Fixed32.FromFloat(0.01f));
+
+        Assert.True(
+            Fixed32.Abs(
+                result.Velocity.Y) <=
+            Fixed32.FromFloat(0.01f));
+
+        Assert.True(
+            Fixed32.Abs(
+                result.AngularVelocity) <=
+            Fixed32.FromFloat(0.01f));
+    }
+
+    [Fact]
+    public void FastDynamicBody_DoesNotTunnelThroughThinFloor()
+    {
+        using var world =
+            new World();
+
+        var floor =
+            world.CreateEntity();
+
+        world.Add(
+            floor,
+            new WorldTransform2D(
+                FixedVector2.Zero));
+
+        world.Add(
+            floor,
+            PhysicsBody2D.Static());
+
+        world.Add(
+            floor,
+            new Collider2D(
+                new AabbShape2D(
+                    new FixedVector2(
+                        Fixed32.FromInt(10),
+                        Fixed32.One))));
+
+        var body =
+            world.CreateEntity();
+
+        world.Add(
+            body,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.Zero,
+                    Fixed32.FromInt(2))));
+
+        var physicsBody =
+            PhysicsBody2D.Dynamic(
+                Fixed32.One);
+
+        physicsBody.Velocity =
+            new FixedVector2(
+                Fixed32.Zero,
+                Fixed32.FromInt(-60));
+
+        world.Add(
+            body,
+            physicsBody);
+
+        world.Add(
+            body,
+            new Collider2D(
+                new AabbShape2D(
+                    new FixedVector2(
+                        Fixed32.One,
+                        Fixed32.One))));
+
+        var settings =
+            new PhysicsSettings2D
+            {
+                Gravity =
+                    FixedVector2.Zero,
+
+                Substeps =
+                    4
+            };
+
+        var physics =
+            new PhysicsSystem2D(
+                world,
+                settings,
+                new EventBus());
+
+        physics.FixedUpdate(
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.FromFloat(0.05f),
+                    Tick.Zero)));
+
+        var transform =
+            world.Get<WorldTransform2D>(
+                body);
+
+        var resultBody =
+            world.Get<PhysicsBody2D>(
+                body);
+
+        Assert.True(
+            transform.Position.Y >=
+            Fixed32.FromFloat(0.5f));
+
+        Assert.Equal(
+            Fixed32.Zero,
+            resultBody.Velocity.Y);
+    }
+
+    [Fact]
+    public void TriangleOnFloor_UsesCenterOfBottomEdgeAsContactPoint()
+    {
+        using var world =
+            new World();
+
+        var triangle =
+            world.CreateEntity();
+
+        var floor =
+            world.CreateEntity();
+
+        world.Add(
+            triangle,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.Zero,
+                    Fixed32.FromFloat(1.5f))));
+
+        world.Add(
+            triangle,
+            PhysicsBody2D.Static());
+
+        world.Add(
+            triangle,
+            new Collider2D(
+                new PolygonShape2D(
+                    new[]
+                    {
+                    new FixedVector2(
+                        Fixed32.FromInt(-1),
+                        Fixed32.FromInt(-1)),
+
+                    new FixedVector2(
+                        Fixed32.One,
+                        Fixed32.FromInt(-1)),
+
+                    new FixedVector2(
+                        Fixed32.Zero,
+                        Fixed32.One)
+                    })));
+
+        world.Add(
+            floor,
+            new WorldTransform2D(
+                FixedVector2.Zero));
+
+        world.Add(
+            floor,
+            PhysicsBody2D.Static());
+
+        world.Add(
+            floor,
+            new Collider2D(
+                new AabbShape2D(
+                    new FixedVector2(
+                        Fixed32.FromInt(10),
+                        Fixed32.One))));
+
+        var physics =
+            new PhysicsSystem2D(
+                world,
+                new PhysicsSettings2D
+                {
+                    Gravity =
+                        FixedVector2.Zero,
+
+                    Substeps = 1
+                },
+                new EventBus());
+
+        physics.FixedUpdate(
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.Zero,
+                    Tick.Zero)));
+
+        var contact =
+            Assert.Single(
+                physics.Contacts);
+
+        Assert.Equal(
+            Fixed32.Zero,
+            contact.Contact.Position.X);
+    }
+
+    [Fact]
+    public void TriangleSettlesOnFloorWithoutGainingEnergy()
+    {
+        using var world =
+            new World();
+
+        var floor =
+            world.CreateEntity();
+
+        var triangle =
+            world.CreateEntity();
+
+        world.Add(
+            floor,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.Zero,
+                    Fixed32.FromFloat(4f))));
+
+        world.Add(
+            floor,
+            PhysicsBody2D.Static());
+
+        world.Add(
+            floor,
+            new Collider2D(
+                new AabbShape2D(
+                    new FixedVector2(
+                        Fixed32.FromInt(32),
+                        Fixed32.One))));
+
+        world.Add(
+            triangle,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.Zero,
+                    Fixed32.FromFloat(18f))));
+
+        world.Add(
+            triangle,
+            PhysicsBody2D.Dynamic(
+                Fixed32.One));
+
+        world.Add(
+            triangle,
+            new Collider2D(
+                new PolygonShape2D(
+                    new[]
+                    {
+                    new FixedVector2(
+                        -Fixed32.One,
+                        -Fixed32.One),
+
+                    new FixedVector2(
+                        Fixed32.One,
+                        -Fixed32.One),
+
+                    new FixedVector2(
+                        Fixed32.Zero,
+                        Fixed32.One)
+                    })));
+
+        var settings =
+            new PhysicsSettings2D
+            {
+                Gravity =
+                    new FixedVector2(
+                        Fixed32.Zero,
+                        Fixed32.FromFloat(-9.8f)),
+
+                Substeps = 4,
+
+                PositionIterations = 2,
+                VelocityIterations = 4
+            };
+
+        var physics =
+            new PhysicsSystem2D(
+                world,
+                settings,
+                new EventBus());
+
+        for (var i = 0; i < 240; i++)
+        {
+            physics.FixedUpdate(
+                new FixedSystemContext(
+                    new SimulationTime(
+                        Fixed32.FromFloat(
+                            1f / 20f),
+                        new Tick((ulong)i))));
+        }
+
+        var transform =
+            world.Get<WorldTransform2D>(
+                triangle);
+
+        var body =
+            world.Get<PhysicsBody2D>(
+                triangle);
+
+        var expectedY =
+            Fixed32.FromFloat(5.5f);
+
+        Assert.True(
+            Fixed32.Abs(
+                transform.Position.Y -
+                expectedY) <=
+            Fixed32.FromFloat(0.05f));
+
+        Assert.True(
+            Fixed32.Abs(
+                body.Velocity.X) <=
+            Fixed32.FromFloat(0.05f));
+
+        Assert.True(
+            Fixed32.Abs(
+                body.Velocity.Y) <=
+            Fixed32.FromFloat(0.05f));
+
+        Assert.True(
+            Fixed32.Abs(
+                body.AngularVelocity) <=
+            Fixed32.FromFloat(0.05f));
+
+        Assert.True(
+            Fixed32.Abs(
+                transform.Rotation) <=
+            Fixed32.FromFloat(0.05f));
+    }
+
+    [Fact]
+    public void AlignedTriangleFloorContactDoesNotCreateAngularVelocity()
+    {
+        using var world =
+            new World();
+
+        var floor =
+            world.CreateEntity();
+
+        var triangle =
+            world.CreateEntity();
+
+        world.Add(
+            floor,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.Zero,
+                    Fixed32.FromFloat(4f))));
+
+        world.Add(
+            floor,
+            PhysicsBody2D.Static());
+
+        world.Add(
+            floor,
+            new Collider2D(
+                new AabbShape2D(
+                    new FixedVector2(
+                        Fixed32.FromInt(32),
+                        Fixed32.One))));
+
+        world.Add(
+            triangle,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.Zero,
+                    Fixed32.FromFloat(5.5f))));
+
+        world.Add(
+            triangle,
+            PhysicsBody2D.Dynamic(
+                Fixed32.One));
+
+        world.Add(
+            triangle,
+            new Collider2D(
+                new PolygonShape2D(
+                    new[]
+                    {
+                    new FixedVector2(
+                        -Fixed32.One,
+                        -Fixed32.One),
+
+                    new FixedVector2(
+                        Fixed32.One,
+                        -Fixed32.One),
+
+                    new FixedVector2(
+                        Fixed32.Zero,
+                        Fixed32.One)
+                    })));
+
+        var settings =
+            new PhysicsSettings2D
+            {
+                Gravity =
+                    new FixedVector2(
+                        Fixed32.Zero,
+                        Fixed32.FromFloat(-9.8f)),
+
+                Substeps = 4,
+                PositionIterations = 2,
+                VelocityIterations = 4
+            };
+
+        var physics =
+            new PhysicsSystem2D(
+                world,
+                settings,
+                new EventBus());
+
+        physics.FixedUpdate(
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.FromFloat(1f / 20f),
+                    Tick.Zero)));
+
+        var body =
+            world.Get<PhysicsBody2D>(
+                triangle);
+
+        var contact =
+            Assert.Single(
+                physics.Contacts);
+
+        Assert.True(
+            Fixed32.Abs(
+                body.AngularVelocity) <=
+            Fixed32.FromRatio(
+                2,
+                65536),
+            $"AngularVelocity={body.AngularVelocity.ToFloat():F6}");
+
+        Assert.True(
+            Fixed32.Abs(
+                contact.Contact.Position.X) <=
+            Fixed32.FromRatio(
+                2,
+                65536),
+            $"ContactX={contact.Contact.Position.X.ToFloat():F6}");
+
+        Assert.True(
+            contact.Contact.Normal.Y !=
+            Fixed32.Zero,
+            $"Normal={contact.Contact.Normal}");
+    }
+
+    [Fact]
+    public void DynamicTriangle_RemainsStableOnFlatFloor()
+    {
+        using var world =
+            new World();
+
+        var floor =
+            world.CreateEntity();
+
+        world.Add(
+            floor,
+            new WorldTransform2D(
+                FixedVector2.Zero));
+
+        world.Add(
+            floor,
+            PhysicsBody2D.Static());
+
+        world.Add(
+            floor,
+            new Collider2D(
+                new AabbShape2D(
+                    new FixedVector2(
+                        Fixed32.FromInt(10),
+                        Fixed32.One))));
+
+        var triangle =
+            world.CreateEntity();
+
+        world.Add(
+            triangle,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.Zero,
+                    Fixed32.FromInt(5))));
+
+        world.Add(
+            triangle,
+            PhysicsBody2D.Dynamic(
+                Fixed32.One));
+
+        world.Add(
+            triangle,
+            new Collider2D(
+                new PolygonShape2D(
+                    new[]
+                    {
+                    new FixedVector2(
+                        Fixed32.FromInt(-1),
+                        Fixed32.FromInt(-1)),
+
+                    new FixedVector2(
+                        Fixed32.One,
+                        Fixed32.FromInt(-1)),
+
+                    new FixedVector2(
+                        Fixed32.Zero,
+                        Fixed32.One)
+                    })));
+
+        var settings =
+            new PhysicsSettings2D
+            {
+                Gravity =
+                    new FixedVector2(
+                        Fixed32.Zero,
+                        Fixed32.FromFloat(-9.8f)),
+
+                Substeps = 4
+            };
+
+        var physics =
+            new PhysicsSystem2D(
+                world,
+                settings,
+                new EventBus());
+
+        var context =
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.FromFloat(0.05f),
+                    Tick.Zero));
+
+        for (var i = 0;
+             i < 120;
+             i++)
+        {
+            physics.FixedUpdate(
+                context);
+        }
+
+        var transform =
+            world.Get<WorldTransform2D>(
+                triangle);
+
+        var body =
+            world.Get<PhysicsBody2D>(
+                triangle);
+
+        Assert.InRange(
+            transform.Position.Y.ToFloat(),
+            1.49f,
+            1.51f);
+
+        Assert.Equal(
+            Fixed32.Zero,
+            body.Velocity.Y);
+
+        Assert.Equal(
+            Fixed32.Zero,
+            body.AngularVelocity);
+    }
+
+    [Fact]
     public void RotatedPolygon_UsesWorldRotationForCollision()
     {
         var world =

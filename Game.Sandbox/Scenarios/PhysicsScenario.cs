@@ -68,7 +68,7 @@ public sealed class PhysicsScenario :
                     Fixed32.FromInt(120),
                     Fixed32.FromInt(4)),
                 new FixedVector2(
-                    Fixed32.FromInt(32),
+                    Fixed32.FromInt(40),
                     Fixed32.One));
 
         _box =
@@ -107,13 +107,13 @@ public sealed class PhysicsScenario :
         _jointFirst =
             CreateDynamicAabb(
                 new FixedVector2(
-                    Fixed32.FromInt(127),
+                    Fixed32.FromInt(134),
                     Fixed32.FromInt(16)));
 
         _jointSecond =
             CreateDynamicAabb(
                 new FixedVector2(
-                    Fixed32.FromInt(131),
+                    Fixed32.FromInt(138),
                     Fixed32.FromInt(16)));
 
         _world.Add(
@@ -221,10 +221,26 @@ public sealed class PhysicsScenario :
         var worldPass =
             CheckWorldCoordinates();
 
+        var polygonContact =
+    GetPolygonContactState();
+
+        var circleState =
+    GetBodyState(
+        _circle);
+
+        var polygonState =
+            GetBodyState(
+                _polygon);
+        DumpPolygonDiagnostic();
+        DumpCircleDiagnostic();
         return
             $"Entities       {_world.EntityCount}\n" +
             $"Collisions     {_collisionCount}\n" +
             $"Triggers       {_triggerCount}\n" +
+            $"Circle         {circleState}\n" +
+            $"Polygon        {polygonState}\n" +
+            $"Polygon        {polygonState}\n" +
+            $"Poly contact   {polygonContact}\n" +
             $"Sleep          {Pass(sleepPass)}\n" +
             $"Distance joint {Pass(jointPass)}\n" +
             $"World mapping  {Pass(worldPass)}";
@@ -445,6 +461,275 @@ public sealed class PhysicsScenario :
         else
         {
             _collisionCount++;
+        }
+    }
+
+    private string GetPolygonContactState()
+    {
+        if (!_world.Exists(_polygon))
+        {
+            return "N/A";
+        }
+
+        foreach (var manifold in _runtime.Physics.Contacts)
+        {
+            if (manifold.Pair.First != _polygon &&
+                manifold.Pair.Second != _polygon)
+            {
+                continue;
+            }
+
+            var contact =
+                manifold.Contact;
+
+            return
+                $"P=({contact.Position.X.ToFloat():F3}," +
+                $"{contact.Position.Y.ToFloat():F3}) " +
+                $"N=({contact.Normal.X.ToFloat():F3}," +
+                $"{contact.Normal.Y.ToFloat():F3}) " +
+                $"Depth={contact.Penetration.ToFloat():F4}";
+        }
+
+        return "NONE";
+    }
+
+    private string GetBodyState(
+    EntityId entity)
+    {
+        if (!_world.Exists(entity) ||
+            !_world.Has<PhysicsBody2D>(entity) ||
+            !_world.Has<WorldTransform2D>(entity))
+        {
+            return "N/A";
+        }
+
+        var body =
+            _world.Get<PhysicsBody2D>(
+                entity);
+
+        var transform =
+            _world.Get<WorldTransform2D>(
+                entity);
+
+        return
+            $"Y={transform.Position.Y.ToFloat():F3} " +
+            $"VY={body.Velocity.Y.ToFloat():F3} " +
+            $"W={body.AngularVelocity.ToFloat():F3} " +
+            $"Sleep={body.IsSleeping}";
+    }
+
+    private string? _lastPolygonDiagnostic;
+
+    private void DumpPolygonDiagnostic()
+    {
+        if (!_world.Exists(_polygon) ||
+            !_world.Has<PhysicsBody2D>(_polygon) ||
+            !_world.Has<WorldTransform2D>(_polygon))
+        {
+            return;
+        }
+
+        var body =
+            _world.Get<PhysicsBody2D>(
+                _polygon);
+
+        var transform =
+            _world.Get<WorldTransform2D>(
+                _polygon);
+
+        var lines =
+            new List<string>();
+
+        foreach (var manifold in _runtime.Physics.Contacts)
+        {
+            if (manifold.Pair.First != _polygon &&
+                manifold.Pair.Second != _polygon)
+            {
+                continue;
+            }
+
+            var otherEntity =
+                manifold.Pair.First == _polygon
+                    ? manifold.Pair.Second
+                    : manifold.Pair.First;
+
+            var otherShape =
+                _world.Has<Collider2D>(
+                    otherEntity)
+                    ? _world
+                        .Get<Collider2D>(
+                            otherEntity)
+                        .Shape
+                        .Type
+                        .ToString()
+                    : "N/A";
+
+            var contact =
+                manifold.Contact;
+
+            var otherBodyText =
+                string.Empty;
+
+            if (_world.Has<PhysicsBody2D>(
+                    otherEntity) &&
+                _world.Has<WorldTransform2D>(
+                    otherEntity))
+            {
+                var otherBody =
+                    _world.Get<PhysicsBody2D>(
+                        otherEntity);
+
+                var otherTransform =
+                    _world.Get<WorldTransform2D>(
+                        otherEntity);
+
+                otherBodyText =
+                    $" OtherY={otherTransform.Position.Y.ToFloat():F3}" +
+                    $" OtherVY={otherBody.Velocity.Y.ToFloat():F3}";
+            }
+
+            lines.Add(
+                $"Pair={manifold.Pair.First.Index}->{manifold.Pair.Second.Index}" +
+                $" OtherShape={otherShape}" +
+                $" PolyY={transform.Position.Y.ToFloat():F3}" +
+                $" VY={body.Velocity.Y.ToFloat():F3}" +
+                $" W={body.AngularVelocity.ToFloat():F3}" +
+                $" P=({contact.Position.X.ToFloat():F3}," +
+                $"{contact.Position.Y.ToFloat():F3})" +
+                $" N=({contact.Normal.X.ToFloat():F3}," +
+                $"{contact.Normal.Y.ToFloat():F3})" +
+                $" Depth={contact.Penetration.ToFloat():F4}" +
+                otherBodyText);
+        }
+
+        if (lines.Count == 0)
+        {
+            _lastPolygonDiagnostic = null;
+            return;
+        }
+
+        var diagnostic =
+            string.Join(
+                Environment.NewLine,
+                lines);
+
+        if (diagnostic != _lastPolygonDiagnostic)
+        {
+            System.Console.WriteLine(
+                $"--- Polygon contacts ---");
+
+            System.Console.WriteLine(
+                diagnostic);
+
+            System.Console.WriteLine(
+                $"------------------------");
+
+            _lastPolygonDiagnostic =
+                diagnostic;
+        }
+    }
+
+    private string? _lastCircleDiagnostic;
+
+    private void DumpCircleDiagnostic()
+    {
+        if (!_world.Exists(_circle) ||
+            !_world.Has<PhysicsBody2D>(_circle) ||
+            !_world.Has<WorldTransform2D>(_circle))
+        {
+            return;
+        }
+
+        var body =
+            _world.Get<PhysicsBody2D>(
+                _circle);
+
+        var transform =
+            _world.Get<WorldTransform2D>(
+                _circle);
+
+        var lines =
+            new List<string>();
+
+        foreach (var manifold in _runtime.Physics.Contacts)
+        {
+            if (manifold.Pair.First != _circle &&
+                manifold.Pair.Second != _circle)
+            {
+                continue;
+            }
+
+            var otherEntity =
+                manifold.Pair.First == _circle
+                    ? manifold.Pair.Second
+                    : manifold.Pair.First;
+
+            var otherShape =
+                _world.Has<Collider2D>(
+                    otherEntity)
+                    ? _world
+                        .Get<Collider2D>(
+                            otherEntity)
+                        .Shape
+                        .Type
+                        .ToString()
+                    : "N/A";
+
+            var contact =
+                manifold.Contact;
+
+            lines.Add(
+                $"Pair={manifold.Pair.First.Index}->{manifold.Pair.Second.Index}" +
+                $" OtherShape={otherShape}" +
+                $" CircleY={transform.Position.Y.ToFloat():F4}" +
+                $" VY={body.Velocity.Y.ToFloat():F4}" +
+                $" Sleep={body.IsSleeping}" +
+                $" SleepTimer={body.SleepTimer.ToFloat():F4}" +
+                $" P=({contact.Position.X.ToFloat():F4}," +
+                $"{contact.Position.Y.ToFloat():F4})" +
+                $" N=({contact.Normal.X.ToFloat():F4}," +
+                $"{contact.Normal.Y.ToFloat():F4})" +
+                $" Depth={contact.Penetration.ToFloat():F4}");
+        }
+
+        if (lines.Count == 0)
+        {
+            var diagnostic =
+                $"Circle: NO CONTACT " +
+                $"Y={transform.Position.Y.ToFloat():F4} " +
+                $"VY={body.Velocity.Y.ToFloat():F4} " +
+                $"Sleep={body.IsSleeping}";
+
+            if (diagnostic != _lastCircleDiagnostic)
+            {
+                System.Console.WriteLine(
+                    diagnostic);
+
+                _lastCircleDiagnostic =
+                    diagnostic;
+            }
+
+            return;
+        }
+
+        var result =
+            string.Join(
+                Environment.NewLine,
+                lines);
+
+        if (result != _lastCircleDiagnostic)
+        {
+            System.Console.WriteLine(
+                "--- Circle contacts ---");
+
+            System.Console.WriteLine(
+                result);
+
+            System.Console.WriteLine(
+                "-----------------------");
+
+            _lastCircleDiagnostic =
+                result;
         }
     }
 

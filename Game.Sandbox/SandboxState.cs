@@ -261,7 +261,7 @@ public sealed class SandboxState :
         if (_mode ==
             SandboxMode.TopDown)
         {
-            _topDown.Render();
+            _topDown?.Render();
         }
         else
         {
@@ -296,16 +296,30 @@ public sealed class SandboxState :
         _console?.Render();
     }
 
-    private void SwitchMode()
+    private void DisposeCurrentScenario()
     {
-        _topDown?.StopMovement();
-
         if (_mode ==
             SandboxMode.TopDown)
         {
             _topDown?.Dispose();
             _topDown = null;
+        }
+        else
+        {
+            _physics?.Dispose();
+            _physics = null;
+        }
 
+        _runtime.Simulation.CommandDispatcher.ClearPending();
+    }
+
+    private void SwitchMode()
+    {
+        DisposeCurrentScenario();
+
+        if (_mode ==
+            SandboxMode.TopDown)
+        {
             _physics =
                 new PhysicsScenario(
                     _runtime);
@@ -313,11 +327,16 @@ public sealed class SandboxState :
             _mode =
                 SandboxMode.Physics;
 
+            _camera.Position =
+                new Vector2(
+                    120.0f,
+                    12.0f);
+
+            _camera.Zoom =
+                28.0f;
+
             return;
         }
-
-        _physics?.Dispose();
-        _physics = null;
 
         _topDown =
             CreateTopDownScenario();
@@ -435,8 +454,8 @@ public sealed class SandboxState :
         _hud.SetStatus(
             _mode ==
             SandboxMode.TopDown
-                ? _topDown.GetStatus()
-                : _physics.GetStatus());
+                ? _topDown?.GetStatus() ?? "TOP-DOWN NOT ACTIVE"
+                : _physics?.GetStatus() ?? "PHYSICS NOT ACTIVE");
 
         var openGlGraphics =
             _graphics as Engine.Graphics.OpenGL.OpenGLGraphicsDevice;
@@ -485,8 +504,7 @@ public sealed class SandboxState :
 
     public override void Shutdown()
     {
-        _topDown.Dispose();
-        _physics.Dispose();
+        DisposeCurrentScenario();
 
         _ui.Root.RemoveChild(
             _hud);

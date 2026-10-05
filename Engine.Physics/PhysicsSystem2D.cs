@@ -71,12 +71,51 @@ public sealed class PhysicsSystem2D :
         _contactEvents;
 
     public void FixedUpdate(
-        FixedSystemContext context)
+    FixedSystemContext context)
     {
         ClearTransientState();
 
+        var substeps =
+            _settings.Substeps;
+
+        var substepDelta =
+            context.Time.Delta /
+            Fixed32.FromInt(
+                substeps);
+
+        var substepTime =
+            new SimulationTime(
+                substepDelta,
+                context.Time.Tick);
+
+        for (var step = 0;
+             step < substeps;
+             step++)
+        {
+            SimulateSubstep(
+                substepTime);
+        }
+
+        ApplyDamping(
+            context.Time.Delta);
+
+        SolveJointVelocities();
+
+        BuildCurrentContactState();
+
+        PublishContactEvents();
+
+        UpdateSleeping(
+            context.Time.Delta);
+
+        ClearForces();
+    }
+
+    private void SimulateSubstep(
+    SimulationTime time)
+    {
         Integrate(
-            context.Time);
+            time);
 
         DetectContacts();
 
@@ -89,17 +128,6 @@ public sealed class PhysicsSystem2D :
         DetectContacts();
 
         SolveVelocities();
-
-        SolveJointVelocities();
-
-        BuildCurrentContactState();
-
-        PublishContactEvents();
-
-        UpdateSleeping(
-    context.Time.Delta);
-
-        ClearForces();
     }
 
     private void SolveJointPositions()
@@ -314,32 +342,10 @@ public sealed class PhysicsSystem2D :
                     acceleration *
                     delta;
 
-                if (body.LinearDamping > Fixed32.Zero)
-                {
-                    var factor =
-                        Fixed32.One /
-                        (Fixed32.One +
-                         body.LinearDamping * delta);
-
-                    body.Velocity *=
-                        factor;
-                }
-
                 body.AngularVelocity +=
                     body.Torque *
                     body.InverseInertia *
                     delta;
-
-                if (body.AngularDamping > Fixed32.Zero)
-                {
-                    var factor =
-                        Fixed32.One /
-                        (Fixed32.One +
-                         body.AngularDamping * delta);
-
-                    body.AngularVelocity *=
-                        factor;
-                }
             }
 
             transform.Position +=
@@ -349,6 +355,50 @@ public sealed class PhysicsSystem2D :
             transform.Rotation +=
                 body.AngularVelocity *
                 delta;
+        }
+    }
+
+    private void ApplyDamping(
+    Fixed32 delta)
+    {
+        foreach (var item
+                 in _world.Query<PhysicsBody2D>())
+        {
+            ref var body =
+                ref item.Component;
+
+            if (body.BodyType !=
+                PhysicsBodyType.Dynamic)
+            {
+                continue;
+            }
+
+            if (body.IsSleeping)
+            {
+                continue;
+            }
+
+            if (body.LinearDamping > Fixed32.Zero)
+            {
+                var factor =
+                    Fixed32.One /
+                    (Fixed32.One +
+                     body.LinearDamping * delta);
+
+                body.Velocity *=
+                    factor;
+            }
+
+            if (body.AngularDamping > Fixed32.Zero)
+            {
+                var factor =
+                    Fixed32.One /
+                    (Fixed32.One +
+                     body.AngularDamping * delta);
+
+                body.AngularVelocity *=
+                    factor;
+            }
         }
     }
 
@@ -609,22 +659,23 @@ public sealed class PhysicsSystem2D :
                     transform.Rotation);
 
             var bounds =
-                collider.GetWorldBounds(
-                    transform.Position,
-                    transform.Rotation);
+    collider.GetWorldBounds(
+        transform.Position,
+        transform.Rotation);
+
+            if (_settings.PenetrationSlop >
+                Fixed32.Zero)
+            {
+                bounds =
+                    bounds.Expand(
+                        _settings.PenetrationSlop);
+            }
 
             _colliders.Add(
                 new PhysicsColliderProxy(
                     entity,
                     bounds,
-                    collider)
-                {
-                    WorldPosition =
-                        worldPosition,
-
-                    WorldRotation =
-                        transform.Rotation
-                });
+                    collider));
         }
 
         _colliders.Sort(

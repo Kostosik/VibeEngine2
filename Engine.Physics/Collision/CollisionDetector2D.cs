@@ -6,6 +6,7 @@ namespace Engine.Physics.Collision;
 
 public sealed class CollisionDetector2D
 {
+
     public bool TryDetect(
         PhysicsColliderProxy first,
         PhysicsColliderProxy second,
@@ -632,6 +633,273 @@ public sealed class CollisionDetector2D
         return true;
     }
 
+    private static bool TryGetPolygonAabbFaceContactPoint(
+    PhysicsColliderProxy polygonProxy,
+    FixedBounds2 boxBounds,
+    FixedVector2 normal,
+    out FixedVector2 contactPoint)
+    {
+        contactPoint = default;
+
+        if (normal.X == Fixed32.Zero &&
+            normal.Y != Fixed32.Zero)
+        {
+            var lineY =
+                normal.Y < Fixed32.Zero
+                    ? boxBounds.Max.Y
+                    : boxBounds.Min.Y;
+
+            var found = false;
+            var minimumX = Fixed32.Zero;
+            var maximumX = Fixed32.Zero;
+
+            var polygon =
+                polygonProxy.Collider.Shape.Polygon;
+
+            for (var i = 0;
+                 i < polygon.VertexCount;
+                 i++)
+            {
+                var nextIndex =
+                    (i + 1) %
+                    polygon.VertexCount;
+
+                var first =
+                    polygonProxy.GetWorldPolygonVertex(i);
+
+                var second =
+                    polygonProxy.GetWorldPolygonVertex(
+                        nextIndex);
+
+                if (first.Y == lineY &&
+                    second.Y == lineY)
+                {
+                    AddIntersection(
+                        first.X);
+
+                    AddIntersection(
+                        second.X);
+
+                    continue;
+                }
+
+                if (first.Y == second.Y)
+                {
+                    continue;
+                }
+
+                var minimumY =
+                    Fixed32.Min(
+                        first.Y,
+                        second.Y);
+
+                var maximumY =
+                    Fixed32.Max(
+                        first.Y,
+                        second.Y);
+
+                if (lineY < minimumY ||
+                    lineY > maximumY)
+                {
+                    continue;
+                }
+
+                var t =
+                    (lineY - first.Y) /
+                    (second.Y - first.Y);
+
+                var x =
+                    first.X +
+                    (second.X - first.X) *
+                    t;
+
+                AddIntersection(x);
+            }
+
+            if (!found)
+            {
+                return false;
+            }
+
+            minimumX =
+                Fixed32.Max(
+                    minimumX,
+                    boxBounds.Min.X);
+
+            maximumX =
+                Fixed32.Min(
+                    maximumX,
+                    boxBounds.Max.X);
+
+            if (minimumX > maximumX)
+            {
+                return false;
+            }
+
+            contactPoint =
+                new FixedVector2(
+                    (minimumX + maximumX) *
+                    Fixed32.FromRatio(
+                        1,
+                        2),
+                    lineY);
+
+            return true;
+
+            void AddIntersection(
+                Fixed32 x)
+            {
+                if (!found)
+                {
+                    minimumX = x;
+                    maximumX = x;
+                    found = true;
+                    return;
+                }
+
+                minimumX =
+                    Fixed32.Min(
+                        minimumX,
+                        x);
+
+                maximumX =
+                    Fixed32.Max(
+                        maximumX,
+                        x);
+            }
+        }
+
+        if (normal.Y == Fixed32.Zero &&
+            normal.X != Fixed32.Zero)
+        {
+            var lineX =
+                normal.X < Fixed32.Zero
+                    ? boxBounds.Max.X
+                    : boxBounds.Min.X;
+
+            var found = false;
+            var minimumY = Fixed32.Zero;
+            var maximumY = Fixed32.Zero;
+
+            var polygon =
+                polygonProxy.Collider.Shape.Polygon;
+
+            for (var i = 0;
+                 i < polygon.VertexCount;
+                 i++)
+            {
+                var nextIndex =
+                    (i + 1) %
+                    polygon.VertexCount;
+
+                var first =
+                    polygonProxy.GetWorldPolygonVertex(i);
+
+                var second =
+                    polygonProxy.GetWorldPolygonVertex(
+                        nextIndex);
+
+                if (first.X == lineX &&
+                    second.X == lineX)
+                {
+                    AddIntersection(
+                        first.Y);
+
+                    AddIntersection(
+                        second.Y);
+
+                    continue;
+                }
+
+                if (first.X == second.X)
+                {
+                    continue;
+                }
+
+                var minimumX =
+                    Fixed32.Min(
+                        first.X,
+                        second.X);
+
+                var maximumX =
+                    Fixed32.Max(
+                        first.X,
+                        second.X);
+
+                if (lineX < minimumX ||
+                    lineX > maximumX)
+                {
+                    continue;
+                }
+
+                var t =
+                    (lineX - first.X) /
+                    (second.X - first.X);
+
+                var y =
+                    first.Y +
+                    (second.Y - first.Y) *
+                    t;
+
+                AddIntersection(y);
+            }
+
+            if (!found)
+            {
+                return false;
+            }
+
+            minimumY =
+                Fixed32.Max(
+                    minimumY,
+                    boxBounds.Min.Y);
+
+            maximumY =
+                Fixed32.Min(
+                    maximumY,
+                    boxBounds.Max.Y);
+
+            if (minimumY > maximumY)
+            {
+                return false;
+            }
+
+            contactPoint =
+                new FixedVector2(
+                    lineX,
+                    (minimumY + maximumY) *
+                    Fixed32.FromRatio(
+                        1,
+                        2));
+
+            return true;
+
+            void AddIntersection(
+                Fixed32 y)
+            {
+                if (!found)
+                {
+                    minimumY = y;
+                    maximumY = y;
+                    found = true;
+                    return;
+                }
+
+                minimumY =
+                    Fixed32.Min(
+                        minimumY,
+                        y);
+
+                maximumY =
+                    Fixed32.Max(
+                        maximumY,
+                        y);
+            }
+        }
+
+        return false;
+    }
+
     private static bool TryDetectPolygonAabb(
     PhysicsColliderProxy first,
     PhysicsColliderProxy second,
@@ -669,21 +937,30 @@ public sealed class CollisionDetector2D
             ref bestAxis,
             delta);
 
-        var polygonSupport =
-            GetPolygonSupport(
+        FixedVector2 contactPoint;
+
+        if (!TryGetPolygonAabbFaceContactPoint(
                 first,
-                bestAxis);
-
-        var boxSupport =
-            GetAabbSupport(
                 boxBounds,
-                -bestAxis);
+                bestAxis,
+                out contactPoint))
+        {
+            var polygonSupport =
+                GetPolygonSupport(
+                    first,
+                    bestAxis);
 
-        var contactPoint =
-            (polygonSupport + boxSupport) *
-            Fixed32.FromRatio(
-                1,
-                2);
+            var boxSupport =
+                GetAabbSupport(
+                    boxBounds,
+                    -bestAxis);
+
+            contactPoint =
+                (polygonSupport + boxSupport) *
+                Fixed32.FromRatio(
+                    1,
+                    2);
+        }
 
         manifold =
             new CollisionManifold(
@@ -854,45 +1131,85 @@ public sealed class CollisionDetector2D
     PhysicsColliderProxy proxy,
     FixedVector2 direction)
     {
-        var best =
+        var polygon =
+            proxy.Collider.Shape.Polygon;
+
+        var supportSum =
             proxy.GetWorldPolygonVertex(0);
 
         var bestProjection =
-            best.Dot(direction);
+            supportSum.Dot(
+                direction);
+
+        var supportCount =
+            1;
 
         for (var i = 1;
-             i < proxy.Collider.Shape.Polygon.VertexCount;
+             i < polygon.VertexCount;
              i++)
         {
             var vertex =
                 proxy.GetWorldPolygonVertex(i);
 
             var projection =
-                vertex.Dot(direction);
+                vertex.Dot(
+                    direction);
 
             if (projection > bestProjection)
             {
                 bestProjection =
                     projection;
 
-                best =
+                supportSum =
                     vertex;
+
+                supportCount =
+                    1;
+            }
+            else if (projection == bestProjection)
+            {
+                supportSum +=
+                    vertex;
+
+                supportCount++;
             }
         }
 
-        return best;
+        return supportSum /
+               Fixed32.FromInt(
+                   supportCount);
     }
 
     private static FixedVector2 GetAabbSupport(
-        FixedBounds2 bounds,
-        FixedVector2 direction)
+    FixedBounds2 bounds,
+    FixedVector2 direction)
     {
+        if (direction.X == Fixed32.Zero)
+        {
+            return new FixedVector2(
+                bounds.Center.X,
+
+                direction.Y >= Fixed32.Zero
+                    ? bounds.Max.Y
+                    : bounds.Min.Y);
+        }
+
+        if (direction.Y == Fixed32.Zero)
+        {
+            return new FixedVector2(
+                direction.X >= Fixed32.Zero
+                    ? bounds.Max.X
+                    : bounds.Min.X,
+
+                bounds.Center.Y);
+        }
+
         return new FixedVector2(
-            direction.X >= Fixed32.Zero
+            direction.X > Fixed32.Zero
                 ? bounds.Max.X
                 : bounds.Min.X,
 
-            direction.Y >= Fixed32.Zero
+            direction.Y > Fixed32.Zero
                 ? bounds.Max.Y
                 : bounds.Min.Y);
     }
@@ -1199,7 +1516,7 @@ public sealed class CollisionDetector2D
             {
                 normal =
                     new FixedVector2(
-                        Fixed32.FromInt(-1),
+                        Fixed32.One,
                         Fixed32.Zero);
 
                 contactPoint =
@@ -1210,7 +1527,7 @@ public sealed class CollisionDetector2D
             {
                 normal =
                     new FixedVector2(
-                        Fixed32.One,
+                        Fixed32.FromInt(-1),
                         Fixed32.Zero);
 
                 contactPoint =
@@ -1222,7 +1539,7 @@ public sealed class CollisionDetector2D
                 normal =
                     new FixedVector2(
                         Fixed32.Zero,
-                        Fixed32.FromInt(-1));
+                        Fixed32.One);
 
                 contactPoint =
                     circlePosition.WithY(
@@ -1233,7 +1550,7 @@ public sealed class CollisionDetector2D
                 normal =
                     new FixedVector2(
                         Fixed32.Zero,
-                        Fixed32.One);
+                        Fixed32.FromInt(-1));
 
                 contactPoint =
                     circlePosition.WithY(

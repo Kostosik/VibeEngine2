@@ -15,6 +15,19 @@ public sealed class PhysicsSettings2DTests
     }
 
     [Fact]
+    public void Substeps_CannotBeZeroOrNegative()
+    {
+        var settings =
+            new PhysicsSettings2D();
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => settings.Substeps = 0);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => settings.Substeps = -1);
+    }
+
+    [Fact]
     public void PositionIterations_CannotBeNegative()
     {
         var settings = new PhysicsSettings2D();

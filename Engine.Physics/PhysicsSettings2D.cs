@@ -13,18 +13,22 @@ public sealed class PhysicsSettings2D :
     private Fixed32 _sleepLinearVelocityThreshold;
     private Fixed32 _sleepAngularVelocityThreshold;
     private Fixed32 _sleepTime;
+    private int _substeps;
     public PhysicsSettings2D()
     {
         Gravity = FixedVector2.Zero;
         VelocityIterations = 4;
         PositionIterations = 2;
-        PenetrationSlop = Fixed32.Zero;
+        Substeps = 4;
+        PenetrationSlop = Fixed32.FromRatio(
+        1,
+        65536);
         PositionCorrectionPercent = Fixed32.One;
         SleepLinearVelocityThreshold =
-    Fixed32.FromFloat(0.01f);
+            Fixed32.FromFloat(0.05f);
 
         SleepAngularVelocityThreshold =
-            Fixed32.FromFloat(0.01f);
+            Fixed32.FromFloat(0.05f);
 
         SleepTime =
             Fixed32.FromFloat(0.5f);
@@ -45,6 +49,22 @@ public sealed class PhysicsSettings2D :
             }
 
             _sleepLinearVelocityThreshold = value;
+        }
+    }
+
+    public int Substeps
+    {
+        get => _substeps;
+        set
+        {
+            if (value <= 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    "Physics substeps must be greater than zero.");
+            }
+
+            _substeps = value;
         }
     }
 
@@ -150,6 +170,8 @@ public sealed class PhysicsSettings2D :
     {
         hasher.AddFixedVector2(Gravity);
         hasher.AddInt32(VelocityIterations);
+        hasher.AddInt32(
+    Substeps);
         hasher.AddInt32(PositionIterations);
         hasher.AddFixed32(PenetrationSlop);
         hasher.AddFixed32(PositionCorrectionPercent);

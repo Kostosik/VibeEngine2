@@ -8,10 +8,13 @@ namespace Game.Sandbox;
 public sealed class SandboxHud :
     UiPanel
 {
+    private readonly UiLabel _networkReplicationStatus;
     private readonly UiLabel _mode;
     private readonly UiLabel _status;
     private readonly UiLabel _performance;
     private readonly UiLabel _interaction;
+    private readonly UiLabel _networkStatus;
+    private readonly UiLabel _playerReplicationStatus;
     public SandboxHud()
     {
         HorizontalAlignment =
@@ -55,6 +58,31 @@ public sealed class SandboxHud :
 
                 Spacing = 5.0f
             };
+
+        _playerReplicationStatus =
+    new UiLabel("PLAYER REPLICATION: IDLE")
+    {
+        FontSize = 13.0f
+    };
+
+        stack.AddChild(
+            _playerReplicationStatus);
+
+        _networkStatus =
+    new UiLabel("NETWORK: IDLE")
+    {
+        FontSize = 13.0f
+    };
+        _networkReplicationStatus =
+    new UiLabel("NETWORK REPLICATION: IDLE")
+    {
+        FontSize = 13.0f
+    };
+
+        stack.AddChild(
+            _networkReplicationStatus);
+        stack.AddChild(
+            _networkStatus);
 
         stack.AddChild(
             new UiLabel(
@@ -105,6 +133,7 @@ public sealed class SandboxHud :
                 "F3  Reset\n" +
                 "F4  Spawn stress batch\n" +
                 "F5  Clear stress batch\n" +
+                "F8  Toggle UI showcase\n" +
                 "SPACE  Force\n" +
                 "T  Toggle trigger\n" +
                 "R  Rotate obstacle\n" +
@@ -133,6 +162,13 @@ public sealed class SandboxHud :
             text;
     }
 
+    public void SetNetworkReplicationStatus(
+    string status)
+    {
+        _networkReplicationStatus.Text =
+            status;
+    }
+
     public void SetInteraction(
     string? text)
     {
@@ -148,6 +184,18 @@ public sealed class SandboxHud :
     {
         _mode.Text =
             $"SCENARIO: {mode}";
+    }
+
+    public void SetPlayerReplicationStatus(
+    string status)
+    {
+        _playerReplicationStatus.Text = status;
+    }
+
+    public void SetNetworkStatus(
+    string status)
+    {
+        _networkStatus.Text = status;
     }
 
     public void SetStatus(

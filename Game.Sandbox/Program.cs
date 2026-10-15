@@ -25,6 +25,9 @@ using Game.Sandbox;
 var actionMap =
     new InputActionMap();
 
+var toggleUiShowcaseAction =
+    new InputAction("ToggleUiShowcase");
+
 var saveAction =
     new InputAction("Save");
 
@@ -63,6 +66,35 @@ var moveRight =
 
 var switchModeAction =
     new InputAction("SwitchMode");
+
+var playAudioAction =
+    new InputAction("PlayAudio");
+
+var networkTestAction =
+    new InputAction("NetworkTest");
+
+var networkReplicationAction =
+    new InputAction("NetworkReplicationTest");
+var playerReplicationAction =
+    new InputAction("PlayerReplication");
+actionMap.Bind(
+    playerReplicationAction,
+    new InputBinding("Keyboard.F12"));
+actionMap.Bind(
+    networkReplicationAction,
+    new InputBinding("Keyboard.F11"));
+
+actionMap.Bind(
+    networkTestAction,
+    new InputBinding("Keyboard.F10"));
+
+actionMap.Bind(
+    playAudioAction,
+    new InputBinding("Keyboard.F9"));
+
+actionMap.Bind(
+    toggleUiShowcaseAction,
+    new InputBinding("Keyboard.F8"));
 
 actionMap.Bind(
     saveAction,
@@ -318,7 +350,7 @@ var sandbox =
         clearAction,
         forceAction,
         triggerAction,
-        rotateAction,saveLoad,saveAction,loadAction,
+        rotateAction, toggleUiShowcaseAction, playAudioAction, networkTestAction, networkReplicationAction,playerReplicationAction, saveLoad,saveAction,loadAction,
         console);
 
 var application =

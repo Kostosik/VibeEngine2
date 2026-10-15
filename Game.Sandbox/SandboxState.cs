@@ -15,6 +15,7 @@ using Engine.Tooling.Debugging;
 using Engine.UI.Core;
 using Engine.Worlds.Chunks;
 using Game.Sandbox.Scenarios;
+using Game.Sandbox.UI;
 
 namespace Game.Sandbox;
 
@@ -34,6 +35,9 @@ public sealed class SandboxState :
     private readonly UiSystem _ui;
     private readonly DebugConsoleOverlay? _console;
 
+    private readonly InputAction _playerReplicationAction;
+    private readonly SandboxPlayerReplicationProbe _playerReplicationProbe;
+
     private readonly InputAction _switchModeAction;
     private readonly InputAction _resetAction;
     private readonly InputAction _spawnAction;
@@ -42,6 +46,9 @@ public sealed class SandboxState :
     private readonly InputAction _triggerAction;
     private readonly InputAction _rotateAction;
 
+    private readonly InputAction _toggleUiShowcaseAction;
+    private readonly UiShowcaseWindow _uiShowcase;
+
     private readonly InputAction _moveUp;
     private readonly InputAction _moveDown;
     private readonly InputAction _moveLeft;
@@ -49,6 +56,9 @@ public sealed class SandboxState :
 
     private readonly RenderTargetHandle _renderTarget;
     private readonly SandboxHud _hud;
+
+    private readonly InputAction _networkTestAction;
+    private readonly SandboxNetworkProbe _networkProbe;
 
     private TopDownScenario? _topDown;
     private PhysicsScenario? _physics;
@@ -68,9 +78,12 @@ public sealed class SandboxState :
 
     private readonly string _savePath;
 
+    private readonly InputAction _networkReplicationAction;
+    private readonly SandboxReplicationProbe _networkReplicationProbe;
+
     private string _serializationStatus =
         "READY";
-
+    private readonly InputAction _playAudioAction;
     public SandboxState(
         EngineRuntime runtime,
         IInput input,
@@ -88,7 +101,13 @@ public sealed class SandboxState :
         InputAction clearAction,
         InputAction forceAction,
         InputAction triggerAction,
-        InputAction rotateAction, GameSaveLoadService saveLoad,
+        InputAction rotateAction,
+        InputAction toggleUiShowcaseAction,
+        InputAction playAudioAction, 
+        InputAction networkTestAction,
+        InputAction networkReplicationAction, 
+        InputAction playerReplicationAction,
+        GameSaveLoadService saveLoad,
 InputAction saveAction,
 InputAction loadAction,
         DebugConsoleOverlay? console = null)
@@ -112,6 +131,17 @@ InputAction loadAction,
         _saveLoad =
     saveLoad;
 
+        _networkTestAction = networkTestAction;
+
+        _networkReplicationAction =
+    networkReplicationAction;
+
+        _playerReplicationAction =
+    playerReplicationAction;
+
+        _playAudioAction =
+    playAudioAction;
+
         _saveAction =
             saveAction;
 
@@ -130,6 +160,14 @@ InputAction loadAction,
         _graphics = graphics;
         _ui = ui;
         _console = console;
+
+        _toggleUiShowcaseAction =
+    toggleUiShowcaseAction;
+
+        _uiShowcase =
+            new UiShowcaseWindow(
+                ui,
+                tileAtlas.Texture);
 
         _switchModeAction = switchModeAction;
         _resetAction = resetAction;
@@ -193,12 +231,39 @@ InputAction loadAction,
         _moveLeft = moveLeft;
         _moveRight = moveRight;
 
+        _networkProbe =
+    new SandboxNetworkProbe();
+
+        _networkProbe.StatusChanged +=
+            _hud.SetNetworkStatus;
+
+        _hud.SetNetworkStatus(
+            _networkProbe.Status);
+
+        _networkReplicationProbe =
+    new SandboxReplicationProbe();
+
+        _networkReplicationProbe.StatusChanged +=
+            _hud.SetNetworkReplicationStatus;
+
+        _hud.SetNetworkReplicationStatus(
+            _networkReplicationProbe.Status);
+
+        _playerReplicationProbe =
+    new SandboxPlayerReplicationProbe();
+
+        _playerReplicationProbe.StatusChanged +=
+            _hud.SetPlayerReplicationStatus;
+
+        _hud.SetPlayerReplicationStatus(
+            _playerReplicationProbe.Status);
+
         _runtime.PhysicsDebugVisualizer!.Enabled =
             true;
     }
 
     public override void Update(
-    TimeSnapshot time)
+        TimeSnapshot time)
     {
         _runtime.Profiler?.RecordFrame();
 
@@ -208,18 +273,80 @@ InputAction loadAction,
 
         _input.Update();
 
+        _networkProbe.Update();
+        _networkReplicationProbe.Update();
+        _playerReplicationProbe.Update();
         _console?.Update();
+
+        // Сначала UI обрабатывает мышь, фокус
+        // и ввод текста.
+        _ui.Update(
+            time.Delta.TotalSeconds);
 
         if (_console?.IsOpen == true)
         {
             _topDown?.StopMovement();
 
-            _ui.Update(
-                time.Delta.TotalSeconds);
-
             base.Update(time);
 
             return;
+        }
+
+        // F8 остаётся глобальной командой,
+        // чтобы окно можно было закрыть и при фокусе в TextBox.
+        if (_input.IsPressed(
+                _toggleUiShowcaseAction))
+        {
+            if (_uiShowcase.IsOpen)
+            {
+                _uiShowcase.Close();
+            }
+            else
+            {
+                _uiShowcase.Show(
+                    new Vector2(
+                        660.0f,
+                        40.0f));
+            }
+        }
+
+        // Если UI принимает клавиатурный ввод,
+        // игровые горячие клавиши не выполняются.
+        if (_ui.ConsumesKeyboardInput)
+        {
+            _topDown?.StopMovement();
+
+            base.Update(time);
+
+            UpdateHud();
+
+            return;
+        }
+        if (_input.IsPressed(
+        _playerReplicationAction))
+        {
+            if (_mode == SandboxMode.TopDown &&
+                _topDown is not null)
+            {
+                _playerReplicationProbe.RunTest(
+                    _runtime.EcsWorld,
+                    _topDown.Player);
+            }
+            else
+            {
+                _playerReplicationProbe.ShowUnavailable();
+            }
+        }
+        if (_input.IsPressed(
+        _networkTestAction))
+        {
+            _networkProbe.RunTest();
+        }
+
+        if (_input.IsPressed(
+        _playAudioAction))
+        {
+            _topDown?.PlayTestSound();
         }
 
         if (_input.IsPressed(
@@ -228,6 +355,12 @@ InputAction loadAction,
             SwitchMode();
 
             return;
+        }
+
+        if (_input.IsPressed(
+        _networkReplicationAction))
+        {
+            _networkReplicationProbe.RunTest();
         }
 
         if (_input.IsPressed(
@@ -255,7 +388,7 @@ InputAction loadAction,
         }
 
         if (_input.IsPressed(
-        _saveAction))
+                _saveAction))
         {
             SaveGame();
         }
@@ -281,22 +414,12 @@ InputAction loadAction,
         if (_mode ==
             SandboxMode.TopDown)
         {
-            if (!_ui.ConsumesKeyboardInput)
-            {
-                _topDown?.Update();
-            }
-            else
-            {
-                _topDown?.StopMovement();
-            }
+            _topDown?.Update();
         }
         else
         {
             _topDown?.StopMovement();
         }
-
-        _ui.Update(
-            time.Delta.TotalSeconds);
 
         base.Update(time);
 
@@ -346,6 +469,11 @@ InputAction loadAction,
 
     private void LoadGame()
     {
+        if (_playerReplicationProbe.IsRunning)
+        {
+            _playerReplicationProbe.Cancel();
+        }
+
         if (_mode !=
             SandboxMode.TopDown)
         {
@@ -464,6 +592,11 @@ InputAction loadAction,
 
     private void DisposeCurrentScenario()
     {
+        if (_playerReplicationProbe.IsRunning)
+        {
+            _playerReplicationProbe.Cancel();
+        }
+
         if (_mode ==
             SandboxMode.TopDown)
         {
@@ -546,6 +679,11 @@ InputAction loadAction,
 
     private void ResetCurrentScenario()
     {
+        if (_playerReplicationProbe.IsRunning)
+        {
+            _playerReplicationProbe.Cancel();
+        }
+
         if (_mode ==
             SandboxMode.TopDown)
         {
@@ -689,6 +827,23 @@ InputAction loadAction,
     public override void Shutdown()
     {
         DisposeCurrentScenario();
+
+        _playerReplicationProbe.StatusChanged -=
+    _hud.SetPlayerReplicationStatus;
+
+        _playerReplicationProbe.Dispose();
+
+        _networkReplicationProbe.StatusChanged -=
+    _hud.SetNetworkReplicationStatus;
+
+        _networkReplicationProbe.Dispose();
+
+        _networkProbe.StatusChanged -=
+    _hud.SetNetworkStatus;
+
+        _networkProbe.Dispose();
+
+        _uiShowcase.Close();
 
         _ui.Root.RemoveChild(
             _hud);

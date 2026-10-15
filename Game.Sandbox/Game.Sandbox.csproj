@@ -18,6 +18,8 @@
     <ProjectReference Include="..\Engine.Graphics.OpenGL\Engine.Graphics.OpenGL.csproj" />
     <ProjectReference Include="..\Engine.Graphics\Engine.Graphics.csproj" />
     <ProjectReference Include="..\Engine.Input\Engine.Input.csproj" />
+    <ProjectReference Include="..\Engine.Networking.Replication\Engine.Networking.Replication.csproj" />
+    <ProjectReference Include="..\Engine.Networking\Engine.Networking.csproj" />
     <ProjectReference Include="..\Engine.Physics\Engine.Physics.csproj" />
     <ProjectReference Include="..\Engine.Runtime\Engine.Runtime.csproj" />
     <ProjectReference Include="..\Engine.Serialization\Engine.Serialization.csproj" />

@@ -1,4 +1,6 @@
-﻿using Engine.Camera;
+﻿using Engine.Audio;
+using Engine.Camera;
+using Engine.Core.Assets;
 using Engine.Core.Commands;
 using Engine.Core.Events;
 using Engine.Core.Math;
@@ -52,6 +54,9 @@ public sealed class TopDownScenario :
     private readonly List<EntityId> _entities = new();
     private readonly List<EntityId> _spawnedEntities = new();
 
+    private readonly IAudioListener _audioListener;
+    private readonly IAudioSource _testSoundSource;
+
     private EntityId _player;
     private EntityId _trigger;
     private EntityId _rotatableObstacle;
@@ -75,6 +80,25 @@ public sealed class TopDownScenario :
         ArgumentNullException.ThrowIfNull(tileAtlas);
 
         _runtime = runtime;
+
+        var testSound =
+    runtime.Services.Audio.Load(
+        new AssetPath("Audio/test.wav"));
+
+        _testSoundSource =
+            runtime.Services.Audio.CreateSource(
+                testSound);
+
+        _testSoundSource.SetGain(0.5f);
+        _testSoundSource.SetLooping(false);
+
+        _audioListener =
+            runtime.Services.Audio.CreateListener();
+
+        _audioListener.SetOrientation(
+            new Vector3(0.0f, 0.0f, -1.0f),
+            new Vector3(0.0f, 1.0f, 0.0f));
+
         _ecsWorld = runtime.EcsWorld;
         _world = runtime.World;
         _camera = camera;
@@ -168,6 +192,34 @@ public sealed class TopDownScenario :
                 direction));
     }
 
+    public void PlayTestSound()
+    {
+        if (!_ecsWorld.Exists(_player) ||
+            !_ecsWorld.Has<WorldTransform2D>(_player))
+        {
+            return;
+        }
+
+        var position =
+            _ecsWorld.Get<WorldTransform2D>(
+                _player).Position;
+
+        var audioPosition =
+            new Vector3(
+                position.X.ToFloat(),
+                position.Y.ToFloat(),
+                0.0f);
+
+        _audioListener.SetPosition(
+            audioPosition);
+
+        _testSoundSource.SetPosition(
+            audioPosition);
+
+        _testSoundSource.Rewind();
+        _testSoundSource.Play();
+    }
+
     public void StopMovement()
     {
         if (!_ecsWorld.Exists(_player))
@@ -203,6 +255,12 @@ public sealed class TopDownScenario :
             (_currentPlayerPosition -
              _previousPlayerPosition) *
             alpha;
+
+        _audioListener.SetPosition(
+    new Vector3(
+        renderPosition.X.ToFloat(),
+        renderPosition.Y.ToFloat(),
+        0.0f));
 
         RenderSimulationObject(
     _visibleSimulationEntity);
@@ -807,7 +865,7 @@ public sealed class TopDownScenario :
                             true;
 
                         _triggerCount++;
-
+                        PlayTestSound();
                         InteractionChanged?.Invoke(
                             "TRIGGER ACTIVATED");
                         break;
@@ -858,6 +916,9 @@ public sealed class TopDownScenario :
     {
         _movementSubscription.Dispose();
         _physicsSubscription.Dispose();
+
+        _testSoundSource.Dispose();
+        _audioListener.Dispose();
 
         ClearEntities();
     }

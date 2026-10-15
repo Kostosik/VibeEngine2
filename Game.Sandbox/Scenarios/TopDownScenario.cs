@@ -1,16 +1,25 @@
-﻿using Engine.Audio;
+﻿using Engine.Animation;
+using Engine.Audio;
 using Engine.Camera;
 using Engine.Core.Assets;
 using Engine.Core.Commands;
+using Engine.Core.Determinism;
 using Engine.Core.Events;
 using Engine.Core.Math;
 using Engine.ECS.Components;
 using Engine.ECS.Entities;
-using Engine.Graphics;
 using Engine.Graphics.Resources;
 using Engine.Graphics.Sprites;
 using Engine.Graphics.Tilemaps;
 using Engine.Input;
+using Engine.Navigation;
+using Engine.Navigation.Chunks;
+using Engine.Navigation.Maps;
+using Engine.Navigation.Pathfinding;
+using Engine.Navigation.Pathfinding.Algorithms;
+using Engine.Particles.Emission;
+using Engine.Particles.Modifiers;
+using Engine.Particles.Particles;
 using Engine.Physics.Collision;
 using Engine.Physics.Components;
 using Engine.Physics.Shapes;
@@ -45,6 +54,21 @@ public sealed class TopDownScenario :
     private EntityId _visibleSimulationEntity;
     private EntityId _alwaysSimulationEntity;
 
+    private readonly ParticleSystem _particleSystem =
+    new(256);
+
+    private readonly ParticleEmitterRuntime _particleEmitterRuntime;
+    private readonly AnimationClip _particleEmissionClip;
+    private readonly AnimationPlayer _particleEmissionPlayer;
+
+    private DeterministicRandom _particleRandom =
+        new(0xC0FFEEUL);
+
+    private float _animatedParticleEmissionRate;
+
+    private static readonly AnimationTrackId ParticleEmissionRateTrack =
+        new("sandbox.particles.emission-rate");
+
     private int _visibleSimulationTicks;
     private int _alwaysSimulationTicks;
 
@@ -63,6 +87,22 @@ public sealed class TopDownScenario :
 
     private int _collisionCount;
     private int _triggerCount;
+
+    private NavigationQueryService? _navigationQueries;
+    private NavigationPath? _navigationPath;
+    private NavigationCoordinate? _lastNavigationStart;
+
+    private static readonly NavigationCoordinate NavigationGoal =
+        new(24, 20);
+
+    public bool HasNavigationPath =>
+        _navigationPath is not null;
+
+    public int NavigationPathPointCount =>
+        _navigationPath?.Coordinates.Count ?? 0;
+
+    public float NavigationPathCost =>
+        _navigationPath?.TotalCost ?? 0.0f;
 
     public TopDownScenario(
         EngineRuntime runtime,
@@ -132,6 +172,50 @@ public sealed class TopDownScenario :
                     1.0f),
                 20);
 
+        _particleEmitterRuntime =
+    new ParticleEmitterRuntime(
+        new ParticleEmitter());
+
+        _particleEmissionClip =
+            CreateParticleEmissionClip();
+
+        _particleEmissionPlayer =
+            new AnimationPlayer(
+                _particleEmissionClip)
+            {
+                LoopMode = AnimationLoopMode.Loop
+            };
+
+        var particleBindings =
+            new AnimationBindingSet();
+
+        particleBindings.Add<float>(
+            ParticleEmissionRateTrack,
+            rate =>
+                _animatedParticleEmissionRate = rate);
+
+        _particleEmissionPlayer.SetBindings(
+            particleBindings);
+
+        _particleEmissionPlayer.Play();
+
+        _particleSystem.Modifiers.Add(
+            new DelegateParticleModifier(
+                static (ref Particle particle, float deltaSeconds) =>
+                {
+                    // Частицы постепенно поднимаются и уменьшаются.
+                    particle.Velocity =
+                        new Vector3(
+                            particle.Velocity.X,
+                            particle.Velocity.Y + 0.25f * deltaSeconds,
+                            particle.Velocity.Z);
+
+                    particle.Size =
+                        MathF.Max(
+                            0.0f,
+                            particle.Size - 0.15f * deltaSeconds);
+                }));
+
         _movementSubscription =
             runtime.Simulation.CommandDispatcher.Register(
                 new TopDownMoveCommandHandler(
@@ -151,6 +235,8 @@ public sealed class TopDownScenario :
 
     public void Update()
     {
+        UpdateNavigationPath();
+
         var direction =
             FixedVector2.Zero;
 
@@ -190,6 +276,26 @@ public sealed class TopDownScenario :
             new TopDownMoveCommand(
                 _player,
                 direction));
+    }
+
+    private static AnimationClip CreateParticleEmissionClip()
+    {
+        var clip =
+            new AnimationClip(1.0);
+
+        clip.AddTrack(
+            ParticleEmissionRateTrack,
+            new AnimationTrack<float>(
+                new[]
+                {
+                new AnimationKeyframe<float>(0.0, 0.0f),
+                new AnimationKeyframe<float>(0.2, 30.0f),
+                new AnimationKeyframe<float>(0.65, 30.0f),
+                new AnimationKeyframe<float>(1.0, 0.0f)
+                },
+                new FloatLinearAnimationInterpolator()));
+
+        return clip;
     }
 
     public void PlayTestSound()
@@ -283,11 +389,42 @@ public sealed class TopDownScenario :
                 chunk.Tiles.AsValueReadOnlySpan());
         }
 
+        RenderParticles();
+
         _spriteRenderer.DrawWorld(
             _playerSprite,
             new Engine.Core.Math.Vector2(
                 renderPosition.X.ToFloat() - 0.5f,
                 renderPosition.Y.ToFloat() - 0.5f));
+    }
+
+    private void RenderParticles()
+    {
+        foreach (var particle in
+                 _particleSystem.Particles)
+        {
+            if (particle.Size <= 0.0f)
+            {
+                continue;
+            }
+
+            var size =
+                particle.Size;
+
+            var sprite =
+                new Sprite(
+                    _playerSprite.Texture,
+                    _playerSprite.UV,
+                    new Vector2(size, size),
+                    _playerSprite.Layer - 1);
+
+            _spriteRenderer.DrawWorld(
+                sprite,
+                new Vector2(
+                    particle.Position.X - size * 0.5f,
+                    particle.Position.Y - size * 0.5f),
+                _camera);
+        }
     }
 
     public void RefreshAfterWorldRestore()
@@ -308,6 +445,8 @@ public sealed class TopDownScenario :
 
         _currentPlayerPosition =
             position;
+
+        RebuildNavigationMap();
     }
 
     private void RenderSimulationObject(
@@ -333,6 +472,17 @@ public sealed class TopDownScenario :
     public void Reset()
     {
         ClearEntities();
+
+        _particleSystem.Clear();
+
+        _particleEmitterRuntime.Reset();
+
+        _particleEmissionPlayer.Reset();
+        _particleEmissionPlayer.Play();
+
+        _animatedParticleEmissionRate = 0.0f;
+
+        _particleEmitterRuntime.Emitter.RatePerSecond = 0.0f;
 
         _collisionCount = 0;
         _triggerCount = 0;
@@ -401,12 +551,233 @@ public sealed class TopDownScenario :
                 new FixedVector2(
                     Fixed32.FromInt(6),
                     Fixed32.FromInt(4)));
+        RebuildNavigationMap();
     }
 
-    public void FixedUpdate()
+    private void RebuildNavigationMap()
     {
+        var map =
+            new ChunkedNavigationMap(
+                _world.ChunkSize.Width,
+                _world.ChunkSize.Height);
+
+        foreach (var record in _world.GetChunkRecords())
+        {
+            var position =
+                record.Lifecycle.Position;
+
+            var navigationChunk =
+                new NavigationChunk(
+                    new NavigationChunkCoordinate(
+                        position.X,
+                        position.Y),
+                    _world.ChunkSize.Width,
+                    _world.ChunkSize.Height);
+
+            if (record.Chunk is not null)
+            {
+                PopulateNavigationChunk(
+                    navigationChunk,
+                    record.Chunk.Tiles.AsReadOnlySpan());
+            }
+            else if (_world.ChunkPersistence.TryLoad(
+                         position,
+                         out var persisted) &&
+                     persisted is not null)
+            {
+                PopulateNavigationChunk(
+                    navigationChunk,
+                    persisted.Tiles);
+            }
+            else
+            {
+                // Без данных чанка нельзя достоверно построить
+                // соответствующую часть навигационной карты.
+                continue;
+            }
+
+            map.AddChunk(navigationChunk);
+        }
+
+        // Эти клетки соответствуют двум AABB-препятствиям
+        // в TopDownScenario: горизонтальному и вертикальному.
+        for (var x = 2; x <= 14; x++)
+        {
+            var coordinate =
+                new NavigationCoordinate(x, 10);
+
+            if (map.Contains(coordinate))
+            {
+                map.SetTraversable(
+                    coordinate,
+                    false);
+            }
+        }
+
+        for (var y = -15; y <= -1; y++)
+        {
+            var coordinate =
+                new NavigationCoordinate(-12, y);
+
+            if (map.Contains(coordinate))
+            {
+                map.SetTraversable(
+                    coordinate,
+                    false);
+            }
+        }
+
+        _navigationQueries =
+            new NavigationQueryService(
+                map,
+                new AStarPathfinder());
+
+        _lastNavigationStart = null;
+
+        UpdateNavigationPath(
+            force: true);
+    }
+
+    private static void PopulateNavigationChunk(
+        NavigationChunk navigationChunk,
+        ReadOnlySpan<Tile> tiles)
+    {
+        var expectedCount =
+            checked(
+                navigationChunk.Width *
+                navigationChunk.Height);
+
+        if (tiles.Length != expectedCount)
+        {
+            throw new InvalidOperationException(
+                "World chunk tile count does not match navigation chunk dimensions.");
+        }
+
+        for (var index = 0;
+             index < tiles.Length;
+             index++)
+        {
+            var local =
+                new NavigationCoordinate(
+                    index % navigationChunk.Width,
+                    index / navigationChunk.Width);
+
+            // Нулевое значение означает пустую клетку,
+            // ненулевое — проходимую в этом тестовом сценарии.
+            navigationChunk.Grid.SetTraversable(
+                local,
+                tiles[index].Value != 0);
+        }
+    }
+
+    private void UpdateNavigationPath(
+        bool force = false)
+    {
+        if (_navigationQueries is null ||
+            !_ecsWorld.Exists(_player) ||
+            !_ecsWorld.Has<WorldTransform2D>(_player))
+        {
+            _navigationPath = null;
+            _lastNavigationStart = null;
+            return;
+        }
+
+        var position =
+            _ecsWorld.Get<WorldTransform2D>(
+                _player).Position;
+
+        var start =
+            new NavigationCoordinate(
+                position.X.FloorToInt(),
+                position.Y.FloorToInt());
+
+        if (!force &&
+            _lastNavigationStart == start)
+        {
+            return;
+        }
+
+        _lastNavigationStart = start;
+
+        var result =
+            _navigationQueries.FindPath(
+                new NavigationPathQuery(
+                    start,
+                    NavigationGoal));
+
+        _navigationPath =
+            result.Succeeded
+                ? result.Path
+                : null;
+    }
+
+    public void FixedUpdate(
+        double deltaSeconds)
+    {
+        UpdateParticles(
+            (float)deltaSeconds);
+
         SimulateVisibleObject();
         SimulateAlwaysObject();
+    }
+
+    private void UpdateParticles(
+    float deltaSeconds)
+    {
+        _particleSystem.Update(
+            deltaSeconds);
+
+        _particleEmissionPlayer.Update(
+            deltaSeconds);
+
+        _particleEmissionPlayer.Bindings?.Apply(
+            _particleEmissionClip,
+            _particleEmissionPlayer.TimeSeconds);
+
+        var isMoving =
+            _input.IsDown(_moveUp) ||
+            _input.IsDown(_moveDown) ||
+            _input.IsDown(_moveLeft) ||
+            _input.IsDown(_moveRight);
+
+        // Анимация задаёт интенсивность,
+        // а ввод решает, когда создавать след.
+        _particleEmitterRuntime.Emitter.RatePerSecond =
+            isMoving
+                ? _animatedParticleEmissionRate
+                : 0.0f;
+
+        if (!_ecsWorld.Exists(_player) ||
+            !_ecsWorld.Has<WorldTransform2D>(_player))
+        {
+            return;
+        }
+
+        _particleEmitterRuntime.Update(
+            _particleSystem,
+            deltaSeconds,
+            ref _particleRandom,
+            CreateTrailParticle);
+    }
+
+    private Particle CreateTrailParticle(
+        ref DeterministicRandom random)
+    {
+        var position =
+            _ecsWorld.Get<WorldTransform2D>(
+                _player).Position;
+
+        return new Particle(
+            new Vector3(
+                position.X.ToFloat(),
+                position.Y.ToFloat(),
+                0.0f),
+            new Vector3(
+                random.NextFloat(-0.75f, 0.75f),
+                random.NextFloat(0.15f, 0.8f),
+                0.0f),
+            random.NextFloat(0.25f, 0.55f),
+            random.NextFloat(0.18f, 0.32f));
     }
 
     private void SimulateAlwaysObject()
@@ -627,7 +998,9 @@ public sealed class TopDownScenario :
             $"Triggers       {_triggerCount}\n" +
             $"Visible sim     {_visibleSimulationTicks}\n" +
             $"Always sim      {_alwaysSimulationTicks}\n" +
+            $"Particles       {_particleSystem.Count}/{_particleSystem.Capacity}\\n" +
             $"Chunks         {_world.ChunkCount}";
+
     }
 
     private void BuildMap()
@@ -914,6 +1287,7 @@ public sealed class TopDownScenario :
 
     public void Dispose()
     {
+        _particleSystem.Clear();
         _movementSubscription.Dispose();
         _physicsSubscription.Dispose();
 

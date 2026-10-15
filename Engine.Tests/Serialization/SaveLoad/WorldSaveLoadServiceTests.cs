@@ -1,17 +1,98 @@
-﻿using Engine.Jobs.Scheduling;
+﻿using Engine.ECS.Entities;
+using Engine.ECS.Persistence;
+using Engine.Jobs.Scheduling;
 using Engine.Serialization.Binary;
 using Engine.Serialization.SaveLoad.Ecs;
 using Engine.Serialization.SaveLoad.Worlds;
+using Engine.Tests.Worlds.Chunks;
 using Engine.Worlds.Chunks;
 using Engine.Worlds.Persistence;
 using Engine.Worlds.Spatial;
 using Engine.Worlds.Tiles;
-using Engine.Tests.Worlds.Chunks;
 
 namespace Engine.Tests.Serialization.SaveLoad;
 
 public sealed class WorldSaveLoadServiceTests
 {
+    [Fact]
+    public void World_RestoreWithInvalidEcsState_DoesNotMutateExistingWorld()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new Engine.Worlds.World(
+                new ChunkSize(4, 4),
+                ecsWorld);
+
+        var existingEntity =
+            world.SpatialEntities.CreateEntity(
+                new WorldPosition(5, 7));
+
+        var existingChunkPosition =
+            new ChunkPosition(2, 3);
+
+        var existingChunk =
+            world.CreateChunk(
+                existingChunkPosition);
+
+        existingChunk.Tiles.Set(
+            new LocalPosition(1, 2),
+            new Tile(321));
+
+        // Entity 1 exists in the generation table,
+        // but is not listed as active.
+        // Its component state is therefore invalid.
+        var invalidEcsState =
+            new EcsWorldState(
+                new EntityStoreState(
+                    nextIndex: 2,
+                    generations: new uint[] { 1 },
+                    activeIndices: Array.Empty<uint>(),
+                    freeIndices: Array.Empty<uint>()),
+                new WorldComponentState[]
+                {
+                new WorldComponentState<TestValue>(
+                    new[] { new EntityId(1, 1) },
+                    new[] { new TestValue(99) })
+                });
+
+        var invalidState =
+            new WorldSaveState(
+                new ChunkSize(4, 4),
+                invalidEcsState,
+                Array.Empty<ChunkSaveState>());
+
+        Assert.Throws<InvalidOperationException>(
+            () => WorldPersistence.Restore(
+                world,
+                invalidState));
+
+        // The original ECS data must still exist.
+        Assert.True(
+            world.EcsWorld.Exists(
+                existingEntity));
+
+        Assert.Equal(
+            new WorldPosition(5, 7),
+            world.SpatialEntities.GetPosition(
+                existingEntity));
+
+        // The existing chunk and its data must survive.
+        Assert.True(
+            world.TryGetChunk(
+                existingChunkPosition,
+                out var preservedChunk));
+
+        Assert.NotNull(
+            preservedChunk);
+
+        Assert.Equal(
+            new Tile(321),
+            preservedChunk!.Tiles.Get(
+                new LocalPosition(1, 2)));
+    }
+
     [Fact]
     public void World_RoundTripsThroughRealFile()
     {

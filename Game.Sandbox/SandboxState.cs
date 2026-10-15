@@ -8,6 +8,7 @@ using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Engine.Graphics2D.Rendering;
 using Engine.Input;
+using Engine.Localization;
 using Engine.Runtime;
 using Engine.Serialization.SaveLoad.Game;
 using Engine.Simulations;
@@ -28,7 +29,7 @@ public sealed class SandboxState :
         TopDown,
         Physics
     }
-
+    private readonly LocalizationManager _localization;
     private readonly EngineRuntime _runtime;
     private readonly IInput _input;
     private readonly Camera2D _camera;
@@ -82,6 +83,9 @@ public sealed class SandboxState :
 
         _saveLoad =
     saveLoad;
+
+        _localization =
+    CreateLocalizationManager();
 
         _graphics = runtime.Services.Graphics;
         _input = runtime.Services.Input;
@@ -260,6 +264,18 @@ public sealed class SandboxState :
 
             return;
         }
+        if (_input.IsPressed(
+        _actions.ToggleLocale))
+        {
+            var nextLocale =
+                _localization.CurrentLocale.Language == "ru"
+                    ? new Locale("en")
+                    : new Locale("ru");
+
+            _localization.SetLocale(
+                nextLocale);
+        }
+
         if (_input.IsPressed(
         _actions.PlayerReplicationTest))
         {
@@ -496,7 +512,8 @@ public sealed class SandboxState :
             SandboxMode.TopDown)
         {
             _topDown?.BeginFixedStep();
-            _topDown?.FixedUpdate();
+            _topDown?.FixedUpdate(
+                time.Delta.ToFloat());
         }
 
         base.FixedUpdate(
@@ -690,7 +707,21 @@ public sealed class SandboxState :
             $"{status}\n" +
             $"Save/Load      {_serializationStatus}");
 
+        var navigationText =
+    _mode == SandboxMode.TopDown &&
+    _topDown is not null &&
+    _topDown.HasNavigationPath
+        ? _localization.Format(
+            "sandbox.navigation.path",
+            _topDown.NavigationPathPointCount,
+            _topDown.NavigationPathCost)
+        : _localization.Get(
+            "sandbox.navigation.unavailable");
 
+        _hud.SetIntegrationStatus(
+            $"{navigationText} | " +
+            _localization.Get(
+                "sandbox.locale.hint"));
 
         var openGlGraphics =
             _graphics as Engine.Graphics.OpenGL.OpenGLGraphicsDevice;
@@ -735,6 +766,53 @@ public sealed class SandboxState :
             _renderTarget,
             width,
             height);
+    }
+
+    private static LocalizationManager CreateLocalizationManager()
+    {
+        var localization =
+            new LocalizationManager(
+                new Locale("en"));
+
+        var english =
+            new LocalizationTable(
+                new Locale("en"));
+
+        english.Set(
+            "sandbox.navigation.path",
+            "NAV [EN]: {0} nodes, cost {1:0.0}");
+
+        english.Set(
+            "sandbox.navigation.unavailable",
+            "NAV [EN]: path unavailable");
+
+        english.Set(
+            "sandbox.locale.hint",
+            "L: language");
+
+        var russian =
+            new LocalizationTable(
+                new Locale("ru"));
+
+        russian.Set(
+            "sandbox.navigation.path",
+            "НАВИГАЦИЯ [RU]: узлов {0}, цена {1:0.0}");
+
+        russian.Set(
+            "sandbox.navigation.unavailable",
+            "НАВИГАЦИЯ [RU]: путь недоступен");
+
+        russian.Set(
+            "sandbox.locale.hint",
+            "L: язык");
+
+        localization.AddTable(english);
+        localization.AddTable(russian);
+
+        localization.SetFallbackLocale(
+            new Locale("en"));
+
+        return localization;
     }
 
     public override void Shutdown()

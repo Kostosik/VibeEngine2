@@ -15,6 +15,7 @@ public sealed class SandboxHud :
     private readonly UiLabel _interaction;
     private readonly UiLabel _networkStatus;
     private readonly UiLabel _playerReplicationStatus;
+    private readonly UiLabel _integrationStatus;
     public SandboxHud()
     {
         HorizontalAlignment =
@@ -105,6 +106,12 @@ public sealed class SandboxHud :
                 FontSize = 13.0f
             };
 
+        _integrationStatus =
+    new UiLabel
+    {
+        FontSize = 13.0f
+    };
+
         _interaction =
     new UiLabel
     {
@@ -123,6 +130,9 @@ public sealed class SandboxHud :
             new UiSeparator());
 
         stack.AddChild(_status);
+
+        stack.AddChild(
+            _integrationStatus);
 
         stack.AddChild(
             new UiSeparator());
@@ -177,6 +187,13 @@ public sealed class SandboxHud :
 
         _interaction.Visible =
             !string.IsNullOrEmpty(text);
+    }
+
+    public void SetIntegrationStatus(
+    string text)
+    {
+        _integrationStatus.Text =
+            text;
     }
 
     public void SetMode(

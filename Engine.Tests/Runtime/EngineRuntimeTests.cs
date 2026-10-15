@@ -17,13 +17,227 @@ using Engine.Graphics.Resources;
 using Engine.Input;
 using Engine.Physics;
 using Engine.Runtime;
+using Engine.Worlds.Chunks;
 using Engine.Worlds.Spatial;
+using Engine.Worlds.Tiles;
 
 
 namespace Engine.Tests.Runtime;
 
 public sealed class EngineRuntimeTests
 {
+    [Fact]
+    public void StateHash_ChangesWhenChunkTilesOrSimulationStateChanges()
+    {
+        using var runtime =
+            new EngineRuntime(
+                new EngineRuntimeOptions
+                {
+                    ChunkSize = new ChunkSize(4, 4),
+                    ToolingEnabled = false
+                });
+
+        runtime.Initialize();
+
+        var position =
+            new ChunkPosition(-2, 3);
+
+        try
+        {
+            var emptyHash =
+                runtime.GetStateHash();
+
+            var chunk =
+                runtime.World.CreateChunk(
+                    position);
+
+            var chunkHash =
+                runtime.GetStateHash();
+
+            Assert.NotEqual(
+                emptyHash,
+                chunkHash);
+
+            chunk.Tiles.Set(
+                new LocalPosition(1, 2),
+                new Tile(42));
+
+            var tileHash =
+                runtime.GetStateHash();
+
+            Assert.NotEqual(
+                chunkHash,
+                tileHash);
+
+            runtime.World.Chunks
+                .Get(position)
+                .Lifecycle
+                .SetSimulation(
+                    ChunkSimulationState.Suspended);
+
+            var suspendedHash =
+                runtime.GetStateHash();
+
+            Assert.NotEqual(
+                tileHash,
+                suspendedHash);
+        }
+        finally
+        {
+            ClearChunks(runtime);
+        }
+    }
+
+    [Fact]
+    public void Dispose_DisposesWorldChunksBeforeEcsWorld()
+    {
+        var runtime =
+            new EngineRuntime(
+                new EngineRuntimeOptions
+                {
+                    ChunkSize = new ChunkSize(4, 4),
+                    ToolingEnabled = false
+                });
+
+        var chunk =
+            runtime.World.CreateChunk(
+                new ChunkPosition(2, -1));
+
+        chunk.Tiles.Set(
+            new LocalPosition(1, 1),
+            new Tile(42));
+
+        runtime.Dispose();
+
+        Assert.Equal(
+            0,
+            runtime.World.ChunkCount);
+
+        Assert.Throws<ObjectDisposedException>(
+            () => chunk.Tiles.Get(
+                new LocalPosition(1, 1)));
+
+        Assert.Throws<ObjectDisposedException>(
+            () => _ = runtime.EcsWorld.EntityCount);
+
+        // Повторный Dispose безопасен.
+        runtime.Dispose();
+    }
+
+    [Fact]
+    public void StateHash_IgnoresChunkOrderPresentationAndResidency()
+    {
+        var options =
+            new EngineRuntimeOptions
+            {
+                ChunkSize = new ChunkSize(4, 4),
+                ToolingEnabled = false
+            };
+
+        using var first =
+            new EngineRuntime(options);
+
+        using var second =
+            new EngineRuntime(options);
+
+        first.Initialize();
+        second.Initialize();
+
+        var firstPosition =
+            new ChunkPosition(-1, 3);
+
+        var secondPosition =
+            new ChunkPosition(2, -4);
+
+        try
+        {
+            // Первый мир: чанки остаются загруженными.
+            AddHashTestChunk(
+                first,
+                firstPosition,
+                101,
+                ChunkPresentationState.Relevant);
+
+            AddHashTestChunk(
+                first,
+                secondPosition,
+                202,
+                ChunkPresentationState.Irrelevant);
+
+            // Второй мир: порядок регистрации обратный.
+            AddHashTestChunk(
+                second,
+                secondPosition,
+                202,
+                ChunkPresentationState.Relevant);
+
+            AddHashTestChunk(
+                second,
+                firstPosition,
+                101,
+                ChunkPresentationState.Irrelevant);
+
+            // Логическое содержимое не меняется при выгрузке.
+            Assert.True(
+                second.World.UnloadChunk(
+                    firstPosition));
+
+            Assert.Equal(
+                first.GetStateHash(),
+                second.GetStateHash());
+        }
+        finally
+        {
+            ClearChunks(first);
+            ClearChunks(second);
+        }
+    }
+
+    private static void AddHashTestChunk(
+        EngineRuntime runtime,
+        ChunkPosition position,
+        uint tileValue,
+        ChunkPresentationState presentation)
+    {
+        var chunk =
+            runtime.World.CreateChunk(
+                position);
+
+        chunk.Tiles.Set(
+            new LocalPosition(1, 1),
+            new Tile(tileValue));
+
+        var lifecycle =
+            runtime.World.Chunks
+                .Get(position)
+                .Lifecycle;
+
+        lifecycle.SetSimulation(
+            ChunkSimulationState.Suspended);
+
+        lifecycle.SetPresentation(
+            presentation);
+    }
+
+    private static void ClearChunks(
+        EngineRuntime runtime)
+    {
+        foreach (var record in
+                 runtime.World.GetChunkRecords().ToArray())
+        {
+            if (record.Chunk is not null &&
+                record.Lifecycle.Simulation !=
+                    ChunkSimulationState.Suspended)
+            {
+                record.Lifecycle.SetSimulation(
+                    ChunkSimulationState.Suspended);
+            }
+
+            runtime.World.RemoveChunk(
+                record.Lifecycle.Position);
+        }
+    }
+
     [Fact]
     public void EngineRuntimeOptions_PreservesDefaults()
     {

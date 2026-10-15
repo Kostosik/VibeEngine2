@@ -124,6 +124,9 @@ public static class WorldPersistence
                 "World chunk size does not match the saved world.");
         }
 
+        world.EcsWorld.ValidateState(
+    state.Ecs);
+
         PrepareWorldForRestore(world);
 
         world.EcsWorld.RestoreState(

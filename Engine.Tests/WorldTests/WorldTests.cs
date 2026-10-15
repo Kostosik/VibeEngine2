@@ -1,4 +1,6 @@
 ﻿using Engine.Worlds.Chunks;
+using Engine.Worlds.Persistence;
+using Engine.Worlds.Tiles;
 using Chunk = Engine.Worlds.Chunk;
 using ChunkPosition = Engine.Worlds.Spatial.ChunkPosition;
 using ChunkSize = Engine.Worlds.Spatial.ChunkSize;
@@ -10,6 +12,48 @@ namespace Engine.Tests.WorldTests;
 
 public sealed class WorldTests
 {
+    [Fact]
+    public void Dispose_PreservesPersistedChunkData()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var persistence =
+            new MemoryChunkPersistence();
+
+        using var world =
+            new World(
+                new ChunkSize(4, 4),
+                ecsWorld,
+                persistence);
+
+        var position =
+            new ChunkPosition(5, 7);
+
+        var chunk =
+            world.CreateChunk(position);
+
+        chunk.Tiles.Set(
+            new LocalPosition(1, 2),
+            new Tile(321));
+
+        Assert.True(
+            world.UnloadChunk(position));
+
+        world.Dispose();
+
+        Assert.True(
+            persistence.TryLoad(
+                position,
+                out var persisted));
+
+        Assert.NotNull(persisted);
+
+        Assert.Equal(
+            321u,
+            persisted!.Tiles[1 + 2 * 4].Value);
+    }
+
     [Fact]
     public void ToWorldPositionThrowsOnCoordinateOverflow()
     {

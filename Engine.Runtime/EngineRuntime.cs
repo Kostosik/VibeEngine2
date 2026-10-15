@@ -100,6 +100,9 @@ public sealed class EngineRuntime :
             EcsWorld);
 
         Simulation.RegisterDeterministicState(
+            World);
+
+        Simulation.RegisterDeterministicState(
             PhysicsSettings);
 
         SimulationRate =
@@ -382,6 +385,8 @@ Services.Graphics;
         }
 
         SchedulerProfiler?.Dispose();
+
+        World.Dispose();
 
         EcsWorld.Dispose();
 

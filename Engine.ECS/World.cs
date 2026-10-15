@@ -109,8 +109,89 @@ public sealed class World :
             components);
     }
 
-    public void RestoreState(
-        EcsWorldState state)
+    private static void ValidateEntityState(
+    EntityStoreState state)
+    {
+        if (state.Generations.Length > 0 &&
+            state.NextIndex !=
+                (uint)state.Generations.Length + 1)
+        {
+            throw new InvalidOperationException(
+                "Entity state has an invalid next index.");
+        }
+
+        if (state.Generations.Length == 0 &&
+            state.NextIndex != 1)
+        {
+            throw new InvalidOperationException(
+                "Empty entity state must have next index 1.");
+        }
+
+        foreach (var generation in
+                 state.Generations)
+        {
+            if (generation == 0)
+            {
+                throw new InvalidOperationException(
+                    "Entity generation must be greater than zero.");
+            }
+        }
+
+        var activeIndices =
+            new HashSet<uint>();
+
+        foreach (var index in
+                 state.ActiveIndices)
+        {
+            ValidateEntityStateIndex(
+                index,
+                state.Generations.Length);
+
+            if (!activeIndices.Add(index))
+            {
+                throw new InvalidOperationException(
+                    $"Entity index '{index}' appears more than once in active state.");
+            }
+        }
+
+        var freeIndices =
+            new HashSet<uint>();
+
+        foreach (var index in
+                 state.FreeIndices)
+        {
+            ValidateEntityStateIndex(
+                index,
+                state.Generations.Length);
+
+            if (!freeIndices.Add(index))
+            {
+                throw new InvalidOperationException(
+                    $"Entity index '{index}' appears more than once in free state.");
+            }
+
+            if (activeIndices.Contains(index))
+            {
+                throw new InvalidOperationException(
+                    $"Entity index '{index}' cannot be both active and free.");
+            }
+        }
+    }
+
+    private static void ValidateEntityStateIndex(
+        uint index,
+        int generationCount)
+    {
+        if (index == 0 ||
+            index > (uint)generationCount)
+        {
+            throw new InvalidOperationException(
+                $"Entity index '{index}' is outside the serialized entity state.");
+        }
+    }
+
+    public void ValidateState(
+    EcsWorldState state)
     {
         EnsureNotDisposed();
         EnsureNoActiveJobs();
@@ -118,8 +199,18 @@ public sealed class World :
         ArgumentNullException.ThrowIfNull(
             state);
 
+        ValidateEntityState(
+            state.Entities);
+
         ValidateComponentState(
-    state);
+            state);
+    }
+
+    public void RestoreState(
+        EcsWorldState state)
+    {
+        ValidateState(
+            state);
 
         _entities.RestoreState(
             state.Entities);

@@ -36,6 +36,9 @@ public sealed class SandboxInputActions
 
         ConsoleScroll = new InputAction("ConsoleScroll");
 
+        ToggleLocale = new InputAction("ToggleLocale");
+        Bind(ToggleLocale, "Keyboard.L");
+
         Bind(MoveUp, "Keyboard.W");
         Bind(MoveDown, "Keyboard.S");
         Bind(MoveLeft, "Keyboard.A");
@@ -68,7 +71,7 @@ public sealed class SandboxInputActions
     public InputAction MoveDown { get; }
     public InputAction MoveLeft { get; }
     public InputAction MoveRight { get; }
-
+    public InputAction ToggleLocale { get; }
     public InputAction SwitchMode { get; }
     public InputAction Reset { get; }
     public InputAction Spawn { get; }

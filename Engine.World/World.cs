@@ -1,11 +1,15 @@
-﻿using Engine.Worlds.Chunks;
+﻿using Engine.Core.Determinism;
+using Engine.Worlds.Chunks;
 using Engine.Worlds.Persistence;
 using Engine.Worlds.Spatial;
+using Engine.Worlds.Tiles;
 
 namespace Engine.Worlds;
 
-public sealed class World
+public sealed class World :
+    IDeterministicState,IDisposable
 {
+    private bool _disposed;
     private readonly ChunkRegistry _chunks =
         new();
     private readonly IChunkPersistence _chunkPersistence;
@@ -19,6 +23,8 @@ public sealed class World
     internal void RestoreChunk(
        Persistence.ChunkSaveState state)
     {
+        EnsureNotDisposed();
+
         ArgumentNullException.ThrowIfNull(
             state);
 
@@ -160,6 +166,7 @@ public sealed class World
     public Chunk CreateChunk(
         ChunkPosition position)
     {
+        EnsureNotDisposed();
         if (_chunks.TryGet(
                 position,
                 out _))
@@ -214,6 +221,7 @@ public sealed class World
     public bool RemoveChunk(
         ChunkPosition position)
     {
+        EnsureNotDisposed();
         if (!_chunks.TryGet(
                 position,
                 out var record))
@@ -262,6 +270,7 @@ public sealed class World
     public bool UnloadChunk(
         ChunkPosition position)
     {
+        EnsureNotDisposed();
         if (!_chunks.TryGet(
                 position,
                 out var record))
@@ -434,5 +443,213 @@ public sealed class World
         }
 
         return remainder;
+    }
+
+    public void AddToHash(
+    ref DeterministicStateHasher hasher)
+    {
+        EnsureNotDisposed();
+        hasher.AddInt32(ChunkSize.Width);
+        hasher.AddInt32(ChunkSize.Height);
+
+        // Порядок словаря не должен влиять на hash.
+        var records =
+            _chunks.Records
+                .OrderBy(
+                    record =>
+                        record.Lifecycle.Position.X)
+                .ThenBy(
+                    record =>
+                        record.Lifecycle.Position.Y)
+                .ToArray();
+
+        hasher.AddInt32(
+            records.Length);
+
+        foreach (var record in records)
+        {
+            var lifecycle =
+                record.Lifecycle;
+
+            var position =
+                lifecycle.Position;
+
+            if (lifecycle.Residency !=
+                    ChunkResidencyState.Loaded &&
+                lifecycle.Residency !=
+                    ChunkResidencyState.Unloaded)
+            {
+                throw new InvalidOperationException(
+                    $"Chunk '{position}' cannot be hashed " +
+                    $"while its residency is '{lifecycle.Residency}'.");
+            }
+
+            hasher.AddInt32(position.X);
+            hasher.AddInt32(position.Y);
+
+            // Симуляция влияет на детерминированное состояние.
+            // Presentation и Residency намеренно не хешируем.
+            hasher.AddInt32(
+                (int)lifecycle.Simulation);
+
+            if (lifecycle.Residency ==
+                ChunkResidencyState.Loaded)
+            {
+                if (record.Chunk is null)
+                {
+                    throw new InvalidOperationException(
+                        $"Loaded chunk '{position}' has no runtime data.");
+                }
+
+                AddTilesToHash(
+                    ref hasher,
+                    record.Chunk.Tiles.AsReadOnlySpan());
+            }
+            else
+            {
+                if (record.Chunk is not null)
+                {
+                    throw new InvalidOperationException(
+                        $"Unloaded chunk '{position}' still has runtime data.");
+                }
+
+                if (!_chunkPersistence.TryLoad(
+                        position,
+                        out var persisted) ||
+                    persisted is null)
+                {
+                    throw new InvalidOperationException(
+                        $"Unloaded chunk '{position}' has no persisted state.");
+                }
+
+                if (persisted.Position != position)
+                {
+                    throw new InvalidOperationException(
+                        $"Persisted chunk position does not match '{position}'.");
+                }
+
+                AddTilesToHash(
+                    ref hasher,
+                    persisted.Tiles);
+            }
+        }
+    }
+
+    private void AddTilesToHash(
+        ref DeterministicStateHasher hasher,
+        ReadOnlySpan<Tile> tiles)
+    {
+        var expectedTileCount =
+            checked(
+                ChunkSize.Width *
+                ChunkSize.Height);
+
+        if (tiles.Length != expectedTileCount)
+        {
+            throw new InvalidOperationException(
+                $"Chunk contains '{tiles.Length}' tiles, " +
+                $"expected '{expectedTileCount}'.");
+        }
+
+        hasher.AddInt32(
+            tiles.Length);
+
+        foreach (var tile in tiles)
+        {
+            hasher.AddUInt32(
+                tile.Value);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        // Сначала удаляем пространственные ссылки,
+        // иначе снятие чанков может быть запрещено.
+        SpatialIndex.Clear();
+
+        foreach (var record in
+                 _chunks.Records.ToArray())
+        {
+            var lifecycle =
+                record.Lifecycle;
+
+            var position =
+                lifecycle.Position;
+
+            switch (lifecycle.Residency)
+            {
+                case ChunkResidencyState.Loaded:
+                    if (record.Chunk is null)
+                    {
+                        throw new InvalidOperationException(
+                            $"Loaded chunk '{position}' has no runtime data.");
+                    }
+
+                    if (lifecycle.Simulation !=
+                        ChunkSimulationState.Suspended)
+                    {
+                        lifecycle.SetSimulation(
+                            ChunkSimulationState.Suspended);
+                    }
+
+                    lifecycle.BeginUnloading();
+                    record.Detach();
+                    break;
+
+                case ChunkResidencyState.Unloading:
+                    if (record.Chunk is not null)
+                    {
+                        record.Detach();
+                    }
+                    else
+                    {
+                        lifecycle.CompleteUnloading();
+                    }
+
+                    break;
+
+                case ChunkResidencyState.Loading:
+                    if (record.Chunk is not null)
+                    {
+                        throw new InvalidOperationException(
+                            $"Loading chunk '{position}' unexpectedly has runtime data.");
+                    }
+
+                    lifecycle.CancelLoading();
+                    break;
+
+                case ChunkResidencyState.Unloaded:
+                    if (record.Chunk is not null)
+                    {
+                        throw new InvalidOperationException(
+                            $"Unloaded chunk '{position}' unexpectedly has runtime data.");
+                    }
+
+                    break;
+
+                default:
+                    throw new InvalidOperationException(
+                        $"Chunk '{position}' has unsupported residency state.");
+            }
+
+            // Удаляем запись из реестра напрямую.
+            // Не вызываем World.RemoveChunk(): он удаляет данные
+            // из IChunkPersistence, которые могут пережить World.
+            _chunks.Remove(position);
+        }
+
+        _disposed = true;
+    }
+
+    private void EnsureNotDisposed()
+    {
+        ObjectDisposedException.ThrowIf(
+            _disposed,
+            this);
     }
 }

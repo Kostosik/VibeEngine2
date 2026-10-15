@@ -46,6 +46,42 @@ var runtime =
         services);
 ~~~
 
+Настройки можно переопределить через инициализатор. Значения по умолчанию — chunk размером 32 × 32, 20 тиков симуляции в секунду и включённый tooling.
+
+~~~csharp
+var options =
+    new EngineRuntimeOptions
+    {
+        ChunkSize = new ChunkSize(64, 64),
+        SimulationRate = new SimulationRate(30),
+        ToolingEnabled = true
+    };
+
+var runtime =
+    new EngineRuntime(
+        options,
+        services);
+~~~
+
+Для headless-сценариев, например отдельной симуляции или автоматических тестов, Runtime можно создать без application services. В этом случае tooling необходимо отключить:
+
+~~~csharp
+using var runtime =
+    new EngineRuntime(
+        new EngineRuntimeOptions
+        {
+            ToolingEnabled = false
+        });
+
+runtime.Initialize();
+
+// Запуск и обновление симуляции выполняет игровой цикл.
+
+runtime.Shutdown();
+~~~
+
+В headless-режиме ECS, World, Simulation и Physics доступны. Сервисы приложения (Graphics, Input, Camera, Audio, Content) не настроены; обращение к ним приводит к InvalidOperationException.
+
 Lifecycle:
 
 ~~~csharp

@@ -17,7 +17,7 @@ public sealed class EditorApplication :
 {
     private readonly HashSet<EditorDocument> _subscribedDocuments = new();
     private bool _uiDirty = true;
-    private readonly string _uiAssetPath;
+    private string _uiAssetPath;
     private readonly IEditorDocumentPersistence?
     _documentPersistence;
     private readonly IEditorFileDialogService _fileDialogs;
@@ -396,6 +396,47 @@ public sealed class EditorApplication :
 
     private void RequestSaveDocumentAs()
     {
+        if (MainShell.IsUiMode)
+        {
+            try
+            {
+                var initialDirectory =
+                    Path.GetDirectoryName(
+                        Path.GetFullPath(
+                            _uiAssetPath));
+
+                var path =
+                    _fileDialogs.ShowSaveUiFile(
+                        initialDirectory);
+
+                if (path is null)
+                {
+                    return;
+                }
+
+                var normalizedPath =
+                    Path.GetFullPath(path);
+
+                EditorUiAssetFile.Save(
+                    UiDocument,
+                    normalizedPath);
+
+                _uiAssetPath =
+                    normalizedPath;
+
+                UiDocument.MarkSaved();
+
+                MarkUiDirty();
+            }
+            catch (Exception exception)
+            {
+                _errorDialog.ShowError(
+                    exception.Message);
+            }
+
+            return;
+        }
+
         if (_documentFiles is null)
         {
             return;
@@ -596,28 +637,38 @@ public sealed class EditorApplication :
 
         try
         {
-            if (_documentFiles is null)
-            {
-                throw new InvalidOperationException(
+            var files =
+                _documentFiles
+                ?? throw new InvalidOperationException(
                     "Document file service is not configured.");
-            }
 
             if (document.FilePath is null)
             {
-                _documentCloseDialog.Close();
+                var path =
+                    _fileDialogs.ShowSaveFile(
+                        null);
 
-                SaveDocumentAsRequested?.Invoke();
+                if (path is null)
+                {
+                    // Пользователь отменил Save As.
+                    // Документ и диалог остаются открытыми.
+                    return;
+                }
 
-                return;
+                files.SaveAs(
+                    document,
+                    path);
             }
 
             Editor.CloseDocument(
                 document,
                 EditorDocumentCloseDecision.Save,
-                _documentFiles);
+                files);
 
             _documentCloseDialog.Close();
+
             MarkUiDirty();
+
             ContinueApplicationClose();
         }
         catch (Exception exception)

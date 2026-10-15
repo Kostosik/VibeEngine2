@@ -140,8 +140,7 @@ public sealed class EditorDocumentCloseDialog :
         _message.Text =
             $"Save changes to \"{name}\"?";
 
-        _saveButton.Enabled =
-            document.FilePath is not null;
+        _saveButton.Enabled = true;
 
         Show(
             _saveButton);

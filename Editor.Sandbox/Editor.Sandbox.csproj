@@ -8,17 +8,20 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Engine.Content\Engine.Content.csproj" />
-    <ProjectReference Include="..\Engine.Core\Engine.Core.csproj" />
-    <ProjectReference Include="..\Engine.ECS\Engine.ECS.csproj" />
-    <ProjectReference Include="..\Engine.Editor.UI\Engine.Editor.UI.csproj" />
-    <ProjectReference Include="..\Engine.Editor\Engine.Editor.csproj" />
-    <ProjectReference Include="..\Engine.Graphics.OpenGL\Engine.Graphics.OpenGL.csproj" />
-    <ProjectReference Include="..\Engine.Serialization\Engine.Serialization.csproj" />
-    <ProjectReference Include="..\Engine.Simulations\Engine.Simulations.csproj" />
-    <ProjectReference Include="..\Engine.Tooling\Engine.Tooling.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\Engine.Content\Engine.Content.csproj" />
+		<ProjectReference Include="..\Engine.Core\Engine.Core.csproj" />
+		<ProjectReference Include="..\Engine.ECS\Engine.ECS.csproj" />
+		<ProjectReference Include="..\Engine.Editor\Engine.Editor.csproj" />
+		<ProjectReference Include="..\Engine.Editor.UI\Engine.Editor.UI.csproj" />
+		<ProjectReference Include="..\Engine.Graphics\Engine.Graphics.csproj" />
+		<ProjectReference Include="..\Engine.Graphics.OpenGL\Engine.Graphics.OpenGL.csproj" />
+		<ProjectReference Include="..\Engine.Input\Engine.Input.csproj" />
+		<ProjectReference Include="..\Engine.Serialization\Engine.Serialization.csproj" />
+		<ProjectReference Include="..\Engine.Tooling\Engine.Tooling.csproj" />
+		<ProjectReference Include="..\Engine.UI\Engine.UI.csproj" />
+		<ProjectReference Include="..\Engine.World\Engine.Worlds.csproj" />
+	</ItemGroup>
 
   <ItemGroup>
     <None Update="Assets\Audio\test.wav">

@@ -7,4 +7,7 @@ public interface IEditorFileDialogService
 
     string? ShowSaveFile(
         string? initialDirectory = null);
+
+    string? ShowSaveUiFile(
+    string? initialDirectory = null);
 }

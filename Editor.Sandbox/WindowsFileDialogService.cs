@@ -32,6 +32,33 @@ internal sealed class WindowsFileDialogService :
             });
     }
 
+    public string? ShowSaveUiFile(
+    string? initialDirectory = null)
+    {
+        return RunOnSta(
+            () =>
+            {
+                using var dialog =
+                    new SaveFileDialog
+                    {
+                        Title = "Save UI Document",
+                        Filter =
+                            "UI files (*.ui)|*.ui|All files (*.*)|*.*",
+                        OverwritePrompt = true,
+                        AddExtension = true,
+                        DefaultExt = "ui",
+                        InitialDirectory =
+                            GetInitialDirectory(
+                                initialDirectory)
+                    };
+
+                return dialog.ShowDialog() ==
+                       DialogResult.OK
+                    ? dialog.FileName
+                    : null;
+            });
+    }
+
     public string? ShowSaveFile(
         string? initialDirectory = null)
     {

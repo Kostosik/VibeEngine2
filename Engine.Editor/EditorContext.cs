@@ -306,12 +306,15 @@ public sealed class EditorContext
                         nameof(files));
                 }
 
-                files.Save(
-                    document);
+                if (document.IsDirty ||
+                    document.FilePath is null)
+                {
+                    files.Save(
+                        document);
+                }
 
                 return Session.Close(
                     document);
-
             default:
                 throw new ArgumentOutOfRangeException(
                     nameof(decision),

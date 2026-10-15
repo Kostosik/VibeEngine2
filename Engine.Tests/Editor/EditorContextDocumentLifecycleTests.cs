@@ -9,6 +9,8 @@ namespace Engine.Tests.Editor;
 
 public sealed class EditorContextDocumentLifecycleTests
 {
+
+
     [Fact]
     public void CloseDocument_Cancel_LeavesDocumentOpen()
     {
@@ -74,6 +76,49 @@ public sealed class EditorContextDocumentLifecycleTests
     }
 
     [Fact]
+    public void CloseDocument_SaveAfterSaveAs_DoesNotSaveAgain()
+    {
+        var editor =
+            new EditorContext();
+
+        var document =
+            editor.OpenDocument(
+                new World(
+                    new ChunkSize(16, 16),
+                    new Engine.ECS.World()));
+
+        var persistence =
+            new TestPersistence();
+
+        var files =
+            editor.CreateDocumentFileService(
+                persistence);
+
+        files.SaveAs(
+            document,
+            "test.world");
+
+        Assert.Equal(
+            1,
+            persistence.SaveCount);
+
+        var result =
+            editor.CloseDocument(
+                document,
+                EditorDocumentCloseDecision.Save,
+                files);
+
+        Assert.True(result);
+
+        Assert.Equal(
+            1,
+            persistence.SaveCount);
+
+        Assert.Empty(
+            editor.Session.Documents);
+    }
+
+    [Fact]
     public void CloseDocument_Save_ClosesDocumentAfterSave()
     {
         var editor =
@@ -130,12 +175,14 @@ public sealed class EditorContextDocumentLifecycleTests
     private sealed class TestPersistence :
         IEditorDocumentPersistence
     {
+        public int SaveCount { get; private set; }
         public string? SavedPath { get; private set; }
 
         public void Save(
             string path,
             EditorDocument document)
         {
+            SaveCount++;
             SavedPath =
                 path;
         }

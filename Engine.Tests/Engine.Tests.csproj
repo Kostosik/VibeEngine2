@@ -41,6 +41,7 @@
     <ProjectReference Include="..\Engine.Particles\Engine.Particles.csproj" />
     <ProjectReference Include="..\Engine.Physics\Engine.Physics.csproj" />
     <ProjectReference Include="..\Engine.Runtime\Engine.Runtime.csproj" />
+    <ProjectReference Include="..\Engine.Scripting\Engine.Scripting.csproj" />
     <ProjectReference Include="..\Engine.Serialization\Engine.Serialization.csproj" />
     <ProjectReference Include="..\Engine.Simulations\Engine.Simulations.csproj" />
     <ProjectReference Include="..\Engine.Transform\Engine.Transform.csproj" />

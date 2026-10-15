@@ -765,7 +765,86 @@ var asset =
         cancellationToken);
 ~~~
 
-Для собственного типа можно зарегистрировать IContentLoader<T>.
+Для собственного типа можно зарегистрировать `IContentLoader<T>`. Загрузчик выбирается по типу результата и метаданным файла из каталога (`ContentAsset.Extension`). Для одной пары «тип результата + файл» должен подходить ровно один загрузчик.
+
+## Подключение Content
+
+`IAssetSource` читает байты, `IContentCatalog` описывает доступные пути, а `ContentLoaderRegistry` сопоставляет файлы с загрузчиками. Для файловой структуры можно использовать `FileAssetSource` и `FileContentCatalog`:
+
+~~~csharp
+var assetRoot =
+    Path.Combine(
+        AppContext.BaseDirectory,
+        "Assets");
+
+var loaders =
+    new ContentLoaderRegistry();
+
+loaders.Register(
+    new PlainTextContentLoader());
+
+using var content =
+    new ContentManager(
+        new FileAssetSource(assetRoot),
+        new FileContentCatalog(assetRoot),
+        loaders);
+
+var path =
+    new AssetPath("Text/Intro.txt");
+
+var intro =
+    content.Load<TextDocument>(path);
+~~~
+
+`FileContentCatalog` сканирует корневую папку и её подкаталоги. `AssetPath` задаётся относительно этого корня; файл должен присутствовать в каталоге.
+
+## Пример собственного загрузчика
+
+~~~csharp
+using System.Text;
+using Engine.Content.Assets;
+using Engine.Content.Loading;
+using Engine.Core.Assets;
+
+public sealed record TextDocument(string Content);
+
+public sealed class PlainTextContentLoader :
+    IContentLoader<TextDocument>
+{
+    public Type AssetType => typeof(TextDocument);
+
+    public bool CanLoad(ContentAsset asset) =>
+        asset.Extension.Equals(
+            ".txt",
+            StringComparison.OrdinalIgnoreCase);
+
+    public TextDocument Load(
+        AssetPath path,
+        IContentLoadContext context)
+    {
+        var bytes = context.ReadBytes(path);
+        return new TextDocument(
+            Encoding.UTF8.GetString(bytes.Span));
+    }
+
+    object IContentLoader.Load(
+        AssetPath path,
+        IContentLoadContext context) =>
+        Load(path, context);
+}
+~~~
+
+Загрузчик можно зарегистрировать в `ContentLoaderRegistry` до создания `ContentManager`, либо вызвать `Register` у самого `ContentManager` до первой загрузки соответствующего типа.
+
+## Cache и время жизни
+
+- `Load<T>` загружает ресурс при необходимости и возвращает закешированный экземпляр при повторном запросе.
+- Каждый успешный внешний вызов `Load<T>` учитывается как отдельная ссылка. Освобождай её соответствующим вызовом `Unload<T>(path)`.
+- `Unload<T>` возвращает `false`, если ресурс не загружен или у него нет внешней ссылки для освобождения. Ресурс удаляется из cache, когда больше не остаётся внешних ссылок и ссылок-зависимостей.
+- `Reload<T>` перезагружает уже загруженный ресурс; `LoadAsync<T>` предоставляет асинхронную загрузку.
+- `ContentManager.Dispose()` очищает cache и вызывает `Dispose()` у закешированных ресурсов, реализующих `IDisposable`.
+
+Не смешивай владение ресурсом и обычную ссылку на объект: после освобождения последней ссылки Content может удалить ресурс, если на него не ссылаются другие загруженные ресурсы.
 
 ---
 

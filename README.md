@@ -1,20 +1,20 @@
 # VibeEngine2
 
-VibeEngine2 is a modular C# game-engine project built on .NET 8. Its architecture aims to keep the engine domain-agnostic: the engine provides mechanisms, while a game defines their meaning.
+**VibeEngine2** — модульный игровой движок на C# и .NET 8. Архитектура стремится оставаться универсальной: движок предоставляет механизмы, а игра определяет их смысл.
 
-The repository includes runtime and simulation infrastructure, ECS, world/chunk and tile systems, graphics, input, UI, physics, navigation, audio, content and serialization, networking, animation, particles, diagnostics, and editor/sandbox applications.
+В репозитории находятся инфраструктура Runtime и Simulation, ECS, системы мира, чанков и тайлов, графика, ввод, UI, физика, навигация, аудио, Content и Serialization, Networking, Animation, Particles, диагностика, а также приложения Sandbox и редактора.
 
-> The project is under active development. The list of systems in the repository does not imply that every feature is production-ready.
+> Проект активно разрабатывается. Наличие подсистемы в репозитории само по себе не означает, что все её возможности готовы для производственного использования.
 
-## Requirements
+## Требования
 
 - .NET 8 SDK
 - Git
-- Windows is the primary development environment for the current sandbox and graphics setup.
+- Windows — основная среда разработки и запуска текущих Sandbox-приложений и графической подсистемы.
 
-## Build and test
+## Сборка и тестирование
 
-From the repository root:
+Выполняй команды из корневой папки репозитория:
 
 ```powershell
 dotnet restore .\VibeEngine2.sln
@@ -22,27 +22,27 @@ dotnet build .\VibeEngine2.sln -c Release
 dotnet test .\VibeEngine2.sln -c Release
 ```
 
-A GitHub Actions workflow runs restore, Release build, and tests on pushes and pull requests targeting `master`. You can also start it manually from the **Actions** tab.
+GitHub Actions автоматически запускает восстановление пакетов, Release-сборку и тесты при отправке изменений в `master` и при создании Pull Request в эту ветку. Процесс можно запустить вручную во вкладке **Actions** на GitHub.
 
-## Projects
+## Основные проекты
 
-The solution is organized into separate projects for engine subsystems and runnable applications. Key entry points include:
+Решение разделено на проекты, отвечающие за отдельные подсистемы движка и запускаемые приложения.
 
-- **Game.Sandbox** — integration and experimentation app for exercising engine systems together.
-- **Editor.Sandbox** — runnable editor application.
-- **Engine.Runtime** — runtime composition and coordination.
-- **Engine.Core / Engine.ECS** — shared primitives and entity-component-system infrastructure.
-- **Engine.Graphics / Engine.Graphics.OpenGL** — graphics abstractions and the current OpenGL backend.
-- **Engine.Tests** — automated engine tests.
+- **Game.Sandbox** — тестовый полигон для совместной проверки подсистем движка.
+- **Editor.Sandbox** — запускаемое приложение редактора.
+- **Engine.Runtime** — композиция и координация подсистем во время выполнения.
+- **Engine.Core / Engine.ECS** — общие примитивы и инфраструктура Entity Component System.
+- **Engine.Graphics / Engine.Graphics.OpenGL** — графическая абстракция и текущая реализация на OpenGL.
+- **Engine.Tests** — автоматические тесты движка.
 
-Other projects contain focused subsystems such as physics, worlds/chunks, navigation, networking, audio, content, animation, and particles.
+Другие проекты содержат отдельные подсистемы: физику, мир и чанки, навигацию, сеть и репликацию, аудио, ресурсы, сериализацию, анимацию и частицы.
 
-## Development workflow
+## Рабочий процесс
 
-The repository is developed using Git and Visual Studio. Before pushing a change, run the relevant tests locally. The CI workflow provides an additional automated check for the solution.
+Разработка ведётся с использованием Git и Visual Studio. Перед отправкой изменений запускай необходимые тесты локально. GitHub Actions дополнительно проверяет сборку решения и тесты.
 
-## Design principle
+## Архитектурный принцип
 
-**The engine provides mechanisms; the game defines meaning.**
+**Движок предоставляет механизмы, игра определяет смысл.**
 
-Avoid introducing game-specific concepts into engine-level APIs unless they are genuinely generic engine mechanisms.
+Не следует вводить в API движка игровые понятия, если они не являются действительно универсальными механизмами.

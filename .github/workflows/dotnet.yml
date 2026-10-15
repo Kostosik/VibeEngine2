@@ -1,4 +1,4 @@
-name: .NET CI
+name: Сборка и тесты .NET
 
 on:
   push:
@@ -16,23 +16,23 @@ concurrency:
 
 jobs:
   build-and-test:
-    name: Build and test
+    name: Сборка и тесты
     runs-on: windows-latest
 
     steps:
-      - name: Checkout
+      - name: Получение исходного кода
         uses: actions/checkout@v7
 
-      - name: Set up .NET
+      - name: Настройка .NET
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 8.0.x
 
-      - name: Restore
+      - name: Восстановление пакетов
         run: dotnet restore .\VibeEngine2.sln
 
-      - name: Build
+      - name: Сборка Release
         run: dotnet build .\VibeEngine2.sln --configuration Release --no-restore
 
-      - name: Test
+      - name: Запуск тестов
         run: dotnet test .\VibeEngine2.sln --configuration Release --no-build --no-restore --logger "console;verbosity=normal"

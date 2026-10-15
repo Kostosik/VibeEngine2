@@ -12,17 +12,6 @@
 - Git
 - Windows — основная среда разработки и запуска текущих Sandbox-приложений и графической подсистемы.
 
-## Сборка и тестирование
-
-Выполняй команды из корневой папки репозитория:
-
-```powershell
-dotnet restore .\VibeEngine2.sln
-dotnet build .\VibeEngine2.sln -c Release
-dotnet test .\VibeEngine2.sln -c Release
-```
-
-GitHub Actions автоматически запускает восстановление пакетов, Release-сборку и тесты при отправке изменений в `master` и при создании Pull Request в эту ветку. Процесс можно запустить вручную во вкладке **Actions** на GitHub.
 
 ## Основные проекты
 

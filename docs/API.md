@@ -165,69 +165,137 @@ var commands =
 
 # 3. Simulation и Systems
 
-Simulation:
+`EngineRuntime` объединяет ECS, симуляцию и встроенные системы движка. Игровая логика добавляется через собственные системы и регистрируется в `runtime.Scheduler`.
 
-~~~csharp
-var simulation =
-    runtime.Simulation;
-~~~
+## Update и FixedUpdate
 
-Команда:
+Используй `IUpdateSystem`, когда логика должна выполняться на каждом обычном обновлении. Используй `IFixedUpdateSystem` для логики, которая должна выполняться в фиксированных шагах симуляции.
 
-~~~csharp
-runtime.Simulation.Submit(
-    command);
-~~~
-
-Fixed update:
-
-~~~csharp
-runtime.FixedUpdate(
-    fixedContext);
-~~~
-
-Типичный fixed system:
-
-~~~csharp
-public sealed class MySystem :
-    IFixedUpdateSystem
+```csharp
+public sealed class ExampleSystem : IFixedUpdateSystem
 {
-    public void FixedUpdate(
-        FixedSystemContext context)
+    public void FixedUpdate(FixedSystemContext context)
     {
-        // simulation logic
+        // Игровая логика фиксированного шага.
+        var delta = context.Time.Delta;
+        var tick = context.Time.Tick;
     }
 }
-~~~
+```
 
-Регистрация:
+`FixedSystemContext` предоставляет `SimulationTime`, содержащий длительность шага `Delta` и номер шага `Tick`.
 
-~~~csharp
+## Регистрация собственной системы
+
+Все системы необходимо зарегистрировать **до `runtime.Initialize()`**. Инициализация строит расписание выполнения и блокирует дальнейшую регистрацию.
+
+```csharp
+var system = new ExampleSystem();
+
 runtime.Scheduler.Add(
-    mySystem,
+    system,
     SystemPhase.FixedUpdate);
-~~~
 
-Зависимость:
+runtime.Initialize();
+```
 
-~~~csharp
+После инициализации игровая система будет выполняться вместе с остальными системами соответствующей фазы, когда игровой цикл вызывает обновление Runtime.
+
+## Пример системы, работающей с ECS
+
+Игровые компоненты принадлежат игре, а не движку.
+
+```csharp
+public struct ProductionCounter
+{
+    public int Ticks;
+}
+```
+
+Система может обрабатывать все сущности с этим компонентом:
+
+```csharp
+public sealed class ProductionTickSystem : IFixedUpdateSystem
+{
+    private readonly Engine.ECS.World _world;
+
+    public ProductionTickSystem(Engine.ECS.World world)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        _world = world;
+    }
+
+    public void FixedUpdate(FixedSystemContext context)
+    {
+        foreach (var item in _world.Query<ProductionCounter>())
+        {
+            ref var counter = ref item.Component;
+            counter.Ticks++;
+        }
+    }
+}
+```
+
+Подключение:
+
+```csharp
+var entity = runtime.EcsWorld.CreateEntity();
+
+runtime.EcsWorld.Add(
+    entity,
+    new ProductionCounter());
+
 runtime.Scheduler.Add(
-    systemB,
+    new ProductionTickSystem(runtime.EcsWorld),
+    SystemPhase.FixedUpdate);
+
+runtime.Initialize();
+```
+
+`Query<T>()` предоставляет доступ к компонентам для чтения и изменения. Для read-only обработки используй `QueryReadOnly<T>()`.
+
+## Зависимости между системами
+
+Если одной системе необходимо выполняться после другой, используй `.After<TSystem>()`.
+
+```csharp
+runtime.Scheduler.Add(
+    new MovementSystem(runtime.EcsWorld),
+    SystemPhase.FixedUpdate);
+
+runtime.Scheduler.Add(
+    new ProductionTickSystem(runtime.EcsWorld),
     SystemPhase.FixedUpdate)
-    .After<SystemA>();
-~~~
+    .After<MovementSystem>();
+```
 
-Deterministic state:
+Система, на которую ссылается зависимость, должна быть зарегистрирована в той же фазе. Отсутствующая система, зависимость между разными фазами или цикл зависимостей приведут к ошибке при построении расписания.
 
-~~~csharp
-runtime.Simulation.RegisterDeterministicState(
-    world);
+## Команды симуляции
 
-var hash =
-    runtime.GetStateHash();
-~~~
+Для отправки игровых команд используй:
 
----
+```csharp
+runtime.Simulation.Submit(command);
+```
+
+Команды обрабатываются на фиксированном шаге до выполнения систем `FixedUpdate`. Для регистрации обработчика используется `runtime.Simulation.CommandDispatcher`.
+
+## Детерминированное состояние
+
+Runtime автоматически регистрирует ECS World и настройки физики как детерминированное состояние. Для включения дополнительного игрового состояния в хеш симуляции зарегистрируй собственную реализацию `IDeterministicState` до `runtime.Initialize()`.
+
+```csharp
+runtime.Simulation.RegisterDeterministicState(gameState);
+```
+
+После инициализации текущее детерминированное состояние можно получить через:
+
+```csharp
+var hash = runtime.GetStateHash();
+```
+
+
 
 # 4. Transform
 

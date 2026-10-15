@@ -22,133 +22,11 @@ using Engine.UI.Core;
 using Engine.UI.Styling;
 using Game.Sandbox;
 
+var sandboxActions =
+    new SandboxInputActions();
+
 var actionMap =
-    new InputActionMap();
-
-var toggleUiShowcaseAction =
-    new InputAction("ToggleUiShowcase");
-
-var saveAction =
-    new InputAction("Save");
-
-var loadAction =
-    new InputAction("Load");
-
-var resetAction =
-    new InputAction("Reset");
-
-var spawnAction =
-    new InputAction("Spawn");
-
-var clearAction =
-    new InputAction("Clear");
-
-var forceAction =
-    new InputAction("Force");
-
-var triggerAction =
-    new InputAction("ToggleTrigger");
-
-var rotateAction =
-    new InputAction("Rotate");
-
-var moveUp =
-    new InputAction("MoveUp");
-
-var moveDown =
-    new InputAction("MoveDown");
-
-var moveLeft =
-    new InputAction("MoveLeft");
-
-var moveRight =
-    new InputAction("MoveRight");
-
-var switchModeAction =
-    new InputAction("SwitchMode");
-
-var playAudioAction =
-    new InputAction("PlayAudio");
-
-var networkTestAction =
-    new InputAction("NetworkTest");
-
-var networkReplicationAction =
-    new InputAction("NetworkReplicationTest");
-var playerReplicationAction =
-    new InputAction("PlayerReplication");
-actionMap.Bind(
-    playerReplicationAction,
-    new InputBinding("Keyboard.F12"));
-actionMap.Bind(
-    networkReplicationAction,
-    new InputBinding("Keyboard.F11"));
-
-actionMap.Bind(
-    networkTestAction,
-    new InputBinding("Keyboard.F10"));
-
-actionMap.Bind(
-    playAudioAction,
-    new InputBinding("Keyboard.F9"));
-
-actionMap.Bind(
-    toggleUiShowcaseAction,
-    new InputBinding("Keyboard.F8"));
-
-actionMap.Bind(
-    saveAction,
-    new InputBinding(
-        "Keyboard.F6"));
-
-actionMap.Bind(
-    loadAction,
-    new InputBinding(
-        "Keyboard.F7"));
-
-actionMap.Bind(
-    moveUp,
-    new InputBinding("Keyboard.W"));
-
-actionMap.Bind(
-    moveDown,
-    new InputBinding("Keyboard.S"));
-
-actionMap.Bind(
-    moveLeft,
-    new InputBinding("Keyboard.A"));
-
-actionMap.Bind(
-    moveRight,
-    new InputBinding("Keyboard.D"));
-
-actionMap.Bind(
-    switchModeAction,
-    new InputBinding("Keyboard.F2"));
-
-actionMap.Bind(
-    resetAction,
-    new InputBinding("Keyboard.F3"));
-
-actionMap.Bind(
-    spawnAction,
-    new InputBinding("Keyboard.F4"));
-
-actionMap.Bind(
-    clearAction,
-    new InputBinding("Keyboard.F5"));
-
-actionMap.Bind(
-    forceAction,
-    new InputBinding("Keyboard.Space"));
-
-actionMap.Bind(
-    triggerAction,
-    new InputBinding("Keyboard.T"));
-
-actionMap.Bind(
-    rotateAction,
-    new InputBinding("Keyboard.R"));
+    sandboxActions.ActionMap;
 
 using var window =
     new OpenGLWindow(
@@ -278,21 +156,12 @@ DebugConsoleOverlay? console =
 
 if (runtime.Console is not null)
 {
-    var consoleScroll =
-        new InputAction(
-            "ConsoleScroll");
-
-    actionMap.Bind(
-        consoleScroll,
-        new InputBinding(
-            "Mouse.Scroll"));
-
     console =
         new DebugConsoleOverlay(
             runtime.Console,
             window.TextInput,
             input,
-            consoleScroll,
+            sandboxActions.ConsoleScroll,
             runtime.Services.Graphics,
             1280,
             720);
@@ -304,25 +173,7 @@ if (runtime.Console is not null)
 var ecsSerializers =
     new EcsComponentSerializerRegistry();
 
-ecsSerializers.Register(
-    "engine.world.transform2d",
-    new WorldTransform2DSerializer());
-
-ecsSerializers.Register(
-    "engine.physics.body2d",
-    new PhysicsBody2DSerializer());
-
-ecsSerializers.Register(
-    "engine.physics.collider2d",
-    new Collider2DSerializer());
-
-ecsSerializers.Register(
-    "engine.physics.joint.distance2d",
-    new DistanceJoint2DSerializer());
-
-ecsSerializers.Register(
-    "engine.world.position",
-    new WorldPositionComponentSerializer());
+ecsSerializers.RegisterEngineComponents();
 
 var persistentStates =
     new PersistentStateRegistry();
@@ -335,22 +186,10 @@ var saveLoad =
 var sandbox =
     new SandboxState(
         runtime,
-        input,
-        window.Camera,
-        window.GraphicsDevice,
         ui,
         tileAtlas,
-        moveUp,
-        moveDown,
-        moveLeft,
-        moveRight,
-        switchModeAction,
-        resetAction,
-        spawnAction,
-        clearAction,
-        forceAction,
-        triggerAction,
-        rotateAction, toggleUiShowcaseAction, playAudioAction, networkTestAction, networkReplicationAction,playerReplicationAction, saveLoad,saveAction,loadAction,
+        sandboxActions,
+        saveLoad,
         console);
 
 var application =

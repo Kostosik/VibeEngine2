@@ -23,6 +23,15 @@ public sealed class EngineRuntime :
     private DebugExecutionController? _debugExecution;
     public ValidationService? Validation { get; private set; }
     public DebugVisualizationRenderer? DebugVisualizationRenderer { get; private set; }
+
+    public EngineRuntime(
+    EngineRuntimeOptions options)
+    : this(
+        options,
+        new EngineRuntimeServices())
+    {
+    }
+
     public EngineRuntime(
         EngineRuntimeOptions options,
         EngineRuntimeServices services)
@@ -94,7 +103,9 @@ public sealed class EngineRuntime :
             PhysicsSettings);
 
         SimulationRate =
-            options.SimulationRate;
+            options.SimulationRate; 
+
+
 
         if (!options.ToolingEnabled)
         {
@@ -140,9 +151,12 @@ public sealed class EngineRuntime :
             new DebugVisualizationService(
                 DebugDrawList);
 
+        var graphics =
+Services.Graphics;
+
         DebugVisualizationRenderer =
     new DebugVisualizationRenderer(
-        Services.Graphics);
+        graphics);
 
         Validation =
     new ValidationService();

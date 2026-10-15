@@ -93,9 +93,20 @@ public sealed class WorldSaveLoadServiceTests
                         4),
                     restoredEcsWorld);
 
+            var staleChunkPosition =
+    new ChunkPosition(100, -100);
+
+            restoredWorld.CreateChunk(
+                staleChunkPosition);
+
             saveLoad.Load(
                 path,
                 restoredWorld);
+
+            Assert.False(
+    restoredWorld.TryGetChunk(
+        staleChunkPosition,
+        out _));
 
             Assert.True(
                 restoredWorld.EcsWorld.Exists(

@@ -55,6 +55,9 @@ public sealed class UdpTransport :
         PendingPacket> _packets =
         new();
 
+    private readonly byte[] _receiveBuffer =
+    new byte[MaxDatagramSize];
+
     private Socket? _socket;
 
     private NetworkEndpoint? _localEndpoint;
@@ -395,15 +398,10 @@ public sealed class UdpTransport :
 
     private void PumpIncoming()
     {
-        var socket =
-            _socket!;
+        var socket = _socket!;
 
-        while (true)
+        while (socket.Available > 0)
         {
-            var buffer =
-                new byte[
-                    MaxDatagramSize];
-
             EndPoint remote =
                 new IPEndPoint(
                     IPAddress.Any,
@@ -415,13 +413,13 @@ public sealed class UdpTransport :
             {
                 length =
                     socket.ReceiveFrom(
-                        buffer,
+                        _receiveBuffer,
                         SocketFlags.None,
                         ref remote);
             }
             catch (SocketException exception)
                 when (exception.SocketErrorCode ==
-                       SocketError.WouldBlock)
+                      SocketError.WouldBlock)
             {
                 return;
             }
@@ -432,7 +430,7 @@ public sealed class UdpTransport :
             }
 
             ProcessDatagram(
-                buffer,
+                _receiveBuffer,
                 length,
                 remoteEndpoint);
         }

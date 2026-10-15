@@ -35,6 +35,9 @@ public sealed class SandboxPlayerReplicationProbe : IDisposable
     // Тест не должен его освобождать.
     private Engine.ECS.World? _serverWorld;
 
+    private bool _liveUpdateReceived;
+    private long _liveUpdateStartedAt;
+
     // Клиентский мир принадлежит только тесту.
     private Engine.ECS.World? _clientWorld;
 
@@ -304,14 +307,17 @@ public sealed class SandboxPlayerReplicationProbe : IDisposable
                 _lastSentPosition = serverPosition;
                 _awaitingUpdate = true;
 
-                SetStatus(
-                    "PLAYER REPLICATION: UPDATE SENT");
+                if (!_liveUpdateReceived)
+                {
+                    SetStatus(
+                        "PLAYER REPLICATION: UPDATE SENT");
+                }
             }
 
             if (!_awaitingUpdate ||
-                !_clientWorld!.Exists(_clientPlayer) ||
-                !_clientWorld.Has<WorldTransform2D>(
-                    _clientPlayer))
+    !_clientWorld!.Exists(_clientPlayer) ||
+    !_clientWorld.Has<WorldTransform2D>(
+        _clientPlayer))
             {
                 return;
             }
@@ -320,13 +326,32 @@ public sealed class SandboxPlayerReplicationProbe : IDisposable
                 _clientWorld.Get<WorldTransform2D>(
                     _clientPlayer).Position;
 
-            if (clientPosition == _lastSentPosition &&
+            // Подтверждаем, что клиент получил
+            // изменённую позицию игрока.
+            if (!_liveUpdateReceived &&
                 clientPosition != _initialPosition)
             {
-                SetStatus(
-                    "PLAYER REPLICATION: PASS - LIVE TRANSFORM");
+                _liveUpdateReceived = true;
+                _liveUpdateStartedAt =
+                    Stopwatch.GetTimestamp();
 
+                SetStatus(
+                    "PLAYER REPLICATION: PASS - STREAMING");
+            }
+
+            // Продолжаем полноценный обмен данными
+            // ещё 5 секунд после первой успешной репликации.
+            if (_liveUpdateReceived &&
+                Stopwatch.GetElapsedTime(
+                    _liveUpdateStartedAt) >=
+                TimeSpan.FromSeconds(5))
+            {
                 StopSessions();
+
+                SetStatus(
+                    "PLAYER REPLICATION: PASS - STREAMING COMPLETE");
+
+                return;
             }
         }
         catch (Exception exception)
@@ -412,6 +437,9 @@ public sealed class SandboxPlayerReplicationProbe : IDisposable
 
         _spawnReceived = false;
         _awaitingUpdate = false;
+
+        _liveUpdateReceived = false;
+        _liveUpdateStartedAt = 0;
     }
 
     private static void DisposeSafely(

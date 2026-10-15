@@ -168,6 +168,15 @@ public sealed class OpenGLWindow : IDisposable
     private void OnResize(
         Vector2D<int> size)
     {
+        // При сворачивании окна платформа может
+        // сообщить нулевой размер клиентской области.
+        // Сохраняем последний допустимый размер.
+        if (size.X <= 0 ||
+            size.Y <= 0)
+        {
+            return;
+        }
+
         _graphicsDevice?.Resize(
             size.X,
             size.Y);
@@ -178,8 +187,8 @@ public sealed class OpenGLWindow : IDisposable
                 size.Y));
 
         Resized?.Invoke(
-    size.X,
-    size.Y);
+            size.X,
+            size.Y);
     }
 
     private bool CanClose()

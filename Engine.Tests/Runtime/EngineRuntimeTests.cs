@@ -1,24 +1,91 @@
 ﻿using Engine.Audio;
+using Engine.Camera;
 using Engine.Content;
 using Engine.Content.Assets;
 using Engine.Content.Loading;
 using Engine.Core.Application;
 using Engine.Core.Assets;
 using Engine.Core.Diagnostics;
+using Engine.Core.Math;
+using Engine.Core.Systems;
+using Engine.Core.Time;
 using Engine.Graphics;
-using Engine.Camera;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Engine.Input;
+using Engine.Physics;
 using Engine.Runtime;
+using Engine.Worlds.Spatial;
 
 
 namespace Engine.Tests.Runtime;
 
 public sealed class EngineRuntimeTests
 {
+    [Fact]
+    public void EngineRuntimeOptions_PreservesDefaults()
+    {
+        var options =
+            new EngineRuntimeOptions();
+
+        Assert.Equal(
+            new ChunkSize(32, 32),
+            options.ChunkSize);
+
+        Assert.Equal(
+            new SimulationRate(20),
+            options.SimulationRate);
+
+        Assert.Equal(
+            4,
+            options.Physics.Substeps);
+
+        Assert.True(
+            options.ToolingEnabled);
+    }
+
+    [Fact]
+    public void RuntimeUsesConfiguredOptions()
+    {
+        var options =
+            new EngineRuntimeOptions
+            {
+                ChunkSize =
+                    new ChunkSize(64, 48),
+
+                SimulationRate =
+                    new SimulationRate(30),
+
+                Physics =
+                    new PhysicsSettings2D
+                    {
+                        VelocityIterations = 8
+                    },
+
+                ToolingEnabled = false
+            };
+
+        using var runtime =
+            CreateRuntime(options);
+
+        Assert.Equal(
+            new ChunkSize(64, 48),
+            runtime.World.ChunkSize);
+
+        Assert.Equal(
+            new SimulationRate(30),
+            runtime.SimulationRate);
+
+        Assert.Equal(
+            8,
+            runtime.PhysicsSettings.VelocityIterations);
+
+        Assert.Null(
+            runtime.Console);
+    }
+
     [Fact]
     public void InitializeAndShutdownChangeRuntimeState()
     {
@@ -180,6 +247,60 @@ public sealed class EngineRuntimeTests
     }
 
     [Fact]
+    public void CustomFixedSystem_ExecutesAfterInitialization()
+    {
+        using var runtime =
+            CreateRuntime();
+
+        var system =
+            new CountingFixedSystem();
+
+        runtime.Scheduler.Add(
+            system,
+            SystemPhase.FixedUpdate);
+
+        runtime.Initialize();
+
+        runtime.FixedUpdate(
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.FromRatio(1, 20),
+                    new Tick(1))));
+
+        Assert.Equal(
+            1,
+            system.ExecutionCount);
+    }
+
+    [Fact]
+    public void HeadlessRuntime_CanInitializeAndShutdownWithoutApplicationServices()
+    {
+        using var runtime =
+            new EngineRuntime(
+                new EngineRuntimeOptions
+                {
+                    ToolingEnabled = false
+                });
+
+        Assert.NotNull(runtime.EcsWorld);
+        Assert.NotNull(runtime.World);
+        Assert.NotNull(runtime.Simulation);
+        Assert.NotNull(runtime.Physics);
+
+        runtime.Initialize();
+
+        Assert.True(runtime.IsInitialized);
+        Assert.False(runtime.IsShutdown);
+
+        runtime.Shutdown();
+
+        Assert.True(runtime.IsShutdown);
+
+        Assert.Throws<InvalidOperationException>(
+            () => _ = runtime.Services.Graphics);
+    }
+
+    [Fact]
     public void Dispose_DisposesOwnedEcsWorld()
     {
         var runtime =
@@ -198,7 +319,20 @@ public sealed class EngineRuntimeTests
             });
     }
 
-    private static EngineRuntime CreateRuntime()
+    private sealed class CountingFixedSystem :
+    IFixedUpdateSystem
+    {
+        public int ExecutionCount { get; private set; }
+
+        public void FixedUpdate(
+            FixedSystemContext context)
+        {
+            ExecutionCount++;
+        }
+    }
+
+    private static EngineRuntime CreateRuntime(
+        EngineRuntimeOptions? options = null)
     {
         var camera =
             new Camera2D(
@@ -218,7 +352,7 @@ public sealed class EngineRuntimeTests
                     new ContentLoaderRegistry()));
 
         return new EngineRuntime(
-            new EngineRuntimeOptions(),
+            options ?? new EngineRuntimeOptions(),
             services);
     }
 

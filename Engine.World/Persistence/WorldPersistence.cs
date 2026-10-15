@@ -124,17 +124,10 @@ public static class WorldPersistence
                 "World chunk size does not match the saved world.");
         }
 
-        if (world.ChunkCount != 0 ||
-            world.GetChunkRecords().Any())
-        {
-            throw new InvalidOperationException(
-                "World must not contain chunks when restoring a save state.");
-        }
+        PrepareWorldForRestore(world);
 
         world.EcsWorld.RestoreState(
             state.Ecs);
-
-        world.SpatialIndex.Clear();
 
         foreach (var componentState in
                  state.Ecs.Components)
@@ -167,6 +160,30 @@ public static class WorldPersistence
         {
             world.RestoreChunk(
                 chunk);
+        }
+    }
+
+    private static void PrepareWorldForRestore(
+    World world)
+    {
+        // Сначала убираем старые пространственные связи,
+        // иначе RemoveChunk может отказать из-за
+        // индексированных сущностей.
+        world.SpatialIndex.Clear();
+
+        foreach (var record in
+                 world.GetChunkRecords().ToArray())
+        {
+            if (record.Chunk is not null &&
+                record.Lifecycle.Simulation !=
+                    ChunkSimulationState.Suspended)
+            {
+                record.Lifecycle.SetSimulation(
+                    ChunkSimulationState.Suspended);
+            }
+
+            world.RemoveChunk(
+                record.Lifecycle.Position);
         }
     }
     private static void ValidateChunkStates(

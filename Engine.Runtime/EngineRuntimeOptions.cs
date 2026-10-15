@@ -24,11 +24,11 @@ public sealed class EngineRuntimeOptions
             true;
     }
 
-    public ChunkSize ChunkSize { get; }
+    public ChunkSize ChunkSize { get; init; }
 
-    public SimulationRate SimulationRate { get; }
+    public SimulationRate SimulationRate { get; init; }
 
-    public PhysicsSettings2D Physics { get; }
+    public PhysicsSettings2D Physics { get; init; }
 
-    public bool ToolingEnabled { get; }
+    public bool ToolingEnabled { get; init; }
 }

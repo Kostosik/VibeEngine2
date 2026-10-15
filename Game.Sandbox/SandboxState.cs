@@ -16,6 +16,7 @@ using Engine.UI.Core;
 using Engine.Worlds.Chunks;
 using Game.Sandbox.Scenarios;
 using Game.Sandbox.UI;
+using System;
 
 namespace Game.Sandbox;
 
@@ -35,29 +36,12 @@ public sealed class SandboxState :
     private readonly UiSystem _ui;
     private readonly DebugConsoleOverlay? _console;
 
-    private readonly InputAction _playerReplicationAction;
     private readonly SandboxPlayerReplicationProbe _playerReplicationProbe;
-
-    private readonly InputAction _switchModeAction;
-    private readonly InputAction _resetAction;
-    private readonly InputAction _spawnAction;
-    private readonly InputAction _clearAction;
-    private readonly InputAction _forceAction;
-    private readonly InputAction _triggerAction;
-    private readonly InputAction _rotateAction;
-
-    private readonly InputAction _toggleUiShowcaseAction;
     private readonly UiShowcaseWindow _uiShowcase;
-
-    private readonly InputAction _moveUp;
-    private readonly InputAction _moveDown;
-    private readonly InputAction _moveLeft;
-    private readonly InputAction _moveRight;
 
     private readonly RenderTargetHandle _renderTarget;
     private readonly SandboxHud _hud;
 
-    private readonly InputAction _networkTestAction;
     private readonly SandboxNetworkProbe _networkProbe;
 
     private TopDownScenario? _topDown;
@@ -72,82 +56,38 @@ public sealed class SandboxState :
     private int _height = 720;
 
     private readonly GameSaveLoadService _saveLoad;
-
-    private readonly InputAction _saveAction;
-    private readonly InputAction _loadAction;
-
     private readonly string _savePath;
 
-    private readonly InputAction _networkReplicationAction;
     private readonly SandboxReplicationProbe _networkReplicationProbe;
+
+    private readonly SandboxInputActions _actions;
 
     private string _serializationStatus =
         "READY";
     private readonly InputAction _playAudioAction;
     public SandboxState(
-        EngineRuntime runtime,
-        IInput input,
-        Camera2D camera,
-        IGraphicsDevice graphics,
-        UiSystem ui,
-        Engine.Graphics.Resources.TextureAtlas tileAtlas,
-        InputAction moveUp,
-        InputAction moveDown,
-        InputAction moveLeft,
-        InputAction moveRight,
-        InputAction switchModeAction,
-        InputAction resetAction,
-        InputAction spawnAction,
-        InputAction clearAction,
-        InputAction forceAction,
-        InputAction triggerAction,
-        InputAction rotateAction,
-        InputAction toggleUiShowcaseAction,
-        InputAction playAudioAction, 
-        InputAction networkTestAction,
-        InputAction networkReplicationAction, 
-        InputAction playerReplicationAction,
-        GameSaveLoadService saveLoad,
-InputAction saveAction,
-InputAction loadAction,
-        DebugConsoleOverlay? console = null)
-        : base(runtime.Simulation)
+    EngineRuntime runtime,
+    UiSystem ui,
+    Engine.Graphics.Resources.TextureAtlas tileAtlas,
+    SandboxInputActions actions,
+    GameSaveLoadService saveLoad,
+    DebugConsoleOverlay? console = null)
+    : base(runtime.Simulation)
     {
         ArgumentNullException.ThrowIfNull(runtime);
-        ArgumentNullException.ThrowIfNull(input);
-        ArgumentNullException.ThrowIfNull(camera);
-        ArgumentNullException.ThrowIfNull(graphics);
         ArgumentNullException.ThrowIfNull(ui);
         ArgumentNullException.ThrowIfNull(tileAtlas);
-        ArgumentNullException.ThrowIfNull(
-    saveLoad);
-
-        ArgumentNullException.ThrowIfNull(
-            saveAction);
-
-        ArgumentNullException.ThrowIfNull(
-            loadAction);
+        ArgumentNullException.ThrowIfNull(actions);
+        ArgumentNullException.ThrowIfNull(saveLoad);
 
         _saveLoad =
     saveLoad;
 
-        _networkTestAction = networkTestAction;
+        _graphics = runtime.Services.Graphics;
+        _input = runtime.Services.Input;
+        _camera = runtime.Services.Camera;
 
-        _networkReplicationAction =
-    networkReplicationAction;
-
-        _playerReplicationAction =
-    playerReplicationAction;
-
-        _playAudioAction =
-    playAudioAction;
-
-        _saveAction =
-            saveAction;
-
-        _loadAction =
-            loadAction;
-
+        _actions = actions;
         _savePath =
             Path.Combine(
                 AppContext.BaseDirectory,
@@ -155,27 +95,15 @@ InputAction loadAction,
                 "sandbox.vbe");
 
         _runtime = runtime;
-        _input = input;
-        _camera = camera;
-        _graphics = graphics;
+        _input = runtime.Services.Input;
         _ui = ui;
         _console = console;
-
-        _toggleUiShowcaseAction =
-    toggleUiShowcaseAction;
 
         _uiShowcase =
             new UiShowcaseWindow(
                 ui,
                 tileAtlas.Texture);
 
-        _switchModeAction = switchModeAction;
-        _resetAction = resetAction;
-        _spawnAction = spawnAction;
-        _clearAction = clearAction;
-        _forceAction = forceAction;
-        _triggerAction = triggerAction;
-        _rotateAction = rotateAction;
         _tileAtlas = tileAtlas;
         _renderTarget =
             _graphics.RenderTargets.Create(
@@ -213,23 +141,18 @@ InputAction loadAction,
         _topDown =
             new TopDownScenario(
                 runtime,
-                camera,
-                input,
+                _camera,
+                _input,
                 tileAtlas,
-                moveUp,
-                moveDown,
-                moveLeft,
-                moveRight);
+                _actions.MoveUp,
+                _actions.MoveDown,
+                _actions.MoveLeft,
+                _actions.MoveRight);
 
         _topDown.InteractionChanged +=
     _hud.SetInteraction;
 
         _physics = null;
-
-        _moveUp = moveUp;
-        _moveDown = moveDown;
-        _moveLeft = moveLeft;
-        _moveRight = moveRight;
 
         _networkProbe =
     new SandboxNetworkProbe();
@@ -273,9 +196,24 @@ InputAction loadAction,
 
         _input.Update();
 
-        _networkProbe.Update();
-        _networkReplicationProbe.Update();
-        _playerReplicationProbe.Update();
+        using (_runtime.Profiler?.BeginScope(
+                   "Sandbox.NetworkProbe.Update"))
+        {
+            _networkProbe.Update();
+        }
+
+        using (_runtime.Profiler?.BeginScope(
+                   "Sandbox.ReplicationProbe.Update"))
+        {
+            _networkReplicationProbe.Update();
+        }
+
+        using (_runtime.Profiler?.BeginScope(
+                   "Sandbox.PlayerReplicationProbe.Update"))
+        {
+            _playerReplicationProbe.Update();
+        }
+
         _console?.Update();
 
         // Сначала UI обрабатывает мышь, фокус
@@ -295,7 +233,7 @@ InputAction loadAction,
         // F8 остаётся глобальной командой,
         // чтобы окно можно было закрыть и при фокусе в TextBox.
         if (_input.IsPressed(
-                _toggleUiShowcaseAction))
+                _actions.ToggleUiShowcase))
         {
             if (_uiShowcase.IsOpen)
             {
@@ -323,7 +261,7 @@ InputAction loadAction,
             return;
         }
         if (_input.IsPressed(
-        _playerReplicationAction))
+        _actions.PlayerReplicationTest))
         {
             if (_mode == SandboxMode.TopDown &&
                 _topDown is not null)
@@ -338,7 +276,7 @@ InputAction loadAction,
             }
         }
         if (_input.IsPressed(
-        _networkTestAction))
+        _actions.NetworkTest))
         {
             _networkProbe.RunTest();
         }
@@ -350,7 +288,7 @@ InputAction loadAction,
         }
 
         if (_input.IsPressed(
-                _switchModeAction))
+                _actions.SwitchMode))
         {
             SwitchMode();
 
@@ -358,55 +296,55 @@ InputAction loadAction,
         }
 
         if (_input.IsPressed(
-        _networkReplicationAction))
+        _actions.NetworkReplicationTest))
         {
             _networkReplicationProbe.RunTest();
         }
 
         if (_input.IsPressed(
-                _resetAction))
+                _actions.Reset))
         {
             ResetCurrentScenario();
         }
 
         if (_input.IsPressed(
-                _spawnAction))
+                _actions.Spawn))
         {
             SpawnStressBatch();
         }
 
         if (_input.IsPressed(
-                _clearAction))
+                _actions.Clear))
         {
             ClearStressBatch();
         }
 
         if (_input.IsPressed(
-                _triggerAction))
+                _actions.ToggleTrigger))
         {
             ToggleTrigger();
         }
 
         if (_input.IsPressed(
-                _saveAction))
+                _actions.Save))
         {
             SaveGame();
         }
 
         if (_input.IsPressed(
-                _loadAction))
+                _actions.Load))
         {
             LoadGame();
         }
 
         if (_input.IsPressed(
-                _rotateAction))
+                _actions.Rotate))
         {
             RotateObstacle();
         }
 
         if (_input.IsPressed(
-                _forceAction))
+                _actions.Force))
         {
             ApplyForce();
         }
@@ -485,8 +423,6 @@ InputAction loadAction,
 
         try
         {
-            PrepareWorldForLoad();
-
             _runtime.Physics.ResetContactState();
 
             _saveLoad.Load(
@@ -507,29 +443,6 @@ InputAction loadAction,
                 exception);
         }
     }
-
-    private void PrepareWorldForLoad()
-    {
-        _runtime.World.SpatialIndex.Clear();
-
-        foreach (var record
-                 in _runtime.World
-                     .GetChunkRecords()
-                     .ToArray())
-        {
-            if (record.Chunk is not null &&
-                record.Lifecycle.Simulation !=
-                    ChunkSimulationState.Suspended)
-            {
-                record.Lifecycle.SetSimulation(
-                    ChunkSimulationState.Suspended);
-            }
-
-            _runtime.World.RemoveChunk(
-                record.Lifecycle.Position);
-        }
-    }
-
     public override void Render(
     double interpolationAlpha)
     {
@@ -666,10 +579,10 @@ InputAction loadAction,
                 _camera,
                 _input,
                 _tileAtlas,
-                _moveUp,
-                _moveDown,
-                _moveLeft,
-                _moveRight);
+                _actions.MoveUp,
+                _actions.MoveDown,
+                _actions.MoveLeft,
+                _actions.MoveRight);
 
         scenario.InteractionChanged +=
             _hud.SetInteraction;

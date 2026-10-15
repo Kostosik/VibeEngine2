@@ -87,9 +87,7 @@ public sealed class GameSaveLoadServiceTests
         var ecsRegistry =
             new EcsComponentSerializerRegistry();
 
-        ecsRegistry.Register(
-    "engine.world.position",
-    new WorldPositionComponentSerializer());
+        ecsRegistry.RegisterEngineComponents();
 
         var persistentStates =
             new PersistentStateRegistry();

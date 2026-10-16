@@ -13,6 +13,11 @@ public struct LocalTransform2D :
         Value = value;
     }
 
+    public LocalTransform2D()
+    {
+        Value = FixedTransform2D.Identity;
+    }
+
     public FixedTransform2D Value { get; set; }
 
     public FixedVector2 Position

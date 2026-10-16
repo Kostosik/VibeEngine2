@@ -5,13 +5,13 @@ using Engine.Content.Loading;
 using Engine.Core.Application;
 using Engine.Core.Assets;
 using Engine.Core.Math;
+using Engine.ECS.Components;
 using Engine.Editor;
 using Engine.Editor.Documents.Persistence;
 using Engine.Editor.UI;
 using Engine.Editor.UI.Authoring;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.OpenGL;
-using Engine.Input;
 using Engine.Serialization.Binary;
 using Engine.Serialization.SaveLoad.Ecs;
 using Engine.Serialization.Types;
@@ -32,31 +32,12 @@ using var window =
 
 window.Initialize();
 
-var actionMap =
-    new InputActionMap();
-
-var consoleScroll =
-    new InputAction(
-        "ConsoleScroll");
-
-actionMap.Bind(
-    consoleScroll,
-    new InputBinding(
-        "Mouse.Scroll"));
-
-var input =
-    new ActionInput(
-        window.InputBackend,
-        actionMap);
-
 var debugRegistry =
     new DebugCommandRegistry();
 
 var debugConsole =
     new DebugConsole(
         debugRegistry);
-
-
 
 debugRegistry.Register(
     new HelpDebugCommand(
@@ -139,6 +120,8 @@ editor.InitializeAssetBrowser(
     editorAssetRoot);
 
 editor.ComponentTypes.Register<EditorTestComponent>();
+editor.ComponentTypes.Register<LocalTransform2D>();
+editor.ComponentTypes.Register<WorldTransform2D>();
 
 var contentCatalog =
     new FileContentCatalog(
@@ -192,9 +175,7 @@ var uiDocument =
 var serializers =
     new EcsComponentSerializerRegistry();
 
-serializers.Register(
-    "engine.world.position",
-    new WorldPositionComponentSerializer());
+serializers.RegisterEngineComponents();
 
 serializers.Register(
     "sandbox.editor_test_component",
@@ -399,9 +380,6 @@ editMenu.AddItem(
 
 application.MainShell.ViewRequested +=
     viewRequested;
-
-application.MainShell.ToolsRequested +=
-    toolsRequested;
 
 var gameLoop =
     new GameLoop(

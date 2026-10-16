@@ -1,4 +1,5 @@
 ﻿using Engine.Core.Math;
+using Engine.ECS.Components;
 using Engine.ECS.Entities;
 using Engine.Editor.Commands;
 using Engine.Editor.Viewport.Gizmos;
@@ -14,10 +15,38 @@ namespace Engine.Editor.UI.Workspace;
 public sealed class ViewportPanelView :
     UiPanel
 {
+    private enum TransformTool
+    {
+        Move,
+        Rotate,
+        Scale
+    }
+
+    private TransformTool _activeTool = TransformTool.Move;
+
+    private readonly UiPanel _toolBar;
+    private readonly UiStackPanel _toolButtons;
+
+    private readonly UiButton _moveToolButton;
+    private readonly UiButton _rotateToolButton;
+    private readonly UiButton _scaleToolButton;
+
     private int _debugRenderCounter;
 
     private readonly EditorTranslationGizmo _translationGizmo =
     new();
+
+    private bool _isRotating;
+    private bool _isScaling;
+
+    private EntityId _transformEntity;
+    private LocalTransform2D _transformStartValue;
+    private EditorGizmoAxis _transformAxis;
+
+    private Vector2 _transformStartMousePosition;
+    private Vector2 _transformCenterScreen;
+
+    private float _rotationStartMouseAngle;
 
     private bool _isTranslating;
     private Editor.Documents.EditorDocument? _interactionDocument;
@@ -55,6 +84,86 @@ public sealed class ViewportPanelView :
                 18,
                 18,
                 255);
+
+        _toolButtons = new UiStackPanel
+        {
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 4.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Stretch
+        };
+
+        _moveToolButton = CreateToolButton("Move");
+        _rotateToolButton = CreateToolButton("Rotate");
+        _scaleToolButton = CreateToolButton("Scale");
+
+        _moveToolButton.Clicked +=
+            () => SetActiveTool(TransformTool.Move);
+
+        _rotateToolButton.Clicked +=
+            () => SetActiveTool(TransformTool.Rotate);
+
+        _scaleToolButton.Clicked +=
+            () => SetActiveTool(TransformTool.Scale);
+
+        _toolButtons.AddChild(_moveToolButton);
+        _toolButtons.AddChild(_rotateToolButton);
+        _toolButtons.AddChild(_scaleToolButton);
+
+        _toolBar = new UiPanel
+        {
+            Width = 274.0f,
+            Height = 38.0f,
+            Margin = new UiThickness(8.0f),
+            Padding = new UiThickness(4.0f),
+            Background = new UiColor(32, 32, 32, 230),
+            HorizontalAlignment = UiHorizontalAlignment.Left,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        _toolBar.AddChild(_toolButtons);
+        AddChild(_toolBar);
+
+        RefreshToolButtons();
+    }
+
+    private static UiButton CreateToolButton(string text)
+    {
+        return new UiButton(text)
+        {
+            Width = 86.0f,
+            Height = 30.0f,
+            Focusable = false
+        };
+    }
+
+    private void SetActiveTool(TransformTool tool)
+    {
+        if (_activeTool == tool)
+        {
+            return;
+        }
+
+        _activeTool = tool;
+        RefreshToolButtons();
+    }
+
+    private void RefreshToolButtons()
+    {
+        _moveToolButton.Text =
+            _activeTool == TransformTool.Move
+                ? "> Move"
+                : "Move";
+
+        _rotateToolButton.Text =
+            _activeTool == TransformTool.Rotate
+                ? "> Rotate"
+                : "Rotate";
+
+        _scaleToolButton.Text =
+            _activeTool == TransformTool.Scale
+                ? "> Scale"
+                : "Scale";
     }
 
     protected override void OnPointerWheel(
@@ -202,9 +311,7 @@ public sealed class ViewportPanelView :
                 context,
                 document);
 
-            DrawTranslationGizmo(
-    context,
-    document);
+            DrawActiveGizmo(context, document);
 
             DrawInfo(
                 context,
@@ -214,6 +321,145 @@ public sealed class ViewportPanelView :
         {
             context.PopClip();
         }
+    }
+
+    private void DrawActiveGizmo(
+    UiRenderContext context,
+    Engine.Editor.Documents.EditorDocument document)
+    {
+        switch (_activeTool)
+        {
+            case TransformTool.Move:
+                DrawTranslationGizmo(context, document);
+                break;
+
+            case TransformTool.Rotate:
+                DrawRotationGizmo(context, document);
+                break;
+
+            case TransformTool.Scale:
+                DrawScaleGizmo(context, document);
+                break;
+        }
+    }
+
+    private bool TryGetSelectedScreenPosition(
+    Engine.Editor.Documents.EditorDocument document,
+    out Vector2 screen)
+    {
+        screen = default;
+
+        if (!document.Inspector.TryGetSelectedEntity(
+                document.EntitySelection,
+                out var entity) ||
+            !document.World.SpatialEntities.Contains(entity))
+        {
+            return false;
+        }
+
+        var position =
+            document.World.SpatialEntities.GetPosition(entity);
+
+        var localScreen =
+            document.Viewport.Transform.WorldToScreen(
+                new Vector2(position.X, position.Y));
+
+        screen = new Vector2(
+            Bounds.X + localScreen.X,
+            Bounds.Y + localScreen.Y);
+
+        return true;
+    }
+
+    private void DrawRotationGizmo(
+    UiRenderContext context,
+    Engine.Editor.Documents.EditorDocument document)
+    {
+        if (!TryGetSelectedScreenPosition(document, out var center))
+        {
+            return;
+        }
+
+        const int segments = 32;
+        const float radius = 32.0f;
+        const float segmentSize = 5.0f;
+
+        var color = new UiColor(235, 185, 75, 255);
+
+        for (var i = 0; i < segments; i++)
+        {
+            var angle = MathF.Tau * i / segments;
+
+            var x = center.X + MathF.Cos(angle) * radius;
+            var y = center.Y + MathF.Sin(angle) * radius;
+
+            context.DrawRectangle(
+                new UiRect(
+                    x - segmentSize * 0.5f,
+                    y - segmentSize * 0.5f,
+                    segmentSize,
+                    segmentSize),
+                color,
+                filled: true,
+                layer: 3);
+        }
+    }
+
+    private void DrawScaleGizmo(
+    UiRenderContext context,
+    Engine.Editor.Documents.EditorDocument document)
+    {
+        if (!TryGetSelectedScreenPosition(document, out var center))
+        {
+            return;
+        }
+
+        const float arm = 48.0f;
+        const float thickness = 3.0f;
+        const float handleSize = 10.0f;
+
+        var xColor = new UiColor(220, 80, 80, 255);
+        var yColor = new UiColor(80, 220, 120, 255);
+
+        context.DrawRectangle(
+            new UiRect(
+                center.X,
+                center.Y - thickness * 0.5f,
+                arm,
+                thickness),
+            xColor,
+            filled: true,
+            layer: 3);
+
+        context.DrawRectangle(
+            new UiRect(
+                center.X - thickness * 0.5f,
+                center.Y - arm,
+                thickness,
+                arm),
+            yColor,
+            filled: true,
+            layer: 3);
+
+        context.DrawRectangle(
+            new UiRect(
+                center.X + arm - handleSize * 0.5f,
+                center.Y - handleSize * 0.5f,
+                handleSize,
+                handleSize),
+            xColor,
+            filled: true,
+            layer: 3);
+
+        context.DrawRectangle(
+            new UiRect(
+                center.X - handleSize * 0.5f,
+                center.Y - arm - handleSize * 0.5f,
+                handleSize,
+                handleSize),
+            yColor,
+            filled: true,
+            layer: 3);
     }
 
     private void DrawTranslationGizmo(
@@ -288,25 +534,66 @@ public sealed class ViewportPanelView :
             filled: true,
             layer: 3);
 
+        var xTip = screen.X + arm;
+        var yTip = screen.Y - arm;
+
+        // X: ровный треугольный наконечник вправо.
         context.DrawRectangle(
-            new UiRect(
-                screen.X + arm - arrowSize,
-                screen.Y - arrowSize * 0.5f,
-                arrowSize,
-                arrowSize),
-            xColor,
-            filled: true,
-            layer: 3);
+            new UiRect(xTip - 8.0f, screen.Y - 7.0f, 2.0f, 2.0f),
+            xColor, filled: true, layer: 3);
 
         context.DrawRectangle(
-            new UiRect(
-                screen.X - arrowSize * 0.5f,
-                screen.Y - arm,
-                arrowSize,
-                arrowSize),
-            yColor,
-            filled: true,
-            layer: 3);
+            new UiRect(xTip - 8.0f, screen.Y - 5.0f, 4.0f, 2.0f),
+            xColor, filled: true, layer: 3);
+
+        context.DrawRectangle(
+            new UiRect(xTip - 8.0f, screen.Y - 3.0f, 6.0f, 2.0f),
+            xColor, filled: true, layer: 3);
+
+        context.DrawRectangle(
+            new UiRect(xTip - 8.0f, screen.Y - 1.0f, 8.0f, 2.0f),
+            xColor, filled: true, layer: 3);
+
+        context.DrawRectangle(
+            new UiRect(xTip - 8.0f, screen.Y + 1.0f, 6.0f, 2.0f),
+            xColor, filled: true, layer: 3);
+
+        context.DrawRectangle(
+            new UiRect(xTip - 8.0f, screen.Y + 3.0f, 4.0f, 2.0f),
+            xColor, filled: true, layer: 3);
+
+        context.DrawRectangle(
+            new UiRect(xTip - 8.0f, screen.Y + 5.0f, 2.0f, 2.0f),
+            xColor, filled: true, layer: 3);
+
+        // Y: ровный треугольный наконечник вверх.
+        context.DrawRectangle(
+            new UiRect(screen.X - 7.0f, yTip, 2.0f, 2.0f),
+            yColor, filled: true, layer: 3);
+
+        context.DrawRectangle(
+            new UiRect(screen.X - 5.0f, yTip, 2.0f, 4.0f),
+            yColor, filled: true, layer: 3);
+
+        context.DrawRectangle(
+            new UiRect(screen.X - 3.0f, yTip, 2.0f, 6.0f),
+            yColor, filled: true, layer: 3);
+
+        context.DrawRectangle(
+            new UiRect(screen.X - 1.0f, yTip, 2.0f, 8.0f),
+            yColor, filled: true, layer: 3);
+
+        context.DrawRectangle(
+            new UiRect(screen.X + 1.0f, yTip, 2.0f, 6.0f),
+            yColor, filled: true, layer: 3);
+
+        context.DrawRectangle(
+            new UiRect(screen.X + 3.0f, yTip, 2.0f, 4.0f),
+            yColor, filled: true, layer: 3);
+
+        context.DrawRectangle(
+            new UiRect(screen.X + 5.0f, yTip, 2.0f, 2.0f),
+            yColor, filled: true, layer: 3);
     }
 
     private void DrawGrid(
@@ -545,7 +832,8 @@ public sealed class ViewportPanelView :
             return;
         }
 
-        if (document.Inspector.TryGetSelectedEntity(
+        if (_activeTool == TransformTool.Move &&
+            document.Inspector.TryGetSelectedEntity(
                 document.EntitySelection,
                 out var selectedEntity) &&
             document.World.SpatialEntities.Contains(
@@ -561,26 +849,75 @@ public sealed class ViewportPanelView :
                         selectedPosition.X,
                         selectedPosition.Y));
 
-            var axis =
-                _translationGizmo.HitTest(
-                    localPosition,
-                    selectedScreen);
-
-            if (axis != EditorGizmoAxis.None)
+            if (_activeTool == TransformTool.Move)
             {
-                _isTranslating = true;
-                _interactionDocument = document;
-                _translationAxis = axis;
-                _translationEntity = selectedEntity;
-                _translationStartPosition = selectedPosition;
-                _translationStartWorld =
-                    document.Viewport.Transform.ScreenToWorld(
-                        localPosition);
+                var axis =
+                    _translationGizmo.HitTest(
+                        localPosition,
+                        selectedScreen);
 
-                pointer.RequestCapture();
-                pointer.Handled = true;
+                if (axis != EditorGizmoAxis.None)
+                {
+                    _isTranslating = true;
+                    _interactionDocument = document;
+                    _translationAxis = axis;
+                    _translationEntity = selectedEntity;
+                    _translationStartPosition = selectedPosition;
 
-                return;
+                    _translationStartWorld =
+                        document.Viewport.Transform.ScreenToWorld(
+                            localPosition);
+
+                    pointer.RequestCapture();
+                    pointer.Handled = true;
+                    return;
+                }
+            }
+            else if (document.World.EcsWorld.Has<LocalTransform2D>(
+                         selectedEntity))
+            {
+                var hitRotation =
+                    _activeTool == TransformTool.Rotate &&
+                    IsNearRotationRing(
+                        localPosition,
+                        selectedScreen);
+
+                var scaleAxis =
+                    _activeTool == TransformTool.Scale
+                        ? HitTestScaleHandle(
+                            localPosition,
+                            selectedScreen)
+                        : EditorGizmoAxis.None;
+
+                if (hitRotation ||
+                    scaleAxis != EditorGizmoAxis.None)
+                {
+                    _interactionDocument = document;
+                    _transformEntity = selectedEntity;
+
+                    _transformStartValue =
+                        document.World.EcsWorld.Get<LocalTransform2D>(
+                            selectedEntity);
+
+                    _transformStartMousePosition =
+                        localPosition;
+
+                    _transformCenterScreen =
+                        selectedScreen;
+
+                    _isRotating = hitRotation;
+                    _isScaling = !hitRotation;
+                    _transformAxis = scaleAxis;
+
+                    _rotationStartMouseAngle =
+                        MathF.Atan2(
+                            localPosition.Y - selectedScreen.Y,
+                            localPosition.X - selectedScreen.X);
+
+                    pointer.RequestCapture();
+                    pointer.Handled = true;
+                    return;
+                }
             }
         }
 
@@ -612,13 +949,20 @@ public sealed class ViewportPanelView :
         base.OnPointerMove(
             pointer);
 
-        if ((_isTranslating || _isPanning) &&
+        if ((_isTranslating ||
+             _isRotating ||
+             _isScaling ||
+             _isPanning) &&
             !ReferenceEquals(
                 _interactionDocument,
                 Editor.ActiveDocument))
         {
             _isTranslating = false;
             _isPanning = false;
+            _isRotating = false;
+            _isScaling = false;
+            _transformAxis = EditorGizmoAxis.None;
+            _transformEntity = EntityId.Invalid;
 
             _translationAxis =
                 EditorGizmoAxis.None;
@@ -697,6 +1041,94 @@ public sealed class ViewportPanelView :
             return;
         }
 
+        if ((_isRotating || _isScaling) &&
+    _interactionDocument is { } transformDocument)
+        {
+            if (!transformDocument.World.EcsWorld.Exists(
+                    _transformEntity) ||
+                !transformDocument.World.EcsWorld.Has<LocalTransform2D>(
+                    _transformEntity))
+            {
+                return;
+            }
+
+            var currentMousePosition =
+                new Vector2(
+                    pointer.Position.X - Bounds.X,
+                    pointer.Position.Y - Bounds.Y);
+
+            var value =
+                _transformStartValue;
+
+            if (_isRotating)
+            {
+                var currentAngle =
+                    MathF.Atan2(
+                        currentMousePosition.Y -
+                            _transformCenterScreen.Y,
+                        currentMousePosition.X -
+                            _transformCenterScreen.X);
+
+                var deltaAngle =
+                    NormalizeAngle(
+                        currentAngle -
+                        _rotationStartMouseAngle);
+
+                // В экранных координатах ось Y направлена вниз,
+                // поэтому знак угла инвертируется.
+                value.Rotation =
+                    _transformStartValue.Rotation +
+                    Fixed32.FromFloat(-deltaAngle);
+            }
+            else if (_isScaling)
+            {
+                var deltaX =
+                    (currentMousePosition.X -
+                     _transformStartMousePosition.X) /
+                    _translationGizmo.ArmLength;
+
+                var deltaY =
+                    (_transformStartMousePosition.Y -
+                     currentMousePosition.Y) /
+                    _translationGizmo.ArmLength;
+
+                var startScale =
+                    _transformStartValue.Scale;
+
+                var scaleX =
+                    startScale.X.ToFloat();
+
+                var scaleY =
+                    startScale.Y.ToFloat();
+
+                if (_transformAxis == EditorGizmoAxis.X)
+                {
+                    scaleX =
+                        ClampScale(
+                            scaleX + deltaX,
+                            startScale.X.ToFloat());
+                }
+                else if (_transformAxis == EditorGizmoAxis.Y)
+                {
+                    scaleY =
+                        ClampScale(
+                            scaleY + deltaY,
+                            startScale.Y.ToFloat());
+                }
+
+                value.Scale =
+                    new FixedVector2(
+                        Fixed32.FromFloat(scaleX),
+                        Fixed32.FromFloat(scaleY));
+            }
+
+            transformDocument.World.EcsWorld
+                .Get<LocalTransform2D>(_transformEntity) = value;
+
+            pointer.Handled = true;
+            return;
+        }
+
         if (!_isPanning ||
             pointer.Button !=
             Engine.Input.InputMouseButton.Middle)
@@ -743,6 +1175,53 @@ public sealed class ViewportPanelView :
     {
         base.OnPointerUp(
             pointer);
+
+        if ((_isRotating || _isScaling) &&
+    pointer.Button ==
+        Engine.Input.InputMouseButton.Left)
+        {
+            var document =
+                _interactionDocument;
+
+            if (document is not null &&
+                document.World.EcsWorld.Exists(
+                    _transformEntity) &&
+                document.World.EcsWorld.Has<LocalTransform2D>(
+                    _transformEntity))
+            {
+                var finalValue =
+                    document.World.EcsWorld.Get<LocalTransform2D>(
+                        _transformEntity);
+
+                if (!AreTransformValuesEqual(
+                        _transformStartValue,
+                        finalValue))
+                {
+                    document.Execute(
+                        new SetLocalTransform2DCommand(
+                            document.World,
+                            document.GetEntityReference(
+                                _transformEntity),
+                            _transformStartValue,
+                            finalValue));
+                }
+            }
+
+            _isRotating = false;
+            _isScaling = false;
+
+            _transformAxis =
+                EditorGizmoAxis.None;
+
+            _transformEntity =
+                EntityId.Invalid;
+
+            _interactionDocument = null;
+
+            pointer.ReleaseCapture();
+            pointer.Handled = true;
+            return;
+        }
 
         if (_isTranslating &&
             pointer.Button ==
@@ -841,21 +1320,150 @@ public sealed class ViewportPanelView :
                     Bounds.Y +
                     localScreen.Y);
 
-            var rect =
-                CreateScreenRect(
-                    screen,
-                    EntityMarkerWorldSize *
-                    document.Viewport.State.Zoom);
+            var zoom =
+                document.Viewport.State.Zoom;
 
-            context.DrawRectangle(
-                rect,
+            var color =
                 new UiColor(
                     90,
                     160,
                     230,
-                    255),
-                filled: true);
+                    255);
+
+            if (document.World.EcsWorld.Has<LocalTransform2D>(
+                    entity))
+            {
+                var transform =
+                    document.World.EcsWorld.Get<LocalTransform2D>(
+                        entity);
+
+                DrawTransformedMarker(
+                    context,
+                    screen,
+                    zoom,
+                    EntityMarkerWorldSize,
+                    transform,
+                    color,
+                    showDirection: true,
+                    layer: 0);
+            }
+            else
+            {
+                var rect =
+                    CreateScreenRect(
+                        screen,
+                        EntityMarkerWorldSize * zoom);
+
+                context.DrawRectangle(
+                    rect,
+                    color,
+                    filled: true);
+            }
         }
+    }
+
+    private bool IsNearRotationRing(
+    Vector2 position,
+    Vector2 center)
+    {
+        const float radius = 32.0f;
+        const float tolerance = 8.0f;
+
+        var dx = position.X - center.X;
+        var dy = position.Y - center.Y;
+
+        var distance =
+            MathF.Sqrt(dx * dx + dy * dy);
+
+        return MathF.Abs(distance - radius) <= tolerance;
+    }
+
+    private EditorGizmoAxis HitTestScaleHandle(
+        Vector2 position,
+        Vector2 center)
+    {
+        var arm =
+            _translationGizmo.ArmLength;
+
+        var xHandle =
+            new Vector2(
+                center.X + arm,
+                center.Y);
+
+        var yHandle =
+            new Vector2(
+                center.X,
+                center.Y - arm);
+
+        var xDistance =
+            DistanceSquared(position, xHandle);
+
+        var yDistance =
+            DistanceSquared(position, yHandle);
+
+        const float hitRadius = 10.0f;
+        var hitRadiusSquared = hitRadius * hitRadius;
+
+        var hitX = xDistance <= hitRadiusSquared;
+        var hitY = yDistance <= hitRadiusSquared;
+
+        if (!hitX && !hitY)
+            return EditorGizmoAxis.None;
+
+        if (hitX && hitY)
+        {
+            return xDistance <= yDistance
+                ? EditorGizmoAxis.X
+                : EditorGizmoAxis.Y;
+        }
+
+        return hitX
+            ? EditorGizmoAxis.X
+            : EditorGizmoAxis.Y;
+    }
+
+    private static float DistanceSquared(
+        Vector2 left,
+        Vector2 right)
+    {
+        var dx = left.X - right.X;
+        var dy = left.Y - right.Y;
+
+        return dx * dx + dy * dy;
+    }
+
+    private static float NormalizeAngle(float angle)
+    {
+        while (angle > MathF.PI)
+            angle -= 2.0f * MathF.PI;
+
+        while (angle < -MathF.PI)
+            angle += 2.0f * MathF.PI;
+
+        return angle;
+    }
+
+    private static float ClampScale(
+        float value,
+        float originalValue)
+    {
+        const float minimumMagnitude = 0.01f;
+
+        if (MathF.Abs(value) >= minimumMagnitude)
+            return value;
+
+        return originalValue < 0.0f
+            ? -minimumMagnitude
+            : minimumMagnitude;
+    }
+
+    private static bool AreTransformValuesEqual(
+        LocalTransform2D left,
+        LocalTransform2D right)
+    {
+        return left.Position == right.Position &&
+               left.Rotation == right.Rotation &&
+               left.Scale == right.Scale;
     }
 
     private void DrawSelection(
@@ -895,21 +1503,243 @@ public sealed class ViewportPanelView :
                     Bounds.Y +
                     localScreen.Y);
 
-            var rect =
-                CreateScreenRect(
-                    screen,
-                    SelectionOutlineWorldSize *
-                    document.Viewport.State.Zoom);
+            var zoom =
+                document.Viewport.State.Zoom;
 
-            context.DrawRectangle(
-                rect,
+            var selectionColor =
                 new UiColor(
                     255,
                     220,
                     80,
-                    255),
-                filled: false,
-                layer: 1);
+                    255);
+
+            if (document.World.EcsWorld.Has<LocalTransform2D>(
+                    entity))
+            {
+                var transform =
+                    document.World.EcsWorld.Get<LocalTransform2D>(
+                        entity);
+
+                DrawTransformedMarker(
+                    context,
+                    screen,
+                    zoom,
+                    SelectionOutlineWorldSize,
+                    transform,
+                    selectionColor,
+                    showDirection: false,
+                    layer: 1);
+            }
+            else
+            {
+                var rect =
+                    CreateScreenRect(
+                        screen,
+                        SelectionOutlineWorldSize * zoom);
+
+                context.DrawRectangle(
+                    rect,
+                    selectionColor,
+                    filled: false,
+                    layer: 1);
+            }
+        }
+    }
+
+    private static void DrawTransformedMarker(
+    UiRenderContext context,
+    Vector2 center,
+    float zoom,
+    float sizeWorld,
+    LocalTransform2D transform,
+    UiColor color,
+    bool showDirection,
+    int layer)
+    {
+        var halfWidth =
+            sizeWorld * 0.5f;
+
+        var halfHeight =
+            sizeWorld * 0.32f;
+
+        var corners = new[]
+        {
+        TransformLocalPoint(
+            center, zoom, transform,
+            -halfWidth, -halfHeight),
+
+        TransformLocalPoint(
+            center, zoom, transform,
+            halfWidth, -halfHeight),
+
+        TransformLocalPoint(
+            center, zoom, transform,
+            halfWidth, halfHeight),
+
+        TransformLocalPoint(
+            center, zoom, transform,
+            -halfWidth, halfHeight)
+    };
+
+        DrawClosedOutline(
+            context,
+            corners,
+            color,
+            zoom,
+            layer);
+
+        if (!showDirection)
+        {
+            return;
+        }
+
+        // Указатель локальной оси X помогает видеть
+        // направление даже после поворота на 180 градусов.
+        var directionEnd =
+            TransformLocalPoint(
+                center,
+                zoom,
+                transform,
+                halfWidth + 2.0f,
+                0.0f);
+
+        DrawScreenLine(
+            context,
+            center,
+            directionEnd,
+            new UiColor(210, 230, 255, 255),
+            zoom,
+            layer + 1);
+
+        var centerSize =
+            Math.Clamp(
+                2.5f * zoom,
+                2.0f,
+                5.0f);
+
+        context.DrawRectangle(
+            CreateScreenRect(
+                center,
+                centerSize),
+            color,
+            filled: true,
+            layer: layer + 1);
+    }
+
+    private static Vector2 TransformLocalPoint(
+        Vector2 center,
+        float zoom,
+        LocalTransform2D transform,
+        float localX,
+        float localY)
+    {
+        var scaleX =
+            transform.Scale.X.ToFloat();
+
+        var scaleY =
+            transform.Scale.Y.ToFloat();
+
+        var rotation =
+            transform.Rotation.ToFloat();
+
+        var scaledX =
+            localX * scaleX;
+
+        var scaledY =
+            localY * scaleY;
+
+        var cosine =
+            MathF.Cos(rotation);
+
+        var sine =
+            MathF.Sin(rotation);
+
+        var rotatedX =
+            scaledX * cosine -
+            scaledY * sine;
+
+        var rotatedY =
+            scaledX * sine +
+            scaledY * cosine;
+
+        // В viewport экранная ось Y направлена вниз,
+        // поэтому экранное смещение по Y инвертируется.
+        return new Vector2(
+            center.X + rotatedX * zoom,
+            center.Y - rotatedY * zoom);
+    }
+
+    private static void DrawClosedOutline(
+        UiRenderContext context,
+        IReadOnlyList<Vector2> points,
+        UiColor color,
+        float zoom,
+        int layer)
+    {
+        for (var i = 0; i < points.Count; i++)
+        {
+            var next =
+                (i + 1) % points.Count;
+
+            DrawScreenLine(
+                context,
+                points[i],
+                points[next],
+                color,
+                zoom,
+                layer);
+        }
+    }
+
+    private static void DrawScreenLine(
+        UiRenderContext context,
+        Vector2 start,
+        Vector2 end,
+        UiColor color,
+        float zoom,
+        int layer)
+    {
+        var delta =
+            end - start;
+
+        var length =
+            MathF.Sqrt(
+                delta.X * delta.X +
+                delta.Y * delta.Y);
+
+        var thickness =
+            Math.Clamp(
+                zoom * 1.25f,
+                1.25f,
+                4.0f);
+
+        var sampleSpacing =
+            MathF.Max(
+                thickness * 1.25f,
+                1.5f);
+
+        var steps =
+            Math.Clamp(
+                (int)MathF.Ceiling(
+                    length / sampleSpacing),
+                1,
+                256);
+
+        for (var i = 0; i <= steps; i++)
+        {
+            var point =
+                start +
+                delta * (i / (float)steps);
+
+            context.DrawRectangle(
+                new UiRect(
+                    point.X - thickness * 0.5f,
+                    point.Y - thickness * 0.5f,
+                    thickness,
+                    thickness),
+                color,
+                filled: true,
+                layer: layer);
         }
     }
 

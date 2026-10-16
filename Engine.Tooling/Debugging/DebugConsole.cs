@@ -10,20 +10,27 @@ public sealed class DebugConsole
     private readonly ConsoleHistory _history;
     private readonly List<IConsoleSink> _sinks = new();
 
-    private readonly List<ConsoleMessage> _messages = new();
+    private const int DefaultMessageCapacity = 5000;
+
+    private readonly BoundedMessageBuffer _messages;
 
     public DebugConsole(
         DebugCommandRegistry registry,
-        ConsoleHistory? history = null)
+        ConsoleHistory? history = null,
+        int messageCapacity = DefaultMessageCapacity)
     {
-        ArgumentNullException.ThrowIfNull(
-            registry);
+        ArgumentNullException.ThrowIfNull(registry);
+
+        if (messageCapacity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(messageCapacity),
+                "Message capacity must be greater than zero.");
+        }
 
         _registry = registry;
-
-        _history =
-            history ??
-            new ConsoleHistory();
+        _history = history ?? new ConsoleHistory();
+        _messages = new BoundedMessageBuffer(messageCapacity);
     }
 
     public IReadOnlyList<ConsoleMessage> Messages =>
@@ -36,6 +43,77 @@ public sealed class DebugConsole
         _sinks;
 
     public event Action<ConsoleMessage>? MessageWritten;
+
+    private sealed class BoundedMessageBuffer :
+    IReadOnlyList<ConsoleMessage>
+    {
+        private readonly ConsoleMessage[] _items;
+        private int _start;
+
+        public BoundedMessageBuffer(int capacity)
+        {
+            _items = new ConsoleMessage[capacity];
+        }
+
+        public int Count { get; private set; }
+
+        public ConsoleMessage this[int index]
+        {
+            get
+            {
+                if ((uint)index >= (uint)Count)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(index));
+                }
+
+                return _items[
+                    (_start + index) % _items.Length];
+            }
+        }
+
+        public void Add(ConsoleMessage message)
+        {
+            if (Count < _items.Length)
+            {
+                var index =
+                    (_start + Count) % _items.Length;
+
+                _items[index] = message;
+                Count++;
+
+                return;
+            }
+
+            // Буфер заполнен: заменяем старейшее сообщение.
+            _items[_start] = message;
+
+            _start =
+                (_start + 1) % _items.Length;
+        }
+
+        public void Clear()
+        {
+            Array.Clear(_items, 0, _items.Length);
+
+            _start = 0;
+            Count = 0;
+        }
+
+        public IEnumerator<ConsoleMessage> GetEnumerator()
+        {
+            for (var i = 0; i < Count; i++)
+            {
+                yield return this[i];
+            }
+        }
+
+        System.Collections.IEnumerator
+            System.Collections.IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+    }
 
     public void AddSink(
         IConsoleSink sink)

@@ -18,7 +18,7 @@ public sealed class EditorConsolePanel : UiPanel
     private const float CommandHeight = 36.0f;
     private const float Gap = 6.0f;
     private const float PaddingSize = 8.0f;
-
+    private bool _messagesDirty;
     private readonly DebugConsole? _console;
 
     private readonly UiStackPanel _header;
@@ -343,7 +343,7 @@ public sealed class EditorConsolePanel : UiPanel
     private void OnMessageWritten(
         ConsoleMessage message)
     {
-        RefreshMessages();
+        _messagesDirty = true;
     }
 
     private void ClearMessages()
@@ -525,10 +525,23 @@ public sealed class EditorConsolePanel : UiPanel
         return true;
     }
 
+    protected override void OnUpdate(
+    double deltaSeconds)
+    {
+        if (!_messagesDirty)
+        {
+            return;
+        }
+
+        _messagesDirty = false;
+
+        RefreshMessages();
+    }
+
     private sealed class ConsoleOutputView : UiWidget
     {
-        private const float FontSize = 13.0f;
-        private const float LineHeight = 18.0f;
+        private const float FontSize = 16.0f;
+        private const float LineHeight = 22.0f;
 
         private readonly record struct RenderLine(
             string Text,
@@ -539,6 +552,12 @@ public sealed class EditorConsolePanel : UiPanel
 
         private readonly List<RenderLine> _lines = new();
 
+        private readonly List<ConsoleMessage> _renderedMessages = new();
+
+        private float _builtWidth = -1.0f;
+
+        private bool _hasEmptyLine;
+
         private string _emptyMessage = "No messages yet.";
 
         private bool _layoutDirty = true;
@@ -546,16 +565,26 @@ public sealed class EditorConsolePanel : UiPanel
         private int _followTailDelay;
 
         public void SetMessages(
-            IReadOnlyList<ConsoleMessage> messages,
-            string emptyMessage,
-            bool forceScrollToBottom = false)
+     IReadOnlyList<ConsoleMessage> messages,
+     string emptyMessage,
+     bool forceScrollToBottom = false)
         {
-            var wasAtBottom =
-                IsAtBottom();
+            var wasAtBottom = IsAtBottom();
+
+            var changed =
+                !HaveSameMessages(_messages, messages) ||
+                !string.Equals(
+                    _emptyMessage,
+                    emptyMessage,
+                    StringComparison.Ordinal);
 
             _messages = messages;
             _emptyMessage = emptyMessage;
-            _layoutDirty = true;
+
+            if (changed)
+            {
+                _layoutDirty = true;
+            }
 
             if (forceScrollToBottom || wasAtBottom)
             {
@@ -564,18 +593,41 @@ public sealed class EditorConsolePanel : UiPanel
             }
         }
 
-        protected override Vector2 MeasureCore(
-            UiLayoutContext context,
-            Vector2 availableSize)
+        private static bool HaveSameMessages(
+    IReadOnlyList<ConsoleMessage> left,
+    IReadOnlyList<ConsoleMessage> right)
         {
-            if (_layoutDirty)
+            if (left.Count != right.Count)
             {
-                BuildLines(
-                    context,
-                    MathF.Max(
-                        40.0f,
-                        availableSize.X - 12.0f));
+                return false;
+            }
 
+            for (var i = 0; i < left.Count; i++)
+            {
+                if (!left[i].Equals(right[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        protected override Vector2 MeasureCore(
+    UiLayoutContext context,
+    Vector2 availableSize)
+        {
+            var maximumWidth =
+                MathF.Max(
+                    40.0f,
+                    availableSize.X - 12.0f);
+
+            var widthChanged =
+                MathF.Abs(maximumWidth - _builtWidth) > 0.5f;
+
+            if (_layoutDirty || widthChanged)
+            {
+                BuildLines(context, maximumWidth);
                 _layoutDirty = false;
             }
 
@@ -671,56 +723,113 @@ public sealed class EditorConsolePanel : UiPanel
         }
 
         private void BuildLines(
-            UiLayoutContext context,
-            float maximumWidth)
+    UiLayoutContext context,
+    float maximumWidth)
         {
-            _lines.Clear();
+            var canAppend =
+                !_hasEmptyLine &&
+                MathF.Abs(_builtWidth - maximumWidth) <= 0.5f &&
+                IsRenderedPrefixOfCurrent();
+
+            if (!canAppend)
+            {
+                _lines.Clear();
+                _renderedMessages.Clear();
+                _hasEmptyLine = false;
+            }
 
             if (_messages.Count == 0)
             {
+                _lines.Clear();
+                _renderedMessages.Clear();
+
                 _lines.Add(
                     new RenderLine(
                         _emptyMessage,
                         new UiColor(135, 140, 150, 255)));
 
+                _hasEmptyLine = true;
+                _builtWidth = maximumWidth;
+
                 return;
             }
 
-            foreach (var message in _messages)
+            _hasEmptyLine = false;
+
+            // Уже отрисованные сообщения не обрабатываем повторно.
+            for (var i = _renderedMessages.Count;
+                 i < _messages.Count;
+                 i++)
             {
-                var prefix =
-                    $"{message.Timestamp.ToLocalTime():HH:mm:ss} " +
-                    $"[{message.Level}] ";
+                var message = _messages[i];
 
-                var color =
-                    GetLevelColor(message.Level);
+                AppendMessage(
+                    context,
+                    message,
+                    maximumWidth);
 
-                var text =
-                    message.Message
-                        .Replace("\r\n", "\n")
-                        .Replace('\r', '\n');
-
-                var logicalLines =
-                    text.Split('\n');
-
-                for (var i = 0; i < logicalLines.Length; i++)
-                {
-                    var firstPrefix =
-                        i == 0
-                            ? prefix
-                            : new string(' ', prefix.Length);
-
-                    AppendWrappedLine(
-                        context,
-                        logicalLines[i],
-                        firstPrefix,
-                        new string(' ', prefix.Length),
-                        maximumWidth,
-                        color);
-                }
+                _renderedMessages.Add(message);
             }
+
+            _builtWidth = maximumWidth;
         }
 
+        private void AppendMessage(
+    UiLayoutContext context,
+    ConsoleMessage message,
+    float maximumWidth)
+        {
+            var prefix =
+                $"{message.Timestamp.ToLocalTime():HH:mm:ss} " +
+                $"[{message.Level}] ";
+
+            var color =
+                GetLevelColor(message.Level);
+
+            var text =
+                message.Message
+                    .Replace("\r\n", "\n")
+                    .Replace('\r', '\n');
+
+            var logicalLines =
+                text.Split('\n');
+
+            var continuationPrefix =
+                new string(' ', prefix.Length);
+
+            for (var i = 0; i < logicalLines.Length; i++)
+            {
+                var firstPrefix =
+                    i == 0
+                        ? prefix
+                        : continuationPrefix;
+
+                AppendWrappedLine(
+                    context,
+                    logicalLines[i],
+                    firstPrefix,
+                    continuationPrefix,
+                    maximumWidth,
+                    color);
+            }
+        }
+        private bool IsRenderedPrefixOfCurrent()
+        {
+            if (_renderedMessages.Count > _messages.Count)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < _renderedMessages.Count; i++)
+            {
+                if (!_renderedMessages[i].Equals(_messages[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
         private void AppendWrappedLine(
             UiLayoutContext context,
             string text,

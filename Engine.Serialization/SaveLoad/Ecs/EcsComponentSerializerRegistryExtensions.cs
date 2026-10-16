@@ -31,5 +31,8 @@ public static class EcsComponentSerializerRegistryExtensions
         registry.Register(
     "engine.scripting.assignments",
     new ScriptAssignmentsComponentSerializer());
+        registry.Register(
+    "engine.local.transform2d",
+    new LocalTransform2DSerializer());
     }
 }

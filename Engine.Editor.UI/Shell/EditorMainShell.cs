@@ -571,7 +571,7 @@ public sealed class EditorMainShell :
 
         Refresh();
     }
-private UiPanel CreateMenuBar()
+    private UiPanel CreateMenuBar()
     {
         var panel = new UiPanel
         {
@@ -592,7 +592,7 @@ private UiPanel CreateMenuBar()
         UiButton AddMenuButton(
             string text,
             float width,
-            Action<UiRect>? requested)
+            Action<UiRect> requested)
         {
             var button = new UiButton(text)
             {
@@ -600,30 +600,35 @@ private UiPanel CreateMenuBar()
                 Height = 28.0f
             };
 
-            if (requested is not null)
-            {
-                button.Clicked += () =>
-                    requested(button.Bounds);
-            }
+            button.Clicked += () =>
+                requested(button.Bounds);
 
             buttons.AddChild(button);
+
             return button;
         }
 
-        AddMenuButton("Edit", 64.0f, EditRequested);
-        AddMenuButton("View", 64.0f, ViewRequested);
+        AddMenuButton(
+            "Edit",
+            64.0f,
+            bounds => EditRequested?.Invoke(bounds));
+
+        AddMenuButton(
+            "View",
+            64.0f,
+            bounds => ViewRequested?.Invoke(bounds));
 
         _toolsButton = AddMenuButton(
             "Tools",
             72.0f,
-            ToolsRequested);
+            bounds => ToolsRequested?.Invoke(bounds));
 
         panel.AddChild(buttons);
 
         return panel;
     }
 
-private UiPanel CreateToolbar()
+    private UiPanel CreateToolbar()
     {
         var panel = new UiPanel
         {

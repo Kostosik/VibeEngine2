@@ -16,6 +16,11 @@ public struct WorldTransform2D :
             position);
     }
 
+    public WorldTransform2D()
+    {
+        _value = FixedTransform2D.Identity;
+    }
+
     public FixedVector2 Position
     {
         get => _value.Position;

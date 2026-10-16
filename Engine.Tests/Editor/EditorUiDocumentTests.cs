@@ -1,10 +1,52 @@
 ﻿using Engine.Editor.Documents;
 using Engine.Editor.UI.Authoring;
+using Engine.Core.Math;
 
 namespace Engine.Tests.Editor.Authoring;
 
 public sealed class EditorUiDocumentTests
 {
+    [Fact]
+    public void SetLayoutCommand_ExecuteUndoRedo_RestoresLayout()
+    {
+        var document = new EditorUiDocument();
+
+        var element = document.AddElement(
+            EditorUiElementType.Panel,
+            document.Root.Id);
+
+        document.MarkSaved();
+
+        var oldLayout = element.Layout;
+
+        var newLayout = oldLayout with
+        {
+            Anchor = new Vector2(0.5f, 0.5f),
+            Offset = new Vector2(32.0f, 48.0f),
+            Size = new Vector2(320.0f, 120.0f)
+        };
+
+        document.Execute(
+            new SetEditorUiLayoutCommand(
+                document,
+                element.Id,
+                oldLayout,
+                newLayout));
+
+        Assert.Equal(newLayout, element.Layout);
+        Assert.True(document.IsDirty);
+
+        document.Undo();
+
+        Assert.Equal(oldLayout, element.Layout);
+        Assert.False(document.IsDirty);
+
+        document.Redo();
+
+        Assert.Equal(newLayout, element.Layout);
+        Assert.True(document.IsDirty);
+    }
+
     [Fact]
     public void ImplementsSharedDocumentContract()
     {

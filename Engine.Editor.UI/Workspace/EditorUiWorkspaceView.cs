@@ -9,6 +9,16 @@ namespace Engine.Editor.UI.Workspace;
 public sealed class EditorUiWorkspaceView :
     UiPanel
 {
+    private const float DockSplitterThickness = 6.0f;
+    private const float MinSidePanelWidth = 140.0f;
+    private const float MinPreviewWidth = 220.0f;
+
+    private float _hierarchyRatio = 0.24f;
+    private float _inspectorRatio = 0.24f;
+
+    private readonly EditorDockSplitter _leftSplitter;
+    private readonly EditorDockSplitter _rightSplitter;
+
     private readonly UiPanel _hierarchyHost;
     private readonly UiPanel _previewHost;
     private readonly UiPanel _inspectorHost;
@@ -37,6 +47,21 @@ public sealed class EditorUiWorkspaceView :
 
         _inspectorHost =
             CreateHost();
+
+        _leftSplitter = new EditorDockSplitter(
+    EditorDockResizeAxis.Horizontal,
+    1.0f,
+    () => CalculateDockWidths(Bounds.Width).Hierarchy,
+    ResizeHierarchyWidth);
+
+        _rightSplitter = new EditorDockSplitter(
+            EditorDockResizeAxis.Horizontal,
+            -1.0f,
+            () => CalculateDockWidths(Bounds.Width).Inspector,
+            ResizeInspectorWidth);
+
+        AddChild(_leftSplitter);
+        AddChild(_rightSplitter);
 
         Hierarchy =
             new EditorUiHierarchyPanelView(
@@ -103,46 +128,179 @@ public sealed class EditorUiWorkspaceView :
     }
 
     protected override void ArrangeCore(
-        UiRect finalRect)
+    UiRect finalRect)
     {
-        const float hierarchyRatio = 0.24f;
-        const float inspectorRatio = 0.24f;
+        var widths = CalculateDockWidths(
+            finalRect.Width);
 
-        var hierarchyWidth =
-            finalRect.Width *
-            hierarchyRatio;
-
-        var inspectorWidth =
-            finalRect.Width *
-            inspectorRatio;
-
-        var previewWidth =
-            finalRect.Width -
-            hierarchyWidth -
-            inspectorWidth;
+        var x = finalRect.X;
+        var y = finalRect.Y;
+        var height = finalRect.Height;
 
         _hierarchyHost.Arrange(
             new UiRect(
-                finalRect.X,
-                finalRect.Y,
-                hierarchyWidth,
-                finalRect.Height));
+                x,
+                y,
+                widths.Hierarchy,
+                height));
+
+        x += widths.Hierarchy;
+
+        _leftSplitter.Arrange(
+            new UiRect(
+                x,
+                y,
+                DockSplitterThickness,
+                height));
+
+        x += DockSplitterThickness;
 
         _previewHost.Arrange(
             new UiRect(
-                finalRect.X +
-                hierarchyWidth,
-                finalRect.Y,
-                previewWidth,
-                finalRect.Height));
+                x,
+                y,
+                widths.Preview,
+                height));
+
+        x += widths.Preview;
+
+        _rightSplitter.Arrange(
+            new UiRect(
+                x,
+                y,
+                DockSplitterThickness,
+                height));
+
+        x += DockSplitterThickness;
 
         _inspectorHost.Arrange(
             new UiRect(
-                finalRect.Right -
-                inspectorWidth,
-                finalRect.Y,
-                inspectorWidth,
-                finalRect.Height));
+                x,
+                y,
+                widths.Inspector,
+                height));
+    }
+
+    private (
+    float Hierarchy,
+    float Preview,
+    float Inspector)
+    CalculateDockWidths(float totalWidth)
+    {
+        var availableWidth = MathF.Max(
+            0.0f,
+            totalWidth - DockSplitterThickness * 2.0f);
+
+        var minSideWidth = MathF.Min(
+            MinSidePanelWidth,
+            availableWidth / 3.0f);
+
+        var minPreviewWidth = MathF.Min(
+            MinPreviewWidth,
+            MathF.Max(
+                0.0f,
+                availableWidth - minSideWidth * 2.0f));
+
+        var hierarchyMax = MathF.Max(
+            minSideWidth,
+            availableWidth - minPreviewWidth - minSideWidth);
+
+        var hierarchy = Math.Clamp(
+            totalWidth * _hierarchyRatio,
+            minSideWidth,
+            hierarchyMax);
+
+        var inspectorMax = MathF.Max(
+            minSideWidth,
+            availableWidth - minPreviewWidth - hierarchy);
+
+        var inspector = Math.Clamp(
+            totalWidth * _inspectorRatio,
+            minSideWidth,
+            inspectorMax);
+
+        var preview = MathF.Max(
+            0.0f,
+            availableWidth - hierarchy - inspector);
+
+        return (
+            hierarchy,
+            preview,
+            inspector);
+    }
+
+    private void ResizeHierarchyWidth(float width)
+    {
+        var totalWidth = Bounds.Width;
+
+        if (totalWidth <= 0.0f)
+        {
+            return;
+        }
+
+        var sizes = CalculateDockWidths(totalWidth);
+
+        var availableWidth = MathF.Max(
+            0.0f,
+            totalWidth - DockSplitterThickness * 2.0f);
+
+        var minSideWidth = MathF.Min(
+            MinSidePanelWidth,
+            availableWidth / 3.0f);
+
+        var minPreviewWidth = MathF.Min(
+            MinPreviewWidth,
+            MathF.Max(
+                0.0f,
+                availableWidth - minSideWidth * 2.0f));
+
+        var maxWidth = MathF.Max(
+            minSideWidth,
+            availableWidth -
+            minPreviewWidth -
+            sizes.Inspector);
+
+        _hierarchyRatio = Math.Clamp(
+            width,
+            minSideWidth,
+            maxWidth) / totalWidth;
+    }
+
+    private void ResizeInspectorWidth(float width)
+    {
+        var totalWidth = Bounds.Width;
+
+        if (totalWidth <= 0.0f)
+        {
+            return;
+        }
+
+        var sizes = CalculateDockWidths(totalWidth);
+
+        var availableWidth = MathF.Max(
+            0.0f,
+            totalWidth - DockSplitterThickness * 2.0f);
+
+        var minSideWidth = MathF.Min(
+            MinSidePanelWidth,
+            availableWidth / 3.0f);
+
+        var minPreviewWidth = MathF.Min(
+            MinPreviewWidth,
+            MathF.Max(
+                0.0f,
+                availableWidth - minSideWidth * 2.0f));
+
+        var maxWidth = MathF.Max(
+            minSideWidth,
+            availableWidth -
+            minPreviewWidth -
+            sizes.Hierarchy);
+
+        _inspectorRatio = Math.Clamp(
+            width,
+            minSideWidth,
+            maxWidth) / totalWidth;
     }
 
     private static UiPanel CreateHost()

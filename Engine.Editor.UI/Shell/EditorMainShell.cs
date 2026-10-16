@@ -4,6 +4,7 @@ using Engine.Editor.UI.Authoring;
 using Engine.Editor.UI.Workspace;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Resources;
+using Engine.Tooling.Debugging;
 using Engine.Tooling.Validation;
 using Engine.UI.Controls;
 using Engine.UI.Layout;
@@ -27,9 +28,34 @@ public sealed class EditorMainShell :
         Editor.Session.ActiveEditorDocument
             is EditorUiDocument;
 
+    public bool CanUndo =>
+    Editor.Session.ActiveEditorDocument switch
+    {
+        EditorUiDocument document =>
+            document.CommandHistory.CanUndo,
+
+        EditorDocument document =>
+            document.CommandHistory.CanUndo,
+
+        _ => false
+    };
+
+    public bool CanRedo =>
+        Editor.Session.ActiveEditorDocument switch
+        {
+            EditorUiDocument document =>
+                document.CommandHistory.CanRedo,
+
+            EditorDocument document =>
+                document.CommandHistory.CanRedo,
+
+            _ => false
+        };
+
     public event Action? NewRequested;
     public event Action? OpenRequested;
     public event Action? SaveRequested;
+    public event Action? SaveAllRequested;
     public event Action? SaveAsRequested;
     public event Action? CloseRequested;
     public event Action<UiRect>? ToolsRequested;
@@ -43,7 +69,7 @@ public sealed class EditorMainShell :
     public EditorMainShell(
         EditorContext editor,
         ITextureResourceManager assetPreviewTextures,
-        EditorUiDocument uiDocument)
+        EditorUiDocument uiDocument, DebugConsole? console = null)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -110,7 +136,8 @@ public sealed class EditorMainShell :
         _workspaceView =
             new EditorWorkspaceView(
                 editor,
-                assetPreviewTextures);
+                assetPreviewTextures,
+                console);
 
         _uiWorkspaceView =
             new EditorUiWorkspaceView(
@@ -159,7 +186,8 @@ public sealed class EditorMainShell :
     public EditorUiDocument UiDocument =>
         _uiWorkspaceView.Document;
 
-
+    public UiTextBox ConsoleInput =>
+    _workspaceView.Console.CommandInput;
 
     public UiPanel Workspace =>
         _workspace;
@@ -324,7 +352,7 @@ public sealed class EditorMainShell :
             worldDocument is not null;
 
         _closeButton.Enabled =
-            worldDocument is not null;
+            activeDocument is not null;
 
         if (worldDocument is not null)
         {
@@ -649,6 +677,8 @@ private UiPanel CreateToolbar()
 
         AddButton("Save", 64.0f,
             () => SaveRequested?.Invoke());
+        AddButton("Save All", 84.0f,
+    () => SaveAllRequested?.Invoke());
 
         AddButton("Save As", 78.0f,
             () => SaveAsRequested?.Invoke());

@@ -80,7 +80,7 @@ public sealed class UiTextBox : UiWidget
     public event Action<string>? TextChanged;
 
     public event Action<string>? Submitted;
-
+    public event Action<UiKeyEvent>? PreviewKeyEvent;
     protected override Vector2 MeasureCore(
         UiLayoutContext context,
         Vector2 availableSize)
@@ -104,6 +104,28 @@ public sealed class UiTextBox : UiWidget
             _cursorTimer = 0.0f;
             _cursorVisible = !_cursorVisible;
         }
+    }
+
+    public void SetText(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        if (text.Length > MaxLength)
+        {
+            text = text[..MaxLength];
+        }
+
+        if (Text == text)
+        {
+            return;
+        }
+
+        Text = text;
+        CursorIndex = Text.Length;
+
+        ResetCursor();
+
+        TextChanged?.Invoke(Text);
     }
 
     protected override void OnTextInput(
@@ -163,6 +185,13 @@ public sealed class UiTextBox : UiWidget
     protected override void OnKeyEvent(
         UiKeyEvent keyEvent)
     {
+        PreviewKeyEvent?.Invoke(keyEvent);
+
+        if (keyEvent.Handled)
+        {
+            return;
+        }
+
         switch (keyEvent.Key)
         {
             case TextInputKey.Left:

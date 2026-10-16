@@ -12,6 +12,10 @@ public sealed class UiContextMenu : UiCanvas
     private readonly UiPanel _menuPanel;
     private readonly UiStackPanel _itemsPanel;
 
+    private readonly List<(
+    UiButton Button,
+    Func<bool> CanExecute)> _conditionalItems = new();
+
     public UiContextMenu(
         UiOverlayLayer overlay)
     {
@@ -89,8 +93,19 @@ public sealed class UiContextMenu : UiCanvas
         Visible;
 
     public void AddItem(
+    string text,
+    Action action)
+    {
+        AddItem(
+            text,
+            action,
+            null);
+    }
+
+    public void AddItem(
         string text,
-        Action action)
+        Action action,
+        Func<bool>? canExecute)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(action);
@@ -98,23 +113,34 @@ public sealed class UiContextMenu : UiCanvas
         var button =
             new UiButton(text)
             {
-                Width =
-                    Width - 8.0f,
-
+                Width = Width - 8.0f,
                 Height = 34.0f,
-
                 FontSize = 14.0f
             };
+
+        if (canExecute is not null)
+        {
+            _conditionalItems.Add(
+                (button, canExecute));
+
+            button.Enabled = canExecute();
+        }
 
         button.Clicked +=
             () =>
             {
+                if (canExecute is not null &&
+                    !canExecute())
+                {
+                    button.Enabled = false;
+                    return;
+                }
+
                 Close();
                 action();
             };
 
-        _itemsPanel.AddChild(
-            button);
+        _itemsPanel.AddChild(button);
     }
 
     public void ClearItems()
@@ -122,6 +148,7 @@ public sealed class UiContextMenu : UiCanvas
         Close();
 
         _itemsPanel.ClearChildren();
+        _conditionalItems.Clear();
     }
 
     public void Open(
@@ -130,6 +157,12 @@ public sealed class UiContextMenu : UiCanvas
         if (_itemsPanel.Children.Count == 0)
         {
             return;
+        }
+
+        foreach (var item in _conditionalItems)
+        {
+            item.Button.Enabled =
+                item.CanExecute();
         }
 
         _overlay.SetPosition(

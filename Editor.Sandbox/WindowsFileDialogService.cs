@@ -14,11 +14,17 @@ internal sealed class WindowsFileDialogService :
                 using var dialog =
                     new OpenFileDialog
                     {
-                        Title = "Open World",
+                        Title = "Open Document",
+
                         Filter =
-                            "World files (*.world)|*.world|All files (*.*)|*.*",
+                            "Supported documents (*.world;*.ui)|*.world;*.ui|" +
+                            "World files (*.world)|*.world|" +
+                            "UI files (*.ui)|*.ui|" +
+                            "All files (*.*)|*.*",
+
                         CheckFileExists = true,
                         Multiselect = false,
+
                         InitialDirectory =
                             GetInitialDirectory(
                                 initialDirectory)

@@ -60,6 +60,37 @@ public class UiScrollView : UiContainer
 
     public UiColor? Background { get; set; }
 
+    public void ScrollToBottom()
+    {
+        if (Content is null ||
+            Bounds.Height <= 0.0f)
+        {
+            return;
+        }
+
+        var contentHeight =
+            MathF.Max(
+                Bounds.Height,
+                Content.DesiredSize.Y);
+
+        var maxScrollY =
+            MathF.Max(
+                0.0f,
+                contentHeight - Bounds.Height);
+
+        ScrollOffset =
+            new Vector2(
+                ScrollOffset.X,
+                maxScrollY);
+
+        ArrangeContent();
+
+        _verticalScrollBar.SetValueSilently(
+            maxScrollY > 0.0f
+                ? 1.0f
+                : 0.0f);
+    }
+
     public void SetContent(
         UiWidget content)
     {

@@ -62,25 +62,6 @@ debugRegistry.Register(
     new HelpDebugCommand(
         debugRegistry));
 
-
-
-var consoleOverlay =
-    new DebugConsoleOverlay(
-        debugConsole,
-        window.TextInput,
-        input,
-        consoleScroll,
-        window.GraphicsDevice,
-        1280,
-        720);
-
-
-
-
-
-window.Resized +=
-    consoleOverlay.Resize;
-
 var pointerInput =
     window.InputBackend as Engine.Input.IPointerInput
     ?? throw new InvalidOperationException(
@@ -119,17 +100,6 @@ var ui =
         window.TextInput,
         window.Cursor,
         uiTheme);
-
-var toolsMenu =
-    new UiContextMenu(
-        ui.Overlays);
-
-toolsMenu.AddItem(
-    "Console",
-    consoleOverlay.Toggle);
-
-consoleOverlay.Opened +=
-    ui.Focus.ClearFocus;
 
 window.Resized +=
     ui.Resize;
@@ -260,12 +230,8 @@ var application =
         uiDocument,
         uiAssetPath, fileDialogs,
         documentPersistence,
-        documentFiles);
+        documentFiles,debugConsole : debugConsole);
 
-var toolingApplication =
-    new EditorToolingApplication(
-        application,
-        consoleOverlay);
 
 window.CloseRequested +=
     application.RequestApplicationClose;
@@ -313,14 +279,22 @@ document.EntitySelection.Changed +=
         }
     };
 
-Action<UiRect> toolsRequested =
-    bounds =>
-    {
-        toolsMenu.Open(
-            new Vector2(
-                bounds.X,
-                bounds.Bottom));
-    };
+var toolsMenu = new UiContextMenu(ui.Overlays);
+
+toolsMenu.AddItem(
+    "Console",
+    application.ToggleConsole);
+
+Action<UiRect> toolsRequested = bounds =>
+{
+    toolsMenu.Open(
+        new Vector2(
+            bounds.X,
+            bounds.Bottom));
+};
+
+application.MainShell.ToolsRequested +=
+    toolsRequested;
 
 var viewMenu =
     new UiContextMenu(
@@ -415,11 +389,13 @@ application.MainShell.EditRequested +=
 
 editMenu.AddItem(
     "Undo",
-    application.MainShell.Undo);
+    application.MainShell.Undo,
+    () => application.MainShell.CanUndo);
 
 editMenu.AddItem(
     "Redo",
-    application.MainShell.Redo);
+    application.MainShell.Redo,
+    () => application.MainShell.CanRedo);
 
 application.MainShell.ViewRequested +=
     viewRequested;
@@ -429,7 +405,7 @@ application.MainShell.ToolsRequested +=
 
 var gameLoop =
     new GameLoop(
-        toolingApplication,
+        application,
         new Engine.Core.Time.SimulationRate(
             60));
 
@@ -446,9 +422,6 @@ finally
 {
     application.MainShell.ToolsRequested -=
         toolsRequested;
-
-    consoleOverlay.Opened -=
-        ui.Focus.ClearFocus;
     application.MainShell.ViewRequested -=
     viewRequested;
 

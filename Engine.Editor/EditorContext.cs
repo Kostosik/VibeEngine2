@@ -452,6 +452,12 @@ public sealed class EditorContext
                 "Asset Browser"));
 
         Workspace.RegisterPanel(
+    new EditorPanel(
+        "Console",
+        "Console",
+        isOpen: true));
+
+        Workspace.RegisterPanel(
             new EditorPanel(
                 "AssetPreview",
                 "Asset Preview"));
@@ -495,6 +501,22 @@ public sealed class EditorContext
             "AssetBrowser")
             .SetSize(
                 220.0f);
+
+        Workspace.Layout.GetPanel(
+    "AssetBrowser")
+    .SetActive(true);
+
+        Workspace.Layout.GetPanel(
+            "Console")
+            .SetArea(EditorDockArea.Bottom);
+
+        Workspace.Layout.GetPanel(
+            "Console")
+            .SetOrder(2);
+
+        Workspace.Layout.GetPanel(
+            "Console")
+            .SetSize(280.0f);
 
         Workspace.Layout.GetPanel(
             "AssetPreview")

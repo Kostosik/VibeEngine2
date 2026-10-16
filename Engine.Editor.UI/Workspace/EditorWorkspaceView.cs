@@ -1,8 +1,10 @@
 ﻿using Engine.Core.Math;
 using Engine.Editor.Panels;
+using Engine.Editor.UI.Panels;
 using Engine.Editor.Workspace;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Resources;
+using Engine.Tooling.Debugging;
 using Engine.UI.Controls;
 using Engine.UI.Core;
 using Engine.UI.Layout;
@@ -15,6 +17,10 @@ public sealed class EditorWorkspaceView :
     private const float DockSplitterThickness = 6.0f;
     private const float MinDockSize = 120.0f;
     private const float MinCenterSize = 160.0f;
+
+    private readonly EditorConsolePanel _console;
+    private readonly UiPanel _bottomTabBar;
+    private readonly UiStackPanel _bottomTabButtons;
 
     private readonly UiPanel _hierarchyHost;
     private readonly UiPanel _viewportHost;
@@ -29,7 +35,8 @@ public sealed class EditorWorkspaceView :
 
     public EditorWorkspaceView(
         EditorContext editor,
-        ITextureResourceManager assetPreviewTextures)
+        ITextureResourceManager assetPreviewTextures,
+        DebugConsole? console = null)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -98,6 +105,32 @@ public sealed class EditorWorkspaceView :
                 editor,
                 assetPreviewTextures);
 
+        _console =
+    new EditorConsolePanel(console);
+
+        _bottomTabButtons =
+            new UiStackPanel
+            {
+                Orientation = UiOrientation.Horizontal,
+                Spacing = 2.0f,
+                HorizontalAlignment = UiHorizontalAlignment.Left,
+                VerticalAlignment = UiVerticalAlignment.Stretch
+            };
+
+        _bottomTabBar =
+            new UiPanel
+            {
+                Background = new UiColor(32, 32, 32, 255),
+                HorizontalAlignment = UiHorizontalAlignment.Stretch,
+                VerticalAlignment = UiVerticalAlignment.Top
+            };
+
+        _bottomTabBar.AddChild(
+            _bottomTabButtons);
+
+        AddChild(_console);
+        AddChild(_bottomTabBar);
+
         AddChild(
             _assetPreview);
 
@@ -165,6 +198,9 @@ public sealed class EditorWorkspaceView :
             _bottomSplitter);
     }
 
+    public EditorConsolePanel Console =>
+    _console;
+
     public EditorContext Editor { get; }
 
     public HierarchyPanelView Hierarchy { get; }
@@ -224,6 +260,44 @@ public sealed class EditorWorkspaceView :
             }
         }
 
+        var bottomPanels =
+    GetPanels(EditorDockArea.Bottom);
+
+        if (bottomPanels.Count > 0)
+        {
+            var activeBottom =
+                bottomPanels.FirstOrDefault(
+                    static panel => panel.Layout.IsActive);
+
+            if (activeBottom.View is null)
+            {
+                Editor.Workspace.ActivatePanel(
+                    bottomPanels[0].Panel.Id);
+
+                activeBottom = bottomPanels[0];
+            }
+
+            foreach (var panel in bottomPanels)
+            {
+                panel.View.Visible =
+                    ReferenceEquals(
+                        panel.View,
+                        activeBottom.View);
+            }
+
+            _bottomTabBar.Visible = true;
+
+            RefreshBottomTabs(
+                bottomPanels,
+                activeBottom.Panel.Id);
+        }
+        else
+        {
+            _bottomTabBar.Visible = false;
+
+            _bottomTabButtons.ClearChildren();
+        }
+
         _leftSplitter.Visible =
             GetPanels(
                 EditorDockArea.Left).Count > 0;
@@ -280,6 +354,10 @@ public sealed class EditorWorkspaceView :
         yield return GetPanelBinding(
             "AssetBrowser",
             _assetBrowser);
+
+        yield return GetPanelBinding(
+    "Console",
+    _console);
 
         yield return GetPanelBinding(
             "AssetPreview",
@@ -344,6 +422,50 @@ public sealed class EditorWorkspaceView :
         }
 
         return size;
+    }
+
+    private void RefreshBottomTabs(
+    IReadOnlyList<(
+        IEditorPanel Panel,
+        EditorPanelLayout Layout,
+        UiWidget View)> panels,
+    string activePanelId)
+    {
+        _bottomTabButtons.ClearChildren();
+
+        foreach (var panel in panels)
+        {
+            var isActive =
+                string.Equals(
+                    panel.Panel.Id,
+                    activePanelId,
+                    StringComparison.Ordinal);
+
+            var button =
+                new UiButton(
+                    (isActive ? "> " : "  ") +
+                    panel.Panel.Title)
+                {
+                    Width = 140.0f,
+                    Height = 28.0f,
+                    Focusable = false
+                };
+
+            var panelId =
+                panel.Panel.Id;
+
+            button.Clicked +=
+                () =>
+                {
+                    Editor.Workspace.ActivatePanel(
+                        panelId);
+
+                    Refresh();
+                };
+
+            _bottomTabButtons.AddChild(
+                button);
+        }
     }
 
     private void SetDockSize(
@@ -531,6 +653,16 @@ public sealed class EditorWorkspaceView :
             context,
             availableSize);
 
+        _console.Measure(
+    context,
+    availableSize);
+
+        _bottomTabBar.Measure(
+            context,
+            new Vector2(
+                availableSize.X,
+                28.0f));
+
         _assetPreview.Measure(
             context,
             availableSize);
@@ -636,14 +768,35 @@ public sealed class EditorWorkspaceView :
 
         if (bottomPanels.Count > 0)
         {
-            ArrangeHorizontalPanels(
-                bottomPanels,
+            const float tabBarHeight = 28.0f;
+
+            var bottomY =
+                finalRect.Bottom - bottomHeight;
+
+            _bottomTabBar.Arrange(
                 new UiRect(
                     finalRect.X,
-                    finalRect.Bottom -
-                    bottomHeight,
+                    bottomY,
                     finalRect.Width,
-                    bottomHeight));
+                    tabBarHeight));
+
+            var activeBottom =
+                bottomPanels.FirstOrDefault(
+                    static panel => panel.Layout.IsActive);
+
+            if (activeBottom.View is null)
+            {
+                activeBottom = bottomPanels[0];
+            }
+
+            activeBottom.View.Arrange(
+                new UiRect(
+                    finalRect.X,
+                    bottomY + tabBarHeight,
+                    finalRect.Width,
+                    MathF.Max(
+                        0.0f,
+                        bottomHeight - tabBarHeight)));
         }
 
         if (leftPanels.Count > 0)

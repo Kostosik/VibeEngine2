@@ -28,5 +28,8 @@ public static class EcsComponentSerializerRegistryExtensions
         registry.Register(
             "engine.world.position",
             new WorldPositionComponentSerializer());
+        registry.Register(
+    "engine.scripting.assignments",
+    new ScriptAssignmentsComponentSerializer());
     }
 }

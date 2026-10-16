@@ -15,7 +15,7 @@ public sealed class ScriptRuntime : IDisposable
     // Снимок нужен, чтобы безопасно обрабатывать удаление
     // скриптов во время выполнения.
     private readonly List<AttachedScript> _executionSnapshot = new();
-
+    private bool _isExecuting;
     private bool _disposed;
 
     public ScriptRuntime(
@@ -45,10 +45,51 @@ public sealed class ScriptRuntime : IDisposable
         EntityId entity,
         string scriptId)
     {
+        Attach(
+            entity,
+            scriptId,
+            "{}");
+    }
+
+    public void Attach(
+        EntityId entity,
+        string scriptId,
+        string configurationJson)
+    {
         EnsureNotDisposed();
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(scriptId);
+        var assignment =
+            new ScriptAssignment(
+                scriptId,
+                configurationJson);
 
+        if (!_world.Exists(entity))
+        {
+            throw new ArgumentException(
+                $"Entity '{entity}' does not exist.",
+                nameof(entity));
+        }
+
+        if (_world.Has<ScriptAssignmentsComponent>(entity) &&
+            _world.Get<ScriptAssignmentsComponent>(entity)
+                .Contains(scriptId))
+        {
+            throw new InvalidOperationException(
+                $"Script '{scriptId}' is already assigned " +
+                $"to entity '{entity}'.");
+        }
+
+        AttachInstance(
+            entity,
+            assignment,
+            persistAssignment: true);
+    }
+
+    private void AttachInstance(
+    EntityId entity,
+    ScriptAssignment assignment,
+    bool persistAssignment)
+    {
         if (!_world.Exists(entity))
         {
             throw new ArgumentException(
@@ -61,34 +102,45 @@ public sealed class ScriptRuntime : IDisposable
                 instance.Entity == entity &&
                 string.Equals(
                     instance.ScriptId,
-                    scriptId,
+                    assignment.ScriptId,
                     StringComparison.Ordinal)))
         {
             throw new InvalidOperationException(
-                $"Script '{scriptId}' is already attached " +
+                $"Script '{assignment.ScriptId}' is already attached " +
                 $"to entity '{entity}'.");
         }
 
-        var script = _registry.Create(scriptId);
+        var script =
+            _registry.Create(assignment.ScriptId);
 
         if (_instances.Any(instance =>
                 instance.IsAttached &&
                 ReferenceEquals(instance.Script, script)))
         {
             throw new InvalidOperationException(
-                $"Script factory for '{scriptId}' returned " +
+                $"Script factory for '{assignment.ScriptId}' returned " +
                 "an instance that is already attached.");
         }
 
-        var context = new ScriptContext(
-            _world,
-            entity);
+        var context =
+            new ScriptContext(
+                _world,
+                entity,
+                assignment.ConfigurationJson);
 
-        var instance = new AttachedScript(
-            entity,
-            scriptId,
-            script,
-            context);
+        var instance =
+            new AttachedScript(
+                entity,
+                assignment.ScriptId,
+                script,
+                context);
+
+        if (persistAssignment)
+        {
+            AddAssignment(
+                entity,
+                assignment);
+        }
 
         _instances.Add(instance);
 
@@ -100,8 +152,73 @@ public sealed class ScriptRuntime : IDisposable
         {
             instance.IsAttached = false;
             _instances.Remove(instance);
+
+            if (persistAssignment)
+            {
+                RemoveAssignment(
+                    entity,
+                    assignment.ScriptId);
+            }
+
             throw;
         }
+    }
+
+    private void AddAssignment(
+    EntityId entity,
+    ScriptAssignment assignment)
+    {
+        if (_world.Has<ScriptAssignmentsComponent>(entity))
+        {
+            var current =
+                _world.Get<ScriptAssignmentsComponent>(entity);
+
+            _world.Add(
+                entity,
+                current.WithAdded(assignment));
+
+            return;
+        }
+
+        _world.Add(
+            entity,
+            new ScriptAssignmentsComponent(
+                new[] { assignment }));
+    }
+
+    private bool RemoveAssignment(
+        EntityId entity,
+        string scriptId)
+    {
+        if (!_world.Exists(entity) ||
+            !_world.Has<ScriptAssignmentsComponent>(entity))
+        {
+            return false;
+        }
+
+        var current =
+            _world.Get<ScriptAssignmentsComponent>(entity);
+
+        if (!current.Contains(scriptId))
+        {
+            return false;
+        }
+
+        var updated =
+            current.Without(scriptId);
+
+        if (updated.Count == 0)
+        {
+            _world.Remove<ScriptAssignmentsComponent>(entity);
+        }
+        else
+        {
+            _world.Add(
+                entity,
+                updated);
+        }
+
+        return true;
     }
 
     public bool Detach(
@@ -110,24 +227,45 @@ public sealed class ScriptRuntime : IDisposable
     {
         EnsureNotDisposed();
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(scriptId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            scriptId);
 
-        var instance = _instances.FirstOrDefault(
-            item =>
-                item.IsAttached &&
-                item.Entity == entity &&
-                string.Equals(
-                    item.ScriptId,
-                    scriptId,
-                    StringComparison.Ordinal));
+        var removedAssignment =
+            RemoveAssignment(
+                entity,
+                scriptId);
 
-        return instance is not null &&
-               DetachInstance(instance);
+        var instance =
+            _instances.FirstOrDefault(
+                item =>
+                    item.IsAttached &&
+                    item.Entity == entity &&
+                    string.Equals(
+                        item.ScriptId,
+                        scriptId,
+                        StringComparison.Ordinal));
+
+        var detached =
+            instance is not null &&
+            DetachInstance(instance);
+
+        return detached || removedAssignment;
     }
 
     public int DetachAll(EntityId entity)
     {
         EnsureNotDisposed();
+
+        var assignedCount = 0;
+
+        if (_world.Exists(entity) &&
+            _world.Has<ScriptAssignmentsComponent>(entity))
+        {
+            assignedCount =
+                _world.Get<ScriptAssignmentsComponent>(entity).Count;
+
+            _world.Remove<ScriptAssignmentsComponent>(entity);
+        }
 
         var snapshot = _instances
             .Where(instance =>
@@ -140,7 +278,22 @@ public sealed class ScriptRuntime : IDisposable
             DetachInstance(instance);
         }
 
-        return snapshot.Length;
+        return Math.Max(
+            assignedCount,
+            snapshot.Length);
+    }
+
+    public void Attach(
+    EntityId entity,
+    ScriptDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(
+            definition);
+
+        Attach(
+            entity,
+            definition.ScriptId,
+            definition.DefaultConfigurationJson);
     }
 
     private void Update(SystemContext context)
@@ -229,18 +382,120 @@ public sealed class ScriptRuntime : IDisposable
 
     private void BeginExecution()
     {
-        if (_executionSnapshot.Count != 0)
+        if (_isExecuting)
         {
             throw new InvalidOperationException(
                 "Script execution is already in progress.");
         }
 
-        _executionSnapshot.AddRange(_instances);
+        _isExecuting = true;
+
+        try
+        {
+            ReconcileAssignments();
+
+            _executionSnapshot.AddRange(
+                _instances);
+        }
+        catch
+        {
+            EndExecution();
+            throw;
+        }
     }
 
     private void EndExecution()
     {
         _executionSnapshot.Clear();
+        _isExecuting = false;
+    }
+
+    private void ReconcileAssignments()
+    {
+        var desired =
+            new Dictionary<
+                (EntityId Entity, string ScriptId),
+                ScriptAssignment>();
+
+        foreach (var item in
+                 _world.Query<ScriptAssignmentsComponent>())
+        {
+            foreach (var assignment in
+                     item.Component.Assignments)
+            {
+                desired.Add(
+                    (item.Entity, assignment.ScriptId),
+                    assignment);
+            }
+        }
+
+        foreach (var instance in _instances.ToArray())
+        {
+            if (!desired.TryGetValue(
+                    (instance.Entity, instance.ScriptId),
+                    out var assignment) ||
+                !string.Equals(
+                    assignment.ConfigurationJson,
+                    instance.Context.ConfigurationJson,
+                    StringComparison.Ordinal))
+            {
+                DetachInstance(instance);
+            }
+        }
+
+        var orderedAssignments = desired
+            .OrderBy(entry => entry.Key.Entity.Index)
+            .ThenBy(entry => entry.Key.Entity.Generation)
+            .ThenBy(
+                entry => entry.Key.ScriptId,
+                StringComparer.Ordinal);
+
+        foreach (var entry in orderedAssignments)
+        {
+            var entity =
+                entry.Key.Entity;
+
+            var assignment =
+                entry.Value;
+
+            var isAttached =
+                _instances.Any(instance =>
+                    instance.IsAttached &&
+                    instance.Entity == entity &&
+                    string.Equals(
+                        instance.ScriptId,
+                        assignment.ScriptId,
+                        StringComparison.Ordinal) &&
+                    string.Equals(
+                        instance.Context.ConfigurationJson,
+                        assignment.ConfigurationJson,
+                        StringComparison.Ordinal));
+
+            if (isAttached)
+            {
+                continue;
+            }
+
+            try
+            {
+                AttachInstance(
+                    entity,
+                    assignment,
+                    persistAssignment: false);
+            }
+            catch (Exception exception)
+            {
+                RemoveAssignment(
+                    entity,
+                    assignment.ScriptId);
+
+                ReportFault(
+                    entity,
+                    assignment.ScriptId,
+                    ScriptExecutionPhase.Attach,
+                    exception);
+            }
+        }
     }
 
     private bool DetachInstance(AttachedScript instance)
@@ -282,14 +537,27 @@ public sealed class ScriptRuntime : IDisposable
     }
 
     private void ReportFault(
-        AttachedScript instance,
+    AttachedScript instance,
+    ScriptExecutionPhase phase,
+    Exception exception)
+    {
+        ReportFault(
+            instance.Entity,
+            instance.ScriptId,
+            phase,
+            exception);
+    }
+
+    private void ReportFault(
+        EntityId entity,
+        string scriptId,
         ScriptExecutionPhase phase,
         Exception exception)
     {
         ScriptFaulted?.Invoke(
             new ScriptFault(
-                instance.Entity,
-                instance.ScriptId,
+                entity,
+                scriptId,
                 phase,
                 exception));
     }

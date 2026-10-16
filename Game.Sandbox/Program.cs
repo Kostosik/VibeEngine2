@@ -10,6 +10,7 @@ using Engine.Graphics.OpenGL;
 using Engine.Graphics.Resources;
 using Engine.Input;
 using Engine.Runtime;
+using Engine.Scripting;
 using Engine.Serialization.Content;
 using Engine.Serialization.SaveLoad.Ecs;
 using Engine.Serialization.SaveLoad.Game;
@@ -83,6 +84,9 @@ contentLoaders.Register(
                 ".ui",
                 StringComparison.OrdinalIgnoreCase)));
 
+contentLoaders.Register(
+    new JsonScriptDefinitionContentLoader());
+
 using var content =
     new ContentManager(
         assetSource,
@@ -93,6 +97,11 @@ var mainMenuAsset =
     content.Load<UiAsset>(
         new AssetPath(
             "UI/MainMenu.ui"));
+
+var scriptDefinition =
+    content.Load<ScriptDefinition>(
+        new AssetPath(
+            "Scripts/ScriptProbe.script.json"));
 
 Console.WriteLine(
     $"Content loaded: {mainMenuAsset.Name} " +
@@ -151,6 +160,23 @@ using var runtime =
         new EngineRuntimeOptions(),
         runtimeServices);
 
+var scriptProbe =
+    new SandboxScriptProbe();
+
+runtime.ScriptRegistry.Register(
+    scriptDefinition.ScriptId,
+    () => scriptProbe);
+
+var scriptProbeEntity =
+    runtime.EcsWorld.CreateEntity();
+
+runtime.Scripts.Attach(
+    scriptProbeEntity,
+    scriptDefinition);
+
+Console.WriteLine(
+    $"Script attached: {scriptDefinition.ScriptId}");
+
 DebugConsoleOverlay? console =
     null;
 
@@ -190,7 +216,7 @@ var sandbox =
         tileAtlas,
         sandboxActions,
         saveLoad,
-        console);
+        console,scriptProbe);
 
 var application =
     new StatefulApplication(

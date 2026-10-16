@@ -12,6 +12,7 @@
 		<ProjectReference Include="..\Engine.Audio\Engine.Audio.csproj" />
 		<ProjectReference Include="..\Engine.Core\Engine.Core.csproj" />
 		<ProjectReference Include="..\Engine.ECS\Engine.ECS.csproj" />
+		<ProjectReference Include="..\Engine.Scripting\Engine.Scripting.csproj" />
 		<ProjectReference Include="..\Engine.Simulations\Engine.Simulations.csproj" />
 		<ProjectReference Include="..\Engine.World\Engine.Worlds.csproj" />
 		<ProjectReference Include="..\Engine.Physics\Engine.Physics.csproj" />

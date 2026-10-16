@@ -16,6 +16,7 @@ public sealed class SandboxHud :
     private readonly UiLabel _networkStatus;
     private readonly UiLabel _playerReplicationStatus;
     private readonly UiLabel _integrationStatus;
+
     public SandboxHud()
     {
         HorizontalAlignment =

@@ -9,14 +9,17 @@ public readonly struct ScriptContext
 
     internal ScriptContext(
         World world,
-        EntityId entity)
+        EntityId entity,
+        string configurationJson)
     {
         ArgumentNullException.ThrowIfNull(world);
+        ArgumentNullException.ThrowIfNull(configurationJson);
 
         _world = world;
         Entity = entity;
+        ConfigurationJson = configurationJson;
     }
-
+    public string ConfigurationJson { get; }
     public EntityId Entity { get; }
 
     public bool IsAlive =>

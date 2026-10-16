@@ -6,7 +6,8 @@ public enum ScriptExecutionPhase
 {
     Update,
     FixedUpdate,
-    Detach
+    Detach,
+    Attach
 }
 
 public readonly record struct ScriptFault(

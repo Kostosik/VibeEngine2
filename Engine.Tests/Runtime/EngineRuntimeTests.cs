@@ -17,6 +17,7 @@ using Engine.Graphics.Resources;
 using Engine.Input;
 using Engine.Physics;
 using Engine.Runtime;
+using Engine.Scripting;
 using Engine.Worlds.Chunks;
 using Engine.Worlds.Spatial;
 using Engine.Worlds.Tiles;
@@ -26,6 +27,36 @@ namespace Engine.Tests.Runtime;
 
 public sealed class EngineRuntimeTests
 {
+    [Fact]
+    public void RuntimeSchedulesScriptsAndDisposesThem()
+    {
+        using var runtime = CreateRuntime();
+
+        var script = new RuntimeTestScript();
+
+        runtime.ScriptRegistry.Register(
+            "test.runtime",
+            () => script);
+
+        runtime.Initialize();
+
+        var entity = runtime.EcsWorld.CreateEntity();
+
+        runtime.Scripts.Attach(
+            entity,
+            "test.runtime");
+
+        runtime.Update(default);
+        runtime.FixedUpdate(default);
+
+        Assert.Equal(1, script.UpdateCount);
+        Assert.Equal(1, script.FixedUpdateCount);
+
+        runtime.Dispose();
+
+        Assert.Equal(1, script.DetachCount);
+    }
+
     [Fact]
     public void StateHash_ChangesWhenChunkTilesOrSimulationStateChanges()
     {
@@ -685,6 +716,34 @@ public sealed class EngineRuntimeTests
             InputAction action)
         {
             return 0.0f;
+        }
+    }
+
+    private sealed class RuntimeTestScript : IEntityScript
+    {
+        public int UpdateCount { get; private set; }
+
+        public int FixedUpdateCount { get; private set; }
+
+        public int DetachCount { get; private set; }
+
+        public void Update(
+            ScriptContext context,
+            TimeSnapshot time)
+        {
+            UpdateCount++;
+        }
+
+        public void FixedUpdate(
+            ScriptContext context,
+            SimulationTime time)
+        {
+            FixedUpdateCount++;
+        }
+
+        public void OnDetach(ScriptContext context)
+        {
+            DetachCount++;
         }
     }
 

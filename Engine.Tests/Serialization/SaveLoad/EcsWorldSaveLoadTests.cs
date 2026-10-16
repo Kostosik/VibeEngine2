@@ -1,4 +1,5 @@
 ﻿using Engine.ECS;
+using Engine.Scripting;
 using Engine.Serialization.Binary;
 using Engine.Serialization.SaveLoad.Ecs;
 
@@ -6,6 +7,84 @@ namespace Engine.Tests.Serialization.SaveLoad;
 
 public sealed class EcsWorldSaveLoadTests
 {
+    [Fact]
+    public void ScriptAssignments_RoundTripThroughEcsWorldSave()
+    {
+        var registry =
+            new EcsComponentSerializerRegistry();
+
+        registry.RegisterEngineComponents();
+
+        var serializer =
+            new EcsWorldStateSerializer(registry);
+
+        using var world =
+            new World();
+
+        var entity =
+            world.CreateEntity();
+
+        const string configuration =
+            """{"speed":4.5,"mode":"automatic"}""";
+
+        world.Add(
+            entity,
+            new ScriptAssignmentsComponent(
+                new[]
+                {
+                new ScriptAssignment(
+                    "test.movement",
+                    configuration)
+                }));
+
+        var path =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"{Guid.NewGuid():N}.vbe");
+
+        try
+        {
+            BinaryFileSerializer.Save(
+                path,
+                world.CaptureState(),
+                serializer);
+
+            var state =
+                BinaryFileSerializer.Load(
+                    path,
+                    serializer);
+
+            using var restoredWorld =
+                new World();
+
+            restoredWorld.RestoreState(state);
+
+            Assert.True(
+                restoredWorld.Has<ScriptAssignmentsComponent>(entity));
+
+            var component =
+                restoredWorld.Get<ScriptAssignmentsComponent>(entity);
+
+            var assignment =
+                Assert.Single(component.Assignments.ToArray());
+
+            Assert.Equal(
+                "test.movement",
+                assignment.ScriptId);
+
+            Assert.Equal(
+                configuration,
+                assignment.ConfigurationJson);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
     [Fact]
     public void EcsWorld_RoundTripsThroughRealFile()
     {

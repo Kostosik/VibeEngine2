@@ -47,7 +47,7 @@ public sealed class SandboxState :
 
     private TopDownScenario? _topDown;
     private PhysicsScenario? _physics;
-
+    private readonly SandboxScriptProbe? _scriptProbe;
     private readonly Engine.Graphics.Resources.TextureAtlas _tileAtlas;
 
     private SandboxMode _mode =
@@ -72,7 +72,8 @@ public sealed class SandboxState :
     Engine.Graphics.Resources.TextureAtlas tileAtlas,
     SandboxInputActions actions,
     GameSaveLoadService saveLoad,
-    DebugConsoleOverlay? console = null)
+    DebugConsoleOverlay? console = null,
+    SandboxScriptProbe? scriptProbe = null)
     : base(runtime.Simulation)
     {
         ArgumentNullException.ThrowIfNull(runtime);
@@ -83,7 +84,7 @@ public sealed class SandboxState :
 
         _saveLoad =
     saveLoad;
-
+        _scriptProbe = scriptProbe;
         _localization =
     CreateLocalizationManager();
 
@@ -718,10 +719,17 @@ public sealed class SandboxState :
         : _localization.Get(
             "sandbox.navigation.unavailable");
 
+        var scriptStatus =
+            _scriptProbe is null
+                ? "SCRIPT: OFF"
+                : $"{_scriptProbe.DisplayName} | " +
+                  $"U: {_scriptProbe.UpdateCount} | " +
+                  $"F: {_scriptProbe.FixedUpdateCount}";
+
         _hud.SetIntegrationStatus(
             $"{navigationText} | " +
-            _localization.Get(
-                "sandbox.locale.hint"));
+            _localization.Get("sandbox.locale.hint") +
+            $" | {scriptStatus}");
 
         var openGlGraphics =
             _graphics as Engine.Graphics.OpenGL.OpenGLGraphicsDevice;

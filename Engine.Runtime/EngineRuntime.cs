@@ -6,6 +6,7 @@ using Engine.Core.Events;
 using Engine.Core.Systems;
 using Engine.Core.Time;
 using Engine.Physics;
+using Engine.Scripting;
 using Engine.Simulations;
 using Engine.Tooling.Debugging;
 using Engine.Tooling.DebugVisualization;
@@ -23,6 +24,10 @@ public sealed class EngineRuntime :
     private DebugExecutionController? _debugExecution;
     public ValidationService? Validation { get; private set; }
     public DebugVisualizationRenderer? DebugVisualizationRenderer { get; private set; }
+
+    public ScriptRegistry ScriptRegistry { get; }
+
+    public ScriptRuntime Scripts { get; }
 
     public EngineRuntime(
     EngineRuntimeOptions options)
@@ -66,6 +71,22 @@ public sealed class EngineRuntime :
 
         Scheduler =
             new SystemScheduler();
+
+        ScriptRegistry =
+    new ScriptRegistry();
+
+        Scripts =
+            new ScriptRuntime(
+                EcsWorld,
+                ScriptRegistry);
+
+        Scheduler.Add(
+            Scripts.UpdateSystem,
+            SystemPhase.Update);
+
+        Scheduler.Add(
+            Scripts.FixedUpdateSystem,
+            SystemPhase.FixedUpdate);
 
         PhysicsSettings =
             options.Physics;
@@ -385,6 +406,8 @@ Services.Graphics;
         }
 
         SchedulerProfiler?.Dispose();
+
+        Scripts.Dispose();
 
         World.Dispose();
 

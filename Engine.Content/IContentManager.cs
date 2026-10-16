@@ -1,5 +1,4 @@
 ﻿using Engine.Core.Assets;
-using Engine.Content.Loading;
 
 namespace Engine.Content;
 

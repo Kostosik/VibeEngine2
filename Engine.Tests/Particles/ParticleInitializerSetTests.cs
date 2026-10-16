@@ -1,6 +1,5 @@
 ﻿using Engine.Core.Determinism;
 using Engine.Core.Math;
-using Engine.Particles;
 using Engine.Particles.Initialization;
 using Engine.Particles.Particles;
 

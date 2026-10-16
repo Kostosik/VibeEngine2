@@ -1,5 +1,4 @@
-﻿using Engine.ECS.Entities;
-using Engine.Editor.Commands;
+﻿using Engine.Editor.Commands;
 using Engine.Editor.Documents;
 using Engine.Worlds;
 using Engine.Worlds.Spatial;
@@ -8,6 +7,31 @@ namespace Engine.Tests.Editor;
 
 public sealed class EditorDocumentTests
 {
+    [Fact]
+    public void ImplementsSharedDocumentContract()
+    {
+        using var ecsWorld = new Engine.ECS.World();
+
+        var world = new World(
+            new ChunkSize(16, 16),
+            ecsWorld);
+
+        using var document = new EditorDocument(world);
+
+        IEditorDocument metadata = document;
+
+        Assert.Equal(
+            "vibeengine.world",
+            metadata.DocumentTypeId);
+
+        Assert.Equal(
+            "Untitled World",
+            metadata.DisplayName);
+
+        Assert.Null(metadata.FilePath);
+        Assert.False(metadata.IsDirty);
+    }
+
     [Fact]
     public void Reference_AfterWorldSnapshotRestore_IsNotAliveWhenEntityWasRemoved()
     {

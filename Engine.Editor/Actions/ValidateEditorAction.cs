@@ -1,6 +1,4 @@
-﻿using Engine.Editor.Documents;
-
-namespace Engine.Editor.Actions;
+﻿namespace Engine.Editor.Actions;
 
 public sealed class ValidateEditorAction :
     IEditorAction

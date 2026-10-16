@@ -1,5 +1,4 @@
 ﻿using Engine.Input;
-using Xunit;
 
 namespace Engine.Tests.Input;
 

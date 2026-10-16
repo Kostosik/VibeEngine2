@@ -2,7 +2,6 @@
 using Engine.Navigation.Maps;
 using Engine.Navigation.Pathfinding;
 using Engine.Navigation.Pathfinding.Algorithms;
-using Xunit;
 
 namespace Engine.Tests.Navigation.Pathfinding;
 

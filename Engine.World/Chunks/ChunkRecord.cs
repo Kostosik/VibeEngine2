@@ -1,6 +1,4 @@
-﻿using Engine.Worlds.Spatial;
-
-namespace Engine.Worlds.Chunks;
+﻿namespace Engine.Worlds.Chunks;
 
 public sealed class ChunkRecord
 {

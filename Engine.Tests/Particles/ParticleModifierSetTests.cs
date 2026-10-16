@@ -1,5 +1,4 @@
 ﻿using Engine.Core.Math;
-using Engine.Particles;
 using Engine.Particles.Modifiers;
 using Engine.Particles.Particles;
 

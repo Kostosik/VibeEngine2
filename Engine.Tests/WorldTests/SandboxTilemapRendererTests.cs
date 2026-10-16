@@ -3,11 +3,6 @@ using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
-using Engine.Worlds;
-using Engine.Worlds.Spatial;
-using Engine.Worlds.Tiles;
-
-using World = Engine.Worlds.World;
 
 namespace Engine.Tests.WorldTests;
 

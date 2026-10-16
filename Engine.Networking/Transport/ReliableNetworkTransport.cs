@@ -1,7 +1,7 @@
-﻿using System.Buffers.Binary;
-using System.Diagnostics;
-using Engine.Networking.Connections;
+﻿using Engine.Networking.Connections;
 using Engine.Networking.Packets;
+using System.Buffers.Binary;
+using System.Diagnostics;
 
 namespace Engine.Networking.Transport;
 

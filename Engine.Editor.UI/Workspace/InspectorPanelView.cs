@@ -1,10 +1,7 @@
 ﻿using Engine.ECS.Entities;
-using Engine.Editor;
 using Engine.Editor.Commands;
-using Engine.Editor.Inspection;
 using Engine.Graphics.Commands;
 using Engine.UI.Controls;
-using Engine.UI.Core;
 using Engine.UI.Layout;
 
 namespace Engine.Editor.UI.Workspace;

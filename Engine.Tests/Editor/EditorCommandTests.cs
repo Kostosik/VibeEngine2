@@ -1,8 +1,6 @@
-﻿using Engine.ECS.Entities;
-using Engine.Editor.Commands;
+﻿using Engine.Editor.Commands;
 using Engine.Editor.Documents;
 using Engine.Editor.Inspection;
-using Engine.Editor.Entities;
 using Engine.Worlds;
 using Engine.Worlds.Spatial;
 

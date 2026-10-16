@@ -1,7 +1,7 @@
-﻿using Engine.Editor.UI.Authoring;
+﻿using Engine.Core.Math;
+using Engine.Editor.UI.Authoring;
 using Engine.UI.Assets;
 using Engine.UI.Layout;
-using Engine.Core.Math;
 
 namespace Engine.Tests.Editor.Authoring;
 

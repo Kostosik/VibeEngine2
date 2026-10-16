@@ -1,7 +1,7 @@
-﻿using System.Buffers.Binary;
-using Engine.Audio.Data;
+﻿using Engine.Audio.Data;
 using Engine.Audio.Loading;
 using Engine.Core.Assets;
+using System.Buffers.Binary;
 
 namespace Engine.Tests.Audio;
 

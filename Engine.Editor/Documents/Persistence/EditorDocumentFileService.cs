@@ -1,6 +1,4 @@
-﻿using Engine.Editor.Documents;
-
-namespace Engine.Editor.Documents.Persistence;
+﻿namespace Engine.Editor.Documents.Persistence;
 
 public sealed class EditorDocumentFileService :
     IEditorDocumentFileService

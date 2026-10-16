@@ -1,5 +1,5 @@
-﻿using Engine.Core.Math;
-using Engine.Camera;
+﻿using Engine.Camera;
+using Engine.Core.Math;
 
 namespace Engine.Tests.Graphics;
 

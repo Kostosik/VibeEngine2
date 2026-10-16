@@ -213,7 +213,7 @@ public sealed class ReplicationChannel :
         {
             return;
         }
-    
+
         try
         {
             switch (message.Operation)

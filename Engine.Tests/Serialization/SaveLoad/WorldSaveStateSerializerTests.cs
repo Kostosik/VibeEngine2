@@ -1,5 +1,4 @@
-﻿using Engine.Core.Time;
-using Engine.ECS.Entities;
+﻿using Engine.ECS.Entities;
 using Engine.ECS.Persistence;
 using Engine.Serialization.Binary;
 using Engine.Serialization.SaveLoad.Ecs;

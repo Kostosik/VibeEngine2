@@ -1,6 +1,5 @@
 ﻿using Engine.Editor;
 using Engine.Editor.Documents;
-using Engine.Editor.Documents.Persistence;
 using Engine.Editor.Persistence;
 using Engine.Worlds;
 using Engine.Worlds.Spatial;

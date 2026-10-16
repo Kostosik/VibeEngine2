@@ -153,15 +153,17 @@ public sealed class EditorContext
             persistence.Load(
                 path);
 
-        if (Session.Documents.Any(
-                static document =>
-                    document.IsDirty))
+        if (Session.AllDocuments.Any(
+                static document => document.IsDirty))
         {
             throw new InvalidOperationException(
                 "Cannot restore an editor session while dirty documents are open.");
         }
 
-        Session.CloseAll();
+        foreach (var document in Session.Documents.ToArray())
+        {
+            Session.Close(document);
+        }
 
         EditorDocument? activeDocument = null;
 
@@ -186,7 +188,10 @@ public sealed class EditorContext
         }
         catch
         {
-            Session.DiscardAll();
+            foreach (var document in Session.Documents.ToArray())
+            {
+                Session.Discard(document);
+            }
             throw;
         }
 

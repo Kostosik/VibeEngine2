@@ -1,6 +1,6 @@
-﻿using System.Buffers.Binary;
-using Engine.Core.Determinism;
+﻿using Engine.Core.Determinism;
 using Engine.Core.Time;
+using System.Buffers.Binary;
 
 namespace Engine.Networking.Simulation;
 

@@ -3,7 +3,6 @@ using Engine.UI.Controls;
 using Engine.UI.Core;
 using Engine.UI.Input;
 using Engine.UI.Layout;
-using System.Runtime.InteropServices;
 
 namespace Engine.Editor.UI.Shell;
 
@@ -126,23 +125,15 @@ public sealed class EditorDocumentCloseDialog :
     public event Action? DiscardRequested;
 
     public void ShowFor(
-        EditorDocument document)
+        IEditorDocument document)
     {
-        ArgumentNullException.ThrowIfNull(
-            document);
-
-        var name =
-            document.FilePath is null
-                ? "Untitled document"
-                : Path.GetFileName(
-                    document.FilePath);
+        ArgumentNullException.ThrowIfNull(document);
 
         _message.Text =
-            $"Save changes to \"{name}\"?";
+            $"Save changes to \"{document.DisplayName}\"?";
 
         _saveButton.Enabled = true;
 
-        Show(
-            _saveButton);
+        Show(_saveButton);
     }
 }

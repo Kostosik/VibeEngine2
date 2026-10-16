@@ -1,6 +1,4 @@
-﻿using Engine.Navigation;
-
-namespace Engine.Navigation.Maps;
+﻿namespace Engine.Navigation.Maps;
 
 public sealed class NavigationGrid : INavigationMap
 {

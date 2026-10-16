@@ -2,53 +2,87 @@
 
 public sealed class EditorSession
 {
-    private readonly List<EditorDocument> _documents = new();
+    private readonly List<IEditorDocument> _allDocuments = new();
+    private readonly List<EditorDocument> _worldDocuments = new();
+
+    private IEditorDocument? _activeEditorDocument;
+
+    // Совместимый API для существующих World-инструментов.
+    public IReadOnlyList<EditorDocument> Documents =>
+        _worldDocuments;
+
+    public EditorDocument? ActiveDocument =>
+        _activeEditorDocument as EditorDocument;
+
+    // Общий API для документов всех типов.
+    public IReadOnlyList<IEditorDocument> AllDocuments =>
+        _allDocuments;
+
+    public IEditorDocument? ActiveEditorDocument =>
+        _activeEditorDocument;
 
     public event Action<EditorDocument>? DocumentClosed;
 
-    public IReadOnlyList<EditorDocument> Documents =>
-        _documents;
     public event Action<EditorDocument?>? ActiveDocumentChanged;
-    public EditorDocument? ActiveDocument { get; private set; }
 
-    public EditorDocument Open(
-        EditorDocument document)
+    public event Action<IEditorDocument>? AnyDocumentClosed;
+
+    public event Action<IEditorDocument?>? ActiveEditorDocumentChanged;
+
+    public EditorDocument Open(EditorDocument document)
     {
-        ArgumentNullException.ThrowIfNull(
-            document);
+        ArgumentNullException.ThrowIfNull(document);
 
-        if (_documents.Contains(
-                document))
+        OpenCore(document);
+
+        return document;
+    }
+
+    public IEditorDocument Open(IEditorDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        OpenCore(document);
+
+        return document;
+    }
+
+    private void OpenCore(IEditorDocument document)
+    {
+        if (_allDocuments.Contains(document))
         {
             throw new InvalidOperationException(
                 "Document is already open.");
         }
 
-        if (_documents.Any(
-                existing =>
-                    ReferenceEquals(
-                        existing.World,
-                        document.World)))
+        if (document is EditorDocument worldDocument &&
+            _worldDocuments.Any(existing =>
+                ReferenceEquals(existing.World, worldDocument.World)))
         {
             throw new InvalidOperationException(
                 "A document for this World is already open.");
         }
 
-        _documents.Add(
-            document);
+        _allDocuments.Add(document);
 
-        ActiveDocument =
-            document;
-        ActiveDocumentChanged?.Invoke(
-    ActiveDocument);
-        return document;
+        if (document is EditorDocument world)
+        {
+            _worldDocuments.Add(world);
+        }
+
+        SetActiveDocument(document);
     }
 
-    public bool Close(
-     EditorDocument document)
+    public bool Close(EditorDocument document)
     {
-        ArgumentNullException.ThrowIfNull(
-            document);
+        ArgumentNullException.ThrowIfNull(document);
+
+        return Close((IEditorDocument)document);
+    }
+
+    public bool Close(IEditorDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
 
         if (document.IsDirty)
         {
@@ -56,49 +90,108 @@ public sealed class EditorSession
                 "Cannot close a dirty document. Save or discard its changes first.");
         }
 
-        return CloseCore(
-            document);
+        return CloseCore(document);
     }
 
-    public bool Discard(
-        EditorDocument document)
+    public bool Discard(EditorDocument document)
     {
-        ArgumentNullException.ThrowIfNull(
-            document);
+        ArgumentNullException.ThrowIfNull(document);
 
-        return CloseCore(
-            document);
+        return Discard((IEditorDocument)document);
     }
 
-    private bool CloseCore(
-        EditorDocument document)
+    public bool Discard(IEditorDocument document)
     {
-        if (!_documents.Remove(
-                document))
+        ArgumentNullException.ThrowIfNull(document);
+
+        return CloseCore(document);
+    }
+
+    public void Activate(EditorDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        Activate((IEditorDocument)document);
+    }
+
+    public void Activate(IEditorDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        if (!_allDocuments.Contains(document))
+        {
+            throw new InvalidOperationException(
+                "Document is not open.");
+        }
+
+        SetActiveDocument(document);
+    }
+
+    private void SetActiveDocument(IEditorDocument? document)
+    {
+        if (ReferenceEquals(_activeEditorDocument, document))
+        {
+            return;
+        }
+
+        var previousWorldDocument = ActiveDocument;
+
+        _activeEditorDocument = document;
+
+        var currentWorldDocument = ActiveDocument;
+
+        ActiveEditorDocumentChanged?.Invoke(
+            _activeEditorDocument);
+
+        if (!ReferenceEquals(
+                previousWorldDocument,
+                currentWorldDocument))
+        {
+            ActiveDocumentChanged?.Invoke(
+                currentWorldDocument);
+        }
+    }
+
+    private bool CloseCore(IEditorDocument document)
+    {
+        if (!_allDocuments.Remove(document))
         {
             return false;
         }
 
+        if (document is EditorDocument worldDocument)
+        {
+            _worldDocuments.Remove(worldDocument);
+        }
+
         var activeChanged =
-            ReferenceEquals(
-                ActiveDocument,
-                document);
+            ReferenceEquals(_activeEditorDocument, document);
 
         if (activeChanged)
         {
-            ActiveDocument =
-                _documents.Count > 0
-                    ? _documents[^1]
+            _activeEditorDocument =
+                _allDocuments.Count > 0
+                    ? _allDocuments[^1]
                     : null;
         }
 
-        document.Dispose();
+        if (document is IDisposable disposable)
+        {
+            disposable.Dispose();
+        }
 
-        DocumentClosed?.Invoke(
-            document);
+        AnyDocumentClosed?.Invoke(document);
+
+        if (document is EditorDocument closedWorldDocument)
+        {
+            DocumentClosed?.Invoke(closedWorldDocument);
+        }
 
         if (activeChanged)
         {
+            ActiveEditorDocumentChanged?.Invoke(
+                _activeEditorDocument);
+
             ActiveDocumentChanged?.Invoke(
                 ActiveDocument);
         }
@@ -106,38 +199,9 @@ public sealed class EditorSession
         return true;
     }
 
-    public void Activate(
-    EditorDocument document)
-    {
-        ArgumentNullException.ThrowIfNull(
-            document);
-
-        if (!_documents.Contains(
-                document))
-        {
-            throw new InvalidOperationException(
-                "Document is not open.");
-        }
-
-        if (ReferenceEquals(
-                ActiveDocument,
-                document))
-        {
-            return;
-        }
-
-        ActiveDocument =
-            document;
-
-        ActiveDocumentChanged?.Invoke(
-            ActiveDocument);
-    }
-
     public void CloseAll()
     {
-        if (_documents.Any(
-                static document =>
-                    document.IsDirty))
+        if (_allDocuments.Any(static document => document.IsDirty))
         {
             throw new InvalidOperationException(
                 "Cannot close dirty documents. Save or discard their changes first.");
@@ -153,26 +217,32 @@ public sealed class EditorSession
 
     private void CloseAllCore()
     {
-        var documents =
-            _documents.ToArray();
+        var documents = _allDocuments.ToArray();
 
-        _documents.Clear();
+        _allDocuments.Clear();
+        _worldDocuments.Clear();
 
-        ActiveDocument =
-            null;
+        _activeEditorDocument = null;
 
         foreach (var document in documents)
         {
-            document.Dispose();
+            if (document is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
 
-            DocumentClosed?.Invoke(
-                document);
+            AnyDocumentClosed?.Invoke(document);
+
+            if (document is EditorDocument worldDocument)
+            {
+                DocumentClosed?.Invoke(worldDocument);
+            }
         }
 
         if (documents.Length > 0)
         {
-            ActiveDocumentChanged?.Invoke(
-                null);
+            ActiveEditorDocumentChanged?.Invoke(null);
+            ActiveDocumentChanged?.Invoke(null);
         }
     }
 }

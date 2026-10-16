@@ -1,7 +1,6 @@
 ﻿using Engine.Core.Math;
 using Engine.ECS.Entities;
 using Engine.Physics.Components;
-using Engine.Physics.Shapes;
 
 namespace Engine.Physics.BroadPhase;
 

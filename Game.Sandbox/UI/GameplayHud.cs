@@ -1,10 +1,8 @@
-﻿using System.Globalization;
-using Engine.Core.Math;
+﻿using Engine.Core.Math;
 using Engine.Graphics.Commands;
-using Engine.ECS.Components;
-using Engine.ECS.Entities;
 using Engine.UI.Controls;
 using Engine.UI.Layout;
+using System.Globalization;
 
 namespace Game.Sandbox.UI;
 

@@ -1,6 +1,6 @@
-﻿using System.Runtime.CompilerServices;
+﻿using Engine.Memory.Native;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Engine.Memory.Native;
 
 namespace Engine.Memory.Scopes;
 

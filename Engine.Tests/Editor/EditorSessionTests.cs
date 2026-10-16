@@ -1,4 +1,5 @@
 ﻿using Engine.Editor.Documents;
+using Engine.Editor.UI.Authoring;
 using Engine.Worlds;
 using Engine.Worlds.Spatial;
 
@@ -6,6 +7,69 @@ namespace Engine.Tests.Editor;
 
 public sealed class EditorSessionTests
 {
+    [Fact]
+    public void Close_RejectsDirtyUiDocument()
+    {
+        var uiDocument = new EditorUiDocument("HUD");
+        var session = new EditorSession();
+
+        session.Open(uiDocument);
+
+        uiDocument.AddElement(
+            EditorUiElementType.Label,
+            uiDocument.Root.Id,
+            "Title");
+
+        Assert.True(uiDocument.IsDirty);
+
+        Assert.Throws<InvalidOperationException>(
+            () => session.Close(uiDocument));
+
+        Assert.Single(session.AllDocuments);
+
+        Assert.True(session.Discard(uiDocument));
+
+        Assert.Empty(session.AllDocuments);
+    }
+
+    [Fact]
+    public void Open_UiDocument_TracksItAlongsideWorldDocuments()
+    {
+        using var ecsWorld = new Engine.ECS.World();
+
+        var world = new World(
+            new ChunkSize(16, 16),
+            ecsWorld);
+
+        var worldDocument = new EditorDocument(world);
+        var uiDocument = new EditorUiDocument("HUD");
+
+        var session = new EditorSession();
+
+        session.Open(worldDocument);
+        session.Open(uiDocument);
+
+        Assert.Equal(2, session.AllDocuments.Count);
+        Assert.Single(session.Documents);
+
+        Assert.Same(uiDocument, session.ActiveEditorDocument);
+
+        // Совместимое World-specific свойство не возвращает UI-документ.
+        Assert.Null(session.ActiveDocument);
+
+        session.Activate(worldDocument);
+
+        Assert.Same(worldDocument, session.ActiveEditorDocument);
+        Assert.Same(worldDocument, session.ActiveDocument);
+
+        Assert.True(session.Discard(uiDocument));
+
+        Assert.Single(session.AllDocuments);
+        Assert.Same(worldDocument, session.ActiveDocument);
+
+        session.CloseAll();
+    }
+
     [Fact]
     public void Close_DisposesDocument()
     {

@@ -1,6 +1,6 @@
-﻿using System.Text.Json;
-using Engine.Scripting;
+﻿using Engine.Scripting;
 using Engine.Serialization.Binary;
+using System.Text.Json;
 
 namespace Engine.Serialization.Types;
 

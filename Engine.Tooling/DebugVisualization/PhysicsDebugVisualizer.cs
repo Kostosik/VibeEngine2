@@ -1,5 +1,4 @@
 ﻿using Engine.Core.Math;
-using Engine.ECS;
 using Engine.ECS.Components;
 using Engine.Physics.Components;
 using Engine.Physics.Shapes;

@@ -1,10 +1,11 @@
-﻿using Engine.Editor.Commands;
+﻿using Engine.Core.Math;
+using Engine.Editor.Commands;
+using Engine.Editor.Documents;
 using Engine.Editor.Selection;
-using Engine.Core.Math;
 
 namespace Engine.Editor.UI.Authoring;
 
-public sealed class EditorUiDocument
+public sealed class EditorUiDocument : IEditorDocument
 {
     private readonly Dictionary<
         Guid,
@@ -79,6 +80,24 @@ public sealed class EditorUiDocument
 
     public string Name { get; }
 
+    public const string TypeId = "vibeengine.ui";
+
+    public string DocumentTypeId => TypeId;
+
+    public string? FilePath { get; private set; }
+
+    public string DisplayName
+    {
+        get
+        {
+            var filePath = FilePath;
+
+            return filePath is null
+                ? Name
+                : Path.GetFileName(filePath) ?? Name;
+        }
+    }
+
     public EditorUiElement Root { get; }
 
     public SelectionSet<Guid> Selection { get; }
@@ -88,6 +107,12 @@ public sealed class EditorUiDocument
     public bool IsDirty =>
         CommandHistory.IsDirty;
 
+    public void SetFilePath(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        FilePath = Path.GetFullPath(path);
+    }
     public EditorUiElement AddElement(
         EditorUiElementType type,
         Guid parentId,

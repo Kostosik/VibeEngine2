@@ -114,7 +114,7 @@ public sealed class ReplicationChannelUdpTests
             new ReplicationChannel(
                 serverSession,
                 serverWorld,
-                serverMap,serverStateService,
+                serverMap, serverStateService,
                 serverEntityService,
                 serverAuthority,
                 serverNode,
@@ -124,7 +124,7 @@ public sealed class ReplicationChannelUdpTests
             new ReplicationChannel(
                 clientSession,
                 clientWorld,
-                clientMap,clientStateService,
+                clientMap, clientStateService,
                 clientEntityService,
                 clientAuthority,
                 serverNode,

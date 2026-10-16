@@ -1,5 +1,4 @@
 ﻿using Engine.Localization;
-using Xunit;
 
 namespace Engine.Tests.Localization;
 

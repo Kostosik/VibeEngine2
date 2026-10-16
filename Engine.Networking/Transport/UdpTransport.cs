@@ -1,8 +1,8 @@
-﻿using System.Buffers.Binary;
+﻿using Engine.Networking.Connections;
+using Engine.Networking.Packets;
+using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
-using Engine.Networking.Connections;
-using Engine.Networking.Packets;
 
 namespace Engine.Networking.Transport;
 

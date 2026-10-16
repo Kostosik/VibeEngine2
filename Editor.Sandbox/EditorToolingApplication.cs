@@ -10,9 +10,9 @@ IApplication
 {
     private readonly EditorApplication _editor;
     private readonly DebugConsoleOverlay _consoleOverlay;
-public EditorToolingApplication(
-    EditorApplication editor,
-    DebugConsoleOverlay consoleOverlay)
+    public EditorToolingApplication(
+        EditorApplication editor,
+        DebugConsoleOverlay consoleOverlay)
     {
         ArgumentNullException.ThrowIfNull(
             editor);

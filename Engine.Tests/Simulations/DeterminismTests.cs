@@ -4,7 +4,6 @@ using Engine.Core.Math;
 using Engine.Core.Systems;
 using Engine.Core.Time;
 using Engine.Simulations;
-using Xunit;
 
 namespace Engine.Tests.Simulations;
 

@@ -1,5 +1,4 @@
-﻿using Engine.Core.Diagnostics;
-using Engine.Core.Logging;
+﻿using Engine.Core.Logging;
 
 namespace Engine.Core.Diagnostics;
 

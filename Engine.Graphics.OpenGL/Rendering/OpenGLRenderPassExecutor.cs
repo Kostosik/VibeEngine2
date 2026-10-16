@@ -56,7 +56,7 @@ internal sealed class OpenGLRenderPassExecutor :
             height =
                 description.Height;
 
-            
+
         }
 
         _gl.BindFramebuffer(

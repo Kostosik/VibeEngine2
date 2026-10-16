@@ -1,6 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
-
-namespace Engine.Tooling.Validation;
+﻿namespace Engine.Tooling.Validation;
 
 public interface IValidator
 {

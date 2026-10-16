@@ -1,9 +1,29 @@
-﻿using Engine.Editor.UI.Authoring;
+﻿using Engine.Editor.Documents;
+using Engine.Editor.UI.Authoring;
 
 namespace Engine.Tests.Editor.Authoring;
 
 public sealed class EditorUiDocumentTests
 {
+    [Fact]
+    public void ImplementsSharedDocumentContract()
+    {
+        var document = new EditorUiDocument("HUD");
+
+        IEditorDocument metadata = document;
+
+        Assert.Equal(
+            "vibeengine.ui",
+            metadata.DocumentTypeId);
+
+        Assert.Equal(
+            "HUD",
+            metadata.DisplayName);
+
+        Assert.Null(metadata.FilePath);
+        Assert.False(metadata.IsDirty);
+    }
+
     [Fact]
     public void AddElement_CreatesHierarchy()
     {

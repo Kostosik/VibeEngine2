@@ -1,8 +1,8 @@
-﻿using System.Text.Json;
-using Engine.Content.Assets;
+﻿using Engine.Content.Assets;
 using Engine.Content.Loading;
 using Engine.Core.Assets;
 using Engine.Scripting;
+using System.Text.Json;
 
 namespace Engine.Serialization.Content;
 

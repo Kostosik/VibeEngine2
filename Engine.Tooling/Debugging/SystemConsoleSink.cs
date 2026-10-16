@@ -1,5 +1,4 @@
-﻿using Engine.Core.Diagnostics;
-using Engine.Tooling.Console;
+﻿using Engine.Tooling.Console;
 
 namespace Engine.Tooling.Debugging;
 

@@ -1,9 +1,9 @@
 ﻿using Engine.Core.Application;
 using Engine.Core.Time;
-using Engine.Editor.UI.Dialogs;
 using Engine.Editor.Documents;
 using Engine.Editor.Documents.Persistence;
 using Engine.Editor.UI.Authoring;
+using Engine.Editor.UI.Dialogs;
 using Engine.Editor.UI.Shell;
 using Engine.Graphics.Resources;
 using Engine.Input;
@@ -17,7 +17,6 @@ public sealed class EditorApplication :
 {
     private readonly HashSet<EditorDocument> _subscribedDocuments = new();
     private bool _uiDirty = true;
-    private string _uiAssetPath;
     private readonly IEditorDocumentPersistence?
     _documentPersistence;
     private readonly IEditorFileDialogService _fileDialogs;
@@ -32,7 +31,8 @@ public sealed class EditorApplication :
 
     public event Action? ApplicationCloseRequested;
 
-    private EditorDocument? _pendingCloseDocument;
+    private IEditorDocument? _pendingCloseDocument;
+    private bool _closingDocumentDialogAfterDecision;
 
     private readonly EditorErrorDialog
     _errorDialog;
@@ -98,7 +98,8 @@ public sealed class EditorApplication :
         _documentCloseDialog.Closed +=
             ClearPendingCloseDocument;
 
-        _uiAssetPath = uiAssetPath;
+        UiDocument.SetFilePath(uiAssetPath);
+
         _documentPersistence =
     documentPersistence;
         MainShell =
@@ -127,14 +128,19 @@ public sealed class EditorApplication :
         UiHost.Root.AddChild(
             MainShell);
 
-        Editor.Session.ActiveDocumentChanged +=
-    OnActiveDocumentChanged;
+        Editor.Session.ActiveEditorDocumentChanged +=
+            OnActiveEditorDocumentChanged;
 
         Editor.Workspace.Changed +=
     MarkUiDirty;
 
         UiDocument.Changed +=
             MarkUiDirty;
+
+        if (!Editor.Session.AllDocuments.Contains(UiDocument))
+        {
+            Editor.Session.Open(UiDocument);
+        }
 
         if (editor.AssetBrowser is not null)
         {
@@ -143,6 +149,28 @@ public sealed class EditorApplication :
         }
 
         _documentFiles = documentFiles;
+    }
+
+    private void OnActiveEditorDocumentChanged(
+    IEditorDocument? document)
+    {
+        MarkUiDirty();
+    }
+
+    private IEditorDocument? FindNextDirtyDocument()
+    {
+        // World documents are resolved before the UI document.
+        foreach (var document in Editor.Session.Documents)
+        {
+            if (document.IsDirty)
+            {
+                return document;
+            }
+        }
+
+        return UiDocument.IsDirty
+            ? UiDocument
+            : null;
     }
 
     public EditorDocument OpenDocument(
@@ -214,37 +242,25 @@ public sealed class EditorApplication :
 
     private void SaveActiveDocument()
     {
-        if (MainShell.IsUiMode)
+        switch (Editor.Session.ActiveEditorDocument)
         {
-            SaveUiDocument();
-            return;
+            case EditorUiDocument uiDocument:
+                SaveUiDocument(uiDocument);
+                return;
+
+            case EditorDocument worldDocument:
+                SaveWorldDocument(worldDocument);
+                return;
+
+            case null:
+                return;
+
+            default:
+                _errorDialog.ShowError(
+                    "Saving this document type is not supported.");
+
+                return;
         }
-
-        var document =
-            Editor.ActiveDocument;
-
-        if (document is null)
-        {
-            return;
-        }
-
-        if (document.FilePath is null)
-        {
-            RequestSaveDocumentAs();
-            return;
-        }
-
-        if (_documentPersistence is null)
-        {
-            return;
-        }
-
-        Editor.SaveDocument(
-            document,
-            _documentPersistence,
-            document.FilePath);
-
-        MarkUiDirty();
     }
 
     private void OnActiveDocumentChanged(
@@ -255,14 +271,18 @@ public sealed class EditorApplication :
 
     private void SaveUiDocument()
     {
-        EditorUiAssetFile.Save(
-            UiDocument,
-            _uiAssetPath);
+        var document = ActiveUiDocument;
 
-        UiDocument.MarkSaved();
+        if (document is null)
+        {
+            return;
+        }
 
-        MarkUiDirty();
+        TrySaveUiDocument(document);
     }
+
+    private EditorUiDocument? ActiveUiDocument =>
+    Editor.Session.ActiveEditorDocument as EditorUiDocument;
 
     public EditorContext Editor { get; }
 
@@ -348,7 +368,7 @@ public sealed class EditorApplication :
             UnsubscribeDocument;
 
         Editor.Session.ActiveDocumentChanged -=
-            OnActiveDocumentChanged;
+            OnActiveEditorDocumentChanged;
 
         Editor.Workspace.Changed -=
     MarkUiDirty;
@@ -400,10 +420,19 @@ public sealed class EditorApplication :
         {
             try
             {
+                var document = ActiveUiDocument;
+
+                if (document is null)
+                {
+                    return;
+                }
+
+                var uiPath = UiDocument.FilePath
+                    ?? throw new InvalidOperationException(
+                        "UI document has no file path.");
+
                 var initialDirectory =
-                    Path.GetDirectoryName(
-                        Path.GetFullPath(
-                            _uiAssetPath));
+                    Path.GetDirectoryName(Path.GetFullPath(uiPath));
 
                 var path =
                     _fileDialogs.ShowSaveUiFile(
@@ -417,14 +446,9 @@ public sealed class EditorApplication :
                 var normalizedPath =
                     Path.GetFullPath(path);
 
-                EditorUiAssetFile.Save(
+                TrySaveUiDocument(
                     UiDocument,
                     normalizedPath);
-
-                _uiAssetPath =
-                    normalizedPath;
-
-                UiDocument.MarkSaved();
 
                 MarkUiDirty();
             }
@@ -483,7 +507,7 @@ public sealed class EditorApplication :
             return;
         }
         document.ValidationChanged +=
-    MarkUiDirty;
+            MarkUiDirty;
 
         document.EntitySelection.Changed +=
             MarkUiDirty;
@@ -500,7 +524,7 @@ public sealed class EditorApplication :
             return;
         }
         document.ValidationChanged -=
-    MarkUiDirty;
+            MarkUiDirty;
 
         document.EntitySelection.Changed -=
             MarkUiDirty;
@@ -534,11 +558,7 @@ public sealed class EditorApplication :
 
     public bool RequestApplicationClose()
     {
-        var document =
-            Editor.Session.Documents
-                .FirstOrDefault(
-                    static document =>
-                        document.IsDirty);
+        var document = FindNextDirtyDocument();
 
         if (document is null)
         {
@@ -546,12 +566,9 @@ public sealed class EditorApplication :
         }
 
         _applicationClosePending = true;
+        _pendingCloseDocument = document;
 
-        _pendingCloseDocument =
-            document;
-
-        _documentCloseDialog.ShowFor(
-            document);
+        _documentCloseDialog.ShowFor(document);
 
         return false;
     }
@@ -563,19 +580,13 @@ public sealed class EditorApplication :
             return;
         }
 
-        var document =
-            Editor.Session.Documents
-                .FirstOrDefault(
-                    static document =>
-                        document.IsDirty);
+        var document = FindNextDirtyDocument();
 
         if (document is not null)
         {
-            _pendingCloseDocument =
-                document;
+            _pendingCloseDocument = document;
 
-            _documentCloseDialog.ShowFor(
-                document);
+            _documentCloseDialog.ShowFor(document);
 
             return;
         }
@@ -600,8 +611,11 @@ public sealed class EditorApplication :
 
     private void RequestCloseActiveDocument()
     {
-        var document =
-            Editor.ActiveDocument;
+        if (Editor.Session.ActiveEditorDocument
+            is not EditorDocument document)
+        {
+            return;
+        }
 
         if (document is null)
         {
@@ -618,88 +632,154 @@ public sealed class EditorApplication :
             return;
         }
 
-        _pendingCloseDocument =
-            document;
+        _pendingCloseDocument = document;
 
-        _documentCloseDialog.ShowFor(
-            document);
+        _documentCloseDialog.ShowFor(document);
     }
+
 
     private void SavePendingDocument()
     {
-        var document =
-            _pendingCloseDocument;
+        var document = _pendingCloseDocument;
 
         if (document is null)
         {
             return;
         }
 
+        var continueApplicationClose =
+            _applicationClosePending;
+
         try
         {
-            var files =
-                _documentFiles
-                ?? throw new InvalidOperationException(
-                    "Document file service is not configured.");
-
-            if (document.FilePath is null)
+            switch (document)
             {
-                var path =
-                    _fileDialogs.ShowSaveFile(
-                        null);
+                case EditorDocument worldDocument:
+                    {
+                        var files = _documentFiles
+                            ?? throw new InvalidOperationException(
+                                "Document file service is not configured.");
 
-                if (path is null)
-                {
-                    // Пользователь отменил Save As.
-                    // Документ и диалог остаются открытыми.
-                    return;
-                }
+                        if (worldDocument.FilePath is null)
+                        {
+                            var path = _fileDialogs.ShowSaveFile();
 
-                files.SaveAs(
-                    document,
-                    path);
+                            if (path is null)
+                            {
+                                return;
+                            }
+
+                            files.SaveAs(worldDocument, path);
+                        }
+
+                        Editor.CloseDocument(
+                            worldDocument,
+                            EditorDocumentCloseDecision.Save,
+                            files);
+
+                        break;
+                    }
+
+                case EditorUiDocument uiDocument:
+                    {
+                        if (!TrySaveUiDocument(uiDocument))
+                        {
+                            return;
+                        }
+
+                        break;
+                    }
+
+                default:
+                    throw new NotSupportedException(
+                        $"Unsupported document type: {document.GetType().FullName}");
             }
 
-            Editor.CloseDocument(
-                document,
-                EditorDocumentCloseDecision.Save,
-                files);
-
-            _documentCloseDialog.Close();
+            CloseDocumentDialogAfterDecision();
 
             MarkUiDirty();
 
-            ContinueApplicationClose();
+            if (continueApplicationClose)
+            {
+                ContinueApplicationClose();
+            }
         }
         catch (Exception exception)
         {
-            _errorDialog.ShowError(
-                exception.Message);
+            _errorDialog.ShowError(exception.Message);
+        }
+    }
+    private void CloseDocumentDialogAfterDecision()
+    {
+        _closingDocumentDialogAfterDecision = true;
+
+        try
+        {
+            _documentCloseDialog.Close();
+        }
+        finally
+        {
+            _closingDocumentDialogAfterDecision = false;
         }
     }
 
     private void DiscardPendingDocument()
     {
-        var document =
-            _pendingCloseDocument;
+        var document = _pendingCloseDocument;
 
         if (document is null)
         {
             return;
         }
 
-        Editor.CloseDocument(
-            document,
-            EditorDocumentCloseDecision.Discard);
+        var continueApplicationClose =
+            _applicationClosePending;
 
-        _documentCloseDialog.Close();
-        MarkUiDirty();
-        ContinueApplicationClose();
+        try
+        {
+            switch (document)
+            {
+                case EditorDocument worldDocument:
+                    Editor.CloseDocument(
+                        worldDocument,
+                        EditorDocumentCloseDecision.Discard);
+                    break;
+
+                case EditorUiDocument uiDocument:
+                    // This document is discarded only during application shutdown.
+                    // Earlier dirty World documents have already been resolved.
+                    uiDocument.MarkSaved();
+                    break;
+
+                default:
+                    throw new NotSupportedException(
+                        $"Unsupported document type: {document.GetType().FullName}");
+            }
+
+            CloseDocumentDialogAfterDecision();
+
+            MarkUiDirty();
+
+            if (continueApplicationClose)
+            {
+                ContinueApplicationClose();
+            }
+        }
+        catch (Exception exception)
+        {
+            _errorDialog.ShowError(exception.Message);
+        }
     }
     private void ClearPendingCloseDocument()
     {
-        _pendingCloseDocument =
-            null;
+        _pendingCloseDocument = null;
+
+        if (!_closingDocumentDialogAfterDecision)
+        {
+            // Closing the dialog through Cancel or Escape cancels
+            // the pending application shutdown.
+            _applicationClosePending = false;
+        }
     }
 
     public void RequestNewDocument()
@@ -710,5 +790,37 @@ public sealed class EditorApplication :
     public void RequestCloseDocument()
     {
         RequestCloseActiveDocument();
+    }
+
+    private bool TrySaveUiDocument(
+    EditorUiDocument document,
+    string? destinationPath = null)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        var path = destinationPath ?? document.FilePath;
+
+        if (path is null)
+        {
+            path = _fileDialogs.ShowSaveUiFile();
+
+            if (path is null)
+            {
+                return false;
+            }
+        }
+
+        var normalizedPath = Path.GetFullPath(path);
+
+        EditorUiAssetFile.Save(
+            document,
+            normalizedPath);
+
+        document.SetFilePath(normalizedPath);
+        document.MarkSaved();
+
+        MarkUiDirty();
+
+        return true;
     }
 }

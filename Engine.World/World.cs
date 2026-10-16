@@ -7,7 +7,7 @@ using Engine.Worlds.Tiles;
 namespace Engine.Worlds;
 
 public sealed class World :
-    IDeterministicState,IDisposable
+    IDeterministicState, IDisposable
 {
     private bool _disposed;
     private readonly ChunkRegistry _chunks =

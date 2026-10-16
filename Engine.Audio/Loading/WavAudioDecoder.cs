@@ -1,6 +1,6 @@
-﻿using System.Buffers.Binary;
-using Engine.Audio.Data;
+﻿using Engine.Audio.Data;
 using Engine.Core.Assets;
+using System.Buffers.Binary;
 
 namespace Engine.Audio.Loading;
 

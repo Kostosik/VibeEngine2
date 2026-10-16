@@ -1,5 +1,4 @@
 ﻿using Engine.Serialization.Binary;
-using Engine.Serialization.SaveLoad.Ecs;
 using Engine.Serialization.SaveLoad.Worlds;
 
 namespace Engine.Serialization.SaveLoad.Game;

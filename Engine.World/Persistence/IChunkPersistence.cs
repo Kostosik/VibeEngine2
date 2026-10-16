@@ -1,5 +1,4 @@
-﻿using Engine.Worlds.Chunks;
-using Engine.Worlds.Spatial;
+﻿using Engine.Worlds.Spatial;
 
 namespace Engine.Worlds.Persistence;
 

@@ -1,6 +1,6 @@
-﻿using System.Text;
-using Engine.Core.Diagnostics;
+﻿using Engine.Core.Diagnostics;
 using Engine.Tooling.Debugging;
+using System.Text;
 
 namespace Engine.Tooling.Console;
 

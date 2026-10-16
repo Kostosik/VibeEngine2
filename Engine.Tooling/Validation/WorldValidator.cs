@@ -1,6 +1,6 @@
 ﻿using Engine.ECS;
-using Engine.ECS.Inspection;
 using Engine.ECS.Entities;
+using Engine.ECS.Inspection;
 
 namespace Engine.Tooling.Validation;
 

@@ -9,7 +9,7 @@ using Engine.Worlds;
 
 namespace Engine.Editor.Documents;
 
-public sealed class EditorDocument : IDisposable
+public sealed class EditorDocument : IDisposable, IEditorDocument
 {
     private ValidationResult? _lastValidationResult;
 
@@ -17,6 +17,22 @@ public sealed class EditorDocument : IDisposable
 
     public ValidationResult? LastValidationResult =>
         _lastValidationResult;
+
+    public const string TypeId = "vibeengine.world";
+
+    public string DocumentTypeId => TypeId;
+
+    public string DisplayName
+    {
+        get
+        {
+            var filePath = FilePath;
+
+            return filePath is null
+                ? "Untitled World"
+                : Path.GetFileName(filePath) ?? "Untitled World";
+        }
+    }
 
     private readonly Dictionary<EntityId, EditorEntityReference>
     _entityReferences = new();

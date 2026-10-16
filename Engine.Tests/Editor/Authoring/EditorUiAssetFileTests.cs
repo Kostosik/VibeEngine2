@@ -1,5 +1,4 @@
-﻿using Engine.Core.Math;
-using Engine.Editor.UI.Authoring;
+﻿using Engine.Editor.UI.Authoring;
 
 namespace Engine.Tests.Editor.Authoring;
 

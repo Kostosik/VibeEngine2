@@ -127,7 +127,7 @@ public sealed class EngineRuntime :
             PhysicsSettings);
 
         SimulationRate =
-            options.SimulationRate; 
+            options.SimulationRate;
 
 
 

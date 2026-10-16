@@ -1,6 +1,4 @@
-﻿using Engine.ECS.Entities;
-
-namespace Engine.ECS.Commands;
+﻿namespace Engine.ECS.Commands;
 
 internal interface ICommand
 {

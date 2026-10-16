@@ -1,6 +1,4 @@
 ﻿using Engine.Core.Determinism;
-using Engine.ECS.Components;
-using Engine.ECS.Entities;
 
 namespace Engine.Tests.ECS;
 

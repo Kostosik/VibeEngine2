@@ -1,8 +1,8 @@
-﻿using System.Diagnostics;
-using Engine.Networking.Connections;
+﻿using Engine.Networking.Connections;
 using Engine.Networking.Packets;
 using Engine.Networking.Sessions;
 using Engine.Networking.Transport;
+using System.Diagnostics;
 
 namespace Game.Sandbox;
 

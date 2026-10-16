@@ -1,6 +1,5 @@
 ﻿using Engine.Core.Math;
 using Engine.Core.Systems;
-using Engine.ECS;
 using Engine.ECS.Components;
 
 namespace Engine.Worlds.Spatial;

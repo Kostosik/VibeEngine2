@@ -1,7 +1,6 @@
 ﻿using Engine.Navigation;
 using Engine.Navigation.Chunks;
 using Engine.Navigation.Maps;
-using Xunit;
 
 namespace Engine.Tests.Navigation.Maps;
 

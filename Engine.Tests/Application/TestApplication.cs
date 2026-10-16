@@ -1,6 +1,5 @@
 ﻿using Engine.Core.Application;
 using Engine.Core.Time;
-using Silk.NET.OpenGL;
 
 namespace Engine.Tests.Application;
 

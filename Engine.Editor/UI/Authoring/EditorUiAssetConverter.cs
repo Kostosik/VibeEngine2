@@ -124,7 +124,7 @@ public static class EditorUiAssetConverter
                     MaxLength =
                         descriptor.MaxLength,
 
-                        Visible =
+                    Visible =
     descriptor.Visible,
 
                     Enabled =

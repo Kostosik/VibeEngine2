@@ -1,6 +1,4 @@
-﻿using System.Numerics;
-using Engine.Core.Math;
-using Silk.NET.OpenAL;
+﻿using Silk.NET.OpenAL;
 
 namespace Engine.Audio.OpenAL;
 

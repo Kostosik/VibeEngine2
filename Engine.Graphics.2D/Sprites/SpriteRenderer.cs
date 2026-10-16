@@ -1,7 +1,6 @@
 ﻿using Engine.Camera;
 using Engine.Core.Math;
 using Engine.Graphics.Commands;
-using Engine.Graphics.Resources;
 
 namespace Engine.Graphics.Sprites;
 

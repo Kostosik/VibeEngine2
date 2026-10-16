@@ -1,9 +1,8 @@
-﻿using Engine.Graphics.Commands;
+﻿using Engine.Core.Math;
+using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.OpenGL.Rendering;
 using Silk.NET.OpenGL;
-using Engine.Core.Math;
-using System.Text;
 
 namespace Engine.Graphics.OpenGL.Fonts;
 

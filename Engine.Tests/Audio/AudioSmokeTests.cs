@@ -1,7 +1,7 @@
-﻿using System.Buffers.Binary;
-using Engine.Audio;
+﻿using Engine.Audio;
 using Engine.Audio.OpenAL;
 using Engine.Core.Assets;
+using System.Buffers.Binary;
 
 namespace Engine.Tests.Audio;
 

@@ -1,6 +1,5 @@
 ﻿using ChunkPosition = Engine.Worlds.Spatial.ChunkPosition;
 using ChunkSize = Engine.Worlds.Spatial.ChunkSize;
-using World = Engine.Worlds.World;
 
 namespace Engine.Tests.WorldTests;
 

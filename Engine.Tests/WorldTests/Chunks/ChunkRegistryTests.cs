@@ -1,6 +1,4 @@
-﻿using Engine.ECS;
-using Engine.Worlds;
-using Engine.Worlds.Chunks;
+﻿using Engine.Worlds.Chunks;
 using Engine.Worlds.Spatial;
 
 namespace Engine.Tests.WorldTests.Chunks;

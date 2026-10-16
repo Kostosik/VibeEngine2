@@ -1,6 +1,6 @@
 ﻿using Engine.Memory.Diagnostics;
-using System.Runtime.CompilerServices;
 using System.Buffers;
+using System.Runtime.CompilerServices;
 
 namespace Engine.Memory.Pools;
 

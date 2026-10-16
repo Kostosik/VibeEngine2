@@ -1,7 +1,6 @@
 ﻿using Engine.Worlds.Chunks;
 using Engine.Worlds.Persistence;
 using Engine.Worlds.Tiles;
-using Chunk = Engine.Worlds.Chunk;
 using ChunkPosition = Engine.Worlds.Spatial.ChunkPosition;
 using ChunkSize = Engine.Worlds.Spatial.ChunkSize;
 using LocalPosition = Engine.Worlds.Spatial.LocalPosition;

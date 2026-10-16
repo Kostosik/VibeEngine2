@@ -7,7 +7,6 @@ using Engine.Physics.Components;
 using Engine.Physics.Joints;
 using Engine.Physics.Shapes;
 using Engine.Runtime;
-using Engine.Worlds;
 using Engine.Worlds.Spatial;
 
 namespace Game.Sandbox.Scenarios;

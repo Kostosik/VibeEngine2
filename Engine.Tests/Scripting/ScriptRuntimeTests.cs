@@ -2,7 +2,6 @@
 using Engine.ECS;
 using Engine.ECS.Entities;
 using Engine.Scripting;
-using static Engine.Tests.Scripting.ScriptRuntimeTests;
 
 namespace Engine.Tests.Scripting;
 

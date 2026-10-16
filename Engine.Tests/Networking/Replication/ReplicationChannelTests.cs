@@ -366,7 +366,7 @@ public sealed class ReplicationChannelTests
             new ReplicationChannel(
                 authoritySession,
                 authorityWorld,
-                authorityMap,authorityStateService,
+                authorityMap, authorityStateService,
                 authorityEntityService,
                 authority,
                 authorityNode,
@@ -386,7 +386,7 @@ public sealed class ReplicationChannelTests
             new ReplicationChannel(
                 otherSession,
                 otherWorld,
-                otherMap,otherStateService,
+                otherMap, otherStateService,
                 otherEntityService,
                 otherAuthority,
                 authorityNode,
@@ -567,7 +567,7 @@ public sealed class ReplicationChannelTests
             new ReplicationChannel(
                 serverSession,
                 serverWorld,
-                serverMap,serverStateService,
+                serverMap, serverStateService,
                 serverEntityService,
                 serverAuthority,
                 serverNode,

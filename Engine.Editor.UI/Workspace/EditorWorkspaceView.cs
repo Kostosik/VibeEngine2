@@ -1,5 +1,4 @@
 ﻿using Engine.Core.Math;
-using Engine.Editor;
 using Engine.Editor.Panels;
 using Engine.Editor.Workspace;
 using Engine.Graphics.Commands;

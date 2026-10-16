@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-using Engine.Core.Math;
-using Engine.ECS;
+﻿using Engine.Core.Math;
 using Engine.ECS.Components;
 using Engine.ECS.Entities;
 using Engine.Networking.Authority;
@@ -11,6 +9,7 @@ using Engine.Networking.Topology;
 using Engine.Networking.Transport;
 using Engine.Serialization.Binary;
 using Engine.Serialization.Types;
+using System.Diagnostics;
 
 namespace Game.Sandbox;
 

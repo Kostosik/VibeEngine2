@@ -1,5 +1,5 @@
-﻿using Engine.Graphics.Resources;
-using Engine.Graphics.OpenGL.Rendering;
+﻿using Engine.Graphics.OpenGL.Rendering;
+using Engine.Graphics.Resources;
 using Silk.NET.OpenGL;
 
 namespace Engine.Graphics.OpenGL.Resources;

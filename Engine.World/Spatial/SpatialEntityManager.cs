@@ -1,6 +1,4 @@
-﻿using Engine.ECS;
-using Engine.ECS.Entities;
-using Engine.Worlds;
+﻿using Engine.ECS.Entities;
 
 namespace Engine.Worlds.Spatial;
 

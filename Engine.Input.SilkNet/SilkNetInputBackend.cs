@@ -1,5 +1,4 @@
-﻿using Engine.Input;
-using Engine.Input.Cursors;
+﻿using Engine.Input.Cursors;
 using Silk.NET.Input;
 
 namespace Engine.Input.SilkNet;

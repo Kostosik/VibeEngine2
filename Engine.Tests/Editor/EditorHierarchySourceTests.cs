@@ -1,5 +1,4 @@
 ﻿using Engine.ECS.Components;
-using Engine.ECS.Entities;
 using Engine.Editor.Hierarchy;
 using Engine.Worlds;
 using Engine.Worlds.Spatial;

@@ -1,6 +1,4 @@
-﻿using Engine.Core.Diagnostics;
-
-namespace Engine.Core.Diagnostics;
+﻿namespace Engine.Core.Diagnostics;
 
 public sealed class DiagnosticReporter
 {

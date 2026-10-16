@@ -1,5 +1,5 @@
-﻿using Engine.Graphics.Resources;
-using Engine.Graphics.Rendering;
+﻿using Engine.Graphics.Rendering;
+using Engine.Graphics.Resources;
 
 namespace Engine.Graphics2D.Rendering;
 

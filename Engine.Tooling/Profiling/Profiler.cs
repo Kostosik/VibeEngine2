@@ -1,5 +1,5 @@
-﻿using System.Diagnostics;
-using Engine.Core.Diagnostics.Metrics;
+﻿using Engine.Core.Diagnostics.Metrics;
+using System.Diagnostics;
 
 namespace Engine.Tooling.Profiling;
 

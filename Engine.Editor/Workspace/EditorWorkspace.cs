@@ -209,32 +209,32 @@ public sealed class EditorWorkspace
     public void SetPanelActive(
     string id,
     bool active)
-{
-    if (active)
     {
-        ActivatePanel(id);
-        return;
+        if (active)
+        {
+            ActivatePanel(id);
+            return;
+        }
+
+        var layout =
+            Layout.GetPanel(id);
+
+        if (!layout.IsActive)
+        {
+            return;
+        }
+
+        layout.SetActive(
+            false);
+
+        Changed?.Invoke();
     }
 
-    var layout =
-        Layout.GetPanel(id);
-
-    if (!layout.IsActive)
+    public void ActivatePanel(
+        string id)
     {
-        return;
-    }
-
-    layout.SetActive(
-        false);
-
-    Changed?.Invoke();
-}
-
-public void ActivatePanel(
-    string id)
-{
-    var layout =
-        Layout.GetPanel(id);
+        var layout =
+            Layout.GetPanel(id);
 
         var panel =
     GetPanelOrThrow(id);
@@ -248,34 +248,34 @@ public void ActivatePanel(
         var changed =
         false;
 
-    foreach (var other in Layout.Panels)
-    {
-        if (ReferenceEquals(other, layout) ||
-            other.Area != layout.Area ||
-            !other.IsActive)
+        foreach (var other in Layout.Panels)
         {
-            continue;
+            if (ReferenceEquals(other, layout) ||
+                other.Area != layout.Area ||
+                !other.IsActive)
+            {
+                continue;
+            }
+
+            other.SetActive(
+                false);
+
+            changed = true;
         }
 
-        other.SetActive(
-            false);
+        if (!layout.IsActive)
+        {
+            layout.SetActive(
+                true);
 
-        changed = true;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            Changed?.Invoke();
+        }
     }
-
-    if (!layout.IsActive)
-    {
-        layout.SetActive(
-            true);
-
-        changed = true;
-    }
-
-    if (changed)
-    {
-        Changed?.Invoke();
-    }
-}
 
     public EditorWorkspaceState CaptureState()
     {

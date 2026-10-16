@@ -1,7 +1,7 @@
-﻿using System.Diagnostics;
-using Engine.ECS.Entities;
+﻿using Engine.ECS.Entities;
 using Engine.Jobs.Jobs;
 using Engine.Jobs.Scheduling;
+using System.Diagnostics;
 
 const int entityCount =
     100_000;

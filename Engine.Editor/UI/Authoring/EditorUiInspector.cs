@@ -1,6 +1,6 @@
 ﻿using Engine.Core.Assets;
-using Engine.Editor.Inspection;
 using Engine.Core.Math;
+using Engine.Editor.Inspection;
 
 namespace Engine.Editor.UI.Authoring;
 

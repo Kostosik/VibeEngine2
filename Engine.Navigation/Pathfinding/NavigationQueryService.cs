@@ -1,5 +1,5 @@
-﻿using Engine.Jobs.Scheduling;
-using Engine.Jobs.Jobs;
+﻿using Engine.Jobs.Jobs;
+using Engine.Jobs.Scheduling;
 using Engine.Navigation.Maps;
 
 namespace Engine.Navigation.Pathfinding;

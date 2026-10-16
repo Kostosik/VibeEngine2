@@ -1,7 +1,6 @@
 ﻿using Engine.Editor;
 using Engine.Editor.Actions;
 using Engine.Editor.Commands;
-using Engine.Editor.Documents;
 using Engine.Worlds;
 using Engine.Worlds.Spatial;
 

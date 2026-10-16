@@ -1,5 +1,4 @@
-﻿using Engine.Editor.Documents;
-using Engine.Worlds;
+﻿using Engine.Worlds;
 
 namespace Engine.Editor.Documents.Persistence;
 

@@ -1,10 +1,9 @@
-﻿using Engine.Core.Events;
-using Engine.Core.Math;
+﻿using Engine.Core.Math;
+using Engine.ECS;
+using Engine.ECS.Components;
 using Engine.Physics.Components;
 using Engine.Physics.Queries;
 using Engine.Physics.Shapes;
-using Engine.ECS;
-using Engine.ECS.Components;
 
 namespace Engine.Tests.Physics;
 

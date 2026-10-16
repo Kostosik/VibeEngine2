@@ -2,7 +2,6 @@
 using Engine.Editor.Commands;
 using Engine.Editor.Documents;
 using Engine.Editor.Documents.Persistence;
-using Engine.Serialization.Binary;
 using Engine.Serialization.SaveLoad.Ecs;
 using Engine.Serialization.Types;
 using Engine.Worlds;

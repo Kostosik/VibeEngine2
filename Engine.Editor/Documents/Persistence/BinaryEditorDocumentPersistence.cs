@@ -1,5 +1,4 @@
-﻿using Engine.Editor.Documents;
-using Engine.Serialization.SaveLoad.Ecs;
+﻿using Engine.Serialization.SaveLoad.Ecs;
 using Engine.Serialization.SaveLoad.Worlds;
 using Engine.Worlds;
 

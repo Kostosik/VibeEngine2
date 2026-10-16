@@ -1,9 +1,6 @@
-﻿using Engine.Editor;
-using Engine.Editor.Assets;
+﻿using Engine.Core.Math;
 using Engine.Graphics.Commands;
 using Engine.UI.Controls;
-using Engine.UI.Core;
-using Engine.Core.Math;
 using Engine.UI.Layout;
 
 namespace Engine.Editor.UI.Workspace;

@@ -1,5 +1,5 @@
-﻿using Engine.Core.Application;
-using Engine.Camera;
+﻿using Engine.Camera;
+using Engine.Core.Application;
 using Engine.Input;
 using Engine.Input.Cursors;
 using Engine.Input.SilkNet;
@@ -46,7 +46,7 @@ public sealed class OpenGLWindow : IDisposable
     {
         var options =
             WindowOptions.Default;
-        
+
         options.VSync = false;
 
 

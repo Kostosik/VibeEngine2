@@ -1,6 +1,4 @@
-﻿using Engine.ECS;
-using Engine.ECS.Entities;
-using Engine.ECS.Persistence;
+﻿using Engine.ECS.Persistence;
 using Engine.Serialization.Binary;
 
 namespace Engine.Serialization.SaveLoad.Ecs;

@@ -1,5 +1,4 @@
 ﻿using Engine.Core.Math;
-using Engine.Editor;
 using Engine.Editor.Documents;
 using Engine.Editor.UI.Authoring;
 using Engine.Editor.UI.Workspace;
@@ -7,7 +6,6 @@ using Engine.Graphics.Commands;
 using Engine.Graphics.Resources;
 using Engine.Tooling.Validation;
 using Engine.UI.Controls;
-using Engine.UI.Core;
 using Engine.UI.Layout;
 
 namespace Engine.Editor.UI.Shell;
@@ -17,15 +15,17 @@ public sealed class EditorMainShell :
 {
     private UiButton _validateButton;
     private readonly UiPanel _menuBar;
+    private readonly UiPanel _toolbar;
     private readonly UiPanel _workspace;
-
+    private UiButton _closeButton;
     private readonly UiLabel _documentLabel;
 
     private readonly EditorWorkspaceView _workspaceView;
-    private readonly EditorUiWorkspaceView _uiWorkspaceView;
+    private EditorUiWorkspaceView _uiWorkspaceView;
 
     public bool IsUiMode =>
-    _uiWorkspaceView.Visible;
+        Editor.Session.ActiveEditorDocument
+            is EditorUiDocument;
 
     public event Action? NewRequested;
     public event Action? OpenRequested;
@@ -35,6 +35,7 @@ public sealed class EditorMainShell :
     public event Action<UiRect>? ToolsRequested;
     public event Action<UiRect>? ViewRequested;
     public event Action<UiRect>? EditRequested;
+
     private readonly UiPanel _documentTabs;
     private UiButton _worldButton;
     private UiButton _uiButton;
@@ -56,9 +57,6 @@ public sealed class EditorMainShell :
         Editor =
             editor;
 
-        UiDocument =
-            uiDocument;
-
         Background =
             new UiColor(
                 24,
@@ -74,7 +72,7 @@ public sealed class EditorMainShell :
 
         _menuBar =
             CreateMenuBar();
-
+        _toolbar = CreateToolbar();
         _documentTabs =
     new UiPanel
     {
@@ -148,8 +146,8 @@ public sealed class EditorMainShell :
 
         AddChild(
             _menuBar);
-        AddChild(
-    _documentTabs);
+        AddChild(_toolbar);
+        AddChild(_documentTabs);
         AddChild(
             _workspace);
 
@@ -158,7 +156,10 @@ public sealed class EditorMainShell :
     }
     public EditorContext Editor { get; }
 
-    public EditorUiDocument UiDocument { get; }
+    public EditorUiDocument UiDocument =>
+        _uiWorkspaceView.Document;
+
+
 
     public UiPanel Workspace =>
         _workspace;
@@ -168,6 +169,7 @@ public sealed class EditorMainShell :
     Vector2 availableSize)
     {
         const float menuHeight = 32.0f;
+        const float toolbarHeight = 36.0f;
         const float documentTabsHeight = 30.0f;
         const float documentHeight = 24.0f;
 
@@ -177,22 +179,31 @@ public sealed class EditorMainShell :
                 availableSize.X,
                 menuHeight));
 
+        _toolbar.Measure(
+    context,
+    new Vector2(
+        availableSize.X,
+        toolbarHeight));
+
         _documentTabs.Measure(
             context,
             new Vector2(
                 availableSize.X,
                 documentTabsHeight));
 
+        var workspaceHeight = MathF.Max(
+            0.0f,
+            availableSize.Y
+                - menuHeight
+                - toolbarHeight
+                - documentTabsHeight
+                - documentHeight);
+
         _workspace.Measure(
             context,
             new Vector2(
                 availableSize.X,
-                MathF.Max(
-                    0.0f,
-                    availableSize.Y -
-                    menuHeight -
-                    documentTabsHeight -
-                    documentHeight)));
+                workspaceHeight));
 
         _documentLabel.Measure(
             context,
@@ -207,6 +218,7 @@ public sealed class EditorMainShell :
     UiRect finalRect)
     {
         const float menuHeight = 32.0f;
+        const float toolbarHeight = 36.0f;
         const float documentTabsHeight = 30.0f;
         const float documentHeight = 24.0f;
 
@@ -217,27 +229,34 @@ public sealed class EditorMainShell :
                 finalRect.Width,
                 menuHeight));
 
+        _toolbar.Arrange(
+    new UiRect(
+        finalRect.X,
+        finalRect.Y + menuHeight,
+        finalRect.Width,
+        toolbarHeight));
+
         _documentTabs.Arrange(
             new UiRect(
                 finalRect.X,
-                finalRect.Y +
-                menuHeight,
+                finalRect.Y + menuHeight + toolbarHeight,
                 finalRect.Width,
                 documentTabsHeight));
 
         _workspace.Arrange(
             new UiRect(
                 finalRect.X,
-                finalRect.Y +
-                menuHeight +
-                documentTabsHeight,
+                finalRect.Y + menuHeight
+                    + toolbarHeight
+                    + documentTabsHeight,
                 finalRect.Width,
                 MathF.Max(
                     0.0f,
-                    finalRect.Height -
-                    menuHeight -
-                    documentTabsHeight -
-                    documentHeight)));
+                    finalRect.Height
+                        - menuHeight
+                        - toolbarHeight
+                        - documentTabsHeight
+                        - documentHeight)));
 
         _documentLabel.Arrange(
             new UiRect(
@@ -248,45 +267,88 @@ public sealed class EditorMainShell :
                 documentHeight));
     }
 
+    private void BindUiDocument(
+    EditorUiDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        if (ReferenceEquals(
+                _uiWorkspaceView.Document,
+                document))
+        {
+            return;
+        }
+
+        _workspace.RemoveChild(
+            _uiWorkspaceView);
+
+        _uiWorkspaceView =
+            new EditorUiWorkspaceView(document);
+
+        _workspace.AddChild(
+            _uiWorkspaceView);
+    }
+
     public void Refresh()
     {
+        var activeDocument =
+            Editor.Session.ActiveEditorDocument;
+
+        _workspaceView.Visible =
+            activeDocument is EditorDocument;
+
+        _uiWorkspaceView.Visible =
+            activeDocument is EditorUiDocument;
+
         RefreshDocumentTabs();
 
-        var worldDocument =
-            Editor.ActiveDocument;
+        if (activeDocument is EditorUiDocument activeUiDocument)
+        {
+            BindUiDocument(activeUiDocument);
+        }
 
-        var uiActive =
-            _uiWorkspaceView.Visible;
+        var worldDocument =
+            activeDocument as EditorDocument;
+
+        var uiDocument =
+            activeDocument as EditorUiDocument;
+
+        _uiWorkspaceView.Visible =
+            uiDocument is not null;
+
+        _workspaceView.Visible =
+            worldDocument is not null ||
+            activeDocument is null;
 
         _validateButton.Enabled =
-    !uiActive &&
-    Editor.ActiveDocument is not null;
+            worldDocument is not null;
 
-        if (uiActive)
+        _closeButton.Enabled =
+            worldDocument is not null;
+
+        if (worldDocument is not null)
         {
             _documentLabel.Text =
-                worldDocument is null
-                    ? "No document"
-                    : worldDocument.IsDirty
-                        ? BuildDocumentStatus(
-                            worldDocument,
-                            "Unsaved")
-                        : BuildDocumentStatus(
-                            worldDocument,
-                            "Saved");
-
+                BuildDocumentStatus(
+                    worldDocument,
+                    worldDocument.IsDirty
+                        ? "Unsaved changes"
+                        : "Saved");
+        }
+        else if (uiDocument is not null)
+        {
+            _documentLabel.Text =
+                $"UI • {uiDocument.DisplayName} • " +
+                (uiDocument.IsDirty
+                    ? "Unsaved changes"
+                    : "Saved");
         }
         else
         {
-            _documentLabel.Text =
-                worldDocument is null
-                    ? "No document"
-                    : BuildDocumentStatus(
-                        worldDocument,
-                        worldDocument.IsDirty
-                            ? "Unsaved changes"
-                            : "Saved");
+            _documentLabel.Text = "No document";
         }
+
+
 
         _workspaceView.Refresh();
         _uiWorkspaceView.Refresh();
@@ -338,12 +400,15 @@ public sealed class EditorMainShell :
         _documentTabs.ClearChildren();
 
         var documents =
-            Editor.Session.Documents;
+            Editor.Session.AllDocuments;
 
         if (documents.Count == 0)
         {
             return;
         }
+
+        var activeDocument =
+            Editor.Session.ActiveEditorDocument;
 
         var tabs =
             new UiStackPanel
@@ -363,20 +428,24 @@ public sealed class EditorMainShell :
         foreach (var document in documents)
         {
             var name =
-                document.FilePath is null
-                    ? "Untitled"
+                string.IsNullOrWhiteSpace(
+                    document.FilePath)
+                    ? document.DisplayName
                     : Path.GetFileName(
                         document.FilePath);
 
             if (string.IsNullOrWhiteSpace(name))
             {
-                name = "Untitled";
+                name = document.DocumentTypeId;
             }
 
-            var prefix =
+            var isActive =
                 ReferenceEquals(
                     document,
-                    Editor.ActiveDocument)
+                    activeDocument);
+
+            var prefix =
+                isActive
                     ? "> "
                     : "  ";
 
@@ -414,31 +483,44 @@ public sealed class EditorMainShell :
 
     private void ShowWorld()
     {
-        _workspaceView.Visible = true;
-        _uiWorkspaceView.Visible = false;
+        if (Editor.Session.ActiveEditorDocument
+            is not EditorDocument)
+        {
+            var document =
+                Editor.Session.Documents.LastOrDefault();
+
+            if (document is not null)
+            {
+                Editor.Session.Activate(document);
+            }
+        }
 
         Refresh();
     }
 
     private void ShowUi()
     {
-        _workspaceView.Visible = false;
-        _uiWorkspaceView.Visible = true;
+        if (Editor.Session.AllDocuments.Contains(UiDocument))
+        {
+            Editor.Session.Activate(UiDocument);
+        }
 
         Refresh();
     }
 
     public void Undo()
     {
-        if (_uiWorkspaceView.Visible)
+        switch (Editor.Session.ActiveEditorDocument)
         {
-            UiDocument.Undo();
-        }
-        else
-        {
-            Editor.Actions.Execute(
-                "edit.undo",
-                Editor.ActionContext);
+            case EditorUiDocument uiDocument:
+                uiDocument.Undo();
+                break;
+
+            case EditorDocument:
+                Editor.Actions.Execute(
+                    "edit.undo",
+                    Editor.ActionContext);
+                break;
         }
 
         Refresh();
@@ -446,187 +528,151 @@ public sealed class EditorMainShell :
 
     public void Redo()
     {
-        if (_uiWorkspaceView.Visible)
+        switch (Editor.Session.ActiveEditorDocument)
         {
-            UiDocument.Redo();
-        }
-        else
-        {
-            Editor.Actions.Execute(
-                "edit.redo",
-                Editor.ActionContext);
+            case EditorUiDocument uiDocument:
+                uiDocument.Redo();
+                break;
+
+            case EditorDocument:
+                Editor.Actions.Execute(
+                    "edit.redo",
+                    Editor.ActionContext);
+                break;
         }
 
         Refresh();
     }
-
-    private UiPanel CreateMenuBar()
+private UiPanel CreateMenuBar()
     {
-        var panel =
-            new UiPanel
+        var panel = new UiPanel
+        {
+            Background = new UiColor(32, 32, 32, 255),
+            Padding = new UiThickness(8, 2, 8, 2),
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        var buttons = new UiStackPanel
+        {
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 4.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Left,
+            VerticalAlignment = UiVerticalAlignment.Stretch
+        };
+
+        UiButton AddMenuButton(
+            string text,
+            float width,
+            Action<UiRect>? requested)
+        {
+            var button = new UiButton(text)
             {
-                Background =
-                    new UiColor(
-                        32,
-                        32,
-                        32,
-                        255),
-
-                Padding =
-                    new UiThickness(
-                        6.0f,
-                        3.0f,
-                        6.0f,
-                        3.0f),
-
-                HorizontalAlignment =
-                    UiHorizontalAlignment.Stretch,
-
-                VerticalAlignment =
-                    UiVerticalAlignment.Top
+                Width = width,
+                Height = 28.0f
             };
 
-        var buttons =
-            new UiStackPanel
+            if (requested is not null)
             {
-                Orientation =
-                    UiOrientation.Horizontal,
+                button.Clicked += () =>
+                    requested(button.Bounds);
+            }
 
-                Spacing = 4.0f,
+            buttons.AddChild(button);
+            return button;
+        }
 
-                HorizontalAlignment =
-                    UiHorizontalAlignment.Left,
+        AddMenuButton("Edit", 64.0f, EditRequested);
+        AddMenuButton("View", 64.0f, ViewRequested);
 
-                VerticalAlignment =
-                    UiVerticalAlignment.Stretch
-            };
+        _toolsButton = AddMenuButton(
+            "Tools",
+            72.0f,
+            ToolsRequested);
 
-        var newButton =
-            new UiButton("New")
-            {
-                Width = 70.0f,
-                Height = 30.0f
-            };
+        panel.AddChild(buttons);
 
-        newButton.Clicked +=
-            () =>
-            {
-                NewRequested?.Invoke();
-            };
+        return panel;
+    }
 
-        var openButton =
-            new UiButton("Open")
-            {
-                Width = 70.0f,
-                Height = 30.0f
-            };
-
-        openButton.Clicked +=
-            () =>
-            {
-                OpenRequested?.Invoke();
-            };
-
-        var saveButton =
-            new UiButton("Save")
-            {
-                Width = 70.0f,
-                Height = 30.0f
-            };
-
-        saveButton.Clicked +=
-            () =>
-            {
-                SaveRequested?.Invoke();
-            };
-
-        var saveAsButton =
-            new UiButton("Save As")
-            {
-                Width = 80.0f,
-                Height = 30.0f
-            };
-
-        saveAsButton.Clicked +=
-            () =>
-            {
-                SaveAsRequested?.Invoke();
-            };
-
-        var closeButton =
-            new UiButton("Close")
-            {
-                Width = 70.0f,
-                Height = 30.0f
-            };
-
-        closeButton.Clicked +=
-            () =>
-            {
-                CloseRequested?.Invoke();
-            };
-
-        buttons.AddChild(
-            newButton);
-
-        buttons.AddChild(
-            openButton);
-
-        buttons.AddChild(
-            saveButton);
-
-        buttons.AddChild(
-            saveAsButton);
-
-        buttons.AddChild(
-            closeButton);
-
-
-        var editButton =
-            new UiButton("Edit")
-            {
-                Width = 70.0f,
-                Height = 30.0f
-            };
-
-        editButton.Clicked +=
-            () =>
-            {
-                EditRequested?.Invoke(
-                    editButton.Bounds);
-            };
-
-        buttons.AddChild(
-            editButton);
-
-        _worldButton =
-            new UiButton("World")
-            {
-                Width = 80.0f,
-                Height = 30.0f
-            };
-
-        _worldButton.Clicked +=
-            ShowWorld;
-
-        _uiButton =
-            new UiButton("UI")
-            {
-                Width = 80.0f,
-                Height = 30.0f
-            };
-
-        _uiButton.Clicked +=
-            ShowUi;
-
-        _validateButton =
-    new UiButton("Validate")
+private UiPanel CreateToolbar()
     {
-        Width = 80.0f,
-        Height = 30.0f
-    };
+        var panel = new UiPanel
+        {
+            Background = new UiColor(28, 28, 28, 255),
+            Padding = new UiThickness(8, 3, 8, 3),
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
 
-        _validateButton.Clicked +=
+        var buttons = new UiStackPanel
+        {
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 6.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Left,
+            VerticalAlignment = UiVerticalAlignment.Stretch
+        };
+
+        UiButton AddButton(
+            string text,
+            float width,
+            Action action)
+        {
+            var button = new UiButton(text)
+            {
+                Width = width,
+                Height = 30.0f
+            };
+
+            button.Clicked += action;
+            buttons.AddChild(button);
+
+            return button;
+        }
+
+        void AddSeparator()
+        {
+            buttons.AddChild(new UiPanel
+            {
+                Width = 1.0f,
+                Height = 22.0f,
+                Background = new UiColor(70, 70, 70, 255),
+                VerticalAlignment = UiVerticalAlignment.Center
+            });
+        }
+
+        AddButton("New", 64.0f,
+            () => NewRequested?.Invoke());
+
+        AddButton("Open", 64.0f,
+            () => OpenRequested?.Invoke());
+
+        AddButton("Save", 64.0f,
+            () => SaveRequested?.Invoke());
+
+        AddButton("Save As", 78.0f,
+            () => SaveAsRequested?.Invoke());
+
+        _closeButton = AddButton(
+            "Close",
+            64.0f,
+            () => CloseRequested?.Invoke());
+
+        AddSeparator();
+
+        _worldButton = AddButton(
+            "World",
+            72.0f,
+            ShowWorld);
+
+        _uiButton = AddButton(
+            "UI",
+            56.0f,
+            ShowUi);
+
+        _validateButton = AddButton(
+            "Validate",
+            80.0f,
             () =>
             {
                 Editor.Actions.Execute(
@@ -634,53 +680,9 @@ public sealed class EditorMainShell :
                     Editor.ActionContext);
 
                 Refresh();
-            };
+            });
 
-        buttons.AddChild(
-            _validateButton);
-
-        buttons.AddChild(
-            _worldButton);
-
-        buttons.AddChild(
-            _uiButton);
-
-        var viewButton =
-            new UiButton("View")
-            {
-                Width = 80.0f,
-                Height = 30.0f
-            };
-
-        viewButton.Clicked +=
-            () =>
-            {
-                ViewRequested?.Invoke(
-                    viewButton.Bounds);
-            };
-
-        buttons.AddChild(
-            viewButton);
-
-        _toolsButton =
-            new UiButton("Tools")
-            {
-                Width = 80.0f,
-                Height = 30.0f
-            };
-
-        _toolsButton.Clicked +=
-            () =>
-            {
-                ToolsRequested?.Invoke(
-                    _toolsButton.Bounds);
-            };
-
-        buttons.AddChild(
-            _toolsButton);
-
-        panel.AddChild(
-            buttons);
+        panel.AddChild(buttons);
 
         return panel;
     }

@@ -1,6 +1,5 @@
 ﻿using Engine.ECS;
 using Engine.ECS.Components;
-using Engine.ECS.Entities;
 using Engine.Physics.Components;
 
 namespace Engine.Tooling.Validation;

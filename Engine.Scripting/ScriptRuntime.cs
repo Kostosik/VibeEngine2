@@ -283,6 +283,33 @@ public sealed class ScriptRuntime : IDisposable
             snapshot.Length);
     }
 
+    public void RebuildInstancesFromWorld()
+    {
+        EnsureNotDisposed();
+
+        if (_isExecuting)
+        {
+            throw new InvalidOperationException(
+                "Cannot rebuild script instances during execution.");
+        }
+
+        _isExecuting = true;
+
+        try
+        {
+            foreach (var instance in _instances.ToArray())
+            {
+                DetachInstance(instance);
+            }
+
+            ReconcileAssignments();
+        }
+        finally
+        {
+            EndExecution();
+        }
+    }
+
     public void Attach(
     EntityId entity,
     ScriptDefinition definition)
@@ -548,19 +575,41 @@ public sealed class ScriptRuntime : IDisposable
             exception);
     }
 
+
     private void ReportFault(
         EntityId entity,
         string scriptId,
         ScriptExecutionPhase phase,
         Exception exception)
     {
-        ScriptFaulted?.Invoke(
-            new ScriptFault(
-                entity,
-                scriptId,
-                phase,
-                exception));
+        var handlers = ScriptFaulted;
+
+        if (handlers is null)
+        {
+            return;
+        }
+
+        var fault = new ScriptFault(
+            entity,
+            scriptId,
+            phase,
+            exception);
+
+        foreach (Action<ScriptFault> handler
+                 in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(fault);
+            }
+            catch (Exception)
+            {
+                // Ошибка обработчика диагностики не должна
+                // прерывать выполнение остальных скриптов.
+            }
+        }
     }
+
 
     public void Dispose()
     {

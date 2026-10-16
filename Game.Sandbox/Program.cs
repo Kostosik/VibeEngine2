@@ -160,13 +160,16 @@ using var runtime =
         new EngineRuntimeOptions(),
         runtimeServices);
 
-var scriptProbe =
-    new SandboxScriptProbe();
+SandboxScriptProbe? scriptProbe = null;
 
 runtime.ScriptRegistry.Register(
     scriptDefinition.ScriptId,
-    () => scriptProbe);
-
+    () =>
+    {
+        var instance = new SandboxScriptProbe();
+        scriptProbe = instance;
+        return instance;
+    });
 var scriptProbeEntity =
     runtime.EcsWorld.CreateEntity();
 
@@ -216,7 +219,7 @@ var sandbox =
         tileAtlas,
         sandboxActions,
         saveLoad,
-        console,scriptProbe);
+        console, () => scriptProbe);
 
 var application =
     new StatefulApplication(

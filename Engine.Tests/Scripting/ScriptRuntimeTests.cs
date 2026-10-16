@@ -9,6 +9,219 @@ namespace Engine.Tests.Scripting;
 public sealed class ScriptRuntimeTests
 {
     [Fact]
+    public void FactoryFailureRemovesAssignmentAndOtherScriptsStillRun()
+    {
+        using var world = new World();
+
+        var brokenEntity = world.CreateEntity();
+        var healthyEntity = world.CreateEntity();
+
+        var healthyScript = new RecordingScript();
+        var registry = new ScriptRegistry();
+
+        registry.Register(
+            "test.factory-failing",
+            () => throw new InvalidOperationException(
+                "Intentional factory failure."));
+
+        registry.Register(
+            "test.healthy",
+            () => healthyScript);
+
+        world.Add(
+            brokenEntity,
+            new ScriptAssignmentsComponent(
+                new[]
+                {
+                new ScriptAssignment(
+                    "test.factory-failing",
+                    "{}")
+                }));
+
+        world.Add(
+            healthyEntity,
+            new ScriptAssignmentsComponent(
+                new[]
+                {
+                new ScriptAssignment(
+                    "test.healthy",
+                    "{}")
+                }));
+
+        using var runtime = new ScriptRuntime(
+            world,
+            registry);
+
+        var faults = new List<ScriptFault>();
+        runtime.ScriptFaulted += faults.Add;
+
+        runtime.UpdateSystem.Update(default);
+
+        Assert.False(
+            world.Has<ScriptAssignmentsComponent>(
+                brokenEntity));
+
+        Assert.Equal(1, healthyScript.UpdateCount);
+        Assert.Equal(1, runtime.InstanceCount);
+
+        var fault = Assert.Single(faults);
+
+        Assert.Equal(
+            ScriptExecutionPhase.Attach,
+            fault.Phase);
+
+        Assert.Equal(
+            "test.factory-failing",
+            fault.ScriptId);
+    }
+
+    [Fact]
+    public void FaultedFixedUpdateScriptIsDisabledWithoutStoppingOthers()
+    {
+        using var world = new World();
+
+        var brokenEntity = world.CreateEntity();
+        var healthyEntity = world.CreateEntity();
+
+        var healthyScript = new RecordingScript();
+        var registry = new ScriptRegistry();
+
+        registry.Register(
+            "test.fixed-broken",
+            () => new BrokenFixedUpdateScript());
+
+        registry.Register(
+            "test.fixed-healthy",
+            () => healthyScript);
+
+        using var runtime = new ScriptRuntime(
+            world,
+            registry);
+
+        var faults = new List<ScriptFault>();
+        runtime.ScriptFaulted += faults.Add;
+
+        runtime.Attach(brokenEntity, "test.fixed-broken");
+        runtime.Attach(healthyEntity, "test.fixed-healthy");
+
+        runtime.FixedUpdateSystem.FixedUpdate(default);
+
+        Assert.Equal(1, healthyScript.FixedUpdateCount);
+
+        var fault = Assert.Single(faults);
+
+        Assert.Equal(
+            ScriptExecutionPhase.FixedUpdate,
+            fault.Phase);
+
+        Assert.Equal(2, runtime.InstanceCount);
+    }
+
+    [Fact]
+    public void AttachFailureRollsBackAssignmentAndInstance()
+    {
+        using var world = new World();
+
+        var entity = world.CreateEntity();
+        var registry = new ScriptRegistry();
+
+        registry.Register<AttachFailingScript>(
+            "test.attach-failing");
+
+        using var runtime = new ScriptRuntime(
+            world,
+            registry);
+
+        Assert.Throws<InvalidOperationException>(
+            () => runtime.Attach(
+                entity,
+                "test.attach-failing"));
+
+        Assert.Equal(0, runtime.InstanceCount);
+
+        Assert.False(
+            world.Has<ScriptAssignmentsComponent>(entity));
+    }
+
+    [Fact]
+    public void DisposeContinuesDetachingWhenFaultSubscriberThrows()
+    {
+        using var world = new World();
+
+        var entity = world.CreateEntity();
+        var healthyScript = new RecordingScript();
+        var registry = new ScriptRegistry();
+
+        registry.Register(
+            "test.healthy",
+            () => healthyScript);
+
+        registry.Register<DetachFailingScript>(
+            "test.detach-failing");
+
+        using var runtime = new ScriptRuntime(
+            world,
+            registry);
+
+        runtime.ScriptFaulted += _ =>
+            throw new InvalidOperationException(
+                "Intentional subscriber failure.");
+
+        runtime.Attach(entity, "test.healthy");
+        runtime.Attach(entity, "test.detach-failing");
+
+        runtime.Dispose();
+
+        Assert.Equal(0, runtime.InstanceCount);
+        Assert.Equal(1, healthyScript.DetachCount);
+    }
+
+
+    [Fact]
+    public void FaultEventSubscriberFailureDoesNotStopOtherScripts()
+    {
+        using var world = new World();
+
+        var brokenEntity = world.CreateEntity();
+        var healthyEntity = world.CreateEntity();
+
+        var healthyScript = new RecordingScript();
+        var registry = new ScriptRegistry();
+
+        registry.Register(
+            "test.broken",
+            () => new BrokenScript());
+
+        registry.Register(
+            "test.healthy",
+            () => healthyScript);
+
+        using var runtime = new ScriptRuntime(
+            world,
+            registry);
+
+        var faults = new List<ScriptFault>();
+
+        runtime.ScriptFaulted += _ =>
+            throw new InvalidOperationException(
+                "Intentional subscriber failure.");
+
+        runtime.ScriptFaulted += faults.Add;
+
+        runtime.Attach(brokenEntity, "test.broken");
+        runtime.Attach(healthyEntity, "test.healthy");
+
+        runtime.UpdateSystem.Update(default);
+
+        Assert.Equal(1, healthyScript.UpdateCount);
+        Assert.Single(faults);
+        Assert.Equal(
+            ScriptExecutionPhase.Update,
+            faults[0].Phase);
+    }
+
+
+    [Fact]
     public void ScriptRunsInUpdateAndFixedUpdate()
     {
         using var world = new World();
@@ -390,6 +603,109 @@ public sealed class ScriptRuntimeTests
             runtime.InstanceCount);
     }
 
+
+    [Fact]
+    public void RebuildDuringExecutionIsRejectedWithoutBreakingRuntime()
+    {
+        using var world = new World();
+
+        var entity = world.CreateEntity();
+        var script = new RebuildDuringUpdateScript();
+        var registry = new ScriptRegistry();
+
+        registry.Register(
+            "test.rebuild-during-update",
+            () => script);
+
+        using var runtime = new ScriptRuntime(
+            world,
+            registry);
+
+        script.Runtime = runtime;
+
+        runtime.Attach(
+            entity,
+            "test.rebuild-during-update");
+
+        runtime.UpdateSystem.Update(default);
+
+        Assert.True(script.RebuildWasRejected);
+        Assert.Equal(1, script.UpdateCount);
+        Assert.Equal(0, script.DetachCount);
+        Assert.Equal(1, runtime.InstanceCount);
+
+        // После завершения Update runtime должен работать дальше.
+        runtime.UpdateSystem.Update(default);
+
+        Assert.Equal(2, script.UpdateCount);
+        Assert.Equal(1, runtime.InstanceCount);
+
+        Assert.True(
+            world.Has<ScriptAssignmentsComponent>(entity));
+    }
+
+    [Fact]
+    public void RuntimeRecreatesScriptWhenConfigurationChanges()
+    {
+        using var world = new World();
+
+        var entity = world.CreateEntity();
+        var instances = new List<RecordingScript>();
+        var registry = new ScriptRegistry();
+
+        registry.Register(
+            "test.recording",
+            () =>
+            {
+                var script = new RecordingScript();
+                instances.Add(script);
+                return script;
+            });
+
+        using var runtime = new ScriptRuntime(
+            world,
+            registry);
+
+        const string initialConfiguration =
+            """{"speed":1}""";
+
+        const string updatedConfiguration =
+            """{"speed":2}""";
+
+        runtime.Attach(
+            entity,
+            "test.recording",
+            initialConfiguration);
+
+        var originalScript = Assert.Single(instances);
+
+        // Имитируем изменение конфигурации через ECS.
+        world.Add(
+            entity,
+            new ScriptAssignmentsComponent(
+                new[]
+                {
+                new ScriptAssignment(
+                    "test.recording",
+                    updatedConfiguration)
+                }));
+
+        runtime.UpdateSystem.Update(default);
+
+        Assert.Equal(2, instances.Count);
+
+        Assert.Equal(1, originalScript.DetachCount);
+
+        var updatedScript = instances[1];
+
+        Assert.Equal(1, updatedScript.AttachCount);
+        Assert.Equal(updatedConfiguration, updatedScript.ConfigurationJson);
+        Assert.Equal(1, updatedScript.UpdateCount);
+
+        Assert.Equal(1, runtime.InstanceCount);
+    }
+
+
     [Fact]
     public void SameScriptCannotBeAttachedTwiceToEntity()
     {
@@ -413,6 +729,38 @@ public sealed class ScriptRuntimeTests
             () => runtime.Attach(
                 entity,
                 "test.recording"));
+    }
+
+    public sealed class RebuildDuringUpdateScript : IEntityScript
+    {
+        public ScriptRuntime Runtime { get; set; } = null!;
+
+        public bool RebuildWasRejected { get; private set; }
+
+        public int UpdateCount { get; private set; }
+
+        public int DetachCount { get; private set; }
+
+        public void Update(
+            ScriptContext context,
+            Engine.Core.Time.TimeSnapshot time)
+        {
+            UpdateCount++;
+
+            try
+            {
+                Runtime.RebuildInstancesFromWorld();
+            }
+            catch (InvalidOperationException)
+            {
+                RebuildWasRejected = true;
+            }
+        }
+
+        public void OnDetach(ScriptContext context)
+        {
+            DetachCount++;
+        }
     }
 
     public sealed class RecordingScript : IEntityScript
@@ -452,6 +800,17 @@ public sealed class ScriptRuntimeTests
         public void OnDetach(ScriptContext context)
         {
             DetachCount++;
+        }
+    }
+
+    public sealed class BrokenFixedUpdateScript : IEntityScript
+    {
+        public void FixedUpdate(
+            ScriptContext context,
+            Engine.Core.Time.SimulationTime time)
+        {
+            throw new InvalidOperationException(
+                "Intentional fixed update failure.");
         }
     }
 

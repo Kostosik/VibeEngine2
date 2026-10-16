@@ -47,7 +47,7 @@ public sealed class SandboxState :
 
     private TopDownScenario? _topDown;
     private PhysicsScenario? _physics;
-    private readonly SandboxScriptProbe? _scriptProbe;
+    private readonly Func<SandboxScriptProbe?>? _scriptProbeProvider;
     private readonly Engine.Graphics.Resources.TextureAtlas _tileAtlas;
 
     private SandboxMode _mode =
@@ -73,7 +73,7 @@ public sealed class SandboxState :
     SandboxInputActions actions,
     GameSaveLoadService saveLoad,
     DebugConsoleOverlay? console = null,
-    SandboxScriptProbe? scriptProbe = null)
+    Func<SandboxScriptProbe?>? scriptProbeProvider = null)
     : base(runtime.Simulation)
     {
         ArgumentNullException.ThrowIfNull(runtime);
@@ -84,7 +84,7 @@ public sealed class SandboxState :
 
         _saveLoad =
     saveLoad;
-        _scriptProbe = scriptProbe;
+        _scriptProbeProvider = scriptProbeProvider;
         _localization =
     CreateLocalizationManager();
 
@@ -447,6 +447,7 @@ public sealed class SandboxState :
                 _runtime.World);
 
             _topDown?.RefreshAfterWorldRestore();
+            _runtime.Scripts.RebuildInstancesFromWorld();
 
             _serializationStatus =
                 $"LOAD OK  {_runtime.World.ChunkCount} chunks";
@@ -719,12 +720,15 @@ public sealed class SandboxState :
         : _localization.Get(
             "sandbox.navigation.unavailable");
 
+        var scriptProbe =
+            _scriptProbeProvider?.Invoke();
+
         var scriptStatus =
-            _scriptProbe is null
+            scriptProbe is null
                 ? "SCRIPT: OFF"
-                : $"{_scriptProbe.DisplayName} | " +
-                  $"U: {_scriptProbe.UpdateCount} | " +
-                  $"F: {_scriptProbe.FixedUpdateCount}";
+                : $"{scriptProbe.DisplayName} | " +
+                  $"U: {scriptProbe.UpdateCount} | " +
+                  $"F: {scriptProbe.FixedUpdateCount}";
 
         _hud.SetIntegrationStatus(
             $"{navigationText} | " +

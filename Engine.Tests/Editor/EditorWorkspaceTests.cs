@@ -75,6 +75,10 @@ public sealed class EditorWorkspaceTests
         editor.Workspace.ActivatePanel(
             "Inspector");
 
+        editor.Workspace.SetPanelActive(
+            "AssetBrowser",
+            false);
+
         editor.Workspace.SetPanelArea(
             "AssetBrowser",
             EditorDockArea.Right);

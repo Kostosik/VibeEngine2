@@ -4,6 +4,7 @@ using Engine.Editor.Documents;
 using Engine.Editor.Documents.Persistence;
 using Engine.Editor.UI.Authoring;
 using Engine.Editor.UI.Dialogs;
+using Engine.Editor.UI.Inspection;
 using Engine.Editor.UI.Shell;
 using Engine.Graphics.Resources;
 using Engine.Input;
@@ -28,7 +29,7 @@ public sealed class EditorApplication :
 
     private static readonly InputBinding RightControlKey =
         new("Keyboard.ControlRight");
-
+    public InspectorPropertyEditorRegistry PropertyEditors { get; }
     private bool _undoShortcutWasDown;
     private bool _redoShortcutWasDown;
     private readonly ITextInput? _textInput;
@@ -71,7 +72,7 @@ public sealed class EditorApplication :
      string uiAssetPath, IEditorFileDialogService fileDialogs, 
      IEditorDocumentPersistence? documentPersistence = null, 
      IEditorDocumentFileService? documentFiles = null, 
-     DebugConsole? debugConsole = null)
+     DebugConsole? debugConsole = null, InspectorPropertyEditorRegistry? propertyEditors = null)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -143,12 +144,17 @@ public sealed class EditorApplication :
         _documentPersistence =
     documentPersistence;
 
+        PropertyEditors =
+    propertyEditors ??
+    InspectorPropertyEditorRegistry.CreateDefault();
+
         MainShell =
             new EditorMainShell(
                 editor,
                 assetPreviewTextures,
                 uiDocument,
-                debugConsole);
+                debugConsole,
+                PropertyEditors);
 
         MainShell.SaveRequested +=
             SaveActiveDocument;

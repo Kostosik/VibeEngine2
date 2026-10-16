@@ -1,5 +1,6 @@
 ﻿using Engine.Core.Math;
 using Engine.Editor.Panels;
+using Engine.Editor.UI.Inspection;
 using Engine.Editor.UI.Panels;
 using Engine.Editor.Workspace;
 using Engine.Graphics.Commands;
@@ -36,7 +37,7 @@ public sealed class EditorWorkspaceView :
     public EditorWorkspaceView(
         EditorContext editor,
         ITextureResourceManager assetPreviewTextures,
-        DebugConsole? console = null)
+        DebugConsole? console = null, InspectorPropertyEditorRegistry? propertyEditors = null)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -85,7 +86,8 @@ public sealed class EditorWorkspaceView :
 
         Inspector =
             new InspectorPanelView(
-                editor);
+                editor,
+                propertyEditors);
 
         _hierarchyHost.AddChild(
             Hierarchy);

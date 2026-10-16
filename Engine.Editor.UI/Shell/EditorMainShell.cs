@@ -1,6 +1,7 @@
 ﻿using Engine.Core.Math;
 using Engine.Editor.Documents;
 using Engine.Editor.UI.Authoring;
+using Engine.Editor.UI.Inspection;
 using Engine.Editor.UI.Workspace;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Resources;
@@ -69,7 +70,7 @@ public sealed class EditorMainShell :
     public EditorMainShell(
         EditorContext editor,
         ITextureResourceManager assetPreviewTextures,
-        EditorUiDocument uiDocument, DebugConsole? console = null)
+        EditorUiDocument uiDocument, DebugConsole? console = null, InspectorPropertyEditorRegistry? propertyEditors = null)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -137,7 +138,8 @@ public sealed class EditorMainShell :
             new EditorWorkspaceView(
                 editor,
                 assetPreviewTextures,
-                console);
+                console,
+                propertyEditors);
 
         _uiWorkspaceView =
             new EditorUiWorkspaceView(

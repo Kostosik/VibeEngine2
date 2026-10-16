@@ -10,6 +10,8 @@ namespace Engine.Editor.UI.Workspace;
 public sealed class HierarchyPanelView :
     UiPanel
 {
+    private readonly UiStackPanel _toolbar;
+    private readonly UiScrollView _scrollView;
     private readonly UiStackPanel _items;
 
     public HierarchyPanelView(
@@ -31,6 +33,21 @@ public sealed class HierarchyPanelView :
             new UiThickness(
                 6.0f);
 
+        _toolbar =
+            new UiStackPanel
+            {
+                Orientation =
+                    UiOrientation.Horizontal,
+
+                Spacing = 4.0f,
+
+                HorizontalAlignment =
+                    UiHorizontalAlignment.Stretch,
+
+                VerticalAlignment =
+                    UiVerticalAlignment.Top
+            };
+
         _items =
             new UiStackPanel
             {
@@ -46,14 +63,66 @@ public sealed class HierarchyPanelView :
                     UiVerticalAlignment.Top
             };
 
-        AddChild(
-            _items);
+        _scrollView =
+            new UiScrollView
+            {
+                VerticalScrolling = true,
+                HorizontalScrolling = false,
+                ShowHorizontalScrollBar = false,
+                ShowVerticalScrollBar = true,
+                ScrollSpeed = 32.0f,
+
+                HorizontalAlignment =
+                    UiHorizontalAlignment.Stretch,
+
+                VerticalAlignment =
+                    UiVerticalAlignment.Stretch
+            };
+
+        _scrollView.SetContent(_items);
+
+        AddChild(_toolbar);
+        AddChild(_scrollView);
     }
 
     public EditorContext Editor { get; }
 
+    protected override void ArrangeCore(
+    UiRect finalRect)
+    {
+        var content =
+            finalRect.Deflate(Padding);
+
+        var toolbarHeight =
+            _toolbar.DesiredSize.Y;
+
+        _toolbar.Arrange(
+            new UiRect(
+                content.X,
+                content.Y,
+                content.Width,
+                toolbarHeight));
+
+        const float spacing = 6.0f;
+
+        var scrollTop =
+            content.Y +
+            toolbarHeight +
+            spacing;
+
+        _scrollView.Arrange(
+            new UiRect(
+                content.X,
+                scrollTop,
+                content.Width,
+                MathF.Max(
+                    0.0f,
+                    content.Bottom - scrollTop)));
+    }
+
     public void Refresh()
     {
+        _toolbar.ClearChildren();
         _items.ClearChildren();
 
         var document =
@@ -89,21 +158,6 @@ public sealed class HierarchyPanelView :
                 document.EntitySelection.Clear();
             }
         }
-
-        var toolbar =
-            new UiStackPanel
-            {
-                Orientation =
-                    UiOrientation.Horizontal,
-
-                Spacing = 4.0f,
-
-                HorizontalAlignment =
-                    UiHorizontalAlignment.Stretch,
-
-                VerticalAlignment =
-                    UiVerticalAlignment.Top
-            };
 
         var createButton =
             new UiButton("Create")
@@ -165,14 +219,8 @@ public sealed class HierarchyPanelView :
                 document.EntitySelection.Clear();
             };
 
-        toolbar.AddChild(
-            createButton);
-
-        toolbar.AddChild(
-            deleteButton);
-
-        _items.AddChild(
-            toolbar);
+        _toolbar.AddChild(createButton);
+        _toolbar.AddChild(deleteButton);
 
         var source =
             new EcsHierarchySource(

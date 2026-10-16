@@ -9,6 +9,7 @@ namespace Engine.UI.Controls;
 public sealed class UiDropdown : UiContainer
 {
     private readonly UiOverlayLayer? _overlay;
+    private UiOverlayLayer? _activeOverlay;
     private readonly UiButton _button;
     private readonly DropdownPopup _popup;
     private readonly UiScrollView _scrollView;
@@ -225,57 +226,95 @@ public sealed class UiDropdown : UiContainer
             return;
         }
 
-        if (_overlay is null)
+        var overlay =
+            _overlay ?? FindOverlayLayer();
+
+        if (overlay is null)
         {
-            AddChild(
-                _popup);
+            // Fallback для UI, в котором нет overlay.
+            AddChild(_popup);
+            _activeOverlay = null;
         }
         else
         {
-            var position =
+            // Popup помещается поверх остальных элементов UI.
+            overlay.Show(
+                _popup,
                 new Vector2(
                     Bounds.X,
-                    Bounds.Bottom);
+                    Bounds.Bottom));
 
-            _overlay.Show(
-                _popup,
-                position);
+            _activeOverlay = overlay;
         }
 
-        _popup.Visible =
-            true;
+        _popup.Visible = true;
+        _popup.IsHitTestVisible = true;
 
-        _popup.IsHitTestVisible =
-            true;
-        ResolveFocusManager()?.EnterScope(
-    _popup);
+        ResolveFocusManager()?.EnterScope(_popup);
     }
 
     private void ClosePopup()
     {
-        _popup.Visible =
-            false;
+        _popup.Visible = false;
+        _popup.IsHitTestVisible = false;
 
-        _popup.IsHitTestVisible =
-            false;
-        ResolveFocusManager()?.ExitScope(
-    _popup);
+        ResolveFocusManager()?.ExitScope(_popup);
 
-        if (_overlay is not null &&
+        if (_activeOverlay is not null &&
             ReferenceEquals(
                 _popup.Parent,
-                _overlay))
+                _activeOverlay))
         {
-            _overlay.Hide(
-                _popup);
+            _activeOverlay.Hide(_popup);
         }
         else if (ReferenceEquals(
                      _popup.Parent,
                      this))
         {
-            RemoveChild(
-                _popup);
+            RemoveChild(_popup);
         }
+
+        _activeOverlay = null;
+    }
+
+    private UiOverlayLayer? FindOverlayLayer()
+    {
+        // Поднимаемся до корня текущего дерева UI.
+        UiWidget root = this;
+
+        while (root.Parent is not null)
+        {
+            root = root.Parent;
+        }
+
+        return FindOverlayLayerInTree(root);
+    }
+
+    private static UiOverlayLayer? FindOverlayLayerInTree(
+        UiWidget widget)
+    {
+        if (widget is UiOverlayLayer overlay)
+        {
+            return overlay;
+        }
+
+        if (widget is not UiContainer container)
+        {
+            return null;
+        }
+
+        foreach (var child in container.Children)
+        {
+            var result =
+                FindOverlayLayerInTree(child);
+
+            if (result is not null)
+            {
+                return result;
+            }
+        }
+
+        return null;
     }
 
     private void Select(

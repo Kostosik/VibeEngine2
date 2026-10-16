@@ -23,7 +23,8 @@ public sealed class ViewportPanelView :
     }
 
     private TransformTool _activeTool = TransformTool.Move;
-
+    private bool _translationUsesLocalTransform;
+    private LocalTransform2D _translationStartLocalTransform;
     private readonly UiPanel _toolBar;
     private readonly UiStackPanel _toolButtons;
 
@@ -832,8 +833,7 @@ public sealed class ViewportPanelView :
             return;
         }
 
-        if (_activeTool == TransformTool.Move &&
-            document.Inspector.TryGetSelectedEntity(
+        if (document.Inspector.TryGetSelectedEntity(
                 document.EntitySelection,
                 out var selectedEntity) &&
             document.World.SpatialEntities.Contains(
@@ -863,7 +863,16 @@ public sealed class ViewportPanelView :
                     _translationAxis = axis;
                     _translationEntity = selectedEntity;
                     _translationStartPosition = selectedPosition;
+                    _translationUsesLocalTransform =
+    document.World.EcsWorld.Has<LocalTransform2D>(
+        selectedEntity);
 
+                    if (_translationUsesLocalTransform)
+                    {
+                        _translationStartLocalTransform =
+                            document.World.EcsWorld.Get<LocalTransform2D>(
+                                selectedEntity);
+                    }
                     _translationStartWorld =
                         document.Viewport.Transform.ScreenToWorld(
                             localPosition);
@@ -1030,11 +1039,37 @@ public sealed class ViewportPanelView :
                         MidpointRounding.AwayFromZero);
             }
 
-            document.World.SpatialEntities.SetPosition(
-                _translationEntity,
-                new WorldPosition(
-                    x,
-                    y));
+            if (_translationUsesLocalTransform &&
+                document.World.EcsWorld.Has<LocalTransform2D>(
+                    _translationEntity))
+            {
+                var worldDelta = new FixedVector2(
+                    Fixed32.FromInt(
+                        x - _translationStartPosition.X),
+                    Fixed32.FromInt(
+                        y - _translationStartPosition.Y));
+
+                if (TryConvertWorldDeltaToLocal(
+                        document,
+                        _translationEntity,
+                        worldDelta,
+                        out var localDelta))
+                {
+                    ref var transform =
+                        ref document.World.EcsWorld.Get<LocalTransform2D>(
+                            _translationEntity);
+
+                    transform.Position =
+                        _translationStartLocalTransform.Position +
+                        localDelta;
+                }
+            }
+            else
+            {
+                document.World.SpatialEntities.SetPosition(
+                    _translationEntity,
+                    new WorldPosition(x, y));
+            }
 
             pointer.Handled = true;
 
@@ -1170,6 +1205,62 @@ public sealed class ViewportPanelView :
         pointer.Handled = true;
     }
 
+    private static bool TryConvertWorldDeltaToLocal(
+    Editor.Documents.EditorDocument document,
+    EntityId entity,
+    FixedVector2 worldDelta,
+    out FixedVector2 localDelta)
+    {
+        var ecs = document.World.EcsWorld;
+
+        localDelta = worldDelta;
+
+        if (!ecs.Has<TransformParent2D>(entity))
+        {
+            return true;
+        }
+
+        var parentEntity =
+            ecs.Get<TransformParent2D>(entity).Parent;
+
+        if (!ecs.Exists(parentEntity) ||
+            !ecs.Has<WorldTransform2D>(parentEntity))
+        {
+            return false;
+        }
+
+        var parentTransform =
+            ecs.Get<WorldTransform2D>(parentEntity);
+
+        if (parentTransform.Scale.X == Fixed32.Zero ||
+            parentTransform.Scale.Y == Fixed32.Zero)
+        {
+            return false;
+        }
+
+        var cosine =
+            Fixed32.Cos(parentTransform.Rotation);
+
+        var sine =
+            Fixed32.Sin(parentTransform.Rotation);
+
+        // Обратное вращение относительно родителя.
+        var unrotatedX =
+            worldDelta.X * cosine +
+            worldDelta.Y * sine;
+
+        var unrotatedY =
+            worldDelta.Y * cosine -
+            worldDelta.X * sine;
+
+        // Учитываем масштаб родителя.
+        localDelta = new FixedVector2(
+            unrotatedX / parentTransform.Scale.X,
+            unrotatedY / parentTransform.Scale.Y);
+
+        return true;
+    }
+
     protected override void OnPointerUp(
     UiPointerEvent pointer)
     {
@@ -1231,29 +1322,50 @@ public sealed class ViewportPanelView :
                 _interactionDocument;
 
             if (document is not null &&
-                document.World.EcsWorld.Exists(
-                    _translationEntity))
+    document.World.EcsWorld.Exists(
+        _translationEntity))
             {
-                var finalPosition =
-                    document.World.SpatialEntities.GetPosition(
+                var reference =
+                    document.GetEntityReference(
                         _translationEntity);
 
-                if (finalPosition !=
-                    _translationStartPosition)
+                if (_translationUsesLocalTransform &&
+                    document.World.EcsWorld.Has<LocalTransform2D>(
+                        _translationEntity))
                 {
-                    var reference =
-                        document.GetEntityReference(
+                    var finalTransform =
+                        document.World.EcsWorld.Get<LocalTransform2D>(
                             _translationEntity);
 
-                    document.Execute(
-                        new SetWorldPositionCommand(
-                            document.World,
-                            reference,
-                            _translationStartPosition,
-                            finalPosition));
+                    if (finalTransform.Position !=
+                        _translationStartLocalTransform.Position)
+                    {
+                        document.Execute(
+                            new SetLocalTransform2DCommand(
+                                document.World,
+                                reference,
+                                _translationStartLocalTransform,
+                                finalTransform));
+                    }
+                }
+                else
+                {
+                    var finalPosition =
+                        document.World.SpatialEntities.GetPosition(
+                            _translationEntity);
+
+                    if (finalPosition != _translationStartPosition)
+                    {
+                        document.Execute(
+                            new SetWorldPositionCommand(
+                                document.World,
+                                reference,
+                                _translationStartPosition,
+                                finalPosition));
+                    }
                 }
             }
-
+            _translationUsesLocalTransform = false;
             _isTranslating = false;
 
             _translationAxis =

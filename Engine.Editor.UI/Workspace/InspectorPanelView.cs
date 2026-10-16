@@ -1,5 +1,6 @@
 ﻿using Engine.ECS.Entities;
 using Engine.Editor.Commands;
+using Engine.Editor.UI.Inspection;
 using Engine.Graphics.Commands;
 using Engine.UI.Controls;
 using Engine.UI.Layout;
@@ -8,44 +9,57 @@ namespace Engine.Editor.UI.Workspace;
 
 public sealed class InspectorPanelView : UiPanel
 {
+    private readonly UiScrollView _scrollView;
     private readonly UiStackPanel _content;
-
+    private readonly InspectorPropertyEditorRegistry _propertyEditors;
     public InspectorPanelView(
-        EditorContext editor)
+    EditorContext editor,
+    InspectorPropertyEditorRegistry? propertyEditors = null)
     {
-        ArgumentNullException.ThrowIfNull(
-            editor);
+        ArgumentNullException.ThrowIfNull(editor);
 
         Editor = editor;
 
+        _propertyEditors =
+            propertyEditors ??
+            InspectorPropertyEditorRegistry.CreateDefault();
+
         Background =
-            new UiColor(
-                28,
-                28,
-                28,
-                255);
+            new UiColor(28, 28, 28, 255);
 
         Padding =
-            new UiThickness(
-                6.0f);
+            new UiThickness(6.0f);
 
         _content =
             new UiStackPanel
             {
-                Orientation =
-                    UiOrientation.Vertical,
-
+                Orientation = UiOrientation.Vertical,
                 Spacing = 6.0f,
-
-                HorizontalAlignment =
-                    UiHorizontalAlignment.Stretch,
-
-                VerticalAlignment =
-                    UiVerticalAlignment.Top
+                HorizontalAlignment = UiHorizontalAlignment.Stretch,
+                VerticalAlignment = UiVerticalAlignment.Top
             };
 
-        AddChild(
+        _scrollView =
+    new UiScrollView
+    {
+        HorizontalAlignment =
+            UiHorizontalAlignment.Stretch,
+
+        VerticalAlignment =
+            UiVerticalAlignment.Stretch,
+
+        HorizontalScrolling = false,
+        VerticalScrolling = true,
+
+        ShowHorizontalScrollBar = false,
+        ShowVerticalScrollBar = true
+    };
+
+        _scrollView.SetContent(
             _content);
+
+        AddChild(
+            _scrollView);
     }
 
     public EditorContext Editor { get; }
@@ -76,27 +90,36 @@ public sealed class InspectorPanelView : UiPanel
                 FontSize = 16.0f
             });
 
-        var addComponent =
-            new UiDropdown();
+        // Компоненты, которые уже присутствуют у сущности.
+        var existingComponentTypes =
+            document.Inspector
+                .GetComponentTypes(entity)
+                .OrderBy(
+                    static type =>
+                        type.FullName ?? type.Name,
+                    StringComparer.Ordinal)
+                .ToArray();
 
-        var componentTypes =
+        var existingComponentTypeSet =
+            existingComponentTypes.ToHashSet();
+
+        // Компоненты, которые можно добавить.
+        var addableComponentTypes =
             Editor.ComponentTypes.Types
                 .Where(
                     componentType =>
                         componentType !=
-                        typeof(Engine.Worlds.Spatial.WorldPositionComponent) &&
-                        !document.Inspector
-                            .GetComponentTypes(entity)
-                            .Contains(componentType))
+                            typeof(Engine.Worlds.Spatial.WorldPositionComponent) &&
+                        !existingComponentTypeSet.Contains(
+                            componentType))
                 .OrderBy(
                     static type =>
-                        type.FullName ??
-                        type.Name,
+                        type.FullName ?? type.Name,
                     StringComparer.Ordinal)
                 .ToArray();
 
         var duplicateNames =
-            componentTypes
+            addableComponentTypes
                 .GroupBy(
                     static type =>
                         type.Name,
@@ -114,7 +137,10 @@ public sealed class InspectorPanelView : UiPanel
             new Dictionary<string, Type>(
                 StringComparer.Ordinal);
 
-        foreach (var componentType in componentTypes)
+        var addComponent =
+            new UiDropdown();
+
+        foreach (var componentType in addableComponentTypes)
         {
             var optionText =
                 duplicateNames.Contains(
@@ -165,7 +191,8 @@ public sealed class InspectorPanelView : UiPanel
         _content.AddChild(
             addComponent);
 
-        foreach (var componentType in componentTypes)
+        // Отображаем именно существующие компоненты.
+        foreach (var componentType in existingComponentTypes)
         {
             AddComponentSection(
                 document,
@@ -264,7 +291,7 @@ public sealed class InspectorPanelView : UiPanel
                      componentType))
         {
             _content.AddChild(
-                InspectorPropertyEditorFactory.Create(
+                _propertyEditors.Create(
                     document,
                     property));
         }

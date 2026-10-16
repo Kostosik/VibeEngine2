@@ -35,4 +35,6 @@ jobs:
         run: dotnet build .\VibeEngine2.sln --configuration Release --no-restore
 
       - name: Запуск тестов
+        env:
+          ALSOFT_DRIVERS: "null"
         run: dotnet test .\VibeEngine2.sln --configuration Release --no-build --no-restore --logger "console;verbosity=normal"

@@ -1,0 +1,98 @@
+name: Build Distribution
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Ветка, тег или commit для сборки"
+        required: true
+        default: master
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-distribution-${{ inputs.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-distribution:
+    name: Build Windows distribution
+    runs-on: windows-latest
+
+    steps:
+      - name: Получение исходного кода
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Настройка .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Восстановление пакетов
+        run: dotnet restore .\VibeEngine2.sln
+
+      - name: Сборка и тесты
+        env:
+          ALSOFT_DRIVERS: "null"
+        run: dotnet test .\VibeEngine2.sln --configuration Release --no-restore --logger "console;verbosity=normal"
+
+      - name: Публикация Editor.Sandbox
+        run: >-
+          dotnet publish .\Editor.Sandbox\Editor.Sandbox.csproj
+          --configuration Release
+          --no-restore
+          --self-contained false
+          --output .\artifacts\distribution\Editor.Sandbox
+
+      - name: Публикация Game.Sandbox
+        run: >-
+          dotnet publish .\Game.Sandbox\Game.Sandbox.csproj
+          --configuration Release
+          --no-restore
+          --self-contained false
+          --output .\artifacts\distribution\Game.Sandbox
+
+      - name: Подготовка инструкции
+        shell: pwsh
+        run: |
+          @"
+          VibeEngine2 - Windows x64 distribution
+
+          Editor:
+            Editor.Sandbox\Editor.Sandbox.exe
+
+          Game sandbox:
+            Game.Sandbox\Game.Sandbox.exe
+
+          Requirements:
+            - Windows x64
+            - .NET 8 Runtime
+            - Graphics and audio drivers required by your system
+
+          This is a framework-dependent development build.
+          No source code or editor development files are included.
+
+          Source ref: ${{ inputs.ref }}
+          Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          "@ | Set-Content -Path .\artifacts\distribution\README.txt -Encoding utf8
+
+      - name: Создание ZIP-архива
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path .\artifacts | Out-Null
+          Compress-Archive `
+            -Path .\artifacts\distribution\* `
+            -DestinationPath .\artifacts\VibeEngine2-Windows-x64.zip `
+            -CompressionLevel Optimal
+
+      - name: Загрузка готовой сборки
+        uses: actions/upload-artifact@v6
+        with:
+          name: VibeEngine2-Windows-x64
+          path: .\artifacts\VibeEngine2-Windows-x64.zip
+          if-no-files-found: error
+          retention-days: 14

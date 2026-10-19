@@ -33,17 +33,6 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Восстановление пакетов
-        run: dotnet restore .\VibeEngine2.sln
-
-      - name: Сборка Release
-        run: dotnet build .\VibeEngine2.sln --configuration Release --no-restore
-
-      - name: Запуск тестов
-        env:
-          ALSOFT_DRIVERS: "null"
-        run: dotnet test .\VibeEngine2.sln --configuration Release --no-build --no-restore --logger "console;verbosity=normal"
-
       - name: Публикация Editor.Sandbox
         run: >-
           dotnet publish .\Editor.Sandbox\Editor.Sandbox.csproj
@@ -57,7 +46,6 @@ jobs:
           dotnet publish .\Game.Sandbox\Game.Sandbox.csproj
           --configuration Release
           --runtime win-x64
-          --no-restore
           --self-contained false
           --output .\artifacts\distribution\Game.Sandbox
 

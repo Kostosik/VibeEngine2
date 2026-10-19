@@ -32,18 +32,19 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Восстановление пакетов
-        run: dotnet restore .\VibeEngine2.sln
+      - name: Восстановление пакетов для Windows x64
+        run: dotnet restore .\VibeEngine2.sln --runtime win-x64
 
       - name: Сборка и тесты
         env:
           ALSOFT_DRIVERS: "null"
-        run: dotnet test .\VibeEngine2.sln --configuration Release --no-restore --logger "console;verbosity=normal"
+        run: dotnet test .\VibeEngine2.sln --configuration Release --runtime win-x64 --no-restore --logger "console;verbosity=normal"
 
       - name: Публикация Editor.Sandbox
         run: >-
           dotnet publish .\Editor.Sandbox\Editor.Sandbox.csproj
           --configuration Release
+          --runtime win-x64
           --no-restore
           --self-contained false
           --output .\artifacts\distribution\Editor.Sandbox
@@ -52,6 +53,7 @@ jobs:
         run: >-
           dotnet publish .\Game.Sandbox\Game.Sandbox.csproj
           --configuration Release
+          --runtime win-x64
           --no-restore
           --self-contained false
           --output .\artifacts\distribution\Game.Sandbox
@@ -70,7 +72,7 @@ jobs:
 
           Requirements:
             - Windows x64
-            - .NET 8 Runtime
+            - .NET 8 Desktop Runtime (x64)
             - Graphics and audio drivers required by your system
 
           This is a framework-dependent development build.

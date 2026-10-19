@@ -1,4 +1,5 @@
 ﻿using Engine.Core.Math;
+using Engine.Editor.Assets;
 using Engine.Editor.Documents;
 using Engine.Editor.UI.Authoring;
 using Engine.Editor.UI.Inspection;
@@ -8,6 +9,7 @@ using Engine.Graphics.Resources;
 using Engine.Tooling.Debugging;
 using Engine.Tooling.Validation;
 using Engine.UI.Controls;
+using Engine.UI.Core;
 using Engine.UI.Layout;
 
 namespace Engine.Editor.UI.Shell;
@@ -21,7 +23,7 @@ public sealed class EditorMainShell :
     private readonly UiPanel _workspace;
     private UiButton _closeButton;
     private readonly UiLabel _documentLabel;
-
+    public event Action<EditorAssetEntry>? AssetActivated;
     private readonly EditorWorkspaceView _workspaceView;
     private EditorUiWorkspaceView _uiWorkspaceView;
 
@@ -70,7 +72,7 @@ public sealed class EditorMainShell :
     public EditorMainShell(
         EditorContext editor,
         ITextureResourceManager assetPreviewTextures,
-        EditorUiDocument uiDocument, DebugConsole? console = null, InspectorPropertyEditorRegistry? propertyEditors = null)
+        EditorUiDocument uiDocument, UiOverlayLayer overlays, DebugConsole? console = null, InspectorPropertyEditorRegistry? propertyEditors = null)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -136,11 +138,12 @@ public sealed class EditorMainShell :
 
         _workspaceView =
             new EditorWorkspaceView(
-                editor,
+                editor, overlays,
                 assetPreviewTextures,
                 console,
                 propertyEditors);
-
+        _workspaceView.AssetActivated +=
+    entry => AssetActivated?.Invoke(entry);
         _uiWorkspaceView =
             new EditorUiWorkspaceView(
                 uiDocument);

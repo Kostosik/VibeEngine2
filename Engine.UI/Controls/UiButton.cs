@@ -1,4 +1,5 @@
 ﻿using Engine.Core.Math;
+using Engine.Input;
 using Engine.Input.Cursors;
 using Engine.UI.Core;
 using Engine.UI.Input;
@@ -85,7 +86,7 @@ public sealed class UiButton : UiWidget
     }
 
     public event Action? Clicked;
-
+    public bool HandleRightClick { get; set; } = true;
     public void Click()
     {
         if (!Enabled)
@@ -161,9 +162,16 @@ public sealed class UiButton : UiWidget
     }
 
     protected override void OnPointerDown(
-    UiPointerEvent pointer)
+        UiPointerEvent pointer)
     {
-        if (!Enabled)
+        if (!Enabled ||
+            pointer.Button != InputMouseButton.Left)
+        {
+            return;
+        }
+
+        if (pointer.Button == InputMouseButton.Right &&
+    !HandleRightClick)
         {
             return;
         }
@@ -175,10 +183,19 @@ public sealed class UiButton : UiWidget
     protected override void OnPointerUp(
         UiPointerEvent pointer)
     {
-        if (!IsPressed)
+        if (pointer.Button == InputMouseButton.Right &&
+    !HandleRightClick)
         {
             return;
         }
+
+        if (pointer.Button != InputMouseButton.Left ||
+            !IsPressed)
+        {
+            return;
+        }
+
+
 
         IsPressed = false;
 

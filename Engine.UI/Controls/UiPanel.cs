@@ -59,6 +59,16 @@ public class UiPanel : UiContainer
             Padding.Bottom);
     }
 
+    internal override UiWidget? HitTest(Vector2 point)
+    {
+        if (!Bounds.Contains(point))
+        {
+            return null;
+        }
+
+        return base.HitTest(point);
+    }
+
     protected override void ArrangeCore(
         UiRect finalRect)
     {

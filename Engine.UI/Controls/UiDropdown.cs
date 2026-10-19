@@ -12,7 +12,6 @@ public sealed class UiDropdown : UiContainer
     private UiOverlayLayer? _activeOverlay;
     private readonly UiButton _button;
     private readonly DropdownPopup _popup;
-    private readonly UiScrollView _scrollView;
     private readonly UiList _list;
 
     private readonly List<UiButton> _options = new();
@@ -64,28 +63,14 @@ public sealed class UiDropdown : UiContainer
         ZIndex = 100
     };
 
-        _scrollView =
-            new UiScrollView
-            {
-                Width = 212.0f,
-                Height = 172.0f,
-
-                VerticalScrolling = true,
-                HorizontalScrolling = false,
-                ScrollSpeed = 32.0f
-            };
-
         _list =
             new UiList
             {
-                Width = 204.0f
+                Width = 212.0f,
+                Height = 172.0f
             };
 
-        _scrollView.SetContent(
-            _list);
-
-        _popup.AddChild(
-            _scrollView);
+        _popup.AddChild(_list);
 
         _popup.Visible = false;
         _popup.IsHitTestVisible = false;

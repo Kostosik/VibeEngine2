@@ -1,7 +1,10 @@
 ﻿using Engine.Core.Math;
 using Engine.Editor.Assets;
 using Engine.Graphics.Commands;
+using Engine.Input;
 using Engine.UI.Controls;
+using Engine.UI.Core;
+using Engine.UI.Input;
 using Engine.UI.Layout;
 
 namespace Engine.Editor.UI.Workspace;
@@ -10,24 +13,44 @@ public sealed class AssetBrowserPanelView : UiPanel
 {
     private readonly UiStackPanel _toolbar;
     private readonly UiButton _upButton;
-    private readonly UiLabel _pathLabel;
+    private readonly UiButton _backButton;
+    private readonly UiButton _forwardButton;
+    private readonly UiScrollView _breadcrumbScrollView;
+    private readonly UiStackPanel _breadcrumbItems;
     private readonly UiList _list;
     private readonly UiStackPanel _filterToolbar;
     private readonly UiDropdown _typeFilter;
     private readonly UiStackPanel _searchToolbar;
     private readonly UiTextBox _searchBox;
     private readonly UiButton _sortButton;
+    private const long DoubleClickIntervalMilliseconds = 500;
 
+    private string? _lastClickedEntryPath;
+    private string? _lastClickedDirectoryPath;
+    private long _lastClickTimestamp;
     private readonly EditorAssetBrowserViewState _viewState = new();
 
+    private readonly UiContextMenu _contextMenu;
+
+    private readonly List<(
+        UiButton Button,
+        EditorAssetEntry Entry)> _entryButtons = new();
+
+    public event Action<EditorAssetEntry>? AssetActivated;
+
+
     public AssetBrowserPanelView(
-        EditorContext editor)
+        EditorContext editor,
+        UiOverlayLayer overlays)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
 
         Editor = editor;
-
+        _contextMenu = new UiContextMenu(overlays)
+        {
+            Width = 220.0f
+        };
         Background =
             new UiColor(
                 28,
@@ -54,6 +77,46 @@ public sealed class AssetBrowserPanelView : UiPanel
                     UiVerticalAlignment.Top
             };
 
+        _backButton = new UiButton("Back")
+        {
+            Width = 48.0f,
+            Height = 28.0f,
+            FontSize = 12.0f
+        };
+
+        _backButton.Clicked += () =>
+        {
+            var browser = Editor.AssetBrowser;
+
+            if (browser is null)
+            {
+                return;
+            }
+
+            browser.NavigateBack();
+            Refresh();
+        };
+
+        _forwardButton = new UiButton("Forward")
+        {
+            Width = 64.0f,
+            Height = 28.0f,
+            FontSize = 12.0f
+        };
+
+        _forwardButton.Clicked += () =>
+        {
+            var browser = Editor.AssetBrowser;
+
+            if (browser is null)
+            {
+                return;
+            }
+
+            browser.NavigateForward();
+            Refresh();
+        };
+
         _upButton =
             new UiButton("Up")
             {
@@ -69,36 +132,40 @@ public sealed class AssetBrowserPanelView : UiPanel
                     return;
                 }
 
+                ResetEntryClickTracking();
+
                 if (Editor.AssetBrowser.NavigateUp())
                 {
                     Refresh();
                 }
             };
 
-        _toolbar.AddChild(
-            _upButton);
+        _toolbar.AddChild(_backButton);
+        _toolbar.AddChild(_forwardButton);
+        _toolbar.AddChild(_upButton);
 
-        _pathLabel =
-            new UiLabel()
-            {
-                FontSize = 12.0f,
+        _breadcrumbItems = new UiStackPanel
+        {
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 2.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Left,
+            VerticalAlignment = UiVerticalAlignment.Stretch
+        };
 
-                HorizontalAlignment =
-                    UiHorizontalAlignment.Stretch,
+        _breadcrumbScrollView = new UiScrollView
+        {
+            Height = 36.0f,
+            HorizontalScrolling = true,
+            VerticalScrolling = false,
+            ShowHorizontalScrollBar = true,
+            ShowVerticalScrollBar = false,
+            ScrollBarThickness = 8.0f,
+            ScrollSpeed = 48.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
 
-                VerticalAlignment =
-                    UiVerticalAlignment.Center,
-
-                Color =
-                    new UiColor(
-                        170,
-                        170,
-                        170,
-                        255)
-            };
-
-        _toolbar.AddChild(
-            _pathLabel);
+        _breadcrumbScrollView.SetContent(_breadcrumbItems);
 
         _searchToolbar = new UiStackPanel
         {
@@ -206,6 +273,7 @@ public sealed class AssetBrowserPanelView : UiPanel
             };
 
         AddChild(_toolbar);
+        AddChild(_breadcrumbScrollView);
         AddChild(_searchToolbar);
         AddChild(_filterToolbar);
         AddChild(_list);
@@ -213,34 +281,167 @@ public sealed class AssetBrowserPanelView : UiPanel
 
     public EditorContext Editor { get; }
 
+    private bool RegisterEntryClick(
+    string entryPath,
+    string currentDirectory)
+    {
+        var now = Environment.TickCount64;
+
+        var isDoubleClick =
+            string.Equals(
+                _lastClickedEntryPath,
+                entryPath,
+                StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(
+                _lastClickedDirectoryPath,
+                currentDirectory,
+                StringComparison.OrdinalIgnoreCase) &&
+            now - _lastClickTimestamp <= DoubleClickIntervalMilliseconds;
+
+        if (isDoubleClick)
+        {
+            ResetEntryClickTracking();
+            return true;
+        }
+
+        _lastClickedEntryPath = entryPath;
+        _lastClickedDirectoryPath = currentDirectory;
+        _lastClickTimestamp = now;
+
+        return false;
+    }
+
+    private void ResetEntryClickTracking()
+    {
+        _lastClickedEntryPath = null;
+        _lastClickedDirectoryPath = null;
+        _lastClickTimestamp = 0;
+    }
+
+    private void RefreshBreadcrumbs(EditorAssetBrowser? browser)
+    {
+        _breadcrumbItems.ClearChildren();
+
+        if (browser is null)
+        {
+            return;
+        }
+
+        var rootName = Path.GetFileName(
+            Path.TrimEndingDirectorySeparator(browser.RootPath));
+
+        if (string.IsNullOrWhiteSpace(rootName))
+        {
+            rootName = browser.RootPath;
+        }
+
+        AddBreadcrumb(rootName, browser.RootPath, browser);
+
+        var relativePath = Path.GetRelativePath(
+            browser.RootPath,
+            browser.CurrentPath);
+
+        if (relativePath == ".")
+        {
+            return;
+        }
+
+        var currentPath = browser.RootPath;
+
+        var segments = relativePath.Split(
+            new[]
+            {
+            Path.DirectorySeparatorChar,
+            Path.AltDirectorySeparatorChar
+            },
+            StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var segment in segments)
+        {
+            currentPath = Path.Combine(currentPath, segment);
+
+            AddBreadcrumb(segment, currentPath, browser);
+        }
+    }
+
+    private void AddBreadcrumb(
+        string name,
+        string path,
+        EditorAssetBrowser browser)
+    {
+        if (_breadcrumbItems.Children.Count > 0)
+        {
+            _breadcrumbItems.AddChild(
+                new UiLabel("/")
+                {
+                    FontSize = 12.0f,
+                    VerticalAlignment = UiVerticalAlignment.Center,
+                    Color = new UiColor(140, 140, 140, 255)
+                });
+        }
+
+        // Сохраняем компактность даже для длинных имён папок.
+        var label = name.Length > 24
+            ? name[..21] + "..."
+            : name;
+
+        var button = new UiButton(label)
+        {
+            Width = Math.Clamp(
+                label.Length * 7.0f + 24.0f,
+                52.0f,
+                180.0f),
+            Height = 26.0f,
+            FontSize = 12.0f,
+            Enabled = !string.Equals(
+                path,
+                browser.CurrentPath,
+                StringComparison.OrdinalIgnoreCase),
+            HandleRightClick = false
+        };
+
+        button.Clicked += () =>
+        {
+            if (browser.NavigateTo(path))
+            {
+                Refresh();
+            }
+        };
+
+        _breadcrumbItems.AddChild(button);
+    }
+
     public void Refresh()
     {
         var browser = Editor.AssetBrowser;
 
         if (browser is null)
         {
-            _pathLabel.Text =
-                "Asset browser is not initialized.";
+            RefreshBreadcrumbs(null);
 
             _upButton.Enabled = false;
+            _backButton.Enabled = false;
+            _forwardButton.Enabled = false;
 
             RefreshEntries(null);
             return;
         }
 
-        _pathLabel.Text = browser.CurrentPath;
+        RefreshBreadcrumbs(browser);
 
         _upButton.Enabled =
             !string.Equals(
                 browser.CurrentPath,
                 browser.RootPath,
                 StringComparison.OrdinalIgnoreCase);
-
+        _backButton.Enabled = browser.CanNavigateBack;
+        _forwardButton.Enabled = browser.CanNavigateForward;
         RefreshEntries(browser);
     }
 
     private void RefreshEntries(EditorAssetBrowser? browser)
     {
+        _entryButtons.Clear();
         _list.ClearItems();
 
         if (browser is null)
@@ -257,7 +458,6 @@ public sealed class AssetBrowserPanelView : UiPanel
         foreach (var entry in entries)
         {
             var selected =
-                !entry.IsDirectory &&
                 browser.Selection.Contains(entry.Path);
 
             var prefix = selected ? "> " : "  ";
@@ -269,29 +469,44 @@ public sealed class AssetBrowserPanelView : UiPanel
                 Height = 28.0f,
                 HorizontalAlignment = UiHorizontalAlignment.Stretch
             };
-
-            if (entry.IsDirectory)
+            _entryButtons.Add((button, entry));
+            button.Clicked += () =>
             {
-                button.Clicked += () =>
+                var isDoubleClick = RegisterEntryClick(
+                    entry.Path,
+                    browser.CurrentPath);
+
+                if (entry.IsDirectory)
                 {
+                    if (!isDoubleClick)
+                    {
+                        browser.Select(entry.Path);
+                        Refresh();
+                        return;
+                    }
+
                     if (browser.NavigateTo(entry.Path))
                     {
                         Refresh();
                     }
-                };
-            }
-            else
-            {
-                button.Clicked += () =>
+
+                    return;
+                }
+
+                browser.Select(entry.Path);
+
+                if (isDoubleClick)
                 {
-                    browser.Select(entry.Path);
+                    AssetActivated?.Invoke(entry);
+                }
 
-                    Refresh();
+                Refresh();
 
-                    Console.WriteLine(
-                        $"[EDITOR ASSET] Selected: {entry.Path}");
-                };
-            }
+                Console.WriteLine(
+                    isDoubleClick
+                        ? $"[EDITOR ASSET] Activated: {entry.Path}"
+                        : $"[EDITOR ASSET] Selected: {entry.Path}");
+            };
 
             _list.AddItem(button);
         }
@@ -310,6 +525,80 @@ public sealed class AssetBrowserPanelView : UiPanel
         }
     }
 
+    protected override void OnPointerDown(
+    UiPointerEvent pointer)
+    {
+        if (pointer.Button != InputMouseButton.Right)
+        {
+            return;
+        }
+
+        var entryIndex = _entryButtons.FindIndex(
+            item => item.Button.Bounds.Contains(
+                pointer.Position));
+
+        if (entryIndex < 0)
+        {
+            return;
+        }
+
+        var browser = Editor.AssetBrowser;
+
+        if (browser is null)
+        {
+            return;
+        }
+
+        var entry = _entryButtons[entryIndex].Entry;
+
+        if (!browser.Select(entry.Path))
+        {
+            return;
+        }
+
+        _contextMenu.ClearItems();
+
+        if (entry.IsDirectory)
+        {
+            _contextMenu.AddItem(
+                "Open Folder",
+                () =>
+                {
+                    var currentBrowser = Editor.AssetBrowser;
+
+                    if (currentBrowser?.NavigateTo(entry.Path) == true)
+                    {
+                        Refresh();
+                    }
+                });
+        }
+        else
+        {
+            _contextMenu.AddItem(
+                "Open / Preview",
+                () => AssetActivated?.Invoke(entry));
+        }
+
+        _contextMenu.AddItem(
+            "Refresh Current Folder",
+            () =>
+            {
+                var currentBrowser = Editor.AssetBrowser;
+
+                if (currentBrowser is null)
+                {
+                    return;
+                }
+
+                currentBrowser.Refresh();
+                Refresh();
+            });
+
+        _contextMenu.Open(pointer.Position);
+
+        pointer.Handled = true;
+    }
+
     protected override Vector2 MeasureCore(
         UiLayoutContext context,
         Vector2 availableSize)
@@ -319,6 +608,11 @@ public sealed class AssetBrowserPanelView : UiPanel
             new Vector2(
                 availableSize.X,
                 28.0f));
+        _breadcrumbScrollView.Measure(
+    context,
+    new Vector2(
+        availableSize.X,
+        36.0f));
 
         _searchToolbar.Measure(
     context,
@@ -347,6 +641,7 @@ public sealed class AssetBrowserPanelView : UiPanel
         var content = finalRect.Deflate(Padding);
 
         const float rowHeight = 28.0f;
+        const float breadcrumbHeight = 36.0f;
         const float spacing = 4.0f;
 
         _toolbar.Arrange(
@@ -356,7 +651,16 @@ public sealed class AssetBrowserPanelView : UiPanel
                 content.Width,
                 rowHeight));
 
-        var searchTop = content.Y + rowHeight + spacing;
+        var breadcrumbTop = content.Y + rowHeight + spacing;
+
+        _breadcrumbScrollView.Arrange(
+            new UiRect(
+                content.X,
+                breadcrumbTop,
+                content.Width,
+                breadcrumbHeight));
+
+        var searchTop = breadcrumbTop + breadcrumbHeight + spacing;
 
         _searchToolbar.Arrange(
             new UiRect(

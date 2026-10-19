@@ -1,5 +1,6 @@
 ﻿using Engine.Core.Application;
 using Engine.Core.Time;
+using Engine.Editor.Assets;
 using Engine.Editor.Documents;
 using Engine.Editor.Documents.Persistence;
 using Engine.Editor.UI.Authoring;
@@ -152,10 +153,10 @@ public sealed class EditorApplication :
             new EditorMainShell(
                 editor,
                 assetPreviewTextures,
-                uiDocument,
+                uiDocument, ui.Overlays,
                 debugConsole,
                 PropertyEditors);
-
+        MainShell.AssetActivated += OnAssetActivated;
         MainShell.SaveRequested +=
             SaveActiveDocument;
 
@@ -485,7 +486,7 @@ public sealed class EditorApplication :
     {
         MainShell.SaveAllRequested -=
     SaveAllDocuments;
-
+        MainShell.AssetActivated -= OnAssetActivated;
         _newDocumentDialog.WorldRequested -=
     RequestNewWorldDocument;
 
@@ -677,75 +678,104 @@ public sealed class EditorApplication :
                     : null;
 
             var path =
-                _fileDialogs.ShowOpenFile(
-                    initialDirectory);
+                _fileDialogs.ShowOpenFile(initialDirectory);
 
             if (path is null)
             {
                 return;
             }
 
-            var normalizedPath =
-                Path.GetFullPath(path);
+            OpenDocumentPath(path);
+        }
+        catch (Exception exception)
+        {
+            _errorDialog.ShowError(exception.Message);
+        }
+    }
 
-            var pathComparison =
-                OperatingSystem.IsWindows()
-                    ? StringComparison.OrdinalIgnoreCase
-                    : StringComparison.Ordinal;
+    private void OpenDocumentPath(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-            var existingDocument =
-                Editor.Session.AllDocuments.FirstOrDefault(
-                    document =>
-                        document.FilePath is string documentPath &&
-                        string.Equals(
-                            Path.GetFullPath(documentPath),
-                            normalizedPath,
-                            pathComparison));
+        var normalizedPath = Path.GetFullPath(path);
 
-            if (existingDocument is not null)
-            {
-                Editor.Session.Activate(
-                    existingDocument);
+        var pathComparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        var existingDocument =
+            Editor.Session.AllDocuments.FirstOrDefault(
+                document =>
+                    document.FilePath is string documentPath &&
+                    string.Equals(
+                        Path.GetFullPath(documentPath),
+                        normalizedPath,
+                        pathComparison));
+
+        if (existingDocument is not null)
+        {
+            Editor.Session.Activate(existingDocument);
+            MarkUiDirty();
+            return;
+        }
+
+        switch (Path.GetExtension(normalizedPath).ToLowerInvariant())
+        {
+            case ".world":
+                OpenDocument(normalizedPath);
+                return;
+
+            case ".ui":
+                var document = EditorUiAssetFile.Load(normalizedPath);
+
+                document.SetFilePath(normalizedPath);
+
+                SubscribeUiDocument(document);
+
+                Editor.Session.Open(document);
 
                 MarkUiDirty();
                 return;
-            }
 
-            switch (Path.GetExtension(normalizedPath)
-                .ToLowerInvariant())
+            default:
+                throw new NotSupportedException(
+                    $"Unsupported document type: " +
+                    $"'{Path.GetExtension(normalizedPath)}'. " +
+                    "Supported extensions are .world and .ui.");
+        }
+    }
+
+    private void OnAssetActivated(EditorAssetEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        if (entry.IsDirectory)
+        {
+            return;
+        }
+
+        try
+        {
+            switch (Path.GetExtension(entry.Path).ToLowerInvariant())
             {
-                case ".world":
-                    OpenDocument(normalizedPath);
-                    return;
-
                 case ".ui":
-                    var document =
-                        EditorUiAssetFile.Load(
-                            normalizedPath);
-
-                    document.SetFilePath(
-                        normalizedPath);
-
-                    SubscribeUiDocument(
-                        document);
-
-                    Editor.Session.Open(
-                        document);
-
-                    MarkUiDirty();
+                case ".world":
+                    OpenDocumentPath(entry.Path);
                     return;
 
                 default:
-                    throw new NotSupportedException(
-                        $"Unsupported document type: " +
-                        $"'{Path.GetExtension(normalizedPath)}'. " +
-                        "Supported extensions are .world and .ui.");
+                    if (Editor.Workspace.FindPanel("AssetPreview") is not null)
+                    {
+                        Editor.Workspace.ActivatePanel("AssetPreview");
+                    }
+
+                    MarkUiDirty();
+                    return;
             }
         }
         catch (Exception exception)
         {
-            _errorDialog.ShowError(
-                exception.Message);
+            _errorDialog.ShowError(exception.Message);
         }
     }
 

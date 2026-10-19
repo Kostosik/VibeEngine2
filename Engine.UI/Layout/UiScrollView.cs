@@ -487,10 +487,18 @@ public class UiScrollView : UiContainer
             return;
         }
 
+        var previousOffset = ScrollOffset;
+
         SetScrollOffset(
             new Vector2(
                 ScrollOffset.X + deltaX,
                 ScrollOffset.Y + deltaY));
+
+        pointer.Handled =
+            MathF.Abs(
+                ScrollOffset.X - previousOffset.X) > 0.0001f ||
+            MathF.Abs(
+                ScrollOffset.Y - previousOffset.Y) > 0.0001f;
 
         pointer.Handled =
             true;

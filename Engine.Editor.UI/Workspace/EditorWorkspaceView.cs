@@ -1,4 +1,5 @@
 ﻿using Engine.Core.Math;
+using Engine.Editor.Assets;
 using Engine.Editor.Panels;
 using Engine.Editor.UI.Inspection;
 using Engine.Editor.UI.Panels;
@@ -18,7 +19,7 @@ public sealed class EditorWorkspaceView :
     private const float DockSplitterThickness = 6.0f;
     private const float MinDockSize = 120.0f;
     private const float MinCenterSize = 160.0f;
-
+    public event Action<EditorAssetEntry>? AssetActivated;
     private readonly EditorConsolePanel _console;
     private readonly UiPanel _bottomTabBar;
     private readonly UiStackPanel _bottomTabButtons;
@@ -35,7 +36,7 @@ public sealed class EditorWorkspaceView :
     private readonly EditorDockSplitter _bottomSplitter;
 
     public EditorWorkspaceView(
-        EditorContext editor,
+        EditorContext editor, UiOverlayLayer overlays,
         ITextureResourceManager assetPreviewTextures,
         DebugConsole? console = null, InspectorPropertyEditorRegistry? propertyEditors = null)
     {
@@ -99,8 +100,13 @@ public sealed class EditorWorkspaceView :
             Inspector);
 
         _assetBrowser =
-            new AssetBrowserPanelView(
-                editor);
+            new AssetBrowserPanelView(editor, overlays);
+
+        _assetBrowser.AssetActivated +=
+            entry => AssetActivated?.Invoke(entry);
+
+        _assetBrowser.AssetActivated +=
+            entry => AssetActivated?.Invoke(entry);
 
         _assetPreview =
             new AssetPreviewPanelView(

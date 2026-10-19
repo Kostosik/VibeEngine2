@@ -8,6 +8,7 @@ using Engine.Core.Time;
 using Engine.Physics;
 using Engine.Scripting;
 using Engine.Simulations;
+using Engine.Tooling.Console;
 using Engine.Tooling.Debugging;
 using Engine.Tooling.DebugVisualization;
 using Engine.Tooling.Inspection;
@@ -28,7 +29,7 @@ public sealed class EngineRuntime :
     public ScriptRegistry ScriptRegistry { get; }
 
     public ScriptRuntime Scripts { get; }
-
+    public EngineConsole? EngineConsole { get; private set; }
     public EngineRuntime(
     EngineRuntimeOptions options)
     : this(
@@ -137,7 +138,7 @@ public sealed class EngineRuntime :
                 new DiagnosticReporter(
                     DiagnosticCollector,
                     "Engine");
-
+            Scripts.ScriptFaulted += OnScriptFaulted;
             FatalError =
                 new FatalError(
                     DiagnosticReporter);
@@ -155,6 +156,8 @@ public sealed class EngineRuntime :
         Console =
             new DebugConsole(
                 DebugRegistry);
+        EngineConsole =
+    new EngineConsole(Console);
 
         Profiler =
             new Profiler();
@@ -226,19 +229,20 @@ Services.Graphics;
             new ConsoleLogger(
                 Console);
 
-        var diagnosticLogger =
-            new DiagnosticLogger(
-                Logger);
+        var consoleDiagnosticSink =
+            new ConsoleDiagnosticSink(Console!);
 
         var diagnosticSink =
             new CompositeDiagnosticSink(
                 DiagnosticCollector,
-                diagnosticLogger);
+                consoleDiagnosticSink);
 
         DiagnosticReporter =
             new DiagnosticReporter(
                 diagnosticSink,
                 "Engine");
+
+        Scripts.ScriptFaulted += OnScriptFaulted;
 
         FatalError =
             new FatalError(
@@ -341,6 +345,15 @@ Services.Graphics;
             DebugVisualization.DrawList);
     }
 
+    private void OnScriptFaulted(ScriptFault fault)
+{
+    DiagnosticReporter.Error(
+        "Script.ExecutionFault",
+        $"Script '{fault.ScriptId}' on entity '{fault.Entity}' " +
+        $"failed during {fault.Phase}.",
+        fault.Exception);
+}
+
     public DeterministicStateHash GetStateHash()
     {
         EnsureNotDisposed();
@@ -404,15 +417,15 @@ Services.Graphics;
         {
             Simulation.Shutdown();
         }
-
+        EngineConsole?.Dispose();
         SchedulerProfiler?.Dispose();
-
+        Scripts.ScriptFaulted -= OnScriptFaulted;
         Scripts.Dispose();
 
         World.Dispose();
 
         EcsWorld.Dispose();
-
+        
         _disposed = true;
     }
 

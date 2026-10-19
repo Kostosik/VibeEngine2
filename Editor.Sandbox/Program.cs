@@ -6,6 +6,7 @@ using Engine.Core.Application;
 using Engine.Core.Assets;
 using Engine.Core.Math;
 using Engine.Editor;
+using Engine.Editor.Documents;
 using Engine.Editor.Documents.Persistence;
 using Engine.Editor.UI;
 using Engine.Editor.UI.Authoring;
@@ -102,18 +103,6 @@ var contentCatalog =
             AppContext.BaseDirectory,
             "Assets"));
 
-var inspection =
-    new WorldInspectionService(
-        ecsWorld.Inspector);
-
-debugRegistry.Register(
-    new EntitiesDebugCommand(
-        inspection));
-
-debugRegistry.Register(
-    new InspectDebugCommand(
-        inspection));
-
 var contentLoaders =
     new ContentLoaderRegistry();
 
@@ -144,10 +133,22 @@ var documentFiles =
     editor.CreateDocumentFileService(
         documentPersistence);
 
+var inspection =
+    new WorldInspectionService(
+        () =>
+            (editor.Session.ActiveEditorDocument as EditorDocument)
+                ?.World.EcsWorld.Inspector);
+
+debugRegistry.Register(
+    new EntitiesDebugCommand(
+        inspection));
+
+debugRegistry.Register(
+    new InspectDebugCommand(
+        inspection));
+
 var fileDialogs =
     new WindowsFileDialogService();
-
- uiDocument = null;
 
 var application =
     new EditorApplication(
@@ -155,10 +156,10 @@ var application =
         ui,
         window.InputBackend,
         assetPreviewTextures,
-        uiDocument,
-        uiAssetPath, fileDialogs,
+        fileDialogs,
         documentPersistence,
-        documentFiles,debugConsole : debugConsole);
+        documentFiles,
+        debugConsole: debugConsole);
 
 
 window.CloseRequested +=
@@ -253,18 +254,6 @@ viewMenu.AddItem(
         application.MainShell.Refresh();
     });
 
-viewMenu.AddItem(
-    "Asset Preview",
-    () =>
-    {
-        editor.Workspace.SetPanelOpen(
-            "AssetPreview",
-            !editor.Workspace.FindPanel(
-                "AssetPreview")!.IsOpen);
-
-        application.MainShell.Refresh();
-    });
-
 Action<UiRect> viewRequested =
     bounds =>
     {
@@ -290,8 +279,6 @@ Action<UiRect> editRequested =
 application.MainShell.EditRequested +=
     editRequested;
 
-
-
 editMenu.AddItem(
     "Undo",
     application.MainShell.Undo,
@@ -312,8 +299,6 @@ var gameLoop =
             60));
 
 gameLoop.Initialize();
-
-
 
 try
 {

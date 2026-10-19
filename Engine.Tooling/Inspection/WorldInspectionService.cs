@@ -5,28 +5,44 @@ namespace Engine.Tooling.Inspection;
 
 public sealed class WorldInspectionService
 {
-    private readonly IWorldInspector _world;
+    private readonly Func<IWorldInspector?> _worldProvider;
 
     public WorldInspectionService(
         IWorldInspector world)
     {
-        ArgumentNullException.ThrowIfNull(
-            world);
+        ArgumentNullException.ThrowIfNull(world);
 
-        _world = world;
+        _worldProvider = () => world;
+    }
+
+    public WorldInspectionService(
+        Func<IWorldInspector?> worldProvider)
+    {
+        ArgumentNullException.ThrowIfNull(worldProvider);
+
+        _worldProvider = worldProvider;
+    }
+
+    private IWorldInspector GetWorld()
+    {
+        return _worldProvider()
+            ?? throw new InvalidOperationException(
+                "No active world document. " +
+                "Open or create a world before running this command.");
     }
 
     public IReadOnlyList<EntityId> GetEntities()
     {
-        return _world.GetEntities();
+        return GetWorld().GetEntities();
     }
 
     public EntityInspection InspectEntity(
         EntityId entity)
     {
+        var world = GetWorld();
+
         var componentTypes =
-            _world.GetComponentTypes(
-                entity);
+            world.GetComponentTypes(entity);
 
         var components =
             new List<ComponentInspection>(
@@ -34,7 +50,7 @@ public sealed class WorldInspectionService
 
         foreach (var componentType in componentTypes)
         {
-            if (!_world.TryGetComponent(
+            if (!world.TryGetComponent(
                     entity,
                     componentType,
                     out var component))

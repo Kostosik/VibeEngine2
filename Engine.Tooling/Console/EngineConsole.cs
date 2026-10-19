@@ -4,10 +4,13 @@ using System.Text;
 
 namespace Engine.Tooling.Console;
 
-public sealed class EngineConsole
+public sealed class EngineConsole : IDisposable
 {
-    private readonly DebugCommandRegistry _registry;
+    private readonly DebugCommandRegistry? _registry;
     private readonly ConsoleHistory _history;
+
+    private readonly DebugConsole? _forwardConsole;
+    private readonly Action<ConsoleMessage>? _forwardHandler;
 
     private readonly List<ConsoleMessage> _messages = new();
 
@@ -23,13 +26,30 @@ public sealed class EngineConsole
         _history =
             history ??
             new ConsoleHistory();
+
+        _forwardConsole = null;
+        _forwardHandler = null;
+    }
+
+    public EngineConsole(DebugConsole console)
+    {
+        ArgumentNullException.ThrowIfNull(console);
+
+        _registry = null;
+        _history = console.History;
+        _forwardConsole = console;
+
+        _forwardHandler = message =>
+            MessageWritten?.Invoke(message);
+
+        console.MessageWritten += _forwardHandler;
     }
 
     public IReadOnlyList<ConsoleMessage> Messages =>
-        _messages;
+        _forwardConsole?.Messages ?? _messages;
 
     public ConsoleHistory History =>
-        _history;
+        _forwardConsole?.History ?? _history;
 
     public event Action<ConsoleMessage>? MessageWritten;
 
@@ -38,6 +58,11 @@ public sealed class EngineConsole
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(
             input);
+
+        if (_forwardConsole is not null)
+        {
+            return _forwardConsole.Execute(input);
+        }
 
         _history.Add(
             input);
@@ -125,29 +150,83 @@ public sealed class EngineConsole
     }
 
     public void Write(
-        DiagnosticLevel level,
+     DiagnosticLevel level,
+     string message,
+     string? code = null,
+     Exception? exception = null)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        if (_forwardConsole is not null)
+        {
+            _forwardConsole.Write(
+                level,
+                message,
+                code,
+                exception);
+
+            return;
+        }
+
+        var consoleMessage = new ConsoleMessage(
+            DateTime.UtcNow,
+            level,
+            message,
+            code,
+            exception);
+
+        _messages.Add(consoleMessage);
+        MessageWritten?.Invoke(consoleMessage);
+    }
+
+    public void WriteLine(string message)
+    {
+        Write(DiagnosticLevel.Info, message);
+    }
+
+    public void WriteWarning(
         string message,
         string? code = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(
-            message);
+        Write(DiagnosticLevel.Warning, message, code);
+    }
 
-        var consoleMessage =
-            new ConsoleMessage(
-                DateTime.UtcNow,
-                level,
-                message,
-                code);
+    public void WriteError(
+        string message,
+        string? code = null,
+        Exception? exception = null)
+    {
+        Write(
+            DiagnosticLevel.Error,
+            message,
+            code,
+            exception);
+    }
 
-        _messages.Add(
-            consoleMessage);
+    public void WriteException(
+        Exception exception,
+        string? message = null,
+        string? code = null)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
 
-        MessageWritten?.Invoke(
-            consoleMessage);
+        Write(
+            DiagnosticLevel.Error,
+            string.IsNullOrWhiteSpace(message)
+                ? exception.Message
+                : message,
+            code,
+            exception);
     }
 
     public void Clear()
     {
+        if (_forwardConsole is not null)
+        {
+            _forwardConsole.Clear();
+            return;
+        }
+
         _messages.Clear();
     }
 
@@ -207,5 +286,14 @@ public sealed class EngineConsole
         }
 
         return tokens;
+    }
+
+    public void Dispose()
+    {
+        if (_forwardConsole is not null &&
+            _forwardHandler is not null)
+        {
+            _forwardConsole.MessageWritten -= _forwardHandler;
+        }
     }
 }

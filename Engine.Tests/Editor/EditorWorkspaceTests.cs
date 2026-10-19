@@ -55,7 +55,7 @@ public sealed class EditorWorkspaceTests
             "AssetBrowser");
 
         editor.Workspace.ActivatePanel(
-            "AssetPreview");
+            "Console");
 
         Assert.False(
             editor.Workspace.Layout.GetPanel(
@@ -63,7 +63,7 @@ public sealed class EditorWorkspaceTests
 
         Assert.True(
             editor.Workspace.Layout.GetPanel(
-                "AssetPreview").IsActive);
+                "Console").IsActive);
     }
 
     [Fact]
@@ -176,15 +176,18 @@ public sealed class EditorWorkspaceTests
             new EditorContext();
 
         editor.Workspace.ActivatePanel(
+    "Inspector");
+
+        editor.Workspace.ActivatePanel(
             "AssetBrowser");
 
         Assert.True(
             editor.Workspace.Layout.GetPanel(
                 "AssetBrowser").IsActive);
 
-        Assert.False(
+        Assert.True(
             editor.Workspace.Layout.GetPanel(
-                "AssetPreview").IsActive);
+                "Inspector").IsActive);
 
         Assert.True(
             editor.Workspace.Layout.GetPanel(
@@ -310,7 +313,7 @@ public sealed class EditorWorkspaceTests
 
         Assert.NotNull(
             editor.Workspace.FindPanel(
-                "AssetPreview"));
+                "Console"));
     }
 
     [Fact]

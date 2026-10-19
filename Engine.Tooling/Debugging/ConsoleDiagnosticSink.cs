@@ -16,12 +16,12 @@ public sealed class ConsoleDiagnosticSink :
         _console = console;
     }
 
-    public void Report(
-        Diagnostic diagnostic)
+    public void Report(Diagnostic diagnostic)
     {
         _console.Write(
             diagnostic.Level,
             diagnostic.Message,
-            diagnostic.Code);
+            diagnostic.Code,
+            diagnostic.Exception);
     }
 }

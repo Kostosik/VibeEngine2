@@ -13,22 +13,17 @@ public sealed class FatalError
         _reporter = reporter;
     }
 
-    public void Throw(
-        string code,
-        string message)
+    public void Throw(string code, string message)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(
-            code);
+        ArgumentException.ThrowIfNullOrWhiteSpace(code);
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(
-            message);
-
-        _reporter.Critical(
-            code,
-            message);
-
-        throw new FatalEngineException(
+        var exception = new FatalEngineException(
             $"{code}: {message}");
+
+        TryReport(code, message, null, exception);
+
+        throw exception;
     }
 
     public void Throw(
@@ -36,21 +31,37 @@ public sealed class FatalError
         string message,
         Exception innerException)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(
-            code);
+        ArgumentException.ThrowIfNullOrWhiteSpace(code);
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+        ArgumentNullException.ThrowIfNull(innerException);
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(
-            message);
-
-        ArgumentNullException.ThrowIfNull(
-            innerException);
-
-        _reporter.Critical(
-            code,
-            message);
-
-        throw new FatalEngineException(
+        var exception = new FatalEngineException(
             $"{code}: {message}",
             innerException);
+
+        TryReport(code, message, innerException, exception);
+
+        throw exception;
+    }
+
+    private void TryReport(
+        string code,
+        string message,
+        Exception? innerException,
+        FatalEngineException fatalException)
+    {
+        try
+        {
+            _reporter.Critical(
+                code,
+                message,
+                innerException);
+        }
+        catch (Exception reportingException)
+        {
+            // Ошибка диагностического приёмника не заменяет фатальную ошибку.
+            fatalException.Data["DiagnosticReportingException"] =
+                reportingException;
+        }
     }
 }

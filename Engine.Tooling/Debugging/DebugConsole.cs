@@ -164,7 +164,8 @@ public sealed class DebugConsole
 
             Write(
                 DiagnosticLevel.Error,
-                result.Message);
+                result.Message,
+                exception: exception);
 
             return result;
         }
@@ -234,29 +235,60 @@ public sealed class DebugConsole
     public void Write(
         DiagnosticLevel level,
         string message,
-        string? code = null)
+        string? code = null,
+        Exception? exception = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(
-            message);
+        ArgumentNullException.ThrowIfNull(message);
 
         var consoleMessage =
             new ConsoleMessage(
                 DateTime.UtcNow,
                 level,
                 message,
-                code);
+                code,
+                exception);
 
-        _messages.Add(
-            consoleMessage);
+        _messages.Add(consoleMessage);
 
-        MessageWritten?.Invoke(
-            consoleMessage);
+        MessageWritten?.Invoke(consoleMessage);
 
         foreach (var sink in _sinks)
         {
-            sink.Write(
-                consoleMessage);
+            sink.Write(consoleMessage);
         }
+    }
+
+    public void WriteLine(string message)
+    {
+        Write(DiagnosticLevel.Info, message);
+    }
+
+    public void WriteError(
+        string message,
+        string? code = null,
+        Exception? exception = null)
+    {
+        Write(
+            DiagnosticLevel.Error,
+            message,
+            code,
+            exception);
+    }
+
+    public void WriteException(
+        Exception exception,
+        string? message = null,
+        string? code = null)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        Write(
+            DiagnosticLevel.Error,
+            string.IsNullOrWhiteSpace(message)
+                ? exception.Message
+                : message,
+            code,
+            exception);
     }
 
     public void Clear()

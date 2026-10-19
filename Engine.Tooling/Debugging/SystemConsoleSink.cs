@@ -5,8 +5,7 @@ namespace Engine.Tooling.Debugging;
 public sealed class SystemConsoleSink :
     IConsoleSink
 {
-    public void Write(
-        ConsoleMessage message)
+    public void Write(ConsoleMessage message)
     {
         var code =
             string.IsNullOrWhiteSpace(message.Code)
@@ -15,5 +14,10 @@ public sealed class SystemConsoleSink :
 
         System.Console.WriteLine(
             $"[{message.Level}] {code}{message.Message}");
+
+        if (message.Exception is not null)
+        {
+            System.Console.WriteLine(message.Exception);
+        }
     }
 }

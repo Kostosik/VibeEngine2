@@ -187,9 +187,7 @@ public abstract class UiContainer : UiWidget
 
         foreach (var child in GetHitTestOrder())
         {
-            var hit =
-                child.HitTest(
-                    point);
+            var hit = child.HitTest(point);
 
             if (hit is not null)
             {
@@ -197,7 +195,7 @@ public abstract class UiContainer : UiWidget
             }
         }
 
-        return Bounds.Contains(point)
+        return ContainsPoint(point)
             ? this
             : null;
     }

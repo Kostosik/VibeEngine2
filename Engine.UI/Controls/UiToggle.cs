@@ -90,8 +90,7 @@ public sealed class UiToggle : UiWidget
             return;
         }
 
-        if (Bounds.Contains(
-                pointer.Position))
+        if (ContainsPoint(pointer.Position))
         {
             Toggle();
         }

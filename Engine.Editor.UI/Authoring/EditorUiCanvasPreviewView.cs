@@ -39,11 +39,25 @@ public sealed class EditorUiCanvasPreviewView :
     private DragOperation _dragOperation;
     private ResizeHandle _resizeHandle;
 
+    private const float GizmoRotateHandleOffset = 22.0f;
+
+    private float _dragParentRotationDegrees;
+    private float _dragTotalRotationDegrees;
+    private Vector2 _dragRotationCenter;
+    private float _dragStartPointerAngle;
+
+    private readonly record struct ElementScreenTransform(
+    UiRect LayoutRect,
+    Vector2 Center,
+    float RotationDegrees,
+    float ParentRotationDegrees);
+
     private enum DragOperation
     {
         None,
         Move,
-        Resize
+        Resize,
+        Rotate
     }
 
     private enum ResizeHandle
@@ -209,23 +223,6 @@ public sealed class EditorUiCanvasPreviewView :
             return;
         }
 
-        if (pointer.Button != InputMouseButton.Left)
-        {
-            return;
-        }
-
-        if (!Bounds.Contains(pointer.Position))
-        {
-            return;
-        }
-
-        var canvasRect = GetCanvasRect();
-
-        if (!canvasRect.Contains(pointer.Position))
-        {
-            return;
-        }
-
         var scale = GetScale();
 
         if (scale <= 0.0f)
@@ -233,18 +230,44 @@ public sealed class EditorUiCanvasPreviewView :
             return;
         }
 
-        // Сначала проверяем маркеры уже выбранного элемента.
-        // Они должны иметь приоритет над обычным hit-test.
+        // Сначала обрабатываем gizmo выделенного элемента.
+        // Маркер вращения может находиться за пределами Canvas,
+        // поэтому проверку canvasRect выполняем позже.
         if (TryGetSelectedElement(out var selected) &&
             selected is not null &&
-            TryGetElementScreenRect(
+            TryGetElementScreenTransform(
                 selected,
                 scale,
-                out var selectedRect))
+                out var selectedTransform))
         {
-            var handle = HitTestResizeHandle(
+            var gizmoRect = CreateGizmoRect(
+                selectedTransform.LayoutRect,
+                selectedTransform.Center);
+
+            var gizmoPoint = RotatePointForHitTest(
                 pointer.Position,
-                selectedRect);
+                selectedTransform.Center,
+                -selectedTransform.RotationDegrees);
+
+            if (HitTestRotateHandle(gizmoPoint, gizmoRect))
+            {
+                BeginDrag(
+                    selected,
+                    DragOperation.Rotate,
+                    ResizeHandle.None,
+                    pointer,
+                    scale,
+                    selectedTransform.ParentRotationDegrees,
+                    selectedTransform.RotationDegrees,
+                    selectedTransform.Center);
+
+                pointer.Handled = true;
+                return;
+            }
+
+            var handle = HitTestResizeHandle(
+                gizmoPoint,
+                gizmoRect);
 
             if (handle != ResizeHandle.None)
             {
@@ -253,11 +276,21 @@ public sealed class EditorUiCanvasPreviewView :
                     DragOperation.Resize,
                     handle,
                     pointer,
-                    scale);
+                    scale,
+                    selectedTransform.ParentRotationDegrees,
+                    selectedTransform.RotationDegrees,
+                    selectedTransform.Center);
 
                 pointer.Handled = true;
                 return;
             }
+        }
+
+        var canvasRect = GetCanvasRect();
+
+        if (!canvasRect.Contains(pointer.Position))
+        {
+            return;
         }
 
         var documentPosition = new Vector2(
@@ -277,15 +310,21 @@ public sealed class EditorUiCanvasPreviewView :
 
         _document.Selection.Set(hit.Id);
 
-        // Корневой canvas не перемещаем и не масштабируем.
-        if (!ReferenceEquals(hit, _document.Root))
+        if (!ReferenceEquals(hit, _document.Root) &&
+            TryGetElementScreenTransform(
+                hit,
+                scale,
+                out var hitTransform))
         {
             BeginDrag(
                 hit,
                 DragOperation.Move,
                 ResizeHandle.None,
                 pointer,
-                scale);
+                scale,
+                hitTransform.ParentRotationDegrees,
+                hitTransform.RotationDegrees,
+                hitTransform.Center);
         }
 
         pointer.Handled = true;
@@ -310,28 +349,63 @@ public sealed class EditorUiCanvasPreviewView :
             return;
         }
 
-        var deltaX =
+        var screenDelta = new Vector2(
             (pointer.Position.X - _dragStartPointer.X) /
-            _dragScale;
-
-        var deltaY =
+            _dragScale,
             (pointer.Position.Y - _dragStartPointer.Y) /
-            _dragScale;
+            _dragScale);
 
-        if (_dragOperation == DragOperation.Move)
+        switch (_dragOperation)
         {
-            _dragLayout = _dragStartLayout with
-            {
-                Offset = new Vector2(
-                    _dragStartLayout.Offset.X + deltaX,
-                    _dragStartLayout.Offset.Y + deltaY)
-            };
-        }
-        else
-        {
-            _dragLayout = CreateResizedLayout(
-                deltaX,
-                deltaY);
+            case DragOperation.Move:
+                {
+                    var localDelta = RotatePointForHitTest(
+                        screenDelta,
+                        Vector2.Zero,
+                        -_dragParentRotationDegrees);
+
+                    _dragLayout = _dragStartLayout with
+                    {
+                        Offset = new Vector2(
+                            _dragStartLayout.Offset.X + localDelta.X,
+                            _dragStartLayout.Offset.Y + localDelta.Y)
+                    };
+
+                    break;
+                }
+
+            case DragOperation.Resize:
+                {
+                    var localDelta = RotatePointForHitTest(
+                        screenDelta,
+                        Vector2.Zero,
+                        -_dragTotalRotationDegrees);
+
+                    _dragLayout = CreateResizedLayout(
+                        localDelta.X,
+                        localDelta.Y);
+
+                    break;
+                }
+
+            case DragOperation.Rotate:
+                {
+                    var currentAngle = GetPointerAngle(
+                        pointer.Position,
+                        _dragRotationCenter);
+
+                    var angleDelta = NormalizeAngle(
+                        currentAngle - _dragStartPointerAngle);
+
+                    _dragLayout = _dragStartLayout with
+                    {
+                        RotationDegrees =
+                            _dragStartLayout.RotationDegrees +
+                            angleDelta
+                    };
+
+                    break;
+                }
         }
 
         pointer.Handled = true;
@@ -378,11 +452,14 @@ public sealed class EditorUiCanvasPreviewView :
     }
 
     private void BeginDrag(
-    EditorUiElement element,
-    DragOperation operation,
-    ResizeHandle handle,
-    UiPointerEvent pointer,
-    float scale)
+        EditorUiElement element,
+        DragOperation operation,
+        ResizeHandle handle,
+        UiPointerEvent pointer,
+        float scale,
+        float parentRotationDegrees = 0.0f,
+        float totalRotationDegrees = 0.0f,
+        Vector2? rotationCenter = null)
     {
         _dragElement = element;
         _dragStartLayout = element.Layout;
@@ -391,6 +468,19 @@ public sealed class EditorUiCanvasPreviewView :
         _dragScale = scale;
         _dragOperation = operation;
         _resizeHandle = handle;
+
+        _dragParentRotationDegrees =
+            parentRotationDegrees;
+
+        _dragTotalRotationDegrees =
+            totalRotationDegrees;
+
+        _dragRotationCenter =
+            rotationCenter ?? pointer.Position;
+
+        _dragStartPointerAngle = GetPointerAngle(
+            pointer.Position,
+            _dragRotationCenter);
 
         pointer.RequestCapture();
     }
@@ -401,6 +491,10 @@ public sealed class EditorUiCanvasPreviewView :
         _dragOperation = DragOperation.None;
         _resizeHandle = ResizeHandle.None;
         _dragScale = 0.0f;
+        _dragParentRotationDegrees = 0.0f;
+        _dragTotalRotationDegrees = 0.0f;
+        _dragRotationCenter = Vector2.Zero;
+        _dragStartPointerAngle = 0.0f;
     }
 
     private EditorUiLayout GetEffectiveLayout(
@@ -542,53 +636,63 @@ public sealed class EditorUiCanvasPreviewView :
         return true;
     }
 
-    private bool TryGetElementScreenRect(
-        EditorUiElement element,
-        float scale,
-        out UiRect screenRect)
+    private bool TryGetElementScreenTransform(
+    EditorUiElement element,
+    float scale,
+    out ElementScreenTransform transform)
     {
-        // Собираем путь от root до выбранного элемента,
-        // чтобы учесть все родительские смещения.
-        var path = new Stack<EditorUiElement>();
+        var path = new List<EditorUiElement>();
 
-        for (var current = element;
+        for (EditorUiElement? current = element;
              current is not null;
              current = current.Parent)
         {
-            path.Push(current);
+            path.Add(current);
         }
+
+        path.Reverse();
 
         var parentSize = _document.Root.Layout.Size;
         var parentOrigin = Vector2.Zero;
+        var canvasRect = GetCanvasRect();
 
-        while (path.Count > 0)
+        var elementRect = default(UiRect);
+        var center = Vector2.Zero;
+        var totalRotation = 0.0f;
+        var parentRotation = 0.0f;
+
+        for (var i = 0; i < path.Count; i++)
         {
-            var current = path.Pop();
+            var current = path[i];
 
             if (!current.Visible)
             {
-                screenRect = default;
+                transform = default;
                 return false;
             }
 
-            var localRect = GetEffectiveLayout(current)
-                .Resolve(parentSize);
+            var layout = GetEffectiveLayout(current);
+            var localRect = layout.Resolve(parentSize);
 
             var origin = new Vector2(
                 parentOrigin.X + localRect.X,
                 parentOrigin.Y + localRect.Y);
 
-            if (ReferenceEquals(current, element))
+            elementRect = new UiRect(
+                canvasRect.X + origin.X * scale,
+                canvasRect.Y + origin.Y * scale,
+                localRect.Width * scale,
+                localRect.Height * scale);
+
+            center = new Vector2(
+                elementRect.X + elementRect.Width * 0.5f,
+                elementRect.Y + elementRect.Height * 0.5f);
+
+            totalRotation += layout.RotationDegrees;
+
+            if (i < path.Count - 1)
             {
-                var canvasRect = GetCanvasRect();
-
-                screenRect = new UiRect(
-                    canvasRect.X + origin.X * scale,
-                    canvasRect.Y + origin.Y * scale,
-                    localRect.Width * scale,
-                    localRect.Height * scale);
-
-                return true;
+                parentRotation += layout.RotationDegrees;
             }
 
             parentOrigin = origin;
@@ -597,12 +701,23 @@ public sealed class EditorUiCanvasPreviewView :
                 localRect.Height);
         }
 
-        screenRect = default;
-        return false;
+        if (path.Count == 0)
+        {
+            transform = default;
+            return false;
+        }
+
+        transform = new ElementScreenTransform(
+            elementRect,
+            center,
+            totalRotation,
+            parentRotation);
+
+        return true;
     }
 
     private void RenderSelectionGizmo(
-        UiRenderContext context)
+    UiRenderContext context)
     {
         if (!TryGetSelectedElement(out var selected) ||
             selected is null)
@@ -613,42 +728,169 @@ public sealed class EditorUiCanvasPreviewView :
         var scale = GetScale();
 
         if (scale <= 0.0f ||
-            !TryGetElementScreenRect(
+            !TryGetElementScreenTransform(
                 selected,
                 scale,
-                out var rect))
+                out var transform))
         {
             return;
         }
 
-        context.DrawRectangle(
-            rect,
-            new UiColor(45, 155, 255, 255),
-            filled: false,
-            layer: 10);
+        var rect = CreateGizmoRect(
+            transform.LayoutRect,
+            transform.Center);
 
-        foreach (var (_, center) in GetResizeHandles(rect))
+        context.PushRotation(
+            transform.Center,
+            transform.RotationDegrees);
+
+        try
         {
-            var halfSize = GizmoHandleSize * 0.5f;
+            context.DrawRectangle(
+                rect,
+                new UiColor(45, 155, 255, 255),
+                filled: false,
+                layer: 10);
 
-            var handleRect = new UiRect(
-                center.X - halfSize,
-                center.Y - halfSize,
-                GizmoHandleSize,
-                GizmoHandleSize);
+            foreach (var (_, center) in GetResizeHandles(rect))
+            {
+                DrawGizmoHandle(
+                    context,
+                    center,
+                    11);
+            }
+
+            var centerX = rect.X + rect.Width * 0.5f;
+
+            var rotationHandleCenter = new Vector2(
+                centerX,
+                rect.Y - GizmoRotateHandleOffset);
+
+            var stemTop =
+                rotationHandleCenter.Y + GizmoHandleSize * 0.5f;
 
             context.DrawRectangle(
-                handleRect,
+                new UiRect(
+                    centerX - 1.0f,
+                    stemTop,
+                    2.0f,
+                    MathF.Max(0.0f, rect.Y - stemTop)),
                 new UiColor(45, 155, 255, 255),
                 filled: true,
-                layer: 11);
+                layer: 10);
 
-            context.DrawRectangle(
-                handleRect,
-                new UiColor(245, 245, 245, 255),
-                filled: false,
-                layer: 12);
+            DrawGizmoHandle(
+                context,
+                rotationHandleCenter,
+                11);
         }
+        finally
+        {
+            context.PopRotation();
+        }
+    }
+
+    private void DrawGizmoHandle(
+        UiRenderContext context,
+        Vector2 center,
+        int layer)
+    {
+        var halfSize = GizmoHandleSize * 0.5f;
+
+        var handleRect = new UiRect(
+            center.X - halfSize,
+            center.Y - halfSize,
+            GizmoHandleSize,
+            GizmoHandleSize);
+
+        context.DrawRectangle(
+            handleRect,
+            new UiColor(45, 155, 255, 255),
+            filled: true,
+            layer: layer);
+
+        context.DrawRectangle(
+            handleRect,
+            new UiColor(245, 245, 245, 255),
+            filled: false,
+            layer: layer + 1);
+    }
+
+    private static UiRect CreateGizmoRect(
+    UiRect sourceRect,
+    Vector2 center)
+    {
+        return new UiRect(
+            center.X - sourceRect.Width * 0.5f,
+            center.Y - sourceRect.Height * 0.5f,
+            sourceRect.Width,
+            sourceRect.Height);
+    }
+
+    private static bool HitTestRotateHandle(
+        Vector2 pointer,
+        UiRect rect)
+    {
+        var centerX = rect.X + rect.Width * 0.5f;
+
+        var handleCenter = new Vector2(
+            centerX,
+            rect.Y - GizmoRotateHandleOffset);
+
+        return MathF.Abs(pointer.X - handleCenter.X) <=
+                   GizmoHandleHitRadius &&
+               MathF.Abs(pointer.Y - handleCenter.Y) <=
+                   GizmoHandleHitRadius;
+    }
+
+    private static float GetPointerAngle(
+        Vector2 pointer,
+        Vector2 center)
+    {
+        return MathF.Atan2(
+            pointer.Y - center.Y,
+            pointer.X - center.X) *
+            (180.0f / MathF.PI);
+    }
+
+    private static float NormalizeAngle(float degrees)
+    {
+        degrees %= 360.0f;
+
+        if (degrees > 180.0f)
+        {
+            degrees -= 360.0f;
+        }
+        else if (degrees < -180.0f)
+        {
+            degrees += 360.0f;
+        }
+
+        return degrees;
+    }
+
+    private static Vector2 RotatePointForHitTest(
+        Vector2 point,
+        Vector2 origin,
+        float rotationDegrees)
+    {
+        if (MathF.Abs(rotationDegrees) < 0.0001f)
+        {
+            return point;
+        }
+
+        var radians =
+            rotationDegrees * (MathF.PI / 180.0f);
+
+        var cos = MathF.Cos(radians);
+        var sin = MathF.Sin(radians);
+
+        var dx = point.X - origin.X;
+        var dy = point.Y - origin.Y;
+
+        return new Vector2(
+            origin.X + dx * cos - dy * sin,
+            origin.Y + dx * sin + dy * cos);
     }
 
     private static (
@@ -855,30 +1097,33 @@ public sealed class EditorUiCanvasPreviewView :
             return null;
         }
 
-        var localRect =
-            element.Layout.Resolve(
-                parentSize);
+        var layout = GetEffectiveLayout(element);
+        var localRect = layout.Resolve(parentSize);
 
-        var elementOrigin =
-            new Vector2(
-                parentOrigin.X +
-                localRect.X,
-                parentOrigin.Y +
-                localRect.Y);
+        var elementOrigin = new Vector2(
+            parentOrigin.X + localRect.X,
+            parentOrigin.Y + localRect.Y);
+
+        var elementCenter = new Vector2(
+            elementOrigin.X + localRect.Width * 0.5f,
+            elementOrigin.Y + localRect.Height * 0.5f);
+
+        var unrotatedPoint = RotatePointForHitTest(
+            point,
+            elementCenter,
+            -layout.RotationDegrees);
 
         foreach (var child in element.Children
-             .OrderByDescending(
-                 static child =>
-                     child.ZIndex))
+                     .OrderByDescending(
+                         static child => child.ZIndex))
         {
-            var hit =
-                FindElementAt(
-                    child,
-                    point,
-                    elementOrigin,
-                    new Vector2(
-                        localRect.Width,
-                        localRect.Height));
+            var hit = FindElementAt(
+                child,
+                unrotatedPoint,
+                elementOrigin,
+                new Vector2(
+                    localRect.Width,
+                    localRect.Height));
 
             if (hit is not null)
             {
@@ -886,14 +1131,10 @@ public sealed class EditorUiCanvasPreviewView :
             }
         }
 
-        if (point.X >= elementOrigin.X &&
-            point.Y >= elementOrigin.Y &&
-            point.X <=
-                elementOrigin.X +
-                localRect.Width &&
-            point.Y <=
-                elementOrigin.Y +
-                localRect.Height)
+        if (unrotatedPoint.X >= elementOrigin.X &&
+            unrotatedPoint.Y >= elementOrigin.Y &&
+            unrotatedPoint.X <= elementOrigin.X + localRect.Width &&
+            unrotatedPoint.Y <= elementOrigin.Y + localRect.Height)
         {
             return element;
         }

@@ -1,4 +1,6 @@
-﻿using Engine.ECS.Entities;
+﻿using Engine.Core.Math;
+using Engine.ECS.Components;
+using Engine.ECS.Entities;
 using Engine.Editor.Documents;
 using Engine.Editor.Entities;
 using Engine.Worlds.Spatial;
@@ -27,6 +29,11 @@ public sealed class CreateEditorEntityCommand : IEditorCommand
         var entity =
             _document.World.SpatialEntities.CreateEntity(
                 new WorldPosition(0, 0));
+
+        _document.World.EcsWorld.Add(
+    entity,
+    new WorldTransform2D(
+        FixedVector2.Zero));
 
         if (Reference is null)
         {

@@ -159,8 +159,10 @@ public sealed class UiTextBox : UiWidget
             return;
         }
 
-        SetCursorFromPointer(
-            pointer.Position.X);
+        var localPoint = TransformPointToLocalSpace(
+            pointer.Position);
+
+        SetCursorFromPointer(localPoint.X);
 
         ResetCursor();
 

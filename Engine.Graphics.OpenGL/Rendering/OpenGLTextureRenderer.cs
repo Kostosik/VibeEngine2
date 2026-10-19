@@ -157,8 +157,7 @@ internal sealed class OpenGLTextureRenderer : IDisposable
         ThrowIfDisposed();
         EnsureFrameActive();
 
-        if (!PrepareTextureBatch(
-                command.Texture))
+        if (!PrepareTextureBatch(command.Texture))
         {
             return;
         }
@@ -171,7 +170,8 @@ internal sealed class OpenGLTextureRenderer : IDisposable
                 command.Size.X,
                 command.Size.Y,
                 command.UV,
-                command.ClipRect.Value);
+                command.ClipRect.Value,
+                command.RotationDegrees);
 
             return;
         }
@@ -181,7 +181,8 @@ internal sealed class OpenGLTextureRenderer : IDisposable
             command.Position.Y,
             command.Size.X,
             command.Size.Y,
-            command.UV);
+            command.UV,
+            command.RotationDegrees);
     }
 
     private void AddClippedQuad(
@@ -190,7 +191,9 @@ internal sealed class OpenGLTextureRenderer : IDisposable
     float width,
     float height,
     Rectangle uv,
-    Rectangle clip)
+    Rectangle clip,
+    float rotationDegrees = 0.0f,
+    Vector2? rotationOrigin = null)
     {
         if (width <= 0.0f ||
             height <= 0.0f ||
@@ -200,25 +203,22 @@ internal sealed class OpenGLTextureRenderer : IDisposable
             return;
         }
 
-        var left =
-            MathF.Max(
-                x,
-                clip.X);
+        // Запоминаем центр ДО обрезки.
+        var origin = rotationOrigin ??
+            new Vector2(
+                x + width * 0.5f,
+                y + height * 0.5f);
 
-        var top =
-            MathF.Max(
-                y,
-                clip.Y);
+        var left = MathF.Max(x, clip.X);
+        var top = MathF.Max(y, clip.Y);
 
-        var right =
-            MathF.Min(
-                x + width,
-                clip.X + clip.Width);
+        var right = MathF.Min(
+            x + width,
+            clip.X + clip.Width);
 
-        var bottom =
-            MathF.Min(
-                y + height,
-                clip.Y + clip.Height);
+        var bottom = MathF.Min(
+            y + height,
+            clip.Y + clip.Height);
 
         if (right <= left ||
             bottom <= top)
@@ -226,46 +226,25 @@ internal sealed class OpenGLTextureRenderer : IDisposable
             return;
         }
 
-        var leftRatio =
-            (left - x) /
-            width;
+        var leftRatio = (left - x) / width;
+        var topRatio = (top - y) / height;
+        var rightRatio = (right - x) / width;
+        var bottomRatio = (bottom - y) / height;
 
-        var topRatio =
-            (top - y) /
-            height;
-
-        var rightRatio =
-            (right - x) /
-            width;
-
-        var bottomRatio =
-            (bottom - y) /
-            height;
-
-        var clippedUv =
-            new Rectangle(
-                uv.X +
-                uv.Width *
-                leftRatio,
-
-                uv.Y +
-                uv.Height *
-                topRatio,
-
-                uv.Width *
-                (rightRatio -
-                 leftRatio),
-
-                uv.Height *
-                (bottomRatio -
-                 topRatio));
+        var clippedUv = new Rectangle(
+            uv.X + uv.Width * leftRatio,
+            uv.Y + uv.Height * topRatio,
+            uv.Width * (rightRatio - leftRatio),
+            uv.Height * (bottomRatio - topRatio));
 
         AddQuad(
             left,
             top,
             right - left,
             bottom - top,
-            clippedUv);
+            clippedUv,
+            rotationDegrees,
+            origin);
     }
 
     public void Draw(

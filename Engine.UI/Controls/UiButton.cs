@@ -182,8 +182,7 @@ public sealed class UiButton : UiWidget
 
         IsPressed = false;
 
-        if (Bounds.Contains(
-                pointer.Position))
+        if (ContainsPoint(pointer.Position))
         {
             Click();
         }

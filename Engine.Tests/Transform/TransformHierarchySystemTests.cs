@@ -9,6 +9,55 @@ namespace Engine.Tests.Transform;
 public sealed class TransformHierarchySystemTests
 {
     [Fact]
+    public void ParentWithWorldTransformOnlyIsValid()
+    {
+        using var world = new World();
+
+        var parent =
+            world.CreateEntity();
+
+        var child =
+            world.CreateEntity();
+
+        world.Add(
+            parent,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromInt(10),
+                    Fixed32.FromInt(20))));
+
+        AddLocal(
+            world,
+            child,
+            3,
+            4);
+
+        world.Add(
+            child,
+            new TransformParent2D(
+                parent));
+
+        var system =
+            new TransformHierarchySystem(
+                world);
+
+        system.FixedUpdate(
+            default);
+
+        var transform =
+            world.Get<WorldTransform2D>(
+                child);
+
+        Assert.Equal(
+            Fixed32.FromInt(13),
+            transform.Position.X);
+
+        Assert.Equal(
+            Fixed32.FromInt(24),
+            transform.Position.Y);
+    }
+
+    [Fact]
     public void RootLocalTransformBecomesWorldTransform()
     {
         using var world = new World();
@@ -247,6 +296,98 @@ public sealed class TransformHierarchySystemTests
             child,
             new TransformParent2D(
                 missingParent));
+
+        var system =
+            new TransformHierarchySystem(
+                world);
+
+        Assert.Throws<InvalidOperationException>(
+            () =>
+                system.FixedUpdate(
+                    default));
+    }
+
+    [Fact]
+    public void ParentWithoutWorldTransformThrows()
+    {
+        using var world = new World();
+
+        var parent =
+            world.CreateEntity();
+
+        var child =
+            world.CreateEntity();
+
+        AddLocal(
+            world,
+            child,
+            1,
+            0);
+
+        world.Add(
+            child,
+            new TransformParent2D(
+                parent));
+
+        var system =
+            new TransformHierarchySystem(
+                world);
+
+        Assert.Throws<InvalidOperationException>(
+            () =>
+                system.FixedUpdate(
+                    default));
+    }
+
+    [Fact]
+    public void TransformParentWithoutLocalTransformThrows()
+    {
+        using var world = new World();
+
+        var parent =
+            world.CreateEntity();
+
+        var child =
+            world.CreateEntity();
+
+        world.Add(
+            parent,
+            new WorldTransform2D(
+                FixedVector2.Zero));
+
+        world.Add(
+            child,
+            new WorldTransform2D(
+                FixedVector2.Zero));
+
+        world.Add(
+            child,
+            new TransformParent2D(
+                parent));
+
+        var system =
+            new TransformHierarchySystem(
+                world);
+
+        Assert.Throws<InvalidOperationException>(
+            () =>
+                system.FixedUpdate(
+                    default));
+    }
+
+    [Fact]
+    public void LocalTransformWithoutWorldTransformThrows()
+    {
+        using var world = new World();
+
+        var entity =
+            world.CreateEntity();
+
+        world.Add(
+            entity,
+            new LocalTransform2D(
+                new FixedTransform2D(
+                    FixedVector2.Zero)));
 
         var system =
             new TransformHierarchySystem(

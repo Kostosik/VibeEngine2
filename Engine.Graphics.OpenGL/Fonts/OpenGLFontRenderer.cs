@@ -123,18 +123,23 @@ internal sealed class OpenGLFontRenderer :
      float height,
      Rectangle uv,
      Rectangle clip,
-     float rotationDegrees = 0.0f)
+     float rotationDegrees = 0.0f,
+     Vector2? rotationOrigin = null)
     {
         if (width <= 0.0f ||
-            height <= 0.0f)
+            height <= 0.0f ||
+            clip.Width <= 0.0f ||
+            clip.Height <= 0.0f)
         {
             return;
         }
 
-        // Центр исходного прямоугольника — до обрезки.
-        var rotationOrigin = new Vector2(
-            x + width * 0.5f,
-            y + height * 0.5f);
+        // Для текста сохраняем переданную точку вращения.
+        // Если её нет, используем центр исходного прямоугольника.
+        var origin = rotationOrigin ??
+            new Vector2(
+                x + width * 0.5f,
+                y + height * 0.5f);
 
         var left = MathF.Max(x, clip.X);
         var top = MathF.Max(y, clip.Y);
@@ -164,8 +169,6 @@ internal sealed class OpenGLFontRenderer :
             uv.Width * (rightRatio - leftRatio),
             uv.Height * (bottomRatio - topRatio));
 
-        // Рисуем обрезанную область, сохраняя центр
-        // вращения исходного прямоугольника.
         AddQuad(
             left,
             top,
@@ -173,7 +176,7 @@ internal sealed class OpenGLFontRenderer :
             bottom - top,
             clippedUv,
             rotationDegrees,
-            rotationOrigin);
+            origin);
     }
 
     public void Draw(
@@ -376,54 +379,93 @@ command.Position);
     }
 
     private void AddQuad(
-        float x,
-        float y,
-        float width,
-        float height,
-        Engine.Core.Math.Rectangle uv, float rotationDegrees = 0.0f,
-Vector2? rotationOrigin = null)
+    float x,
+    float y,
+    float width,
+    float height,
+    Engine.Core.Math.Rectangle uv,
+    float rotationDegrees = 0.0f,
+    Vector2? rotationOrigin = null)
     {
-        var right =
-            x + width;
+        var right = x + width;
+        var bottom = y + height;
 
-        var bottom =
-            y + height;
+        var origin = rotationOrigin ??
+            new Vector2(
+                x + width * 0.5f,
+                y + height * 0.5f);
+
+        var topLeft = RotatePoint(
+            new Vector2(x, y),
+            origin,
+            rotationDegrees);
+
+        var topRight = RotatePoint(
+            new Vector2(right, y),
+            origin,
+            rotationDegrees);
+
+        var bottomRight = RotatePoint(
+            new Vector2(right, bottom),
+            origin,
+            rotationDegrees);
+
+        var bottomLeft = RotatePoint(
+            new Vector2(x, bottom),
+            origin,
+            rotationDegrees);
+
+        AddVertex(topLeft.X, topLeft.Y, uv.X, uv.Y);
 
         AddVertex(
-            x,
-            y,
-            uv.X,
-            uv.Y);
-
-        AddVertex(
-            right,
-            y,
+            topRight.X,
+            topRight.Y,
             uv.X + uv.Width,
             uv.Y);
 
         AddVertex(
-            right,
-            bottom,
+            bottomRight.X,
+            bottomRight.Y,
+            uv.X + uv.Width,
+            uv.Y + uv.Height);
+
+        AddVertex(topLeft.X, topLeft.Y, uv.X, uv.Y);
+
+        AddVertex(
+            bottomRight.X,
+            bottomRight.Y,
             uv.X + uv.Width,
             uv.Y + uv.Height);
 
         AddVertex(
-            x,
-            y,
-            uv.X,
-            uv.Y);
-
-        AddVertex(
-            right,
-            bottom,
-            uv.X + uv.Width,
-            uv.Y + uv.Height);
-
-        AddVertex(
-            x,
-            bottom,
+            bottomLeft.X,
+            bottomLeft.Y,
             uv.X,
             uv.Y + uv.Height);
+    }
+
+    private static Vector2 RotatePoint(
+    Vector2 point,
+    Vector2 origin,
+    float rotationDegrees)
+    {
+        if (MathF.Abs(rotationDegrees) < 0.0001f)
+        {
+            return point;
+        }
+
+        var radians =
+            rotationDegrees * (MathF.PI / 180.0f);
+
+        var cos = MathF.Cos(radians);
+        var sin = MathF.Sin(radians);
+
+        var dx = point.X - origin.X;
+        var dy = point.Y - origin.Y;
+
+        return new Vector2(
+            origin.X + dx * cos - dy * sin,
+            origin.Y + dx * sin + dy * cos);
     }
 
     private void AddVertex(

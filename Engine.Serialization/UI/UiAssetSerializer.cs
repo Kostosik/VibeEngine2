@@ -184,6 +184,10 @@ public sealed class UiAssetSerializer :
                 reader.ReadSingle(),
                 reader.ReadSingle());
 
+            var rotationDegrees = version >= 4
+                ? reader.ReadSingle()
+                : 0.0f;
+
             var offset = new Vector2(
                 reader.ReadSingle(),
                 reader.ReadSingle());
@@ -191,10 +195,6 @@ public sealed class UiAssetSerializer :
             var size = new Vector2(
                 reader.ReadSingle(),
                 reader.ReadSingle());
-
-            var rotationDegrees = version >= 4
-                ? reader.ReadSingle()
-                : 0.0f;
 
             var layout = new UiAssetLayout(
                 anchor,

@@ -10,5 +10,7 @@ public readonly record struct DrawUiTextureCommand(
     Vector2 Size,
     Rectangle UV,
     int Layer = RenderLayers.Ui,
-    Rectangle? ClipRect = null, float RotationDegrees = 0.0f)
+    Rectangle? ClipRect = null,
+    float RotationDegrees = 0.0f,
+    ClipRegion? ClipRegion = null)
     : IRenderCommand;

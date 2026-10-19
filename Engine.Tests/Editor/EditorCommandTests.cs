@@ -1,4 +1,6 @@
-﻿using Engine.Editor.Commands;
+﻿using Engine.Core.Math;
+using Engine.ECS.Components;
+using Engine.Editor.Commands;
 using Engine.Editor.Documents;
 using Engine.Editor.Inspection;
 using Engine.Worlds;
@@ -8,6 +10,77 @@ namespace Engine.Tests.Editor;
 
 public sealed class EditorCommandTests
 {
+    [Fact]
+    public void SetWorldTransform2D_ExecuteUndoRedo_RestoresTransform()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+        var entity =
+            ecsWorld.CreateEntity();
+
+        var oldValue =
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromInt(2),
+                    Fixed32.FromInt(3)));
+
+        var newValue =
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromInt(10),
+                    Fixed32.FromInt(12)));
+
+        newValue.Rotation = Fixed32.HalfPi;
+
+        newValue.Scale =
+            new FixedVector2(
+                Fixed32.FromInt(2),
+                Fixed32.FromInt(3));
+
+        ecsWorld.Add(entity, oldValue);
+
+        var document =
+            new EditorDocument(world);
+
+        var command =
+            new SetWorldTransform2DCommand(
+                world,
+                document.GetEntityReference(entity),
+                oldValue,
+                newValue);
+
+        command.Execute();
+
+        var actual =
+            ecsWorld.Get<WorldTransform2D>(entity);
+
+        Assert.Equal(newValue.Position, actual.Position);
+        Assert.Equal(newValue.Rotation, actual.Rotation);
+        Assert.Equal(newValue.Scale, actual.Scale);
+
+        command.Undo();
+
+        actual = ecsWorld.Get<WorldTransform2D>(entity);
+
+        Assert.Equal(oldValue.Position, actual.Position);
+        Assert.Equal(oldValue.Rotation, actual.Rotation);
+        Assert.Equal(oldValue.Scale, actual.Scale);
+
+        command.Execute();
+
+        actual = ecsWorld.Get<WorldTransform2D>(entity);
+
+        Assert.Equal(newValue.Position, actual.Position);
+        Assert.Equal(newValue.Rotation, actual.Rotation);
+        Assert.Equal(newValue.Scale, actual.Scale);
+    }
+
     [Fact]
     public void DeleteEntity_ExecuteUndo_RestoresSelection()
     {

@@ -176,12 +176,19 @@ public class UiScrollView : UiContainer
     }
 
     protected override Vector2 MeasureCore(
-        UiLayoutContext context,
-        Vector2 availableSize)
+    UiLayoutContext context,
+    Vector2 availableSize)
     {
         if (Content is null)
         {
-            return availableSize;
+            return new Vector2(
+                float.IsFinite(availableSize.X)
+                    ? availableSize.X
+                    : 0.0f,
+
+                float.IsFinite(availableSize.Y)
+                    ? availableSize.Y
+                    : 0.0f);
         }
 
         var contentAvailable =
@@ -206,7 +213,17 @@ public class UiScrollView : UiContainer
             context,
             availableSize);
 
-        return availableSize;
+        // В ограниченном пространстве ScrollView занимает
+        // доступную область. При бесконечном ограничении
+        // возвращаем естественный размер содержимого.
+        return new Vector2(
+            float.IsFinite(availableSize.X)
+                ? availableSize.X
+                : Content.DesiredSize.X,
+
+            float.IsFinite(availableSize.Y)
+                ? availableSize.Y
+                : Content.DesiredSize.Y);
     }
 
     protected override void ArrangeCore(
@@ -361,6 +378,7 @@ public class UiScrollView : UiContainer
                 horizontalHeight));
     }
 
+
     public override void Render(
         UiRenderContext context)
     {
@@ -372,34 +390,72 @@ public class UiScrollView : UiContainer
         var previousLayer =
             context.LayerOffset;
 
-        context.LayerOffset +=
-            ZIndex;
+        var rotationCenter =
+            new Vector2(
+                Bounds.X + Bounds.Width * 0.5f,
+                Bounds.Y + Bounds.Height * 0.5f);
 
-        if (Background.HasValue)
+        var rotationPushed = false;
+        var clipPushed = false;
+
+        try
         {
-            context.DrawRectangle(
-                Bounds,
-                Background.Value,
-                filled: true);
+            context.LayerOffset += ZIndex;
+
+            context.PushRotation(
+                rotationCenter,
+                RotationDegrees);
+
+            rotationPushed = true;
+
+            if (Background.HasValue)
+            {
+                context.DrawRectangle(
+                    Bounds,
+                    Background.Value,
+                    filled: true);
+            }
+
+            context.PushClip(
+                Bounds);
+
+            clipPushed = true;
+
+            foreach (var child in Children
+                         .OrderBy(
+                             static child =>
+                                 child.ZIndex))
+            {
+                child.Render(context);
+            }
         }
-
-        context.PushClip(
-            Bounds);
-
-        foreach (var child in Children
-                     .OrderBy(
-                         static child =>
-                             child.ZIndex))
+        finally
         {
-            child.Render(
-                context);
+            try
+            {
+                if (clipPushed)
+                {
+                    context.PopClip();
+                }
+            }
+            finally
+            {
+                try
+                {
+                    if (rotationPushed)
+                    {
+                        context.PopRotation();
+                    }
+                }
+                finally
+                {
+                    context.LayerOffset =
+                        previousLayer;
+                }
+            }
         }
-
-        context.PopClip();
-
-        context.LayerOffset =
-            previousLayer;
     }
+
 
     protected override void OnPointerWheel(
         UiPointerEvent pointer)

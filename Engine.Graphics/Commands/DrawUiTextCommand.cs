@@ -11,5 +11,7 @@ public readonly record struct DrawUiTextCommand(
     float FontSize,
     UiColor Color,
     int Layer = RenderLayers.Ui + 1,
-    Rectangle? ClipRect = null, float RotationDegrees = 0.0f)
+    Rectangle? ClipRect = null,
+    float RotationDegrees = 0.0f,
+    ClipRegion? ClipRegion = null)
     : IRenderCommand;

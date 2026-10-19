@@ -1,5 +1,9 @@
 ﻿using Engine.Core.Math;
+using Engine.Graphics;
+using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
+using Engine.Graphics.Rendering;
+using Engine.Graphics.Resources;
 using Engine.Input;
 using Engine.UI.Controls;
 using Engine.UI.Core;
@@ -11,6 +15,145 @@ namespace Engine.Tests.UI.Layout;
 
 public sealed class UiScrollViewTests
 {
+
+    [Fact]
+    public void Render_AppliesRotationAndRestoresContext()
+    {
+        var graphics =
+            new RecordingGraphicsDevice();
+
+        var context =
+            new UiRenderContext(
+                graphics,
+                new UiTheme());
+
+        var background =
+            new UiColor(
+                12,
+                34,
+                56,
+                255);
+
+        var scrollView =
+            new UiScrollView
+            {
+                Width = 100.0f,
+                Height = 80.0f,
+                RotationDegrees = 30.0f,
+                ZIndex = 7,
+                Background = background
+            };
+
+        scrollView.Arrange(
+            new UiRect(
+                10.0f,
+                20.0f,
+                100.0f,
+                80.0f));
+
+        scrollView.Render(context);
+
+        var backgroundCommand =
+            Assert.Single(
+                graphics.Commands
+                    .OfType<DrawUiRectangleCommand>()
+                    .Where(
+                        command =>
+                            command.Color.Equals(background)));
+
+        Assert.Equal(
+            30.0f,
+            backgroundCommand.RotationDegrees,
+            precision: 4);
+
+        Assert.Equal(
+            0,
+            context.LayerOffset);
+
+        var previousCommandCount =
+            graphics.Commands.Count;
+
+        context.DrawRectangle(
+            new UiRect(
+                0.0f,
+                0.0f,
+                10.0f,
+                10.0f),
+            background);
+
+        var nextCommand =
+            Assert.IsType<DrawUiRectangleCommand>(
+                graphics.Commands[previousCommandCount]);
+
+        Assert.Equal(
+            0.0f,
+            nextCommand.RotationDegrees);
+
+        Assert.Null(
+            nextCommand.ClipRect);
+
+        Assert.Equal(
+            1000,
+            nextCommand.Layer);
+    }
+
+
+    [Fact]
+    public void NestedScrollView_DoesNotProduceInfiniteBounds()
+    {
+        var layoutContext =
+            new UiLayoutContext(
+                new TestFontManager(),
+                new UiTheme());
+
+        var list =
+            new UiList
+            {
+                Width = 100.0f
+            };
+
+        list.AddItem(
+            new TestWidget
+            {
+                Width = 100.0f,
+                Height = 40.0f
+            });
+
+        var outerScrollView =
+            new UiScrollView
+            {
+                Width = 100.0f,
+                Height = 80.0f,
+                VerticalScrolling = true,
+                HorizontalScrolling = false
+            };
+
+        outerScrollView.SetContent(
+            list);
+
+        outerScrollView.Measure(
+            layoutContext,
+            new Vector2(
+                100.0f,
+                80.0f));
+
+        outerScrollView.Arrange(
+            new UiRect(
+                0.0f,
+                0.0f,
+                100.0f,
+                80.0f));
+
+        Assert.True(
+            float.IsFinite(list.DesiredSize.Y));
+
+        Assert.True(
+            float.IsFinite(list.Bounds.Height));
+
+        Assert.True(
+            float.IsFinite(outerScrollView.Bounds.Height));
+    }
+
     [Fact]
     public void Overflow_ShowsVerticalScrollBar()
     {
@@ -269,4 +412,38 @@ public sealed class UiScrollViewTests
             return false;
         }
     }
+
+
+    private sealed class RecordingGraphicsDevice
+        : IGraphicsDevice
+    {
+        public List<IRenderCommand> Commands { get; } = new();
+
+        public ITextureManager Textures => null!;
+
+        public IFontManager Fonts => null!;
+
+        public IGraphicsBufferManager Buffers => null!;
+
+        public IShaderManager Shaders => null!;
+
+        public IRenderTargetManager RenderTargets => null!;
+
+        public RenderPipeline Pipeline => null!;
+
+        public void BeginFrame()
+        {
+        }
+
+        public void Submit(
+            IRenderCommand command)
+        {
+            Commands.Add(command);
+        }
+
+        public void EndFrame()
+        {
+        }
+    }
+
 }

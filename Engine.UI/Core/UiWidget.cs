@@ -327,6 +327,62 @@ public abstract class UiWidget
     {
     }
 
+    protected Vector2 TransformPointToLocalSpace(
+        Vector2 point)
+    {
+        var ancestors = new Stack<UiWidget>();
+
+        for (UiWidget? current = this;
+             current is not null;
+             current = current.Parent)
+        {
+            ancestors.Push(current);
+        }
+
+        // Стек выдаёт предков от корня к текущему виджету.
+        // Именно в таком порядке отменяем повороты.
+        while (ancestors.Count > 0)
+        {
+            point = ancestors.Pop().TransformPointToLocal(point);
+        }
+
+        return point;
+    }
+
+    private Vector2 TransformPointToLocal(
+        Vector2 point)
+    {
+        if (MathF.Abs(RotationDegrees) < 0.0001f)
+        {
+            return point;
+        }
+
+        var center = new Vector2(
+            Bounds.X + Bounds.Width * 0.5f,
+            Bounds.Y + Bounds.Height * 0.5f);
+
+        var radians =
+            -RotationDegrees * (MathF.PI / 180.0f);
+
+        var cos = MathF.Cos(radians);
+        var sin = MathF.Sin(radians);
+
+        var dx = point.X - center.X;
+        var dy = point.Y - center.Y;
+
+        return new Vector2(
+            center.X + dx * cos - dy * sin,
+            center.Y + dx * sin + dy * cos);
+    }
+
+    protected bool ContainsPoint(Vector2 point)
+    {
+        return Bounds.Contains(
+            TransformPointToLocalSpace(point));
+    }
+
+
+
     internal virtual UiWidget? HitTest(
         Vector2 point)
     {
@@ -337,7 +393,7 @@ public abstract class UiWidget
             return null;
         }
 
-        return Bounds.Contains(point)
+        return ContainsPoint(point)
             ? this
             : null;
     }

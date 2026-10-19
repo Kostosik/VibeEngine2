@@ -1,6 +1,7 @@
 ﻿using Engine.Core.Math;
 using Engine.Graphics;
 using Engine.Graphics.Commands;
+using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Engine.UI.Layout;
 using Engine.UI.Styling;
@@ -9,7 +10,7 @@ namespace Engine.UI.Core;
 
 public sealed class UiRenderContext
 {
-    private readonly Stack<Rectangle> _clipStack = new();
+    private readonly Stack<ClipRegion> _clipStack = new();
     private readonly IGraphicsDevice _graphics;
 
     public UiRenderContext(
@@ -56,7 +57,8 @@ public sealed class UiRenderContext
                 filled,
                 1000 + LayerOffset + layer,
                 CurrentClip,
-                CurrentRotationDegrees));
+                CurrentRotationDegrees,
+                CurrentClipRegion));
     }
 
     public void DrawText(
@@ -83,7 +85,7 @@ public sealed class UiRenderContext
                 color,
                 1001 + LayerOffset + layer,
                 CurrentClip,
-                CurrentRotationDegrees));
+                CurrentRotationDegrees, CurrentClipRegion));
     }
 
     public void PushRotation(
@@ -166,23 +168,29 @@ public sealed class UiRenderContext
     public void PushClip(
     UiRect rect)
     {
-        var clip =
-            new Rectangle(
-                rect.X,
-                rect.Y,
-                rect.Width,
-                rect.Height);
+        var region =
+            ClipRegion.FromVertices(
+            [
+                TransformPoint(
+                new Vector2(rect.X, rect.Y)),
+
+            TransformPoint(
+                new Vector2(rect.Right, rect.Y)),
+
+            TransformPoint(
+                new Vector2(rect.Right, rect.Bottom)),
+
+            TransformPoint(
+                new Vector2(rect.X, rect.Bottom))
+            ]);
 
         if (_clipStack.Count > 0)
         {
-            clip =
-                Intersect(
-                    _clipStack.Peek(),
-                    clip);
+            region =
+                _clipStack.Peek().Intersect(region);
         }
 
-        _clipStack.Push(
-            clip);
+        _clipStack.Push(region);
     }
 
     public void PopClip()
@@ -197,6 +205,11 @@ public sealed class UiRenderContext
     }
 
     private Rectangle? CurrentClip =>
+        _clipStack.Count > 0
+            ? _clipStack.Peek().Bounds
+            : null;
+
+    private ClipRegion? CurrentClipRegion =>
         _clipStack.Count > 0
             ? _clipStack.Peek()
             : null;
@@ -297,6 +310,6 @@ public sealed class UiRenderContext
                 uv,
                 1000 + LayerOffset + layer,
                 CurrentClip,
-                CurrentRotationDegrees));
+                CurrentRotationDegrees, CurrentClipRegion));
     }
 }

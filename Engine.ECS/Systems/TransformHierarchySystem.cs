@@ -35,6 +35,18 @@ public sealed class TransformHierarchySystem :
         _states.Clear();
 
         foreach (var item in
+         _world.Query<TransformParent2D>())
+        {
+            if (!_world.Has<LocalTransform2D>(
+                    item.Entity))
+            {
+                throw new InvalidOperationException(
+                    $"Entity '{item.Entity.Index}' has TransformParent2D " +
+                    "but no LocalTransform2D.");
+            }
+        }
+
+        foreach (var item in
                  _world.Query<LocalTransform2D>())
         {
             Resolve(
@@ -93,6 +105,14 @@ public sealed class TransformHierarchySystem :
                 throw new InvalidOperationException(
                     $"Entity '{entity.Index}' references " +
                     $"missing parent '{parent.Index}'.");
+            }
+
+            if (!_world.Has<WorldTransform2D>(
+        parent))
+            {
+                throw new InvalidOperationException(
+                    $"Entity '{parent.Index}' is a parent of entity " +
+                    $"'{entity.Index}' but has no WorldTransform2D.");
             }
 
             if (!_world.Has<LocalTransform2D>(

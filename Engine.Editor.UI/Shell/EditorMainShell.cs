@@ -72,16 +72,13 @@ public sealed class EditorMainShell :
     public EditorMainShell(
         EditorContext editor,
         ITextureResourceManager assetPreviewTextures,
-        EditorUiDocument uiDocument, UiOverlayLayer overlays, DebugConsole? console = null, InspectorPropertyEditorRegistry? propertyEditors = null)
+        EditorUiDocument? uiDocument, UiOverlayLayer overlays, DebugConsole? console = null, InspectorPropertyEditorRegistry? propertyEditors = null)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
 
         ArgumentNullException.ThrowIfNull(
             assetPreviewTextures);
-
-        ArgumentNullException.ThrowIfNull(
-            uiDocument);
 
         Editor =
             editor;
@@ -146,7 +143,9 @@ public sealed class EditorMainShell :
     entry => AssetActivated?.Invoke(entry);
         _uiWorkspaceView =
             new EditorUiWorkspaceView(
-                uiDocument);
+                uiDocument ??
+                new EditorUiDocument(
+                    "UI Workspace"));
 
         _workspace.AddChild(
             _workspaceView);

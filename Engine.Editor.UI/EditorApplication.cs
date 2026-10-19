@@ -45,7 +45,7 @@ public sealed class EditorApplication :
     private readonly IEditorDocumentPersistence?
     _documentPersistence;
     private readonly IEditorFileDialogService _fileDialogs;
-    public EditorUiDocument UiDocument { get; }
+    public EditorUiDocument? UiDocument { get; }
     private readonly IEditorDocumentFileService?
     _documentFiles;
 
@@ -64,17 +64,73 @@ public sealed class EditorApplication :
     public event Action? NewDocumentRequested;
     public event Action? OpenDocumentRequested;
     public event Action? SaveDocumentAsRequested;
+
     public EditorApplication(
-     EditorContext editor,
-     UiSystem ui,
-     IInputBackend input,
-     ITextureResourceManager assetPreviewTextures,
-     EditorUiDocument uiDocument,
-     string uiAssetPath, IEditorFileDialogService fileDialogs, 
-     IEditorDocumentPersistence? documentPersistence = null, 
-     IEditorDocumentFileService? documentFiles = null, 
-     DebugConsole? debugConsole = null, InspectorPropertyEditorRegistry? propertyEditors = null)
+        EditorContext editor,
+        UiSystem ui,
+        IInputBackend input,
+        ITextureResourceManager assetPreviewTextures,
+        EditorUiDocument? uiDocument,
+        string uiAssetPath,
+        IEditorFileDialogService fileDialogs,
+        IEditorDocumentPersistence? documentPersistence = null,
+        IEditorDocumentFileService? documentFiles = null,
+        DebugConsole? debugConsole = null,
+        InspectorPropertyEditorRegistry? propertyEditors = null)
+        : this(
+            editor,
+            ui,
+            input,
+            assetPreviewTextures,
+            fileDialogs,
+            documentPersistence,
+            documentFiles,
+            debugConsole,
+            propertyEditors,
+            uiDocument,
+            uiAssetPath)
     {
+    }
+
+    public EditorApplication(
+        EditorContext editor,
+        UiSystem ui,
+        IInputBackend input,
+        ITextureResourceManager assetPreviewTextures,
+        IEditorFileDialogService fileDialogs,
+        IEditorDocumentPersistence? documentPersistence = null,
+        IEditorDocumentFileService? documentFiles = null,
+        DebugConsole? debugConsole = null,
+        InspectorPropertyEditorRegistry? propertyEditors = null)
+        : this(
+            editor,
+            ui,
+            input,
+            assetPreviewTextures,
+            fileDialogs,
+            documentPersistence,
+            documentFiles,
+            debugConsole,
+            propertyEditors,
+            null,
+            null)
+    {
+    }
+
+    private EditorApplication(
+        EditorContext editor,
+        UiSystem ui,
+        IInputBackend input,
+        ITextureResourceManager assetPreviewTextures,
+        IEditorFileDialogService fileDialogs,
+        IEditorDocumentPersistence? documentPersistence,
+        IEditorDocumentFileService? documentFiles,
+        DebugConsole? debugConsole,
+        InspectorPropertyEditorRegistry? propertyEditors,
+        EditorUiDocument? uiDocument,
+        string? uiAssetPath)
+    {
+
         ArgumentNullException.ThrowIfNull(
             editor);
 
@@ -88,10 +144,21 @@ public sealed class EditorApplication :
             assetPreviewTextures);
 
         ArgumentNullException.ThrowIfNull(
-            uiDocument);
-
-        ArgumentNullException.ThrowIfNull(
     fileDialogs);
+
+        if (uiDocument is null &&
+    uiAssetPath is not null)
+        {
+            throw new ArgumentException(
+                "A UI asset path requires an initial UI document.",
+                nameof(uiAssetPath));
+        }
+
+        if (uiDocument is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(
+                uiAssetPath);
+        }
 
         Editor = editor;
         Ui = ui;
@@ -140,7 +207,11 @@ public sealed class EditorApplication :
         _documentCloseDialog.Closed +=
             ClearPendingCloseDocument;
 
-        UiDocument.SetFilePath(uiAssetPath);
+        if (UiDocument is not null)
+        {
+            UiDocument.SetFilePath(
+                uiAssetPath!);
+        }
 
         _documentPersistence =
     documentPersistence;
@@ -187,11 +258,17 @@ public sealed class EditorApplication :
         Editor.Workspace.Changed +=
     MarkUiDirty;
 
-        SubscribeUiDocument(UiDocument);
-
-        if (!Editor.Session.AllDocuments.Contains(UiDocument))
+        if (UiDocument is not null)
         {
-            Editor.Session.Open(UiDocument);
+            SubscribeUiDocument(
+                UiDocument);
+
+            if (!Editor.Session.AllDocuments.Contains(
+                    UiDocument))
+            {
+                Editor.Session.Open(
+                    UiDocument);
+            }
         }
 
         if (editor.AssetBrowser is not null)
@@ -202,6 +279,8 @@ public sealed class EditorApplication :
 
         _documentFiles = documentFiles;
     }
+
+
 
     private void OnActiveEditorDocumentChanged(
     IEditorDocument? document)
@@ -506,13 +585,13 @@ public sealed class EditorApplication :
             RequestSaveDocumentAs;
 
         MainShell.SaveAllRequested +=
-    SaveAllDocuments;
+            SaveAllDocuments;
 
         MainShell.CloseRequested -=
             RequestCloseDocument;
 
         _documentCloseDialog.SaveRequested -=
-    SavePendingDocument;
+            SavePendingDocument;
 
         _documentCloseDialog.DiscardRequested -=
             DiscardPendingDocument;
@@ -529,10 +608,14 @@ public sealed class EditorApplication :
             OnActiveEditorDocumentChanged;
 
         Editor.Workspace.Changed -=
-    MarkUiDirty;
-
-        UiDocument.Changed -=
             MarkUiDirty;
+
+        if (UiDocument is not null)
+        {
+            UiDocument.Changed -=
+                MarkUiDirty;
+        }
+
         _errorDialog.Close();
 
         if (Editor.AssetBrowser is not null)

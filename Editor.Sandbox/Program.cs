@@ -5,16 +5,13 @@ using Engine.Content.Loading;
 using Engine.Core.Application;
 using Engine.Core.Assets;
 using Engine.Core.Math;
-using Engine.ECS.Components;
 using Engine.Editor;
 using Engine.Editor.Documents.Persistence;
 using Engine.Editor.UI;
 using Engine.Editor.UI.Authoring;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.OpenGL;
-using Engine.Serialization.Binary;
 using Engine.Serialization.SaveLoad.Ecs;
-using Engine.Serialization.Types;
 using Engine.Tooling.Debugging;
 using Engine.Tooling.Inspection;
 using Engine.UI.Controls;
@@ -85,22 +82,6 @@ var ui =
 window.Resized +=
     ui.Resize;
 
-using var ecsWorld =
-    new Engine.ECS.World();
-
-var world =
-    new World(
-        new ChunkSize(
-            32,
-            32),
-        ecsWorld);
-
-var entity =
-    world.SpatialEntities.CreateEntity(
-        new WorldPosition(
-            0,
-            0));
-
 var editor =
     new EditorContext();
 
@@ -150,20 +131,6 @@ using var assetPreviewTextures =
         content,
         window.GraphicsDevice.Textures);
 
-var uiAssetPath =
-    Path.Combine(
-        AppContext.BaseDirectory,
-        "Assets",
-        "UI",
-        "MainMenu.ui");
-
-var uiDocument =
-    File.Exists(uiAssetPath)
-        ? EditorUiAssetFile.Load(
-            uiAssetPath)
-        : new EditorUiDocument(
-            "Main UI");
-
 var serializers =
     new EcsComponentSerializerRegistry();
 
@@ -177,18 +144,10 @@ var documentFiles =
     editor.CreateDocumentFileService(
         documentPersistence);
 
-var worldPath =
-    Path.Combine(
-        AppContext.BaseDirectory,
-        "Worlds",
-        "Sandbox.world");
-
-Directory.CreateDirectory(
-    Path.GetDirectoryName(
-        worldPath)!);
-
 var fileDialogs =
     new WindowsFileDialogService();
+
+ uiDocument = null;
 
 var application =
     new EditorApplication(
@@ -223,31 +182,6 @@ application.NewDocumentRequested +=
 
         application.OpenDocument(
             newWorld);
-    };
-
-var document =
-    File.Exists(worldPath)
-        ? application.OpenDocument(worldPath)
-        : application.OpenDocument(
-            world,
-            worldPath);
-
-document.EntitySelection.Changed +=
-    () =>
-    {
-        Console.WriteLine(
-            "[SELECTION] Changed");
-
-        Console.WriteLine(
-            $"[SELECTION] Count=" +
-            $"{document.EntitySelection.Count}");
-
-        foreach (var selected in
-                 document.EntitySelection.Items)
-        {
-            Console.WriteLine(
-                $"[SELECTION] Entity={selected}");
-        }
     };
 
 var toolsMenu = new UiContextMenu(ui.Overlays);

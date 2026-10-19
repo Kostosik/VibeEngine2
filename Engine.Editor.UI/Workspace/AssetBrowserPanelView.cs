@@ -592,7 +592,7 @@ public sealed class AssetBrowserPanelView : UiPanel
     {
         _entryButtons.Clear();
         _list.ClearItems();
-        _gridScrollView.ClearChildren();
+        _grid.ClearChildren();
 
         _list.Visible = !_isGridMode;
         _gridScrollView.Visible = _isGridMode;

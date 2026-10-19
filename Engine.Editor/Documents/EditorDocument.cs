@@ -1,4 +1,5 @@
 ﻿using Engine.ECS.Entities;
+using Engine.ECS.Systems;
 using Engine.Editor.Commands;
 using Engine.Editor.Entities;
 using Engine.Editor.Inspection;
@@ -6,12 +7,19 @@ using Engine.Editor.Selection;
 using Engine.Editor.Viewport;
 using Engine.Tooling.Validation;
 using Engine.Worlds;
+using Engine.Worlds.Spatial;
 
 namespace Engine.Editor.Documents;
 
 public sealed class EditorDocument : IDisposable, IEditorDocument
 {
     private ValidationResult? _lastValidationResult;
+
+    private readonly TransformHierarchySystem
+    _transformHierarchySystem;
+
+    private readonly SpatialSyncSystem
+        _spatialSyncSystem;
 
     public event Action? ValidationChanged;
 
@@ -54,6 +62,15 @@ public sealed class EditorDocument : IDisposable, IEditorDocument
 
         World = world;
         FilePath = filePath;
+
+        _transformHierarchySystem =
+    new TransformHierarchySystem(
+        world.EcsWorld);
+
+        _spatialSyncSystem =
+            new SpatialSyncSystem(
+                world,
+                world.EcsWorld);
 
         World.EcsWorld.EntityDestroyed +=
 OnEntityDestroyed;
@@ -99,6 +116,14 @@ OnEntityDestroyed;
     public bool IsDirty =>
         CommandHistory.IsDirty;
 
+    public void RefreshTransforms()
+    {
+        _transformHierarchySystem.FixedUpdate(
+            default);
+
+        _spatialSyncSystem.FixedUpdate(
+            default);
+    }
     public ValidationResult Validate()
     {
         var result =

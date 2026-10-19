@@ -2,6 +2,7 @@
 using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.OpenGL.Rendering;
+using Engine.Graphics.Rendering;
 using Silk.NET.OpenGL;
 
 namespace Engine.Graphics.OpenGL.Fonts;
@@ -179,8 +180,93 @@ internal sealed class OpenGLFontRenderer :
             origin);
     }
 
+
+    private void AddRegionClippedGlyph(
+        float x,
+        float y,
+        float width,
+        float height,
+        Rectangle uv,
+        ClipRegion region,
+        float rotationDegrees,
+        Vector2 rotationOrigin)
+    {
+        if (width <= 0.0f ||
+            height <= 0.0f ||
+            region.IsEmpty)
+        {
+            return;
+        }
+
+        var quad = new[]
+        {
+        new UiClipVertex(
+            UiPolygonClipper.RotatePoint(
+                new Vector2(x, y),
+                rotationOrigin,
+                rotationDegrees),
+            new Vector2(uv.X, uv.Y)),
+
+        new UiClipVertex(
+            UiPolygonClipper.RotatePoint(
+                new Vector2(x + width, y),
+                rotationOrigin,
+                rotationDegrees),
+            new Vector2(uv.X + uv.Width, uv.Y)),
+
+        new UiClipVertex(
+            UiPolygonClipper.RotatePoint(
+                new Vector2(x + width, y + height),
+                rotationOrigin,
+                rotationDegrees),
+            new Vector2(
+                uv.X + uv.Width,
+                uv.Y + uv.Height)),
+
+        new UiClipVertex(
+            UiPolygonClipper.RotatePoint(
+                new Vector2(x, y + height),
+                rotationOrigin,
+                rotationDegrees),
+            new Vector2(uv.X, uv.Y + uv.Height))
+    };
+
+        var clipped =
+            UiPolygonClipper.ClipPolygon(
+                quad,
+                region);
+
+        if (clipped.Count < 3)
+        {
+            return;
+        }
+
+        for (var i = 1; i < clipped.Count - 1; i++)
+        {
+            AddVertex(
+                clipped[0].Position.X,
+                clipped[0].Position.Y,
+                clipped[0].UV.X,
+                clipped[0].UV.Y);
+
+            AddVertex(
+                clipped[i].Position.X,
+                clipped[i].Position.Y,
+                clipped[i].UV.X,
+                clipped[i].UV.Y);
+
+            AddVertex(
+                clipped[i + 1].Position.X,
+                clipped[i + 1].Position.Y,
+                clipped[i + 1].UV.X,
+                clipped[i + 1].UV.Y);
+        }
+    }
+
+
+
     public void Draw(
-       DrawUiTextCommand command)
+        DrawUiTextCommand command)
     {
         ThrowIfDisposed();
         EnsureFrameActive();
@@ -214,8 +300,7 @@ internal sealed class OpenGLFontRenderer :
 
         var baseline =
             command.Position.Y +
-            metrics.Ascent *
-            scale;
+            metrics.Ascent * scale;
 
         var x =
             command.Position.X;
@@ -224,12 +309,10 @@ internal sealed class OpenGLFontRenderer :
         {
             if (rune.Value == '\n')
             {
-                x =
-                    command.Position.X;
+                x = command.Position.X;
 
                 baseline +=
-                    metrics.LineHeight *
-                    scale;
+                    metrics.LineHeight * scale;
 
                 continue;
             }
@@ -261,24 +344,35 @@ internal sealed class OpenGLFontRenderer :
                     texture;
 
                 var glyphX =
-                    x +
-                    glyph.Bearing.X *
-                    scale;
+                    x + glyph.Bearing.X * scale;
 
                 var glyphY =
-                    baseline +
-                    glyph.Bearing.Y *
-                    scale;
+                    baseline + glyph.Bearing.Y * scale;
 
                 var glyphWidth =
-                    glyph.Size.X *
-                    scale;
+                    glyph.Size.X * scale;
 
                 var glyphHeight =
-                    glyph.Size.Y *
-                    scale;
+                    glyph.Size.Y * scale;
 
-                if (command.ClipRect.HasValue)
+                if (command.ClipRegion is not null)
+                {
+                    var region =
+                        UiPolygonClipper.Combine(
+                            command.ClipRegion,
+                            command.ClipRect);
+
+                    AddRegionClippedGlyph(
+                        glyphX,
+                        glyphY,
+                        glyphWidth,
+                        glyphHeight,
+                        glyph.UV,
+                        region,
+                        command.RotationDegrees,
+                        command.Position);
+                }
+                else if (command.ClipRect.HasValue)
                 {
                     AddClippedQuad(
                         glyphX,
@@ -286,8 +380,9 @@ internal sealed class OpenGLFontRenderer :
                         glyphWidth,
                         glyphHeight,
                         glyph.UV,
-                        command.ClipRect.Value, command.RotationDegrees,
-command.Position);
+                        command.ClipRect.Value,
+                        command.RotationDegrees,
+                        command.Position);
                 }
                 else
                 {
@@ -296,18 +391,19 @@ command.Position);
                         glyphY,
                         glyphWidth,
                         glyphHeight,
-                        glyph.UV, command.RotationDegrees,
-command.Position);
+                        glyph.UV,
+                        command.RotationDegrees,
+                        command.Position);
                 }
             }
 
-            x +=
-                glyph.Advance *
-                scale;
+            x += glyph.Advance * scale;
         }
 
         Flush();
     }
+
+
 
     public void End()
     {
@@ -378,14 +474,15 @@ command.Position);
         _disposed = true;
     }
 
+
     private void AddQuad(
-    float x,
-    float y,
-    float width,
-    float height,
-    Engine.Core.Math.Rectangle uv,
-    float rotationDegrees = 0.0f,
-    Vector2? rotationOrigin = null)
+        float x,
+        float y,
+        float width,
+        float height,
+        Engine.Core.Math.Rectangle uv,
+        float rotationDegrees = 0.0f,
+        Vector2? rotationOrigin = null)
     {
         var right = x + width;
         var bottom = y + height;
@@ -395,27 +492,35 @@ command.Position);
                 x + width * 0.5f,
                 y + height * 0.5f);
 
-        var topLeft = RotatePoint(
-            new Vector2(x, y),
-            origin,
-            rotationDegrees);
+        var topLeft =
+            UiPolygonClipper.RotatePoint(
+                new Vector2(x, y),
+                origin,
+                rotationDegrees);
 
-        var topRight = RotatePoint(
-            new Vector2(right, y),
-            origin,
-            rotationDegrees);
+        var topRight =
+            UiPolygonClipper.RotatePoint(
+                new Vector2(right, y),
+                origin,
+                rotationDegrees);
 
-        var bottomRight = RotatePoint(
-            new Vector2(right, bottom),
-            origin,
-            rotationDegrees);
+        var bottomRight =
+            UiPolygonClipper.RotatePoint(
+                new Vector2(right, bottom),
+                origin,
+                rotationDegrees);
 
-        var bottomLeft = RotatePoint(
-            new Vector2(x, bottom),
-            origin,
-            rotationDegrees);
+        var bottomLeft =
+            UiPolygonClipper.RotatePoint(
+                new Vector2(x, bottom),
+                origin,
+                rotationDegrees);
 
-        AddVertex(topLeft.X, topLeft.Y, uv.X, uv.Y);
+        AddVertex(
+            topLeft.X,
+            topLeft.Y,
+            uv.X,
+            uv.Y);
 
         AddVertex(
             topRight.X,
@@ -429,7 +534,11 @@ command.Position);
             uv.X + uv.Width,
             uv.Y + uv.Height);
 
-        AddVertex(topLeft.X, topLeft.Y, uv.X, uv.Y);
+        AddVertex(
+            topLeft.X,
+            topLeft.Y,
+            uv.X,
+            uv.Y);
 
         AddVertex(
             bottomRight.X,
@@ -443,6 +552,7 @@ command.Position);
             uv.X,
             uv.Y + uv.Height);
     }
+
 
     private static Vector2 RotatePoint(
     Vector2 point,

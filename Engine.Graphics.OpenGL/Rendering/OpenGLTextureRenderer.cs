@@ -1,6 +1,7 @@
 ﻿using Engine.Camera;
 using Engine.Core.Math;
 using Engine.Graphics.Commands;
+using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Silk.NET.OpenGL;
 
@@ -151,6 +152,100 @@ internal sealed class OpenGLTextureRenderer : IDisposable
         _frameActive = true;
     }
 
+
+    private void AddRegionClippedQuad(
+        TextureHandle texture,
+        float x,
+        float y,
+        float width,
+        float height,
+        Rectangle uv,
+        ClipRegion region,
+        float rotationDegrees)
+    {
+        if (width <= 0.0f ||
+            height <= 0.0f ||
+            region.IsEmpty)
+        {
+            return;
+        }
+
+        var origin = new Vector2(
+            x + width * 0.5f,
+            y + height * 0.5f);
+
+        var quad = new[]
+        {
+        new UiClipVertex(
+            UiPolygonClipper.RotatePoint(
+                new Vector2(x, y),
+                origin,
+                rotationDegrees),
+            new Vector2(uv.X, uv.Y)),
+
+        new UiClipVertex(
+            UiPolygonClipper.RotatePoint(
+                new Vector2(x + width, y),
+                origin,
+                rotationDegrees),
+            new Vector2(uv.X + uv.Width, uv.Y)),
+
+        new UiClipVertex(
+            UiPolygonClipper.RotatePoint(
+                new Vector2(x + width, y + height),
+                origin,
+                rotationDegrees),
+            new Vector2(
+                uv.X + uv.Width,
+                uv.Y + uv.Height)),
+
+        new UiClipVertex(
+            UiPolygonClipper.RotatePoint(
+                new Vector2(x, y + height),
+                origin,
+                rotationDegrees),
+            new Vector2(uv.X, uv.Y + uv.Height))
+    };
+
+        var clipped =
+            UiPolygonClipper.ClipPolygon(
+                quad,
+                region);
+
+        if (clipped.Count < 3)
+        {
+            return;
+        }
+
+        // Разбиваем выпуклый многоугольник на треугольники.
+        for (var i = 1; i < clipped.Count - 1; i++)
+        {
+            if (!PrepareTextureBatch(texture))
+            {
+                return;
+            }
+
+            AddVertex(
+                clipped[0].Position.X,
+                clipped[0].Position.Y,
+                clipped[0].UV.X,
+                clipped[0].UV.Y);
+
+            AddVertex(
+                clipped[i].Position.X,
+                clipped[i].Position.Y,
+                clipped[i].UV.X,
+                clipped[i].UV.Y);
+
+            AddVertex(
+                clipped[i + 1].Position.X,
+                clipped[i + 1].Position.Y,
+                clipped[i + 1].UV.X,
+                clipped[i + 1].UV.Y);
+        }
+    }
+
+
     public void Draw(
     DrawUiTextureCommand command)
     {
@@ -159,6 +254,25 @@ internal sealed class OpenGLTextureRenderer : IDisposable
 
         if (!PrepareTextureBatch(command.Texture))
         {
+            return;
+        }
+
+        if (command.ClipRegion is not null)
+        {
+            var region = UiPolygonClipper.Combine(
+                command.ClipRegion,
+                command.ClipRect);
+
+            AddRegionClippedQuad(
+                command.Texture,
+                command.Position.X,
+                command.Position.Y,
+                command.Size.X,
+                command.Size.Y,
+                command.UV,
+                region,
+                command.RotationDegrees);
+
             return;
         }
 

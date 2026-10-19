@@ -988,9 +988,6 @@ public sealed class ViewportPanelView :
     protected override void OnPointerMove(
     UiPointerEvent pointer)
     {
-        _translationUsesWorldTransform = false;
-        _translationUsesLocalTransform = false;
-
         base.OnPointerMove(
             pointer);
 
@@ -1006,6 +1003,10 @@ public sealed class ViewportPanelView :
             _isPanning = false;
             _isRotating = false;
             _isScaling = false;
+
+            _translationUsesWorldTransform = false;
+            _translationUsesLocalTransform = false;
+
             _transformAxis = EditorGizmoAxis.None;
             _transformEntity = EntityId.Invalid;
 
@@ -1118,12 +1119,8 @@ public sealed class ViewportPanelView :
                 transform.Position =
                     _translationStartWorldTransform.Position +
                     worldDelta;
-
-                document.World.SpatialEntities.SetPosition(
-    _translationEntity,
-    new WorldPosition(x, y));
             }
-
+            document.RefreshTransforms();
             pointer.Handled = true;
 
             return;
@@ -1212,7 +1209,7 @@ public sealed class ViewportPanelView :
 
             transformDocument.World.EcsWorld
                 .Get<LocalTransform2D>(_transformEntity) = value;
-
+            transformDocument.RefreshTransforms();
             pointer.Handled = true;
             return;
         }
@@ -1343,7 +1340,7 @@ public sealed class ViewportPanelView :
                 {
                     document.Execute(
                         new SetLocalTransform2DCommand(
-                            document.World,
+                            document,
                             document.GetEntityReference(
                                 _transformEntity),
                             _transformStartValue,
@@ -1395,7 +1392,7 @@ public sealed class ViewportPanelView :
                     {
                         document.Execute(
                             new SetLocalTransform2DCommand(
-                                document.World,
+                                document,
                                 reference,
                                 _translationStartLocalTransform,
                                 finalTransform));

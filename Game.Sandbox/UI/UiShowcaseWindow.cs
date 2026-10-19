@@ -123,12 +123,166 @@ public sealed class UiShowcaseWindow
 
         BuildContextMenuSection(
             content);
+        BuildRotationSection(
+    content,
+    imageTexture);
 
         BuildFooter(
             content);
 
         return scrollView;
     }
+
+
+    private static void BuildRotationSection(
+        UiStackPanel content,
+        TextureHandle imageTexture)
+    {
+        content.AddChild(
+            new UiSeparator());
+
+        content.AddChild(
+            new UiLabel("ROTATION & CLIPPING")
+            {
+                FontSize = 14.0f
+            });
+
+        content.AddChild(
+            new UiLabel(
+                "Rotated text, button, image and scroll area.")
+            {
+                FontSize = 12.0f
+            });
+
+        // Preview canvas.
+        var preview =
+            new UiCanvas
+            {
+                Width = 350.0f,
+                Height = 195.0f
+            };
+
+        var background =
+            new UiPanel
+            {
+                Width = 350.0f,
+                Height = 195.0f,
+                Background = new UiColor(
+                    24, 27, 34, 255),
+                ZIndex = -10
+            };
+
+        preview.AddChild(background);
+        preview.SetPosition(
+            background,
+            Vector2.Zero);
+
+        // 1. Rotated text.
+        var rotatedLabel =
+            new UiLabel("ROTATED TEXT +18")
+            {
+                Width = 190.0f,
+                Height = 30.0f,
+                FontSize = 14.0f,
+                RotationDegrees = 18.0f
+            };
+
+        preview.AddChild(rotatedLabel);
+        preview.SetPosition(
+            rotatedLabel,
+            new Vector2(12.0f, 14.0f));
+
+        // 2. Interactive rotated button.
+        var rotatedButton =
+            new UiButton("BUTTON -12")
+            {
+                Width = 155.0f,
+                Height = 38.0f,
+                FontSize = 12.0f,
+                RotationDegrees = -12.0f
+            };
+
+        rotatedButton.Clicked += () =>
+        {
+            rotatedButton.Text =
+                rotatedButton.Text == "BUTTON -12"
+                    ? "CLICKED!"
+                    : "BUTTON -12";
+        };
+
+        preview.AddChild(rotatedButton);
+        preview.SetPosition(
+            rotatedButton,
+            new Vector2(12.0f, 63.0f));
+
+        // 3. Rotated texture.
+        var rotatedImage =
+            new UiImage(
+                imageTexture,
+                new Vector2(54.0f, 54.0f))
+            {
+                RotationDegrees = 22.0f,
+                PreserveAspectRatio = true
+            };
+
+        preview.AddChild(rotatedImage);
+        preview.SetPosition(
+            rotatedImage,
+            new Vector2(263.0f, 14.0f));
+
+        // 4. Content that exceeds the scroll viewport.
+        var scrollContent =
+            new UiStackPanel
+            {
+                Orientation = UiOrientation.Vertical,
+                Spacing = 4.0f
+            };
+
+        scrollContent.AddChild(
+            new UiImage(
+                imageTexture,
+                new Vector2(36.0f, 36.0f))
+            {
+                RotationDegrees = 12.0f
+            });
+
+        for (var i = 1; i <= 8; i++)
+        {
+            scrollContent.AddChild(
+                new UiLabel($"CLIPPED ROW {i}")
+                {
+                    Width = 130.0f,
+                    Height = 20.0f,
+                    FontSize = 12.0f
+                });
+        }
+
+        var rotatedScrollView =
+            new UiScrollView
+            {
+                Width = 150.0f,
+                Height = 78.0f,
+                RotationDegrees = -8.0f,
+
+                VerticalScrolling = true,
+                HorizontalScrolling = false,
+                ScrollSpeed = 32.0f,
+
+                Background = new UiColor(
+                    38, 43, 52, 255)
+            };
+
+        rotatedScrollView.SetContent(
+            scrollContent);
+
+        preview.AddChild(rotatedScrollView);
+        preview.SetPosition(
+            rotatedScrollView,
+            new Vector2(180.0f, 103.0f));
+
+        content.AddChild(preview);
+    }
+
 
     private static void BuildHeader(
         UiStackPanel content)

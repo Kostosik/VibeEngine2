@@ -8,8 +8,16 @@ public readonly record struct UiAssetLayout
     public UiAssetLayout(
         UiAnchor anchor,
         Vector2 offset,
-        Vector2 size)
+        Vector2 size,
+        float rotationDegrees = 0.0f)
     {
+        if (!float.IsFinite(rotationDegrees))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(rotationDegrees),
+                "UI asset rotation must be finite.");
+        }
+
         if (!float.IsFinite(offset.X) ||
             !float.IsFinite(offset.Y))
         {
@@ -31,8 +39,9 @@ public readonly record struct UiAssetLayout
         Anchor = anchor;
         Offset = offset;
         Size = size;
+        RotationDegrees = rotationDegrees;
     }
-
+    public float RotationDegrees { get; }
     public UiAnchor Anchor { get; }
 
     public Vector2 Offset { get; }

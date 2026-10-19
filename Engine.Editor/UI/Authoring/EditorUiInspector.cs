@@ -296,6 +296,32 @@ public sealed class EditorUiInspector
 
         properties.Add(
     new EditorProperty(
+        "RotationDegrees",
+        typeof(float),
+        () => element.Layout.RotationDegrees,
+        value =>
+        {
+            var rotation = Convert.ToSingle(
+                value,
+                System.Globalization.CultureInfo.InvariantCulture);
+
+            if (!float.IsFinite(rotation))
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    "Rotation must be finite.");
+            }
+
+            element.Layout = element.Layout with
+            {
+                RotationDegrees = rotation
+            };
+        },
+        displayName: "Rotation",
+        order: 16));
+
+        properties.Add(
+    new EditorProperty(
         "Visible",
         typeof(bool),
         () => element.Visible,

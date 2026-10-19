@@ -13,7 +13,7 @@ public abstract class UiWidget
     public bool Visible { get; set; } = true;
 
     public bool Enabled { get; set; } = true;
-
+    public float RotationDegrees { get; set; }
     public bool Focusable { get; set; }
     public bool ConsumesKeyboardInput { get; protected set; }
     public bool IsHitTestVisible { get; set; } = true;
@@ -289,8 +289,20 @@ public abstract class UiWidget
             return;
         }
 
-        OnRender(
-            context);
+        context.PushRotation(
+            new Vector2(
+                Bounds.X + Bounds.Width * 0.5f,
+                Bounds.Y + Bounds.Height * 0.5f),
+            RotationDegrees);
+
+        try
+        {
+            OnRender(context);
+        }
+        finally
+        {
+            context.PopRotation();
+        }
     }
 
     protected virtual Vector2 MeasureCore(

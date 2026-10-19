@@ -50,6 +50,8 @@ public sealed class UiAssetSerializer :
 
             writer.WriteSingle(
                 element.Layout.Anchor.Y);
+            writer.WriteSingle(
+                element.Layout.RotationDegrees);
 
             writer.WriteSingle(
                 element.Layout.Offset.X);
@@ -178,22 +180,27 @@ public sealed class UiAssetSerializer :
                 ?? throw new InvalidDataException(
                     "UI asset element name cannot be null.");
 
-            var anchor =
-                new UiAnchor(
-                    reader.ReadSingle(),
-                    reader.ReadSingle());
+            var anchor = new UiAnchor(
+                reader.ReadSingle(),
+                reader.ReadSingle());
 
-            var layout =
-                new UiAssetLayout(
-                    anchor,
+            var offset = new Vector2(
+                reader.ReadSingle(),
+                reader.ReadSingle());
 
-                    new Vector2(
-                        reader.ReadSingle(),
-                        reader.ReadSingle()),
+            var size = new Vector2(
+                reader.ReadSingle(),
+                reader.ReadSingle());
 
-                    new Vector2(
-                        reader.ReadSingle(),
-                        reader.ReadSingle()));
+            var rotationDegrees = version >= 4
+                ? reader.ReadSingle()
+                : 0.0f;
+
+            var layout = new UiAssetLayout(
+                anchor,
+                offset,
+                size,
+                rotationDegrees);
 
             var text =
                 reader.ReadString()

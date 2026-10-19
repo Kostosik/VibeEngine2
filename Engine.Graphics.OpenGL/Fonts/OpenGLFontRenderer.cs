@@ -117,12 +117,13 @@ internal sealed class OpenGLFontRenderer :
     }
 
     private void AddClippedQuad(
-    float x,
-    float y,
-    float width,
-    float height,
-    Rectangle uv,
-    Rectangle clip)
+     float x,
+     float y,
+     float width,
+     float height,
+     Rectangle uv,
+     Rectangle clip,
+     float rotationDegrees = 0.0f)
     {
         if (width <= 0.0f ||
             height <= 0.0f)
@@ -130,25 +131,21 @@ internal sealed class OpenGLFontRenderer :
             return;
         }
 
-        var left =
-            MathF.Max(
-                x,
-                clip.X);
+        // Центр исходного прямоугольника — до обрезки.
+        var rotationOrigin = new Vector2(
+            x + width * 0.5f,
+            y + height * 0.5f);
 
-        var top =
-            MathF.Max(
-                y,
-                clip.Y);
+        var left = MathF.Max(x, clip.X);
+        var top = MathF.Max(y, clip.Y);
 
-        var right =
-            MathF.Min(
-                x + width,
-                clip.X + clip.Width);
+        var right = MathF.Min(
+            x + width,
+            clip.X + clip.Width);
 
-        var bottom =
-            MathF.Min(
-                y + height,
-                clip.Y + clip.Height);
+        var bottom = MathF.Min(
+            y + height,
+            clip.Y + clip.Height);
 
         if (right <= left ||
             bottom <= top)
@@ -156,46 +153,27 @@ internal sealed class OpenGLFontRenderer :
             return;
         }
 
-        var leftRatio =
-            (left - x) /
-            width;
+        var leftRatio = (left - x) / width;
+        var topRatio = (top - y) / height;
+        var rightRatio = (right - x) / width;
+        var bottomRatio = (bottom - y) / height;
 
-        var topRatio =
-            (top - y) /
-            height;
+        var clippedUv = new Rectangle(
+            uv.X + uv.Width * leftRatio,
+            uv.Y + uv.Height * topRatio,
+            uv.Width * (rightRatio - leftRatio),
+            uv.Height * (bottomRatio - topRatio));
 
-        var rightRatio =
-            (right - x) /
-            width;
-
-        var bottomRatio =
-            (bottom - y) /
-            height;
-
-        var clippedUv =
-            new Rectangle(
-                uv.X +
-                uv.Width *
-                leftRatio,
-
-                uv.Y +
-                uv.Height *
-                topRatio,
-
-                uv.Width *
-                (rightRatio -
-                 leftRatio),
-
-                uv.Height *
-                (bottomRatio -
-                 topRatio));
-
+        // Рисуем обрезанную область, сохраняя центр
+        // вращения исходного прямоугольника.
         AddQuad(
             left,
             top,
             right - left,
             bottom - top,
-            clippedUv);
+            clippedUv,
+            rotationDegrees,
+            rotationOrigin);
     }
 
     public void Draw(
@@ -305,7 +283,8 @@ internal sealed class OpenGLFontRenderer :
                         glyphWidth,
                         glyphHeight,
                         glyph.UV,
-                        command.ClipRect.Value);
+                        command.ClipRect.Value, command.RotationDegrees,
+command.Position);
                 }
                 else
                 {
@@ -314,7 +293,8 @@ internal sealed class OpenGLFontRenderer :
                         glyphY,
                         glyphWidth,
                         glyphHeight,
-                        glyph.UV);
+                        glyph.UV, command.RotationDegrees,
+command.Position);
                 }
             }
 
@@ -400,7 +380,8 @@ internal sealed class OpenGLFontRenderer :
         float y,
         float width,
         float height,
-        Engine.Core.Math.Rectangle uv)
+        Engine.Core.Math.Rectangle uv, float rotationDegrees = 0.0f,
+Vector2? rotationOrigin = null)
     {
         var right =
             x + width;

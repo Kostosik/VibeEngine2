@@ -93,30 +93,47 @@ public abstract class UiContainer : UiWidget
     }
 
     public override void Render(
-        UiRenderContext context)
+    UiRenderContext context)
     {
         if (!Visible)
         {
             return;
         }
 
-        var previousLayer =
-            context.LayerOffset;
+        var previousLayer = context.LayerOffset;
 
-        context.LayerOffset +=
-            ZIndex;
+        var rotationCenter = new Vector2(
+            Bounds.X + Bounds.Width / 2.0f,
+            Bounds.Y + Bounds.Height / 2.0f);
 
-        OnRender(
-            context);
+        var rotationPushed = false;
 
-        foreach (var child in GetRenderOrder())
+        try
         {
-            child.Render(
-                context);
-        }
+            context.LayerOffset += ZIndex;
 
-        context.LayerOffset =
-            previousLayer;
+            context.PushRotation(
+                rotationCenter,
+                RotationDegrees);
+
+            rotationPushed = true;
+
+            OnRender(context);
+
+            foreach (var child in GetRenderOrder())
+            {
+                child.Render(context);
+            }
+        }
+        finally
+        {
+            if (rotationPushed)
+            {
+                context.PopRotation();
+            }
+
+            context.LayerOffset = previousLayer;
+        }
     }
 
     protected override Vector2 MeasureCore(

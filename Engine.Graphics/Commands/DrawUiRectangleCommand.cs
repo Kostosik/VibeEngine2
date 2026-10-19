@@ -9,5 +9,5 @@ public readonly record struct DrawUiRectangleCommand(
     UiColor Color,
     bool Filled = true,
     int Layer = RenderLayers.Ui,
-    Rectangle? ClipRect = null)
+    Rectangle? ClipRect = null, float RotationDegrees = 0.0f)
     : IRenderCommand;

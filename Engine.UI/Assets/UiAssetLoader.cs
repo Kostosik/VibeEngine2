@@ -228,6 +228,9 @@ public sealed class UiAssetLoader
         widget.LayoutMode =
             UiLayoutMode.Anchor;
 
+        widget.RotationDegrees =
+    element.Layout.RotationDegrees;
+
         widget.Anchor =
             element.Layout.Anchor;
 

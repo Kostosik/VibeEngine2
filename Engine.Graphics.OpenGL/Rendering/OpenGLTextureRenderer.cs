@@ -404,49 +404,99 @@ internal sealed class OpenGLTextureRenderer : IDisposable
         float y,
         float width,
         float height,
-        Rectangle uv)
+        Rectangle uv,
+        float rotationDegrees = 0.0f,
+        Vector2? rotationOrigin = null)
     {
-        var right =
-            x + width;
+        var right = x + width;
+        var bottom = y + height;
 
-        var bottom =
-            y + height;
+        // По умолчанию вращаем вокруг центра прямоугольника.
+        var origin = rotationOrigin ??
+            new Vector2(
+                x + width * 0.5f,
+                y + height * 0.5f);
 
+        // Вычисляем координаты четырёх углов с учётом поворота.
+        var topLeft = RotatePoint(
+            new Vector2(x, y),
+            origin,
+            rotationDegrees);
+
+        var topRight = RotatePoint(
+            new Vector2(right, y),
+            origin,
+            rotationDegrees);
+
+        var bottomRight = RotatePoint(
+            new Vector2(right, bottom),
+            origin,
+            rotationDegrees);
+
+        var bottomLeft = RotatePoint(
+            new Vector2(x, bottom),
+            origin,
+            rotationDegrees);
+
+        // Первый треугольник.
         AddVertex(
-            x,
-            y,
+            topLeft.X,
+            topLeft.Y,
             uv.X,
             uv.Y);
 
         AddVertex(
-            right,
-            y,
+            topRight.X,
+            topRight.Y,
             uv.X + uv.Width,
             uv.Y);
 
         AddVertex(
-            right,
-            bottom,
+            bottomRight.X,
+            bottomRight.Y,
             uv.X + uv.Width,
             uv.Y + uv.Height);
 
+        // Второй треугольник.
         AddVertex(
-            x,
-            y,
+            topLeft.X,
+            topLeft.Y,
             uv.X,
             uv.Y);
 
         AddVertex(
-            right,
-            bottom,
+            bottomRight.X,
+            bottomRight.Y,
             uv.X + uv.Width,
             uv.Y + uv.Height);
 
         AddVertex(
-            x,
-            bottom,
+            bottomLeft.X,
+            bottomLeft.Y,
             uv.X,
             uv.Y + uv.Height);
+    }
+
+    private static Vector2 RotatePoint(
+    Vector2 point,
+    Vector2 origin,
+    float rotationDegrees)
+    {
+        if (MathF.Abs(rotationDegrees) < 0.0001f)
+            return point;
+
+        var radians =
+            rotationDegrees * (MathF.PI / 180.0f);
+
+        var cos = MathF.Cos(radians);
+        var sin = MathF.Sin(radians);
+
+        var dx = point.X - origin.X;
+        var dy = point.Y - origin.Y;
+
+        return new Vector2(
+            origin.X + dx * cos - dy * sin,
+            origin.Y + dx * sin + dy * cos);
     }
 
     private void AddVertex(

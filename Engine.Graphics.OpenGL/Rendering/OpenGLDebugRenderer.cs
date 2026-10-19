@@ -218,6 +218,10 @@ internal sealed class OpenGLDebugRenderer :
         var size =
             command.Size;
 
+        var rotationOrigin = new Vector2(
+    command.Position.X + command.Size.X * 0.5f,
+    command.Position.Y + command.Size.Y * 0.5f);
+
         if (command.ClipRect.HasValue)
         {
             var clip =
@@ -276,6 +280,26 @@ internal sealed class OpenGLDebugRenderer :
                 position.X,
                 position.Y + size.Y);
 
+        topLeft = RotatePoint(
+    topLeft,
+    rotationOrigin,
+    command.RotationDegrees);
+
+        topRight = RotatePoint(
+            topRight,
+            rotationOrigin,
+            command.RotationDegrees);
+
+        bottomRight = RotatePoint(
+            bottomRight,
+            rotationOrigin,
+            command.RotationDegrees);
+
+        bottomLeft = RotatePoint(
+            bottomLeft,
+            rotationOrigin,
+            command.RotationDegrees);
+
         if (command.Filled)
         {
             DrawTriangle(
@@ -314,7 +338,22 @@ internal sealed class OpenGLDebugRenderer :
             command.Color);
     }
 
+    private static Vector2 RotatePoint(
+    Vector2 point,
+    Vector2 pivot,
+    float degrees)
+    {
+        var radians = degrees * (MathF.PI / 180.0f);
+        var cos = MathF.Cos(radians);
+        var sin = MathF.Sin(radians);
 
+        var x = point.X - pivot.X;
+        var y = point.Y - pivot.Y;
+
+        return new Vector2(
+            pivot.X + x * cos - y * sin,
+            pivot.Y + x * sin + y * cos);
+    }
     public void Draw(
         DrawDebugCircleCommand command)
     {

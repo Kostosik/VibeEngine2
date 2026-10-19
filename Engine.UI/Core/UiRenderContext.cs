@@ -27,20 +27,36 @@ public sealed class UiRenderContext
 
     public int LayerOffset { get; set; }
 
+    private readonly List<RotationTransform> _rotationTransforms = new();
+
+    private readonly record struct RotationTransform(
+        Vector2 Pivot,
+        float Degrees);
+
     public void DrawRectangle(
-        UiRect rect,
-        UiColor color,
-        bool filled = true,
-        int layer = 0)
+    UiRect rect,
+    UiColor color,
+    bool filled = true,
+    int layer = 0)
     {
+        var center = TransformPoint(
+            new Vector2(
+                rect.X + rect.Width * 0.5f,
+                rect.Y + rect.Height * 0.5f));
+
+        var position = new Vector2(
+            center.X - rect.Width * 0.5f,
+            center.Y - rect.Height * 0.5f);
+
         _graphics.Submit(
             new DrawUiRectangleCommand(
-                rect.Position,
+                position,
                 rect.Size,
                 color,
                 filled,
                 1000 + LayerOffset + layer,
-                CurrentClip));
+                CurrentClip,
+                CurrentRotationDegrees));
     }
 
     public void DrawText(
@@ -56,18 +72,97 @@ public sealed class UiRenderContext
             return;
         }
 
+        var transformedPosition = TransformPoint(position);
+
         _graphics.Submit(
             new DrawUiTextCommand(
                 text,
                 Theme.DefaultFont,
-                position,
+                transformedPosition,
                 fontSize,
                 color,
                 1001 + LayerOffset + layer,
-                CurrentClip));
+                CurrentClip,
+                CurrentRotationDegrees));
     }
 
+    public void PushRotation(
+    Vector2 pivot,
+    float degrees)
+    {
+        if (!float.IsFinite(pivot.X) ||
+            !float.IsFinite(pivot.Y) ||
+            !float.IsFinite(degrees))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(degrees),
+                "UI rotation transform must be finite.");
+        }
 
+        _rotationTransforms.Add(
+            new RotationTransform(pivot, degrees));
+    }
+
+    public void PopRotation()
+    {
+        if (_rotationTransforms.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "UI rotation stack is empty.");
+        }
+
+        _rotationTransforms.RemoveAt(
+            _rotationTransforms.Count - 1);
+    }
+
+    private float CurrentRotationDegrees
+    {
+        get
+        {
+            var degrees = 0.0f;
+
+            foreach (var transform in _rotationTransforms)
+            {
+                degrees += transform.Degrees;
+            }
+
+            return degrees;
+        }
+    }
+
+    private Vector2 TransformPoint(Vector2 point)
+    {
+        // Сначала применяем самый внутренний transform,
+        // затем последовательно трансформации родителей.
+        for (var i = _rotationTransforms.Count - 1; i >= 0; i--)
+        {
+            var transform = _rotationTransforms[i];
+
+            point = RotatePoint(
+                point,
+                transform.Pivot,
+                transform.Degrees);
+        }
+
+        return point;
+    }
+
+    private static Vector2 RotatePoint(
+        Vector2 point,
+        Vector2 pivot,
+        float degrees)
+    {
+        var radians = degrees * (MathF.PI / 180.0f);
+        var cos = MathF.Cos(radians);
+        var sin = MathF.Sin(radians);
+
+        var x = point.X - pivot.X;
+        var y = point.Y - pivot.Y;
+
+        return new Vector2(
+            pivot.X + x * cos - y * sin,
+            pivot.Y + x * sin + y * cos);
+    }
     public void PushClip(
     UiRect rect)
     {
@@ -185,13 +280,23 @@ public sealed class UiRenderContext
             return;
         }
 
+        var center = TransformPoint(
+            new Vector2(
+                rect.X + rect.Width * 0.5f,
+                rect.Y + rect.Height * 0.5f));
+
+        var position = new Vector2(
+            center.X - rect.Width * 0.5f,
+            center.Y - rect.Height * 0.5f);
+
         _graphics.Submit(
             new DrawUiTextureCommand(
                 texture,
-                rect.Position,
+                position,
                 rect.Size,
                 uv,
                 1000 + LayerOffset + layer,
-                CurrentClip));
+                CurrentClip,
+                CurrentRotationDegrees));
     }
 }

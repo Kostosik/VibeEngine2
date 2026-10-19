@@ -28,14 +28,13 @@ public static class EditorUiAssetConverter
     EditorUiElement element)
     {
         var layout =
-            new UiAssetLayout(
-                new UiAnchor(
-                    element.Layout.Anchor.X,
-                    element.Layout.Anchor.Y),
-
-                element.Layout.Offset,
-
-                element.Layout.Size);
+    new UiAssetLayout(
+        new UiAnchor(
+            element.Layout.Anchor.X,
+            element.Layout.Anchor.Y),
+        element.Layout.Offset,
+        element.Layout.Size,
+        element.Layout.RotationDegrees);
 
         return new UiAssetElement(
             element.Id,
@@ -98,7 +97,8 @@ public static class EditorUiAssetConverter
                             descriptor.Layout.Anchor.X,
                             descriptor.Layout.Anchor.Y),
                         descriptor.Layout.Offset,
-                        descriptor.Layout.Size))
+                        descriptor.Layout.Size,
+                        descriptor.Layout.RotationDegrees))
                 {
                     Text =
                         descriptor.Text,

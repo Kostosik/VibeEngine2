@@ -725,135 +725,113 @@ public sealed class EditorUiCanvasPreviewView :
             return;
         }
 
-        var localRect =
-            GetEffectiveLayout(element).Resolve(
-                parentSize);
+        var layout = GetEffectiveLayout(element);
 
-        var elementOrigin =
-            new Vector2(
-                parentOrigin.X +
-                localRect.X,
-                parentOrigin.Y +
-                localRect.Y);
+        var localRect = layout.Resolve(parentSize);
 
-        var rect =
-            new UiRect(
-                canvasOrigin.X +
-                elementOrigin.X *
-                scale,
+        var elementOrigin = new Vector2(
+            parentOrigin.X + localRect.X,
+            parentOrigin.Y + localRect.Y);
 
-                canvasOrigin.Y +
-                elementOrigin.Y *
-                scale,
+        var rect = new UiRect(
+            canvasOrigin.X + elementOrigin.X * scale,
+            canvasOrigin.Y + elementOrigin.Y * scale,
+            localRect.Width * scale,
+            localRect.Height * scale);
 
-                localRect.Width *
-                scale,
+        // Центр вращения элемента в экранных координатах.
+        var rotationCenter = new Vector2(
+            rect.X + rect.Width / 2.0f,
+            rect.Y + rect.Height / 2.0f);
 
-                localRect.Height *
-                scale);
+        // Начинаем вращение этого элемента.
+        context.PushRotation(
+            rotationCenter,
+            layout.RotationDegrees);
 
-        if (!ReferenceEquals(
-                element,
-                _document.Root))
+        try
         {
-            context.DrawRectangle(
-                rect,
-                GetElementBackground(
-                    element),
-                filled: true);
-
-            context.DrawRectangle(
-                rect,
-                _document.Selection.Contains(
-                        element.Id)
-                    ? new UiColor(
-                        235,
-                        235,
-                        235,
-                        255)
-                    : new UiColor(
-                        105,
-                        105,
-                        105,
-                        255),
-                filled: false,
-                layer: 1);
-
-            if (ShouldDrawText(element) &&
-                !string.IsNullOrEmpty(
-                    element.Text))
+            if (!ReferenceEquals(element, _document.Root))
             {
-                var textSize =
-                    context.MeasureText(
+                context.DrawRectangle(
+                    rect,
+                    GetElementBackground(element),
+                    filled: true);
+
+                context.DrawRectangle(
+                    rect,
+                    _document.Selection.Contains(element.Id)
+                        ? new UiColor(235, 235, 235, 255)
+                        : new UiColor(105, 105, 105, 255),
+                    filled: false,
+                    layer: 1);
+
+                if (ShouldDrawText(element) &&
+                    !string.IsNullOrEmpty(element.Text))
+                {
+                    var textSize = context.MeasureText(
                         element.Text,
                         12.0f);
 
-                var textPosition =
-                    UiTextLayout.CalculatePosition(
+                    var textPosition = UiTextLayout.CalculatePosition(
                         rect,
                         textSize,
                         UiTextHorizontalAlignment.Center,
                         UiTextVerticalAlignment.Center);
 
-                context.DrawText(
-                    element.Text,
-                    textPosition,
-                    12.0f,
-                    new UiColor(
-                        235,
-                        235,
-                        235,
-                        255),
-                    layer: 2);
-            }
+                    context.DrawText(
+                        element.Text,
+                        textPosition,
+                        12.0f,
+                        new UiColor(235, 235, 235, 255),
+                        layer: 2);
+                }
 
-            if (string.IsNullOrEmpty(
-                    element.Text) &&
-                rect.Width >= 80.0f &&
-                rect.Height >= 26.0f)
-            {
-                var text =
-                    element.Name;
+                if (string.IsNullOrEmpty(element.Text) &&
+                    rect.Width >= 80.0f &&
+                    rect.Height >= 26.0f)
+                {
+                    var text = element.Name;
 
-                var textSize =
-                    context.MeasureText(
+                    var textSize = context.MeasureText(
                         text,
                         11.0f);
 
-                var textPosition =
-                    UiTextLayout.CalculatePosition(
+                    var textPosition = UiTextLayout.CalculatePosition(
                         rect,
                         textSize,
                         UiTextHorizontalAlignment.Center,
                         UiTextVerticalAlignment.Center);
 
-                context.DrawText(
-                    text,
-                    textPosition,
-                    11.0f,
-                    new UiColor(
-                        190,
-                        190,
-                        190,
-                        255),
-                    layer: 2);
+                    context.DrawText(
+                        text,
+                        textPosition,
+                        11.0f,
+                        new UiColor(190, 190, 190, 255),
+                        layer: 2);
+                }
+            }
+
+            // Дочерние элементы отрисовываются внутри
+            // системы координат с поворотом родителя.
+            foreach (var child in element.Children.OrderBy(
+                         static child => child.ZIndex))
+            {
+                RenderElement(
+                    context,
+                    child,
+                    elementOrigin,
+                    new Vector2(
+                        localRect.Width,
+                        localRect.Height),
+                    canvasOrigin,
+                    scale);
             }
         }
-
-        foreach (var child in element.Children
-                     .OrderBy(
-                         static child =>
-                             child.ZIndex))
+        finally
         {
-            RenderElement(
-                context,
-                child,
-                elementOrigin,
-                new Vector2(
-                    localRect.Width,
-                    localRect.Height),
-                canvasOrigin,
-                scale);
+            // Обязательно снимаем поворот перед выходом.
+            context.PopRotation();
         }
     }
     private static bool ShouldDrawText(

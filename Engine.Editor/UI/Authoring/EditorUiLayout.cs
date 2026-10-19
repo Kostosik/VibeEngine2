@@ -10,6 +10,8 @@ public readonly record struct EditorUiLayout
         float width,
         float height)
     {
+        RotationDegrees = 0.0f;
+
         Anchor =
             Vector2.Zero;
 
@@ -27,8 +29,16 @@ public readonly record struct EditorUiLayout
     public EditorUiLayout(
         Vector2 anchor,
         Vector2 offset,
-        Vector2 size)
+        Vector2 size,
+        float rotationDegrees = 0.0f)
     {
+        if (!float.IsFinite(rotationDegrees))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(rotationDegrees),
+                "UI element rotation must be finite.");
+        }
+
         ValidateAnchor(
             anchor);
 
@@ -49,8 +59,9 @@ public readonly record struct EditorUiLayout
         Anchor = anchor;
         Offset = offset;
         Size = size;
+        RotationDegrees = rotationDegrees;
     }
-
+    public float RotationDegrees { get; init; }
     public Vector2 Anchor { get; init; }
 
     public Vector2 Offset { get; init; }

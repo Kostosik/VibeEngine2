@@ -1,4 +1,4 @@
-name: Build Distribution
+name: Build and Release Distribution
 
 on:
   workflow_dispatch:
@@ -8,12 +8,16 @@ on:
         required: true
         default: master
         type: string
+      release_tag:
+        description: "Тег релиза, например v0.1.0"
+        required: true
+        type: string
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: build-distribution-${{ inputs.ref }}
+  group: build-distribution-${{ inputs.release_tag }}
   cancel-in-progress: false
 
 jobs:
@@ -70,6 +74,7 @@ jobs:
           No source code or editor development files are included.
 
           Source ref: ${{ inputs.ref }}
+          Release tag: ${{ inputs.release_tag }}
           Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           "@ | Set-Content -Path .\artifacts\distribution\README.txt -Encoding utf8
 
@@ -82,10 +87,20 @@ jobs:
             -DestinationPath .\artifacts\VibeEngine2-Windows-x64.zip `
             -CompressionLevel Optimal
 
-      - name: Загрузка готовой сборки
+      - name: Загрузка готовой сборки в Actions
         uses: actions/upload-artifact@v6
         with:
           name: VibeEngine2-Windows-x64
           path: .\artifacts\VibeEngine2-Windows-x64.zip
           if-no-files-found: error
           retention-days: 14
+
+      - name: Публикация GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          target_commitish: ${{ inputs.ref }}
+          name: VibeEngine2 ${{ inputs.release_tag }}
+          generate_release_notes: true
+          files: .\artifacts\VibeEngine2-Windows-x64.zip
+          fail_on_unmatched_files: true

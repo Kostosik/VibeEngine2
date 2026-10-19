@@ -11,4 +11,5 @@ public sealed record EditorAssetMetadata(
     string Name,
     string Extension,
     long SizeBytes,
-    EditorAssetPreviewKind PreviewKind);
+    EditorAssetPreviewKind PreviewKind,
+    DateTime LastModified);

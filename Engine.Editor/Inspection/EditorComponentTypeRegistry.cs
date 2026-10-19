@@ -1,4 +1,6 @@
-﻿namespace Engine.Editor.Inspection;
+﻿using Engine.ECS.Components;
+
+namespace Engine.Editor.Inspection;
 
 public sealed class EditorComponentTypeRegistry
 {
@@ -30,6 +32,12 @@ public sealed class EditorComponentTypeRegistry
 
         _types.Add(
             componentType);
+    }
+
+    public void RegisterEngineComponents()
+    {
+        Register<LocalTransform2D>();
+        Register<WorldTransform2D>();
     }
 
     public bool Unregister(

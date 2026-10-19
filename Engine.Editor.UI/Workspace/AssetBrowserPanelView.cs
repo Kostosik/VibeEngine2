@@ -525,19 +525,11 @@ public sealed class AssetBrowserPanelView : UiPanel
         }
     }
 
+
     protected override void OnPointerDown(
-    UiPointerEvent pointer)
+        UiPointerEvent pointer)
     {
         if (pointer.Button != InputMouseButton.Right)
-        {
-            return;
-        }
-
-        var entryIndex = _entryButtons.FindIndex(
-            item => item.Button.Bounds.Contains(
-                pointer.Position));
-
-        if (entryIndex < 0)
         {
             return;
         }
@@ -549,34 +541,48 @@ public sealed class AssetBrowserPanelView : UiPanel
             return;
         }
 
-        var entry = _entryButtons[entryIndex].Entry;
+        var entryIndex = _entryButtons.FindIndex(
+            item => item.Button.Bounds.Contains(
+                pointer.Position));
 
-        if (!browser.Select(entry.Path))
+        // Пустая область вне списка не должна открывать меню.
+        if (entryIndex < 0 &&
+            !_list.Bounds.Contains(pointer.Position))
         {
             return;
         }
 
         _contextMenu.ClearItems();
 
-        if (entry.IsDirectory)
+        if (entryIndex >= 0)
         {
-            _contextMenu.AddItem(
-                "Open Folder",
-                () =>
-                {
-                    var currentBrowser = Editor.AssetBrowser;
+            var entry = _entryButtons[entryIndex].Entry;
 
-                    if (currentBrowser?.NavigateTo(entry.Path) == true)
+            if (!browser.Select(entry.Path))
+            {
+                return;
+            }
+
+            if (entry.IsDirectory)
+            {
+                _contextMenu.AddItem(
+                    "Open Folder",
+                    () =>
                     {
-                        Refresh();
-                    }
-                });
-        }
-        else
-        {
-            _contextMenu.AddItem(
-                "Open / Preview",
-                () => AssetActivated?.Invoke(entry));
+                        var currentBrowser = Editor.AssetBrowser;
+
+                        if (currentBrowser?.NavigateTo(entry.Path) == true)
+                        {
+                            Refresh();
+                        }
+                    });
+            }
+            else
+            {
+                _contextMenu.AddItem(
+                    "Open / Preview",
+                    () => AssetActivated?.Invoke(entry));
+            }
         }
 
         _contextMenu.AddItem(
@@ -598,6 +604,7 @@ public sealed class AssetBrowserPanelView : UiPanel
 
         pointer.Handled = true;
     }
+
 
     protected override Vector2 MeasureCore(
         UiLayoutContext context,

@@ -101,12 +101,6 @@ var entity =
             0,
             0));
 
-ecsWorld.Add(
-    entity,
-    new EditorTestComponent(
-        100,
-        42.5f));
-
 var editor =
     new EditorContext();
 
@@ -119,9 +113,7 @@ editor.InitializeAssetBrowser(
     new Engine.Editor.Assets.FileSystemAssetSource(),
     editorAssetRoot);
 
-editor.ComponentTypes.Register<EditorTestComponent>();
-editor.ComponentTypes.Register<LocalTransform2D>();
-editor.ComponentTypes.Register<WorldTransform2D>();
+editor.ComponentTypes.RegisterEngineComponents();
 
 var contentCatalog =
     new FileContentCatalog(
@@ -176,10 +168,6 @@ var serializers =
     new EcsComponentSerializerRegistry();
 
 serializers.RegisterEngineComponents();
-
-serializers.Register(
-    "sandbox.editor_test_component",
-    new EditorTestComponentSerializer());
 
 var documentPersistence =
     new BinaryEditorDocumentPersistence(
@@ -409,43 +397,5 @@ finally
     if (!gameLoop.IsShutdown)
     {
         gameLoop.Shutdown();
-    }
-}
-
-public struct EditorTestComponent
-{
-    public EditorTestComponent(
-        int value,
-        float speed)
-    {
-        Value = value;
-        Speed = speed;
-    }
-
-    public int Value { get; set; }
-
-    public float Speed { get; set; }
-}
-
-public sealed class EditorTestComponentSerializer :
-    IBinarySerializer<EditorTestComponent>
-{
-    public void Serialize(
-        ref SerializationWriter writer,
-        EditorTestComponent value)
-    {
-        writer.WriteInt32(
-            value.Value);
-
-        writer.WriteSingle(
-            value.Speed);
-    }
-
-    public EditorTestComponent Deserialize(
-        ref SerializationReader reader)
-    {
-        return new EditorTestComponent(
-            reader.ReadInt32(),
-            reader.ReadSingle());
     }
 }

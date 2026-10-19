@@ -38,6 +38,7 @@ public sealed class EditorAssetInspector
             file.Name,
             extension,
             file.Length,
-            previewKind);
+            previewKind,
+            file.LastWriteTime);
     }
 }

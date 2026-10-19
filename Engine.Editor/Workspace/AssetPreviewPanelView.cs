@@ -69,6 +69,34 @@ public sealed class AssetPreviewPanelView : UiPanel
         var browser =
             Editor.AssetBrowser;
 
+        if (browser?.SelectedEntry is
+            { IsDirectory: true } directory)
+        {
+            UnloadPreview();
+
+            _content.AddChild(
+                new UiLabel("Folder Preview")
+                {
+                    FontSize = 15.0f,
+                    Color = new UiColor(
+                        210, 210, 210, 255)
+                });
+
+            _content.AddChild(
+                CreateMetadataLabel(
+                    $"Name: {directory.Name}"));
+
+            _content.AddChild(
+                CreateMetadataLabel(
+                    "Type: Folder"));
+
+            _content.AddChild(
+                CreateMetadataLabel(
+                    $"Path: {directory.Path}"));
+
+            return;
+        }
+
         var asset =
             browser?.SelectedAsset;
 
@@ -233,6 +261,10 @@ public sealed class AssetPreviewPanelView : UiPanel
         _content.AddChild(
             CreateMetadataLabel(
                 $"Size: {FormatSize(metadata.SizeBytes)}"));
+
+        _content.AddChild(
+    CreateMetadataLabel(
+        $"Modified: {metadata.LastModified:yyyy-MM-dd HH:mm}"));
 
         _content.AddChild(
             CreateMetadataLabel(

@@ -28,7 +28,6 @@ public sealed class EditorWorkspaceView :
     private readonly UiPanel _viewportHost;
     private readonly UiPanel _inspectorHost;
     private readonly AssetBrowserPanelView _assetBrowser;
-    private readonly AssetPreviewPanelView _assetPreview;
 
     private readonly EditorDockSplitter _leftSplitter;
     private readonly EditorDockSplitter _rightSplitter;
@@ -99,19 +98,13 @@ public sealed class EditorWorkspaceView :
         _inspectorHost.AddChild(
             Inspector);
 
-        _assetBrowser =
-            new AssetBrowserPanelView(editor, overlays);
+        _assetBrowser = new AssetBrowserPanelView(
+            editor,
+            overlays,
+            assetPreviewTextures);
 
         _assetBrowser.AssetActivated +=
             entry => AssetActivated?.Invoke(entry);
-
-        _assetBrowser.AssetActivated +=
-            entry => AssetActivated?.Invoke(entry);
-
-        _assetPreview =
-            new AssetPreviewPanelView(
-                editor,
-                assetPreviewTextures);
 
         _console =
     new EditorConsolePanel(console);
@@ -138,9 +131,6 @@ public sealed class EditorWorkspaceView :
 
         AddChild(_console);
         AddChild(_bottomTabBar);
-
-        AddChild(
-            _assetPreview);
 
         AddChild(
             _assetBrowser);
@@ -220,9 +210,6 @@ public sealed class EditorWorkspaceView :
     public AssetBrowserPanelView AssetBrowser =>
         _assetBrowser;
 
-    public AssetPreviewPanelView AssetPreview =>
-        _assetPreview;
-
     public void Refresh()
     {
         ApplyPanelState();
@@ -231,7 +218,6 @@ public sealed class EditorWorkspaceView :
         Inspector.Refresh();
         Viewport.Refresh();
         _assetBrowser.Refresh();
-        _assetPreview.Refresh();
     }
 
     private void ApplyPanelState()
@@ -366,10 +352,6 @@ public sealed class EditorWorkspaceView :
         yield return GetPanelBinding(
     "Console",
     _console);
-
-        yield return GetPanelBinding(
-            "AssetPreview",
-            _assetPreview);
     }
 
     private (
@@ -670,10 +652,6 @@ public sealed class EditorWorkspaceView :
             new Vector2(
                 availableSize.X,
                 28.0f));
-
-        _assetPreview.Measure(
-            context,
-            availableSize);
 
         _leftSplitter.Measure(
             context,

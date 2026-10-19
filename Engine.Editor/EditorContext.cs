@@ -459,11 +459,6 @@ public sealed class EditorContext
         "Console",
         isOpen: true));
 
-        Workspace.RegisterPanel(
-            new EditorPanel(
-                "AssetPreview",
-                "Asset Preview"));
-
         Workspace.Layout.GetPanel(
             "Hierarchy")
             .SetArea(
@@ -519,20 +514,5 @@ public sealed class EditorContext
         Workspace.Layout.GetPanel(
             "Console")
             .SetSize(280.0f);
-
-        Workspace.Layout.GetPanel(
-            "AssetPreview")
-            .SetArea(
-                EditorDockArea.Bottom);
-
-        Workspace.Layout.GetPanel(
-            "AssetPreview")
-            .SetOrder(
-                1);
-
-        Workspace.Layout.GetPanel(
-            "AssetPreview")
-            .SetSize(
-                220.0f);
     }
 }

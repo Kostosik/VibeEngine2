@@ -1,6 +1,7 @@
 ﻿using Engine.Core.Math;
 using Engine.Editor.Assets;
 using Engine.Graphics.Commands;
+using Engine.Graphics.Resources;
 using Engine.Input;
 using Engine.UI.Controls;
 using Engine.UI.Core;
@@ -24,6 +25,15 @@ public sealed class AssetBrowserPanelView : UiPanel
     private readonly UiTextBox _searchBox;
     private readonly UiButton _sortButton;
     private const long DoubleClickIntervalMilliseconds = 500;
+    private readonly ITextureResourceManager _textures;
+    private readonly UiButton _listModeButton;
+    private readonly UiButton _gridModeButton;
+    private readonly UiPanel _grid;
+
+    private bool _isGridMode;
+    private const float TileWidth = 116.0f;
+    private const float TileHeight = 72.0f;
+    private const float TileSpacing = 6.0f;
 
     private string? _lastClickedEntryPath;
     private string? _lastClickedDirectoryPath;
@@ -31,7 +41,7 @@ public sealed class AssetBrowserPanelView : UiPanel
     private readonly EditorAssetBrowserViewState _viewState = new();
 
     private readonly UiContextMenu _contextMenu;
-
+    private readonly AssetPreviewPanelView _preview;
     private readonly List<(
         UiButton Button,
         EditorAssetEntry Entry)> _entryButtons = new();
@@ -41,12 +51,20 @@ public sealed class AssetBrowserPanelView : UiPanel
 
     public AssetBrowserPanelView(
         EditorContext editor,
-        UiOverlayLayer overlays)
+        UiOverlayLayer overlays,
+        ITextureResourceManager previewTextures)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
 
+        ArgumentNullException.ThrowIfNull(previewTextures);
+
         Editor = editor;
+
+        _preview = new AssetPreviewPanelView(
+            editor,
+            previewTextures);
+        _textures = previewTextures;
         _contextMenu = new UiContextMenu(overlays)
         {
             Width = 220.0f
@@ -272,14 +290,61 @@ public sealed class AssetBrowserPanelView : UiPanel
                     UiVerticalAlignment.Stretch
             };
 
+        _grid = new UiPanel
+        {
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Stretch,
+            Visible = false
+        };
+
+        _listModeButton = new UiButton("List")
+        {
+            Width = 48.0f,
+            Height = 28.0f,
+            FontSize = 12.0f
+        };
+
+        _gridModeButton = new UiButton("Grid")
+        {
+            Width = 48.0f,
+            Height = 28.0f,
+            FontSize = 12.0f
+        };
+
+        _listModeButton.Clicked += () => SetViewMode(false);
+        _gridModeButton.Clicked += () => SetViewMode(true);
+
+        _toolbar.AddChild(_listModeButton);
+        _toolbar.AddChild(_gridModeButton);
+
         AddChild(_toolbar);
         AddChild(_breadcrumbScrollView);
         AddChild(_searchToolbar);
         AddChild(_filterToolbar);
         AddChild(_list);
+        AddChild(_grid);
+        AddChild(_preview);
     }
-
+    public AssetPreviewPanelView Preview => _preview;
     public EditorContext Editor { get; }
+
+    private void SetViewMode(bool gridMode)
+    {
+        if (_isGridMode == gridMode)
+        {
+            return;
+        }
+
+        _isGridMode = gridMode;
+
+        _list.Visible = !gridMode;
+        _grid.Visible = gridMode;
+
+        _listModeButton.Enabled = gridMode;
+        _gridModeButton.Enabled = !gridMode;
+
+        RefreshEntries(Editor.AssetBrowser);
+    }
 
     private bool RegisterEntryClick(
     string entryPath,
@@ -422,7 +487,7 @@ public sealed class AssetBrowserPanelView : UiPanel
             _upButton.Enabled = false;
             _backButton.Enabled = false;
             _forwardButton.Enabled = false;
-
+            _preview.Refresh();
             RefreshEntries(null);
             return;
         }
@@ -437,12 +502,17 @@ public sealed class AssetBrowserPanelView : UiPanel
         _backButton.Enabled = browser.CanNavigateBack;
         _forwardButton.Enabled = browser.CanNavigateForward;
         RefreshEntries(browser);
+        _preview.Refresh();
     }
 
     private void RefreshEntries(EditorAssetBrowser? browser)
     {
         _entryButtons.Clear();
         _list.ClearItems();
+        _grid.ClearChildren();
+
+        _list.Visible = !_isGridMode;
+        _grid.Visible = _isGridMode;
 
         if (browser is null)
         {
@@ -457,19 +527,33 @@ public sealed class AssetBrowserPanelView : UiPanel
 
         foreach (var entry in entries)
         {
-            var selected =
-                browser.Selection.Contains(entry.Path);
 
-            var prefix = selected ? "> " : "  ";
-            var icon = entry.IsDirectory ? "[DIR] " : "[FILE] ";
+            var selected = browser.Selection.Contains(entry.Path);
+
+            var icon = entry.IsDirectory ? "📁 " : "📄 ";
+            var displayName = entry.Name.Length > 18
+                ? entry.Name[..15] + "..."
+                : entry.Name;
 
             var button = new UiButton(
-                prefix + icon + entry.Name)
+                _isGridMode
+                    ? icon + displayName
+                    : (selected ? "> " : "  ") +
+                      (entry.IsDirectory ? "[DIR] " : "[FILE] ") +
+                      entry.Name)
             {
-                Height = 28.0f,
+                Height = _isGridMode ? TileHeight : 28.0f,
+                FontSize = _isGridMode ? 11.0f : 13.0f,
                 HorizontalAlignment = UiHorizontalAlignment.Stretch
             };
+
+            if (_isGridMode)
+            {
+                button.Width = TileWidth;
+            }
+
             _entryButtons.Add((button, entry));
+
             button.Clicked += () =>
             {
                 var isDoubleClick = RegisterEntryClick(
@@ -501,27 +585,37 @@ public sealed class AssetBrowserPanelView : UiPanel
                 }
 
                 Refresh();
-
-                Console.WriteLine(
-                    isDoubleClick
-                        ? $"[EDITOR ASSET] Activated: {entry.Path}"
-                        : $"[EDITOR ASSET] Selected: {entry.Path}");
             };
 
-            _list.AddItem(button);
+            if (_isGridMode)
+            {
+                _grid.AddChild(button);
+            }
+            else
+            {
+                _list.AddItem(button);
+            }
         }
 
         if (entries.Count == 0)
         {
-            _list.AddItem(
-                new UiLabel(
-                    browser.Entries.Count == 0
-                        ? "Folder is empty"
-                        : "No matching assets")
-                {
-                    FontSize = 13.0f,
-                    Color = new UiColor(150, 150, 150, 255)
-                });
+            var emptyLabel = new UiLabel(
+                browser.Entries.Count == 0
+                    ? "Folder is empty"
+                    : "No matching assets")
+            {
+                FontSize = 13.0f,
+                Color = new UiColor(150, 150, 150, 255)
+            };
+
+            if (_isGridMode)
+            {
+                _grid.AddChild(emptyLabel);
+            }
+            else
+            {
+                _list.AddItem(emptyLabel);
+            }
         }
     }
 
@@ -547,7 +641,8 @@ public sealed class AssetBrowserPanelView : UiPanel
 
         // Пустая область вне списка не должна открывать меню.
         if (entryIndex < 0 &&
-            !_list.Bounds.Contains(pointer.Position))
+            !_list.Bounds.Contains(pointer.Position) &&
+            !_grid.Bounds.Contains(pointer.Position))
         {
             return;
         }
@@ -606,38 +701,47 @@ public sealed class AssetBrowserPanelView : UiPanel
     }
 
 
+
     protected override Vector2 MeasureCore(
         UiLayoutContext context,
         Vector2 availableSize)
     {
+        var browserWidth = availableSize.X * 0.62f;
+        var previewWidth = MathF.Max(
+            0.0f,
+            availableSize.X - browserWidth - 8.0f);
+
         _toolbar.Measure(
             context,
-            new Vector2(
-                availableSize.X,
-                28.0f));
+            new Vector2(browserWidth, 28.0f));
+
         _breadcrumbScrollView.Measure(
-    context,
-    new Vector2(
-        availableSize.X,
-        36.0f));
+            context,
+            new Vector2(browserWidth, 36.0f));
 
         _searchToolbar.Measure(
-    context,
-    new Vector2(
-        availableSize.X,
-        28.0f));
+            context,
+            new Vector2(browserWidth, 28.0f));
 
         _filterToolbar.Measure(
-    context,
-    new Vector2(
-        availableSize.X,
-        28.0f));
+            context,
+            new Vector2(browserWidth, 28.0f));
 
         _list.Measure(
             context,
             new Vector2(
-                availableSize.X,
+                browserWidth,
                 float.PositiveInfinity));
+
+        _grid.Measure(
+    context,
+    new Vector2(
+        browserWidth,
+        float.PositiveInfinity));
+
+        _preview.Measure(
+            context,
+            new Vector2(previewWidth, availableSize.Y));
 
         return availableSize;
     }
@@ -650,50 +754,95 @@ public sealed class AssetBrowserPanelView : UiPanel
         const float rowHeight = 28.0f;
         const float breadcrumbHeight = 36.0f;
         const float spacing = 4.0f;
+        const float paneSpacing = 8.0f;
+
+        var browserWidth = MathF.Max(
+            0.0f,
+            (content.Width - paneSpacing) * 0.62f);
+
+        var previewX =
+            content.X + browserWidth + paneSpacing;
+
+        var previewWidth =
+            MathF.Max(0.0f, content.Right - previewX);
 
         _toolbar.Arrange(
             new UiRect(
                 content.X,
                 content.Y,
-                content.Width,
+                browserWidth,
                 rowHeight));
 
-        var breadcrumbTop = content.Y + rowHeight + spacing;
+        var breadcrumbTop =
+            content.Y + rowHeight + spacing;
 
         _breadcrumbScrollView.Arrange(
             new UiRect(
                 content.X,
                 breadcrumbTop,
-                content.Width,
+                browserWidth,
                 breadcrumbHeight));
 
-        var searchTop = breadcrumbTop + breadcrumbHeight + spacing;
+        var searchTop =
+            breadcrumbTop + breadcrumbHeight + spacing;
 
         _searchToolbar.Arrange(
             new UiRect(
                 content.X,
                 searchTop,
-                content.Width,
+                browserWidth,
                 rowHeight));
 
-        var filterTop = searchTop + rowHeight + spacing;
+        var filterTop =
+            searchTop + rowHeight + spacing;
 
         _filterToolbar.Arrange(
             new UiRect(
                 content.X,
                 filterTop,
-                content.Width,
+                browserWidth,
                 rowHeight));
 
-        var listTop = filterTop + rowHeight + spacing;
+        var listTop =
+            filterTop + rowHeight + spacing;
 
-        _list.Arrange(
+        var listBounds = new UiRect(
+            content.X,
+            listTop,
+            browserWidth,
+            MathF.Max(0.0f, content.Bottom - listTop));
+
+        _list.Arrange(listBounds);
+        _grid.Arrange(listBounds);
+
+        var columns = Math.Max(
+            1,
+            (int)((listBounds.Width + TileSpacing) /
+                  (TileWidth + TileSpacing)));
+
+        for (var i = 0; i < _entryButtons.Count; i++)
+        {
+            if (!_isGridMode)
+            {
+                break;
+            }
+
+            var column = i % columns;
+            var row = i / columns;
+
+            _entryButtons[i].Button.Arrange(
+                new UiRect(
+                    listBounds.X + column * (TileWidth + TileSpacing),
+                    listBounds.Y + row * (TileHeight + TileSpacing),
+                    TileWidth,
+                    TileHeight));
+        }
+
+        _preview.Arrange(
             new UiRect(
-                content.X,
-                listTop,
-                content.Width,
-                MathF.Max(
-                    0.0f,
-                    content.Bottom - listTop)));
+                previewX,
+                content.Y,
+                previewWidth,
+                content.Height));
     }
 }

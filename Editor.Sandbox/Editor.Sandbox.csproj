@@ -36,6 +36,15 @@
     <None Update="Assets\Textures\test.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+
+	  <None Update="Assets\UI\EditorIcons\**\*">
+		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
+
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Assets\UI\EditorIcons\" />
   </ItemGroup>
 
 </Project>

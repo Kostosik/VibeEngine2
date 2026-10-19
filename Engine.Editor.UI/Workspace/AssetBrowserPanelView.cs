@@ -1,4 +1,5 @@
-﻿using Engine.Core.Math;
+﻿using Engine.Core.Assets;
+using Engine.Core.Math;
 using Engine.Editor.Assets;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Resources;
@@ -26,9 +27,20 @@ public sealed class AssetBrowserPanelView : UiPanel
     private readonly UiButton _sortButton;
     private const long DoubleClickIntervalMilliseconds = 500;
     private readonly ITextureResourceManager _textures;
+    private readonly Dictionary<string, TextureHandle> _iconTextures =
+    new(StringComparer.OrdinalIgnoreCase);
     private readonly UiButton _listModeButton;
     private readonly UiButton _gridModeButton;
     private readonly UiPanel _grid;
+    private readonly UiScrollView _gridScrollView;
+
+    private const float PaneSpacing = 8.0f;
+    private const float MinimumPaneWidth = 180.0f;
+
+    private float _browserWidthRatio = 0.62f;
+    private UiRect _contentBounds;
+
+    private readonly AssetBrowserSplitter _splitter;
 
     private bool _isGridMode;
     private const float TileWidth = 116.0f;
@@ -43,7 +55,7 @@ public sealed class AssetBrowserPanelView : UiPanel
     private readonly UiContextMenu _contextMenu;
     private readonly AssetPreviewPanelView _preview;
     private readonly List<(
-        UiButton Button,
+        AssetBrowserEntryWidget Button,
         EditorAssetEntry Entry)> _entryButtons = new();
 
     public event Action<EditorAssetEntry>? AssetActivated;
@@ -60,7 +72,7 @@ public sealed class AssetBrowserPanelView : UiPanel
         ArgumentNullException.ThrowIfNull(previewTextures);
 
         Editor = editor;
-
+        _splitter = new AssetBrowserSplitter(ResizeBrowserAt);
         _preview = new AssetPreviewPanelView(
             editor,
             previewTextures);
@@ -293,9 +305,21 @@ public sealed class AssetBrowserPanelView : UiPanel
         _grid = new UiPanel
         {
             HorizontalAlignment = UiHorizontalAlignment.Stretch,
-            VerticalAlignment = UiVerticalAlignment.Stretch,
-            Visible = false
+            VerticalAlignment = UiVerticalAlignment.Stretch
         };
+
+        _gridScrollView = new UiScrollView
+        {
+            HorizontalScrolling = false,
+            VerticalScrolling = true,
+            ShowVerticalScrollBar = true,
+            ScrollSpeed = 48.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Stretch
+        };
+
+        _gridScrollView.SetContent(_grid);
+        _gridScrollView.Visible = false;
 
         _listModeButton = new UiButton("List")
         {
@@ -322,8 +346,9 @@ public sealed class AssetBrowserPanelView : UiPanel
         AddChild(_searchToolbar);
         AddChild(_filterToolbar);
         AddChild(_list);
-        AddChild(_grid);
+        AddChild(_gridScrollView);
         AddChild(_preview);
+        AddChild(_splitter);
     }
     public AssetPreviewPanelView Preview => _preview;
     public EditorContext Editor { get; }
@@ -338,7 +363,7 @@ public sealed class AssetBrowserPanelView : UiPanel
         _isGridMode = gridMode;
 
         _list.Visible = !gridMode;
-        _grid.Visible = gridMode;
+        _gridScrollView.Visible = gridMode;
 
         _listModeButton.Enabled = gridMode;
         _gridModeButton.Enabled = !gridMode;
@@ -429,6 +454,64 @@ public sealed class AssetBrowserPanelView : UiPanel
         }
     }
 
+    private TextureHandle GetEntryIcon(EditorAssetEntry entry)
+    {
+        var extension = Path.GetExtension(entry.Name).ToLowerInvariant();
+        System.Diagnostics.Debug.WriteLine(
+    $"[AssetBrowser] Loading icon for: {entry.Name}");
+        var iconName = entry.IsDirectory
+            ? "folder.png"
+            : extension switch
+            {
+                ".png" or ".jpg" or ".jpeg" or ".bmp" or ".tga"
+                    => "image.png",
+
+                ".wav" or ".mp3" or ".ogg" or ".flac"
+                    => "audio.png",
+
+                ".mp4" or ".avi" or ".mov" or ".webm"
+                    => "video.png",
+
+                ".ttf" or ".otf"
+                    => "font.png",
+
+                ".cs" or ".script" or ".json"
+                    => "script.png",
+
+                ".obj" or ".fbx" or ".gltf" or ".glb"
+                    => "model.png",
+
+                ".xml" or ".yaml" or ".yml" or ".toml"
+                    => "data.png",
+
+                _ => "file.png"
+            };
+
+        if (_iconTextures.TryGetValue(iconName, out var cached))
+        {
+            return cached;
+        }
+
+        try
+        {
+            var texture = _textures.Load(
+                new AssetPath($"UI/EditorIcons/{iconName}"));
+            System.Diagnostics.Debug.WriteLine(
+    $"[AssetBrowser] Icon '{iconName}', valid: {texture.IsValid}");
+            _iconTextures[iconName] = texture;
+
+            return texture;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+    $"[AssetBrowser] Failed to load icon '{iconName}': {ex}");
+            // Отсутствующая иконка не должна ломать Asset Browser.
+            _iconTextures[iconName] = default;
+            return default;
+        }
+    }
+
     private void AddBreadcrumb(
         string name,
         string path,
@@ -509,10 +592,10 @@ public sealed class AssetBrowserPanelView : UiPanel
     {
         _entryButtons.Clear();
         _list.ClearItems();
-        _grid.ClearChildren();
+        _gridScrollView.ClearChildren();
 
         _list.Visible = !_isGridMode;
-        _grid.Visible = _isGridMode;
+        _gridScrollView.Visible = _isGridMode;
 
         if (browser is null)
         {
@@ -527,30 +610,13 @@ public sealed class AssetBrowserPanelView : UiPanel
 
         foreach (var entry in entries)
         {
-
             var selected = browser.Selection.Contains(entry.Path);
 
-            var icon = entry.IsDirectory ? "📁 " : "📄 ";
-            var displayName = entry.Name.Length > 18
-                ? entry.Name[..15] + "..."
-                : entry.Name;
-
-            var button = new UiButton(
-                _isGridMode
-                    ? icon + displayName
-                    : (selected ? "> " : "  ") +
-                      (entry.IsDirectory ? "[DIR] " : "[FILE] ") +
-                      entry.Name)
-            {
-                Height = _isGridMode ? TileHeight : 28.0f,
-                FontSize = _isGridMode ? 11.0f : 13.0f,
-                HorizontalAlignment = UiHorizontalAlignment.Stretch
-            };
-
-            if (_isGridMode)
-            {
-                button.Width = TileWidth;
-            }
+            var button = new AssetBrowserEntryWidget(
+                entry.Name,
+                GetEntryIcon(entry),
+                _isGridMode,
+                selected);
 
             _entryButtons.Add((button, entry));
 
@@ -642,7 +708,7 @@ public sealed class AssetBrowserPanelView : UiPanel
         // Пустая область вне списка не должна открывать меню.
         if (entryIndex < 0 &&
             !_list.Bounds.Contains(pointer.Position) &&
-            !_grid.Bounds.Contains(pointer.Position))
+            !_gridScrollView.Bounds.Contains(pointer.Position))
         {
             return;
         }
@@ -706,10 +772,19 @@ public sealed class AssetBrowserPanelView : UiPanel
         UiLayoutContext context,
         Vector2 availableSize)
     {
-        var browserWidth = availableSize.X * 0.62f;
+        var contentWidth = MathF.Max(
+            0.0f,
+            availableSize.X -
+            Padding.Left -
+            Padding.Right);
+
+        var browserWidth = CalculateBrowserWidth(contentWidth);
+
         var previewWidth = MathF.Max(
             0.0f,
-            availableSize.X - browserWidth - 8.0f);
+            contentWidth -
+            browserWidth -
+            PaneSpacing);
 
         _toolbar.Measure(
             context,
@@ -733,11 +808,26 @@ public sealed class AssetBrowserPanelView : UiPanel
                 browserWidth,
                 float.PositiveInfinity));
 
-        _grid.Measure(
-    context,
-    new Vector2(
-        browserWidth,
-        float.PositiveInfinity));
+        var columns = Math.Max(
+            1,
+            (int)((browserWidth + TileSpacing) /
+                  (TileWidth + TileSpacing)));
+
+        var itemCount = Math.Max(
+            1,
+            _entryButtons.Count);
+
+        var rows = (itemCount + columns - 1) / columns;
+
+        _grid.Height =
+            rows * TileHeight +
+            (rows - 1) * TileSpacing;
+
+        _gridScrollView.Measure(
+            context,
+            new Vector2(
+                browserWidth,
+                availableSize.Y));
 
         _preview.Measure(
             context,
@@ -750,21 +840,30 @@ public sealed class AssetBrowserPanelView : UiPanel
         UiRect finalRect)
     {
         var content = finalRect.Deflate(Padding);
-
+        _contentBounds = content;
         const float rowHeight = 28.0f;
         const float breadcrumbHeight = 36.0f;
         const float spacing = 4.0f;
         const float paneSpacing = 8.0f;
 
-        var browserWidth = MathF.Max(
-            0.0f,
-            (content.Width - paneSpacing) * 0.62f);
+        var browserWidth = CalculateBrowserWidth(content.Width);
 
         var previewX =
-            content.X + browserWidth + paneSpacing;
+            content.X +
+            browserWidth +
+            PaneSpacing;
 
-        var previewWidth =
-            MathF.Max(0.0f, content.Right - previewX);
+        var previewWidth = MathF.Max(
+            0.0f,
+            content.Right - previewX);
+
+        var splitterBounds = new UiRect(
+            content.X + browserWidth,
+            content.Y,
+            PaneSpacing,
+            content.Height);
+
+        _splitter.Arrange(splitterBounds);
 
         _toolbar.Arrange(
             new UiRect(
@@ -813,11 +912,13 @@ public sealed class AssetBrowserPanelView : UiPanel
             MathF.Max(0.0f, content.Bottom - listTop));
 
         _list.Arrange(listBounds);
-        _grid.Arrange(listBounds);
+        _gridScrollView.Arrange(listBounds);
+
+        var gridBounds = _grid.Bounds;
 
         var columns = Math.Max(
             1,
-            (int)((listBounds.Width + TileSpacing) /
+            (int)((gridBounds.Width + TileSpacing) /
                   (TileWidth + TileSpacing)));
 
         for (var i = 0; i < _entryButtons.Count; i++)
@@ -832,8 +933,10 @@ public sealed class AssetBrowserPanelView : UiPanel
 
             _entryButtons[i].Button.Arrange(
                 new UiRect(
-                    listBounds.X + column * (TileWidth + TileSpacing),
-                    listBounds.Y + row * (TileHeight + TileSpacing),
+                    gridBounds.X +
+                        column * (TileWidth + TileSpacing),
+                    gridBounds.Y +
+                        row * (TileHeight + TileSpacing),
                     TileWidth,
                     TileHeight));
         }
@@ -844,5 +947,125 @@ public sealed class AssetBrowserPanelView : UiPanel
                 content.Y,
                 previewWidth,
                 content.Height));
+    }
+
+    private float CalculateBrowserWidth(float contentWidth)
+    {
+        var availablePaneWidth = MathF.Max(
+            0.0f,
+            contentWidth - PaneSpacing);
+
+        var minimumWidth = MathF.Min(
+            MinimumPaneWidth,
+            availablePaneWidth * 0.3f);
+
+        var maximumWidth = MathF.Max(
+            minimumWidth,
+            availablePaneWidth - minimumWidth);
+
+        return Math.Clamp(
+            availablePaneWidth * _browserWidthRatio,
+            minimumWidth,
+            maximumWidth);
+    }
+
+    private void ResizeBrowserAt(float pointerX)
+    {
+        var availablePaneWidth = MathF.Max(
+            0.0f,
+            _contentBounds.Width - PaneSpacing);
+
+        if (availablePaneWidth <= 0.0f)
+        {
+            return;
+        }
+
+        var minimumWidth = MathF.Min(
+            MinimumPaneWidth,
+            availablePaneWidth * 0.3f);
+
+        var maximumWidth = MathF.Max(
+            minimumWidth,
+            availablePaneWidth - minimumWidth);
+
+        var requestedWidth =
+            pointerX - _contentBounds.X;
+
+        var browserWidth = Math.Clamp(
+            requestedWidth,
+            minimumWidth,
+            maximumWidth);
+
+        _browserWidthRatio =
+            browserWidth / availablePaneWidth;
+    }
+
+    private sealed class AssetBrowserSplitter : UiWidget
+    {
+        private readonly Action<float> _onDragged;
+        private bool _isDragging;
+
+        public AssetBrowserSplitter(Action<float> onDragged)
+        {
+            ArgumentNullException.ThrowIfNull(onDragged);
+
+            _onDragged = onDragged;
+        }
+
+        protected override void OnRender(UiRenderContext context)
+        {
+            var color = IsHovered || _isDragging
+                ? new UiColor(105, 145, 190, 255)
+                : new UiColor(65, 68, 74, 255);
+
+            var lineBounds = new UiRect(
+                Bounds.X + (Bounds.Width - 2.0f) * 0.5f,
+                Bounds.Y,
+                2.0f,
+                Bounds.Height);
+
+            context.DrawRectangle(
+                lineBounds,
+                color,
+                filled: true);
+        }
+
+        protected override void OnPointerDown(UiPointerEvent pointer)
+        {
+            if (pointer.Button != InputMouseButton.Left)
+            {
+                return;
+            }
+
+            _isDragging = true;
+
+            pointer.RequestCapture();
+            pointer.Handled = true;
+        }
+
+        protected override void OnPointerMove(UiPointerEvent pointer)
+        {
+            if (!_isDragging)
+            {
+                return;
+            }
+
+            _onDragged(pointer.Position.X);
+            pointer.Handled = true;
+        }
+
+        protected override void OnPointerUp(UiPointerEvent pointer)
+        {
+            if (!_isDragging ||
+                pointer.Button != InputMouseButton.Left)
+            {
+                return;
+            }
+
+            _isDragging = false;
+
+            pointer.ReleaseCapture();
+            pointer.Handled = true;
+        }
     }
 }

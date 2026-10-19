@@ -83,6 +83,13 @@ public sealed class AddEditorComponentCommand : IEditorCommand
                 "Editor entity reference is not alive.");
         }
 
+        if (_componentType ==
+    typeof(Engine.Worlds.Spatial.WorldPositionComponent))
+        {
+            throw new InvalidOperationException(
+                "WorldPositionComponent must be managed by SpatialEntityManager.");
+        }
+
         var existingComponentTypes =
     _world.EcsWorld.Inspector
         .GetComponentTypes(
@@ -106,22 +113,6 @@ public sealed class AddEditorComponentCommand : IEditorCommand
                 $"Cannot add '{_componentType.Name}'. " +
                 $"Missing required component(s): {missingNames}.");
         }
-
-    //    if (_componentType == typeof(LocalTransform2D) &&
-    //!_world.EcsWorld.Has<WorldTransform2D>(
-    //    _reference.Entity))
-    //    {
-    //        throw new InvalidOperationException(
-    //            "LocalTransform2D requires WorldTransform2D. " +
-    //            "Add WorldTransform2D first.");
-    //    }
-
-    //    if (_componentType ==
-    //        typeof(Engine.Worlds.Spatial.WorldPositionComponent))
-    //    {
-    //        throw new InvalidOperationException(
-    //            "WorldPositionComponent must be managed by SpatialEntityManager.");
-    //    }
 
         EcsComponentAccessor.Add(
             _world,

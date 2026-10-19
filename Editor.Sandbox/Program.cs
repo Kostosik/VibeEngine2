@@ -226,9 +226,11 @@ application.NewDocumentRequested +=
     };
 
 var document =
-    application.OpenDocument(
-        world,
-        worldPath);
+    File.Exists(worldPath)
+        ? application.OpenDocument(worldPath)
+        : application.OpenDocument(
+            world,
+            worldPath);
 
 document.EntitySelection.Changed +=
     () =>

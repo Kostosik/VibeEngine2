@@ -2,16 +2,6 @@
 
 public sealed class EditorAssetInspector
 {
-    private static readonly HashSet<string> ImageExtensions =
-        new(StringComparer.OrdinalIgnoreCase)
-        {
-            ".png",
-            ".jpg",
-            ".jpeg",
-            ".bmp",
-            ".tga"
-        };
-
     public EditorAssetMetadata Inspect(
         EditorAssetEntry entry)
     {
@@ -38,8 +28,8 @@ public sealed class EditorAssetInspector
             file.Extension;
 
         var previewKind =
-            ImageExtensions.Contains(
-                extension)
+            EditorAssetTypeClassifier.Classify(entry) ==
+            EditorAssetKind.Image
                 ? EditorAssetPreviewKind.Image
                 : EditorAssetPreviewKind.None;
 

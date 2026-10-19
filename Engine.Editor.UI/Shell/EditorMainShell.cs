@@ -63,7 +63,7 @@ public sealed class EditorMainShell :
     public event Action<UiRect>? ViewRequested;
     public event Action<UiRect>? EditRequested;
 
-    private readonly UiPanel _documentTabs;
+    private readonly UiScrollView _documentTabs;
     private UiButton _worldButton;
     private UiButton _uiButton;
     private UiButton _toolsButton;
@@ -100,22 +100,22 @@ public sealed class EditorMainShell :
         _menuBar =
             CreateMenuBar();
         _toolbar = CreateToolbar();
-        _documentTabs =
-    new UiPanel
-    {
-        Background =
-            new UiColor(
-                28,
-                28,
-                28,
-                255),
+        _documentTabs = new UiScrollView
+        {
+            Background = new UiColor(28, 28, 28, 255),
 
-        HorizontalAlignment =
-            UiHorizontalAlignment.Stretch,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top,
 
-        VerticalAlignment =
-            UiVerticalAlignment.Top
-    };
+            HorizontalScrolling = true,
+            VerticalScrolling = false,
+
+            ShowHorizontalScrollBar = true,
+            ShowVerticalScrollBar = false,
+
+            ScrollBarThickness = 10.0f,
+            ScrollSpeed = 48.0f
+        };
 
         _workspace =
             new UiPanel
@@ -200,7 +200,7 @@ public sealed class EditorMainShell :
     {
         const float menuHeight = 32.0f;
         const float toolbarHeight = 36.0f;
-        const float documentTabsHeight = 30.0f;
+        const float documentTabsHeight = 38.0f;
         const float documentHeight = 24.0f;
 
         _menuBar.Measure(
@@ -249,7 +249,7 @@ public sealed class EditorMainShell :
     {
         const float menuHeight = 32.0f;
         const float toolbarHeight = 36.0f;
-        const float documentTabsHeight = 30.0f;
+        const float documentTabsHeight = 38.0f;
         const float documentHeight = 24.0f;
 
         _menuBar.Arrange(
@@ -507,8 +507,7 @@ public sealed class EditorMainShell :
                 button);
         }
 
-        _documentTabs.AddChild(
-            tabs);
+        _documentTabs.SetContent(tabs);
     }
 
     private void ShowWorld()

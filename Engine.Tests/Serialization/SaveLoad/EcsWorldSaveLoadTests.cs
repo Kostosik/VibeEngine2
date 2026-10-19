@@ -1,4 +1,5 @@
 ﻿using Engine.ECS;
+using Engine.ECS.Components;
 using Engine.Scripting;
 using Engine.Serialization.Binary;
 using Engine.Serialization.SaveLoad.Ecs;
@@ -7,6 +8,65 @@ namespace Engine.Tests.Serialization.SaveLoad;
 
 public sealed class EcsWorldSaveLoadTests
 {
+    [Fact]
+    public void EntityName_RoundTripsThroughEcsWorldSave()
+    {
+        var registry =
+            new EcsComponentSerializerRegistry();
+
+        registry.RegisterEngineComponents();
+
+        var serializer =
+            new EcsWorldStateSerializer(registry);
+
+        using var world =
+            new Engine.ECS.World();
+
+        var entity =
+            world.CreateEntity();
+
+        world.Add(
+            entity,
+            new EntityName("Copper Smelter"));
+
+        var path =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"{Guid.NewGuid():N}.vbe");
+
+        try
+        {
+            BinaryFileSerializer.Save(
+                path,
+                world.CaptureState(),
+                serializer);
+
+            var state =
+                BinaryFileSerializer.Load(
+                    path,
+                    serializer);
+
+            using var restoredWorld =
+                new Engine.ECS.World();
+
+            restoredWorld.RestoreState(state);
+
+            Assert.True(
+                restoredWorld.Has<EntityName>(entity));
+
+            Assert.Equal(
+                "Copper Smelter",
+                restoredWorld.Get<EntityName>(entity).Value);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
     [Fact]
     public void ScriptAssignments_RoundTripThroughEcsWorldSave()
     {

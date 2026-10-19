@@ -1,4 +1,5 @@
-﻿using Engine.ECS.Entities;
+﻿using Engine.ECS.Components;
+using Engine.ECS.Entities;
 using Engine.Editor.Commands;
 using Engine.Editor.Hierarchy;
 using Engine.Graphics.Commands;
@@ -37,7 +38,7 @@ public sealed class HierarchyPanelView :
             new UiStackPanel
             {
                 Orientation =
-                    UiOrientation.Horizontal,
+                    UiOrientation.Vertical,
 
                 Spacing = 4.0f,
 
@@ -219,8 +220,126 @@ public sealed class HierarchyPanelView :
                 document.EntitySelection.Clear();
             };
 
-        _toolbar.AddChild(createButton);
-        _toolbar.AddChild(deleteButton);
+
+        var actions =
+            new UiStackPanel
+            {
+                Orientation =
+                    UiOrientation.Horizontal,
+
+                Spacing = 4.0f,
+
+                HorizontalAlignment =
+                    UiHorizontalAlignment.Stretch,
+
+                VerticalAlignment =
+                    UiVerticalAlignment.Top
+            };
+
+        actions.AddChild(createButton);
+        actions.AddChild(deleteButton);
+
+        _toolbar.AddChild(actions);
+
+        if (document.EntitySelection.Count == 1)
+        {
+            var renameEntity =
+                document.EntitySelection.Items.First();
+
+            if (document.World.EcsWorld.Exists(renameEntity))
+            {
+                var renameRow =
+                    new UiStackPanel
+                    {
+                        Orientation =
+                            UiOrientation.Horizontal,
+
+                        Spacing = 4.0f,
+
+                        HorizontalAlignment =
+                            UiHorizontalAlignment.Stretch,
+
+                        VerticalAlignment =
+                            UiVerticalAlignment.Top
+                    };
+
+                var nameBox =
+                    new UiTextBox
+                    {
+                        Width = 156.0f,
+                        Height = 30.0f,
+                        FontSize = 12.0f,
+                        MaxLength = 128,
+                        Placeholder = "New entity name"
+                    };
+
+                var renameButton =
+                    new UiButton("Rename")
+                    {
+                        Width = 76.0f,
+                        Height = 30.0f,
+                        FontSize = 12.0f
+                    };
+
+                void CommitRename()
+                {
+                    var newName =
+                        nameBox.Text.Trim();
+
+                    if (string.IsNullOrWhiteSpace(newName))
+                    {
+                        return;
+                    }
+
+                    if (!document.World.EcsWorld.Exists(renameEntity))
+                    {
+                        Refresh();
+                        return;
+                    }
+
+                    if (document.World.EcsWorld.Has<EntityName>(
+                            renameEntity))
+                    {
+                        var existingName =
+                            document.World.EcsWorld.Get<EntityName>(
+                                renameEntity);
+
+                        if (existingName.IsValid &&
+                            string.Equals(
+                                existingName.Value,
+                                newName,
+                                StringComparison.Ordinal))
+                        {
+                            nameBox.SetText(string.Empty);
+                            return;
+                        }
+                    }
+
+                    var reference =
+                        document.GetEntityReference(renameEntity);
+
+                    document.Execute(
+                        new RenameEditorEntityCommand(
+                            document.World,
+                            reference,
+                            newName));
+
+                    Refresh();
+                }
+
+                renameButton.Clicked +=
+                    CommitRename;
+
+                nameBox.Submitted +=
+                    _ => CommitRename();
+
+                renameRow.AddChild(nameBox);
+                renameRow.AddChild(renameButton);
+
+                _toolbar.AddChild(renameRow);
+            }
+        }
+
 
         var source =
             new EcsHierarchySource(
@@ -368,7 +487,7 @@ public sealed class HierarchyPanelView :
 
         var prefix =
             selected
-                ? "● "
+                ? "> "
                 : "  ";
 
         var button =

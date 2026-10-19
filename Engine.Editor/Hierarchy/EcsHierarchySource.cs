@@ -32,10 +32,23 @@ public sealed class EcsHierarchySource :
 
         foreach (var entity in entities)
         {
+            var name = $"Entity {entity.Index}";
+
+            if (_world.EcsWorld.Has<EntityName>(entity))
+            {
+                var entityName =
+                    _world.EcsWorld.Get<EntityName>(entity);
+
+                if (entityName.IsValid)
+                {
+                    name = entityName.Value;
+                }
+            }
+
             nodes.Add(
                 new EditorHierarchyNode(
                     entity,
-                    $"Entity {entity.Index}",
+                    name,
                     GetParentId(entity)));
         }
 

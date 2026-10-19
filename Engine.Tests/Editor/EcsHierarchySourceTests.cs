@@ -9,6 +9,36 @@ namespace Engine.Tests.Editor;
 public sealed class EcsHierarchySourceTests
 {
     [Fact]
+    public void GetNodes_UsesEntityNameWhenPresent()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+        var entity =
+            world.SpatialEntities.CreateEntity(
+                new WorldPosition(0, 0));
+
+        ecsWorld.Add(
+            entity,
+            new EntityName("Copper Smelter"));
+
+        var source =
+            new EcsHierarchySource(world);
+
+        var node =
+            Assert.Single(source.GetNodes());
+
+        Assert.Equal(
+            "Copper Smelter",
+            node.Name);
+    }
+
+    [Fact]
     public void GetNodes_WhenParentDoesNotExist_TreatsEntityAsRoot()
     {
         using var ecsWorld =

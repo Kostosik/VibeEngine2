@@ -1,5 +1,6 @@
 ﻿using Engine.Editor.Actions;
 using Engine.Editor.Assets;
+using Engine.Editor.Components;
 using Engine.Editor.Documents;
 using Engine.Editor.Documents.Persistence;
 using Engine.Editor.Inspection;
@@ -27,7 +28,8 @@ public sealed class EditorContext
 
         ComponentTypes =
     new EditorComponentTypeRegistry();
-
+        ComponentDependencies =
+    EditorComponentDependencyRegistry.CreateDefault();
         ActionContext =
             new EditorActionContext(
                 this);
@@ -42,7 +44,7 @@ public sealed class EditorContext
 
         AssetBrowser = null;
     }
-
+    public EditorComponentDependencyRegistry ComponentDependencies { get; }
     public EditorAssetBrowser? AssetBrowser { get; private set; }
     public EditorComponentTypeRegistry ComponentTypes { get; }
 

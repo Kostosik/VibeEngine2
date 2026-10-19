@@ -34,5 +34,8 @@ public static class EcsComponentSerializerRegistryExtensions
         registry.Register(
     "engine.local.transform2d",
     new LocalTransform2DSerializer());
+        registry.Register(
+    "engine.entity.name",
+    new EntityNameSerializer());
     }
 }

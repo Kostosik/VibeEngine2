@@ -56,7 +56,9 @@ public sealed class InspectDebugCommand :
         var lines =
             new List<string>
             {
-            $"Entity {entity.Index}:{entity.Generation}"
+        EntityDebugLabel.Format(
+            entity,
+            inspection.Components)
             };
 
         foreach (var component

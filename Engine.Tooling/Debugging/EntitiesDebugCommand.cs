@@ -49,8 +49,13 @@ public sealed class EntitiesDebugCommand :
 
         foreach (var entity in entities)
         {
+            var inspection =
+                _inspection.InspectEntity(entity);
+
             lines.Add(
-                $"  {entity.Index}:{entity.Generation}");
+                $"  {EntityDebugLabel.Format(
+                    entity,
+                    inspection.Components)}");
         }
 
         return DebugCommandResult.Ok(

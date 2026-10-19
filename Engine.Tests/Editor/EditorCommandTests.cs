@@ -10,6 +10,131 @@ namespace Engine.Tests.Editor;
 
 public sealed class EditorCommandTests
 {
+
+    [Fact]
+    public void RenameEntity_ExecuteUndoRedo_AddsAndRemovesName()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+        var entity =
+            world.SpatialEntities.CreateEntity(
+                new WorldPosition(0, 0));
+
+        using var document =
+            new EditorDocument(world);
+
+        var command =
+            new RenameEditorEntityCommand(
+                world,
+                document.GetEntityReference(entity),
+                "Copper Smelter");
+
+        document.Execute(command);
+
+        Assert.True(
+            ecsWorld.Has<EntityName>(entity));
+
+        Assert.Equal(
+            "Copper Smelter",
+            ecsWorld.Get<EntityName>(entity).Value);
+
+        document.Undo();
+
+        Assert.False(
+            ecsWorld.Has<EntityName>(entity));
+
+        document.Redo();
+
+        Assert.Equal(
+            "Copper Smelter",
+            ecsWorld.Get<EntityName>(entity).Value);
+    }
+
+
+
+    [Fact]
+    public void RenameEntity_Undo_RestoresOriginalName()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+        var entity =
+            world.SpatialEntities.CreateEntity(
+                new WorldPosition(0, 0));
+
+        ecsWorld.Add(
+            entity,
+            new EntityName("Original"));
+
+        using var document =
+            new EditorDocument(world);
+
+        document.Execute(
+            new RenameEditorEntityCommand(
+                world,
+                document.GetEntityReference(entity),
+                "Renamed"));
+
+        Assert.Equal(
+            "Renamed",
+            ecsWorld.Get<EntityName>(entity).Value);
+
+        document.Undo();
+
+        Assert.Equal(
+            "Original",
+            ecsWorld.Get<EntityName>(entity).Value);
+    }
+
+
+    [Fact]
+    public void AddLocalTransform2D_WithoutWorldTransform_Throws()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+        var entity =
+            world.SpatialEntities.CreateEntity(
+                new WorldPosition(0, 0));
+
+        var document =
+            new EditorDocument(world);
+
+        var command =
+            new AddEditorComponentCommand(
+                world,
+                document.GetEntityReference(entity),
+                typeof(LocalTransform2D));
+
+        var exception =
+            Assert.Throws<InvalidOperationException>(
+                command.Execute);
+
+        Assert.Contains(
+            "WorldTransform2D",
+            exception.Message);
+
+        Assert.False(
+            ecsWorld.Has<LocalTransform2D>(
+                entity));
+    }
+
     [Fact]
     public void SetWorldTransform2D_ExecuteUndoRedo_RestoresTransform()
     {

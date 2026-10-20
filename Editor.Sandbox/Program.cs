@@ -5,6 +5,7 @@ using Engine.Content.Loading;
 using Engine.Core.Application;
 using Engine.Core.Assets;
 using Engine.Core.Math;
+using Engine.ECS.Components;
 using Engine.Editor;
 using Engine.Editor.Documents;
 using Engine.Editor.Documents.Persistence;
@@ -14,6 +15,8 @@ using Engine.Editor.UI;
 using Engine.Editor.UI.Authoring;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.OpenGL;
+using Engine.Physics.Components;
+using Engine.Physics.Shapes;
 using Engine.Serialization.SaveLoad.Ecs;
 using Engine.Tooling.Debugging;
 using Engine.Tooling.Inspection;
@@ -151,6 +154,31 @@ catch (Exception exception)
 }
 
 editor.ComponentTypes.RegisterEngineComponents();
+
+// Physics body: valid dynamic body with unit mass.
+editor.ComponentTypes.Register<PhysicsBody2D>(
+    () => PhysicsBody2D.Dynamic(
+        Fixed32.One));
+
+// Collider: enabled AABB collider with a valid 1x1 size.
+editor.ComponentTypes.Register<Collider2D>(
+    () => new Collider2D(
+        new AabbShape2D(
+            new FixedVector2(
+                Fixed32.One,
+                Fixed32.One))));
+
+// Physics requires an explicit world transform.
+editor.ComponentDependencies.Register(
+    typeof(PhysicsBody2D),
+    typeof(WorldTransform2D));
+
+// A collider is processed by PhysicsSystem2D only
+// when the entity also has a body and world transform.
+editor.ComponentDependencies.Register(
+    typeof(Collider2D),
+    typeof(PhysicsBody2D),
+    typeof(WorldTransform2D));
 
 var contentCatalog =
     new FileContentCatalog(

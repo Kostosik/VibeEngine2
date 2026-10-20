@@ -1,4 +1,7 @@
-﻿using System.Text;
+﻿using Engine.Serialization.SaveLoad.Ecs;
+using Engine.Serialization.SaveLoad.Worlds;
+using Engine.Worlds.Spatial;
+using System.Text;
 
 namespace Engine.Editor.Projects;
 
@@ -135,6 +138,8 @@ public sealed class ProjectCreationService
         stagingDirectory,
         "Assets"));
 
+            CreateEmptyStartupScene(stagingDirectory);
+
             var projectFileName = $"{name}.csproj";
 
             WriteFile(
@@ -148,15 +153,18 @@ public sealed class ProjectCreationService
                 Path.Combine(
                     stagingDirectory,
                     $"{name}.vibeproject"),
-                new VibeProjectManifest
-                {
-                    FormatVersion =
-                        VibeProjectManifest.CurrentFormatVersion,
+                    new VibeProjectManifest
+                    {
+                        FormatVersion =
+                            VibeProjectManifest.CurrentFormatVersion,
 
-                    Name = name,
+                        Name = name,
 
-                    StartupProject = projectFileName
-                }.ToJson());
+                        StartupProject = projectFileName,
+
+                        StartupScene =
+                            VibeProjectManifest.DefaultStartupScenePath
+                    }.ToJson());
 
             WriteFile(
                 Path.Combine(
@@ -212,6 +220,41 @@ public sealed class ProjectCreationService
 
             throw;
         }
+    }
+
+    private static void CreateEmptyStartupScene(
+    string projectDirectory)
+    {
+        var scenePath = Path.Combine(
+            projectDirectory,
+            VibeProjectManifest.DefaultStartupScenePath);
+
+        var sceneDirectory =
+            Path.GetDirectoryName(scenePath)
+            ?? throw new InvalidOperationException(
+                "Cannot determine the startup scene directory.");
+
+        Directory.CreateDirectory(sceneDirectory);
+
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new Engine.Worlds.World(
+                new ChunkSize(32, 32),
+                ecsWorld);
+
+        var serializers =
+            new EcsComponentSerializerRegistry();
+
+        serializers.RegisterEngineComponents();
+
+        var saveLoad =
+            new WorldSaveLoadService(serializers);
+
+        saveLoad.Save(
+            scenePath,
+            world);
     }
 
     private string ResolveEngineRuntimeDirectory()

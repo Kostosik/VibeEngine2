@@ -148,7 +148,7 @@ public sealed class SandboxState
                 _actions.MoveUp,
                 _actions.MoveDown,
                 _actions.MoveLeft,
-                _actions.MoveRight);
+                _actions.MoveRight, _actions.CollectResource);
 
         _topDown.InteractionChanged +=
     _hud.SetInteraction;
@@ -582,7 +582,7 @@ public sealed class SandboxState
                 _actions.MoveUp,
                 _actions.MoveDown,
                 _actions.MoveLeft,
-                _actions.MoveRight);
+                _actions.MoveRight, _actions.CollectResource);
 
         scenario.InteractionChanged +=
             _hud.SetInteraction;

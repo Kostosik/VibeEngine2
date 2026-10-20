@@ -31,6 +31,7 @@ public sealed class EditorMainShell :
     private EditorUiWorkspaceView _uiWorkspaceView;
     public event Action? NewProjectRequested;
     public event Action? OpenProjectRequested;
+    public event Action? OpenProjectInIdeRequested;
     public bool IsUiMode =>
         Editor.Session.ActiveEditorDocument
             is EditorUiDocument;
@@ -732,6 +733,11 @@ public sealed class EditorMainShell :
     "Open Project",
     112.0f,
     () => OpenProjectRequested?.Invoke());
+
+        AddButton(
+    "Open IDE",
+    88.0f,
+    () => OpenProjectInIdeRequested?.Invoke());
 
         AddButton("New Doc", 64.0f,
             () => NewRequested?.Invoke());

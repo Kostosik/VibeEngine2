@@ -11,13 +11,16 @@ public sealed class GameProject
         string rootDirectory,
         string manifestFilePath,
         string projectFilePath,
-        string? solutionFilePath)
+        string? solutionFilePath,
+        string? startupSceneRelativePath)
     {
         Name = name;
         RootDirectory = rootDirectory;
         ManifestFilePath = manifestFilePath;
         ProjectFilePath = projectFilePath;
         SolutionFilePath = solutionFilePath;
+        StartupSceneRelativePath =
+    startupSceneRelativePath;
     }
 
     public string Name { get; }
@@ -31,6 +34,10 @@ public sealed class GameProject
 
     public string ProjectFilePath { get; }
 
+    /// <summary>
+    /// Relative path to the startup scene, if configured.
+    /// </summary>
+    public string? StartupSceneRelativePath { get; }
     public string? SolutionFilePath { get; }
 
     public static GameProject Open(string manifestFilePath)
@@ -111,7 +118,8 @@ public sealed class GameProject
             Path.GetFullPath(rootDirectory),
             fullManifestPath,
             projectFilePath,
-            solutionFilePath);
+            solutionFilePath,
+            manifest.StartupScene);
     }
 
     private static bool IsOutsideProjectRoot(string relativePath)

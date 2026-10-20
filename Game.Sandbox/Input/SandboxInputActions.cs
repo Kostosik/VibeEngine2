@@ -18,7 +18,8 @@ public sealed class SandboxInputActions
         Force = new InputAction("Force");
         ToggleTrigger = new InputAction("ToggleTrigger");
         Rotate = new InputAction("Rotate");
-
+        CollectResource =
+    new InputAction("CollectResource");
         Save = new InputAction("Save");
         Load = new InputAction("Load");
 
@@ -38,7 +39,9 @@ public sealed class SandboxInputActions
 
         ToggleLocale = new InputAction("ToggleLocale");
         Bind(ToggleLocale, "Keyboard.L");
-
+        Bind(
+    CollectResource,
+    "Keyboard.E");
         Bind(MoveUp, "Keyboard.W");
         Bind(MoveDown, "Keyboard.S");
         Bind(MoveLeft, "Keyboard.A");
@@ -66,7 +69,7 @@ public sealed class SandboxInputActions
     }
 
     public InputActionMap ActionMap { get; } = new();
-
+    public InputAction CollectResource { get; }
     public InputAction MoveUp { get; }
     public InputAction MoveDown { get; }
     public InputAction MoveLeft { get; }

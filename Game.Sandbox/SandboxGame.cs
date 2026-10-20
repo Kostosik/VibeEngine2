@@ -14,6 +14,7 @@ using Engine.Tooling.Debugging;
 using Engine.UI.Assets;
 using Engine.UI.Core;
 using Engine.UI.Styling;
+using Game.Sandbox.Serialization;
 
 namespace Game.Sandbox;
 
@@ -141,6 +142,14 @@ internal sealed class SandboxGame : EngineGame, IDisposable
                 new EcsComponentSerializerRegistry();
 
             ecsSerializers.RegisterEngineComponents();
+
+            ecsSerializers.Register(
+    "game.sandbox.resource-inventory",
+    new ResourceInventoryComponentSerializer());
+
+            ecsSerializers.Register(
+                "game.sandbox.resource-node",
+                new ResourceNodeComponentSerializer());
 
             var persistentStates =
                 new PersistentStateRegistry();

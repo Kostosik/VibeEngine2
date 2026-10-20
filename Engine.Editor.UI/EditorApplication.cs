@@ -14,6 +14,7 @@ using Engine.Tooling.Debugging;
 using Engine.UI.Controls;
 using Engine.UI.Core;
 using Engine.Worlds;
+using System.Diagnostics;
 
 namespace Engine.Editor.UI;
 
@@ -255,7 +256,8 @@ public sealed class EditorApplication :
 
         MainShell.OpenProjectRequested +=
     RequestOpenProject;
-
+        MainShell.OpenProjectInIdeRequested +=
+    RequestOpenProjectInIde;
         MainShell.OpenRequested +=
             RequestOpenDocument;
 
@@ -634,7 +636,8 @@ public sealed class EditorApplication :
 
         MainShell.OpenProjectRequested -=
     RequestOpenProject;
-
+        MainShell.OpenProjectInIdeRequested -=
+    RequestOpenProjectInIde;
         MainShell.AssetActivated -= OnAssetActivated;
         _newDocumentDialog.WorldRequested -=
     RequestNewWorldDocument;
@@ -704,6 +707,55 @@ public sealed class EditorApplication :
             SaveActiveDocument;
     }
 
+    private void RequestOpenProjectInIde()
+    {
+        var project = Editor.ActiveGameProject;
+
+        if (project is null)
+        {
+            _errorDialog.ShowError(
+                "Open a game project first.");
+
+            return;
+        }
+
+        // Prefer the solution when available.
+        var targetPath =
+            project.SolutionFilePath
+            ?? project.ProjectFilePath;
+
+        if (!File.Exists(targetPath))
+        {
+            _errorDialog.ShowError(
+                $"Project file was not found: {targetPath}");
+
+            return;
+        }
+
+        try
+        {
+            Process.Start(
+                new ProcessStartInfo
+                {
+                    FileName = targetPath,
+                    WorkingDirectory = project.RootDirectory,
+                    UseShellExecute = true
+                });
+
+            _debugConsole?.WriteLine(
+                $"Opened project in external IDE: {targetPath}");
+        }
+        catch (Exception exception)
+        {
+            _debugConsole?.WriteException(
+                exception,
+                "Failed to open project in an external IDE.");
+
+            _errorDialog.ShowError(
+                "Could not open the project in an external IDE.\n" +
+                exception.Message);
+        }
+    }
     private void HandleKeyboardShortcuts()
     {
         var controlDown =

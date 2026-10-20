@@ -6,6 +6,9 @@ internal sealed class VibeProjectManifest
 {
     public const int CurrentFormatVersion = 1;
 
+    public const string DefaultStartupScenePath =
+    "Scenes/Main.world";
+
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -18,7 +21,7 @@ internal sealed class VibeProjectManifest
     public string Name { get; init; } = string.Empty;
 
     public string StartupProject { get; init; } = string.Empty;
-
+    public string? StartupScene { get; init; }
     public static VibeProjectManifest Load(string path)
     {
         VibeProjectManifest? manifest;

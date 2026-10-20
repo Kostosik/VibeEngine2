@@ -27,6 +27,8 @@ using Engine.Runtime;
 using Engine.Worlds;
 using Engine.Worlds.Spatial;
 using Engine.Worlds.Tiles;
+using Game.Sandbox.Components;
+using Game.Sandbox.Systems;
 
 namespace Game.Sandbox.Scenarios;
 
@@ -95,6 +97,18 @@ public sealed class TopDownScenario :
     private static readonly NavigationCoordinate NavigationGoal =
         new(24, 20);
 
+    private readonly InputAction _collectResource;
+
+    private readonly ResourceCollectionSystem
+        _resourceCollection;
+
+    private readonly Sprite _resourceSprite;
+
+    private readonly List<EntityId> _resourceEntities = new();
+
+    public int ResourceCount =>
+        _resourceCollection.ResourceCount;
+
     public bool HasNavigationPath =>
         _navigationPath is not null;
 
@@ -112,7 +126,8 @@ public sealed class TopDownScenario :
         InputAction moveUp,
         InputAction moveDown,
         InputAction moveLeft,
-        InputAction moveRight)
+        InputAction moveRight,
+        InputAction collectResource)
     {
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(camera);
@@ -120,7 +135,7 @@ public sealed class TopDownScenario :
         ArgumentNullException.ThrowIfNull(tileAtlas);
 
         _runtime = runtime;
-
+        _collectResource = collectResource;
         var testSound =
     runtime.Services.Audio.Load(
         new AssetPath("Audio/test.wav"));
@@ -171,6 +186,17 @@ public sealed class TopDownScenario :
                     1.0f,
                     1.0f),
                 20);
+
+        var resourceRegion =
+    tileAtlas.GetRegion(
+        tileAtlas.Count > 1 ? 1 : 0);
+
+        _resourceSprite =
+            new Sprite(
+                tileAtlas.Texture,
+                resourceRegion.UV,
+                new Vector2(0.8f, 0.8f),
+                19);
 
         _particleEmitterRuntime =
     new ParticleEmitterRuntime(
@@ -226,6 +252,12 @@ public sealed class TopDownScenario :
             runtime.Events.Subscribe<PhysicsContactEvent>(
                 OnPhysicsContact);
 
+        _resourceCollection =
+    new ResourceCollectionSystem(runtime);
+
+        _resourceCollection.InteractionChanged +=
+            OnResourceInteractionChanged;
+
         Reset();
     }
     public event Action<string?>? InteractionChanged;
@@ -276,6 +308,38 @@ public sealed class TopDownScenario :
             new TopDownMoveCommand(
                 _player,
                 direction));
+
+        _resourceCollection.Update(
+    _input.IsPressed(_collectResource));
+    }
+
+    private EntityId CreateResourceNode(
+    FixedVector2 position,
+    int amount)
+    {
+        var size =
+            new FixedVector2(
+                Fixed32.FromFloat(0.8f),
+                Fixed32.FromFloat(0.8f));
+
+        var entity =
+            CreateStaticAabb(
+                position,
+                size);
+
+        ref var collider =
+            ref _ecsWorld.Get<Collider2D>(
+                entity);
+
+        collider.IsTrigger = true;
+
+        _ecsWorld.Add(
+            entity,
+            new ResourceNodeComponent(amount));
+
+        _resourceEntities.Add(entity);
+
+        return entity;
     }
 
     private static AnimationClip CreateParticleEmissionClip()
@@ -390,12 +454,18 @@ public sealed class TopDownScenario :
         }
 
         RenderParticles();
-
+        RenderResourceNodes();
         _spriteRenderer.DrawWorld(
             _playerSprite,
             new Engine.Core.Math.Vector2(
                 renderPosition.X.ToFloat() - 0.5f,
                 renderPosition.Y.ToFloat() - 0.5f));
+    }
+
+    private void OnResourceInteractionChanged(
+    string? text)
+    {
+        InteractionChanged?.Invoke(text);
     }
 
     private void RenderParticles()
@@ -496,7 +566,7 @@ public sealed class TopDownScenario :
         BuildMap();
 
         CreatePlayer();
-
+        _resourceCollection.SetPlayer(_player);
         _currentPlayerPosition =
             _ecsWorld.Get<WorldTransform2D>(
                 _player).Position;
@@ -551,7 +621,48 @@ public sealed class TopDownScenario :
                 new FixedVector2(
                     Fixed32.FromInt(6),
                     Fixed32.FromInt(4)));
+
+        CreateResourceNode(
+    new FixedVector2(
+        Fixed32.FromInt(4),
+        Fixed32.Zero),
+    3);
+
+        CreateResourceNode(
+            new FixedVector2(
+                Fixed32.FromInt(-4),
+                Fixed32.FromInt(3)),
+            2);
+
+        CreateResourceNode(
+            new FixedVector2(
+                Fixed32.FromInt(2),
+                Fixed32.FromInt(-6)),
+            1);
+
         RebuildNavigationMap();
+    }
+
+    private void RenderResourceNodes()
+    {
+        foreach (var entity in _resourceEntities)
+        {
+            if (!_ecsWorld.Exists(entity) ||
+                !_ecsWorld.Has<WorldTransform2D>(entity))
+            {
+                continue;
+            }
+
+            var position =
+                _ecsWorld.Get<WorldTransform2D>(
+                    entity).Position;
+
+            _spriteRenderer.DrawWorld(
+                _resourceSprite,
+                new Vector2(
+                    position.X.ToFloat() - 0.4f,
+                    position.Y.ToFloat() - 0.4f));
+        }
     }
 
     private void RebuildNavigationMap()
@@ -999,6 +1110,7 @@ public sealed class TopDownScenario :
             $"Visible sim     {_visibleSimulationTicks}\n" +
             $"Always sim      {_alwaysSimulationTicks}\n" +
             $"Particles       {_particleSystem.Count}/{_particleSystem.Capacity}\\n" +
+            $"Resources      {ResourceCount}\n" +
             $"Chunks         {_world.ChunkCount}";
 
     }
@@ -1274,6 +1386,7 @@ public sealed class TopDownScenario :
         }
 
         _entities.Clear();
+        _resourceEntities.Clear();
         _spawnedEntities.Clear();
     }
 
@@ -1290,6 +1403,11 @@ public sealed class TopDownScenario :
         _particleSystem.Clear();
         _movementSubscription.Dispose();
         _physicsSubscription.Dispose();
+
+        _resourceCollection.InteractionChanged -=
+    OnResourceInteractionChanged;
+
+        _resourceCollection.Dispose();
 
         _testSoundSource.Dispose();
         _audioListener.Dispose();

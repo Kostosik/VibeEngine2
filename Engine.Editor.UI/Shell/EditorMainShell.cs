@@ -26,7 +26,7 @@ public sealed class EditorMainShell :
     public event Action<EditorAssetEntry>? AssetActivated;
     private readonly EditorWorkspaceView _workspaceView;
     private EditorUiWorkspaceView _uiWorkspaceView;
-
+    public event Action? NewProjectRequested;
     public bool IsUiMode =>
         Editor.Session.ActiveEditorDocument
             is EditorUiDocument;
@@ -676,6 +676,9 @@ public sealed class EditorMainShell :
                 VerticalAlignment = UiVerticalAlignment.Center
             });
         }
+
+        AddButton("New Project", 112.0f,
+    () => NewProjectRequested?.Invoke());
 
         AddButton("New", 64.0f,
             () => NewRequested?.Invoke());

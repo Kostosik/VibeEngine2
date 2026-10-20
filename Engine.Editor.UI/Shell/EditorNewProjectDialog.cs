@@ -1,5 +1,6 @@
 using Engine.Editor.Projects;
 using Engine.Editor.UI.Dialogs;
+using Engine.Graphics.Commands;
 using Engine.UI.Controls;
 using Engine.UI.Core;
 using Engine.UI.Input;
@@ -18,7 +19,7 @@ public sealed class EditorNewProjectDialog : UiModal
     private readonly UiTextBox _locationBox;
     private readonly UiLabel _previewLabel;
     private readonly UiLabel _messageLabel;
-
+    private readonly UiToggle _createSolutionToggle;
     public EditorNewProjectDialog(
         UiOverlayLayer overlay,
         UiFocusManager focus,
@@ -91,11 +92,28 @@ public sealed class EditorNewProjectDialog : UiModal
         locationRow.AddChild(browseButton);
         content.AddChild(locationRow);
 
+        content.AddChild(new UiLabel("Template: Empty Game")
+        {
+            Height = 24.0f,
+            FontSize = 15.0f
+        });
+
+        _createSolutionToggle = new UiToggle(
+            "Create solution file (.sln)")
+        {
+            Width = 320.0f,
+            Height = 36.0f
+        };
+
+        _createSolutionToggle.SetValue(true);
+
+        content.AddChild(_createSolutionToggle);
+
         _previewLabel = new UiLabel
         {
             Height = 28.0f,
             FontSize = 13.0f,
-            Color = new Engine.Core.Math.UiColor(175, 175, 175, 255)
+            Color = new UiColor(175, 175, 175, 255)
         };
         content.AddChild(_previewLabel);
 
@@ -103,7 +121,7 @@ public sealed class EditorNewProjectDialog : UiModal
         {
             Height = 34.0f,
             FontSize = 13.0f,
-            Color = new Engine.Core.Math.UiColor(230, 130, 120, 255)
+            Color = new UiColor(230, 130, 120, 255)
         };
         content.AddChild(_messageLabel);
 
@@ -140,8 +158,8 @@ public sealed class EditorNewProjectDialog : UiModal
 
     public void ShowFor()
     {
-        _nameBox.SetText("MyGame");
-        _locationBox.SetText(GetDefaultLocation());
+        _nameBox.SetText("MyFirstGame");
+        _locationBox.SetText(@"D:\Projects");
         SetMessage(string.Empty);
         UpdatePreview();
         Show(_nameBox);
@@ -292,27 +310,10 @@ public sealed class EditorNewProjectDialog : UiModal
         request = new ProjectCreationRequest(
             name,
             parentDirectory,
-            projectDirectory);
+            projectDirectory,
+            "empty",
+            _createSolutionToggle.IsOn);
 
         return true;
-    }
-
-    private static string GetDefaultLocation()
-    {
-        var documents = Environment.GetFolderPath(
-            Environment.SpecialFolder.MyDocuments);
-
-        if (!string.IsNullOrWhiteSpace(documents) &&
-            Directory.Exists(documents))
-        {
-            return documents;
-        }
-
-        var profile = Environment.GetFolderPath(
-            Environment.SpecialFolder.UserProfile);
-
-        return Directory.Exists(profile)
-            ? profile
-            : Environment.CurrentDirectory;
     }
 }

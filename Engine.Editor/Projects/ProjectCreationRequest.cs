@@ -7,4 +7,6 @@ namespace Engine.Editor.Projects;
 public sealed record ProjectCreationRequest(
     string Name,
     string ParentDirectory,
-    string ProjectDirectory);
+    string ProjectDirectory,
+    string TemplateId = "empty",
+    bool CreateSolution = true);

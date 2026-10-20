@@ -64,6 +64,33 @@ internal sealed class WindowsFileDialogService :
             });
     }
 
+    public string? ShowSelectFolder(
+    string? initialDirectory = null)
+    {
+        return RunOnSta(
+            () =>
+            {
+                using var dialog =
+                    new FolderBrowserDialog
+                    {
+                        Description =
+                            "Choose a parent folder for the project",
+
+                        ShowNewFolderButton = true,
+
+                        InitialDirectory =
+                            GetInitialDirectory(
+                                initialDirectory)
+                            ?? string.Empty
+                    };
+
+                return dialog.ShowDialog() ==
+                       DialogResult.OK
+                    ? dialog.SelectedPath
+                    : null;
+            });
+    }
+
     public string? ShowSaveFile(
         string? initialDirectory = null)
     {

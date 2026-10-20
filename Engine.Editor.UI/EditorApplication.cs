@@ -3,6 +3,7 @@ using Engine.Core.Time;
 using Engine.Editor.Assets;
 using Engine.Editor.Documents;
 using Engine.Editor.Documents.Persistence;
+using Engine.Editor.Projects;
 using Engine.Editor.UI.Authoring;
 using Engine.Editor.UI.Dialogs;
 using Engine.Editor.UI.Inspection;
@@ -34,7 +35,7 @@ public sealed class EditorApplication :
     private bool _undoShortcutWasDown;
     private bool _redoShortcutWasDown;
     private readonly ITextInput? _textInput;
-
+    private readonly EditorNewProjectDialog _newProjectDialog;
     private readonly EditorNewDocumentDialog _newDocumentDialog;
 
     private readonly HashSet<EditorUiDocument>
@@ -48,6 +49,10 @@ public sealed class EditorApplication :
     public EditorUiDocument? UiDocument { get; }
     private readonly IEditorDocumentFileService?
     _documentFiles;
+
+    private readonly ProjectCreationService _projectCreationService = new();
+
+    private readonly DebugConsole? _debugConsole;
 
     private readonly EditorDocumentCloseDialog
     _documentCloseDialog;
@@ -171,7 +176,7 @@ public sealed class EditorApplication :
 
         _fileDialogs =
     fileDialogs;
-
+        _debugConsole = debugConsole;
         UiHost =
             new EditorUiHost(
                 editor,
@@ -191,6 +196,14 @@ public sealed class EditorApplication :
     new EditorNewDocumentDialog(
         ui.Overlays,
         ui.Focus);
+
+        _newProjectDialog =
+    new EditorNewProjectDialog(
+        ui.Overlays,
+        ui.Focus,
+        fileDialogs);
+
+        _newProjectDialog.CreateRequested += CreateProject;
 
         _newDocumentDialog.WorldRequested +=
             RequestNewWorldDocument;
@@ -233,6 +246,9 @@ public sealed class EditorApplication :
 
         MainShell.NewRequested +=
             RequestNewDocument;
+
+        MainShell.NewProjectRequested +=
+    RequestNewProject;
 
         MainShell.OpenRequested +=
             RequestOpenDocument;
@@ -299,6 +315,35 @@ public sealed class EditorApplication :
         }
 
         return null;
+    }
+
+    private void CreateProject(
+    ProjectCreationRequest request)
+    {
+        try
+        {
+            var projectDirectory =
+                _projectCreationService.Create(request);
+
+            _debugConsole?.WriteLine(
+                $"Project scaffold created: {projectDirectory}");
+
+            _newProjectDialog.CloseAfterCreation();
+        }
+        catch (Exception exception)
+        {
+            _debugConsole?.WriteException(
+                exception,
+                "Failed to create project.");
+
+            _newProjectDialog.SetMessage(
+                exception.Message);
+        }
+    }
+
+    private void RequestNewProject()
+    {
+        _newProjectDialog.ShowFor();
     }
 
     public void ToggleConsole()
@@ -563,6 +608,7 @@ public sealed class EditorApplication :
 
     public void Shutdown()
     {
+        _newProjectDialog.CreateRequested -= CreateProject;
         MainShell.SaveAllRequested -=
     SaveAllDocuments;
         MainShell.AssetActivated -= OnAssetActivated;
@@ -574,6 +620,11 @@ public sealed class EditorApplication :
 
         Editor.Session.AnyDocumentClosed -=
     UnsubscribeAnyDocument;
+
+        MainShell.NewProjectRequested -=
+    RequestNewProject;
+
+        _newProjectDialog.Close();
 
         MainShell.NewRequested -=
     RequestNewDocument;

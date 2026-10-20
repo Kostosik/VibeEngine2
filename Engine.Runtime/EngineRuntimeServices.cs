@@ -13,7 +13,7 @@ public sealed class EngineRuntimeServices
         IInput input,
         Camera2D camera,
         IAudioManager audio,
-        IContentManager content)
+        IContentManager content, InputActionMap? inputActions = null)
     {
         ArgumentNullException.ThrowIfNull(graphics);
         ArgumentNullException.ThrowIfNull(input);
@@ -26,6 +26,8 @@ public sealed class EngineRuntimeServices
         _camera = camera;
         _audio = audio;
         _content = content;
+
+        _inputActions = inputActions;
     }
 
     public IGraphicsDevice Graphics =>
@@ -53,12 +55,17 @@ public sealed class EngineRuntimeServices
         ?? throw new InvalidOperationException(
             "Content service is not configured.");
 
+    public InputActionMap InputActions =>
+    _inputActions
+    ?? throw new InvalidOperationException(
+        "Input action map is not configured.");
+
     private readonly IGraphicsDevice? _graphics;
     private readonly IInput? _input;
     private readonly Camera2D? _camera;
     private readonly IAudioManager? _audio;
     private readonly IContentManager? _content;
-
+    private readonly InputActionMap? _inputActions;
     public EngineRuntimeServices()
     {
     }

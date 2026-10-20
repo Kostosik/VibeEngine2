@@ -39,7 +39,7 @@ public sealed class EditorUiWorkspaceView :
         EditorUiDocument document,
         EditorContext? editor = null,
         UiOverlayLayer? overlays = null,
-        ITextureResourceManager? assetPreviewTextures = null)
+        ITextureResourceManager? assetPreviewTextures = null, ITextureManager? filePreviewTextureManager = null)
     {
         ArgumentNullException.ThrowIfNull(
             document);
@@ -97,7 +97,9 @@ public sealed class EditorUiWorkspaceView :
         Preview =
             new EditorUiCanvasPreviewView(
                 document,
-                assetPreviewTextures);
+                assetPreviewTextures,
+                editor,
+                filePreviewTextureManager);
 
         Inspector =
             new EditorUiInspectorPanelView(
@@ -121,7 +123,8 @@ public sealed class EditorUiWorkspaceView :
                 new AssetBrowserPanelView(
                     editor,
                     overlays,
-                    assetPreviewTextures);
+                    assetPreviewTextures,
+                    filePreviewTextureManager);
 
             _assetBrowser.AssetActivated +=
                 entry => AssetActivated?.Invoke(entry);
@@ -159,6 +162,12 @@ public sealed class EditorUiWorkspaceView :
     public EditorUiCanvasPreviewView Preview { get; }
 
     public EditorUiInspectorPanelView Inspector { get; }
+
+    public void ReleaseResources()
+    {
+        Preview.ReleaseResources();
+        _assetBrowser?.ReleaseResources();
+    }
 
     public void Refresh()
     {

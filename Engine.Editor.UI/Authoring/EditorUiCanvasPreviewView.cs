@@ -21,6 +21,24 @@ public sealed class EditorUiCanvasPreviewView :
 
     private readonly HashSet<AssetPath> _unavailableTextures = new();
 
+    private readonly EditorContext? _editor;
+    private readonly ITextureManager? _projectTextureManager;
+    private readonly ImageTextureLoader _projectImageLoader = new();
+
+    private readonly Dictionary<string, TextureHandle> _projectTextures =
+        new(
+            OperatingSystem.IsWindows()
+                ? StringComparer.OrdinalIgnoreCase
+                : StringComparer.Ordinal);
+
+    private readonly HashSet<string> _unavailableProjectTextures =
+        new(
+            OperatingSystem.IsWindows()
+                ? StringComparer.OrdinalIgnoreCase
+                : StringComparer.Ordinal);
+
+    private string? _projectAssetsRoot;
+
     private const float MinZoom = 0.25f;
     private const float MaxZoom = 8.0f;
     private const float ZoomStep = 1.15f;
@@ -81,13 +99,17 @@ public sealed class EditorUiCanvasPreviewView :
 
     public EditorUiCanvasPreviewView(
         EditorUiDocument document,
-        ITextureResourceManager? textures = null)
+        ITextureResourceManager? textures = null,
+        EditorContext? editor = null,
+        ITextureManager? projectTextureManager = null)
     {
         ArgumentNullException.ThrowIfNull(
             document);
 
         _document = document;
         _textures = textures;
+        _editor = editor;
+        _projectTextureManager = projectTextureManager;
         Background =
             new UiColor(
                 22,
@@ -1098,14 +1120,35 @@ public sealed class EditorUiCanvasPreviewView :
     EditorUiElement element,
     UiRect rect)
     {
-        if (_textures is null ||
-            element.Texture is not AssetPath path ||
+        if (element.Texture is not AssetPath path ||
             string.IsNullOrWhiteSpace(path.Value))
+        {
+            DrawImagePlaceholder(context, rect, "No texture");
+            return;
+        }
+
+        // Проектный источник всегда имеет приоритет.
+        // Не используем ITextureResourceManager редактора
+        // для текстур активного игрового проекта.
+        if (_editor?.ActiveGameProject is { } project)
+        {
+            RenderProjectImage(
+                context,
+                element,
+                path,
+                rect,
+                project.AssetsDirectoryPath);
+
+            return;
+        }
+
+        // Старый механизм оставляем для режима без проекта.
+        if (_textures is null)
         {
             DrawImagePlaceholder(
                 context,
                 rect,
-                "No texture");
+                "No texture manager");
 
             return;
         }
@@ -1122,9 +1165,7 @@ public sealed class EditorUiCanvasPreviewView :
 
         try
         {
-            if (!_textures.TryGet(
-                    path,
-                    out var texture))
+            if (!_textures.TryGet(path, out var texture))
             {
                 texture = _textures.Load(path);
             }
@@ -1156,11 +1197,8 @@ public sealed class EditorUiCanvasPreviewView :
                     rect.Width / description.Width,
                     rect.Height / description.Height);
 
-                var width =
-                    description.Width * scale;
-
-                var height =
-                    description.Height * scale;
+                var width = description.Width * scale;
+                var height = description.Height * scale;
 
                 destination = new UiRect(
                     rect.X + (rect.Width - width) * 0.5f,
@@ -1172,13 +1210,9 @@ public sealed class EditorUiCanvasPreviewView :
             context.DrawTexture(
                 texture,
                 destination,
-                new Rectangle(
-                    0.0f,
-                    0.0f,
-                    1.0f,
-                    1.0f));
+                new Rectangle(0.0f, 0.0f, 1.0f, 1.0f));
         }
-        catch (Exception)
+        catch
         {
             _unavailableTextures.Add(path);
 
@@ -1187,6 +1221,210 @@ public sealed class EditorUiCanvasPreviewView :
                 rect,
                 "Texture unavailable");
         }
+    }
+
+    private void RenderProjectImage(
+    UiRenderContext context,
+    EditorUiElement element,
+    AssetPath assetPath,
+    UiRect rect,
+    string assetsRoot)
+    {
+        if (_projectTextureManager is null)
+        {
+            DrawImagePlaceholder(
+                context,
+                rect,
+                "Project texture manager unavailable");
+
+            return;
+        }
+
+        string? fullPath = null;
+
+        try
+        {
+            EnsureProjectAssetsRoot(assetsRoot);
+
+            fullPath = ResolveProjectTexturePath(
+                assetsRoot,
+                assetPath);
+
+            if (_unavailableProjectTextures.Contains(fullPath))
+            {
+                DrawImagePlaceholder(
+                    context,
+                    rect,
+                    "Texture unavailable");
+
+                return;
+            }
+
+            if (!_projectTextures.TryGetValue(
+                    fullPath,
+                    out var texture) ||
+                !_projectTextureManager.Exists(texture))
+            {
+                var imageData = _projectImageLoader.Load(
+                    File.ReadAllBytes(fullPath));
+
+                texture = _projectTextureManager.Create(imageData);
+
+                if (!texture.IsValid ||
+                    !_projectTextureManager.Exists(texture))
+                {
+                    throw new InvalidOperationException(
+                        "Graphics backend failed to create the UI texture.");
+                }
+
+                _projectTextures[fullPath] = texture;
+            }
+
+            var description =
+                _projectTextureManager.GetDescription(texture);
+
+            DrawImageTexture(
+                context,
+                element,
+                rect,
+                texture,
+                description);
+        }
+        catch
+        {
+            if (fullPath is not null)
+            {
+                _unavailableProjectTextures.Add(fullPath);
+            }
+
+            DrawImagePlaceholder(
+                context,
+                rect,
+                "Texture unavailable");
+        }
+    }
+
+    private void EnsureProjectAssetsRoot(string rootPath)
+    {
+        var fullRoot = Path.GetFullPath(rootPath);
+
+        if (_projectAssetsRoot is not null &&
+            PathsEqual(_projectAssetsRoot, fullRoot))
+        {
+            return;
+        }
+
+        ReleaseProjectTextures();
+
+        _projectAssetsRoot = fullRoot;
+    }
+
+    private static string ResolveProjectTexturePath(
+        string assetsRoot,
+        AssetPath assetPath)
+    {
+        if (Path.IsPathRooted(assetPath.Value))
+        {
+            throw new InvalidDataException(
+                "UI texture paths must be relative to the project's Assets directory.");
+        }
+
+        var fullRoot = Path.GetFullPath(assetsRoot);
+
+        var fullPath = Path.GetFullPath(
+            Path.Combine(fullRoot, assetPath.Value));
+
+        var relativePath = Path.GetRelativePath(
+            fullRoot,
+            fullPath);
+
+        if (Path.IsPathRooted(relativePath) ||
+            relativePath.Equals("..", StringComparison.Ordinal) ||
+            relativePath.StartsWith(
+                $"..{Path.DirectorySeparatorChar}",
+                StringComparison.Ordinal) ||
+            relativePath.StartsWith(
+                $"..{Path.AltDirectorySeparatorChar}",
+                StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "UI texture path cannot point outside the project's Assets directory.");
+        }
+
+        return fullPath;
+    }
+
+    private static bool PathsEqual(string left, string right)
+    {
+        return string.Equals(
+            Path.GetFullPath(left),
+            Path.GetFullPath(right),
+            OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal);
+    }
+
+    private static void DrawImageTexture(
+        UiRenderContext context,
+        EditorUiElement element,
+        UiRect rect,
+        TextureHandle texture,
+        TextureDescription? description)
+    {
+        var destination = rect;
+
+        if (element.PreserveAspectRatio &&
+            description.HasValue &&
+            description.Value.Width > 0 &&
+            description.Value.Height > 0 &&
+            rect.Width > 0.0f &&
+            rect.Height > 0.0f)
+        {
+            var imageDescription = description.Value;
+
+            var scale = MathF.Min(
+                rect.Width / imageDescription.Width,
+                rect.Height / imageDescription.Height);
+
+            var width = imageDescription.Width * scale;
+            var height = imageDescription.Height * scale;
+
+            destination = new UiRect(
+                rect.X + (rect.Width - width) * 0.5f,
+                rect.Y + (rect.Height - height) * 0.5f,
+                width,
+                height);
+        }
+
+        context.DrawTexture(
+            texture,
+            destination,
+            new Rectangle(0.0f, 0.0f, 1.0f, 1.0f));
+    }
+
+    public void ReleaseResources()
+    {
+        ReleaseProjectTextures();
+
+        _unavailableProjectTextures.Clear();
+        _projectAssetsRoot = null;
+    }
+
+    private void ReleaseProjectTextures()
+    {
+        if (_projectTextureManager is not null)
+        {
+            foreach (var texture in _projectTextures.Values)
+            {
+                if (_projectTextureManager.Exists(texture))
+                {
+                    _projectTextureManager.Destroy(texture);
+                }
+            }
+        }
+
+        _projectTextures.Clear();
+        _unavailableProjectTextures.Clear();
     }
 
     private static void DrawImagePlaceholder(

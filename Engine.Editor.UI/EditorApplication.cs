@@ -237,9 +237,12 @@ public sealed class EditorApplication :
             new EditorMainShell(
                 editor,
                 assetPreviewTextures,
-                uiDocument, ui.Overlays,
+                uiDocument,
+                ui.Overlays,
                 debugConsole,
-                PropertyEditors);
+                PropertyEditors,
+                filePreviewTextureManager);
+
         MainShell.AssetActivated += OnAssetActivated;
         MainShell.SaveRequested +=
             SaveActiveDocument;
@@ -623,6 +626,8 @@ public sealed class EditorApplication :
 
     public void Shutdown()
     {
+        MainShell.ReleaseResources();
+
         _newProjectDialog.CreateRequested -= CreateProject;
         MainShell.SaveAllRequested -=
     SaveAllDocuments;

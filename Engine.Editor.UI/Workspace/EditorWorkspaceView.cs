@@ -460,6 +460,11 @@ public sealed class EditorWorkspaceView :
         }
     }
 
+    public void ReleaseResources()
+    {
+        _assetBrowser.ReleaseResources();
+    }
+
     private void SetDockSize(
         EditorDockArea area,
         float size)

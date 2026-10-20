@@ -61,6 +61,11 @@ public sealed class AssetPreviewPanelView : UiPanel
 
     public EditorContext Editor { get; }
 
+    public void ReleaseResources()
+    {
+        UnloadPreview();
+    }
+
     public void Refresh()
     {
         _content.ClearChildren();

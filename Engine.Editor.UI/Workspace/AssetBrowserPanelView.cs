@@ -354,6 +354,11 @@ public sealed class AssetBrowserPanelView : UiPanel
     public AssetPreviewPanelView Preview => _preview;
     public EditorContext Editor { get; }
 
+    public void ReleaseResources()
+    {
+        _preview.ReleaseResources();
+    }
+
     private void SetViewMode(bool gridMode)
     {
         if (_isGridMode == gridMode)

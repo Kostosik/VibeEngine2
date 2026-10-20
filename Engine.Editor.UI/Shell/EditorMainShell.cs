@@ -27,6 +27,7 @@ public sealed class EditorMainShell :
     private readonly EditorWorkspaceView _workspaceView;
     private readonly UiOverlayLayer _overlays;
     private readonly ITextureResourceManager _assetPreviewTextures;
+    private readonly ITextureManager? _filePreviewTextureManager;
     private EditorUiWorkspaceView _uiWorkspaceView;
     public event Action? NewProjectRequested;
     public event Action? OpenProjectRequested;
@@ -91,6 +92,7 @@ public sealed class EditorMainShell :
             editor;
         _overlays = overlays;
         _assetPreviewTextures = assetPreviewTextures;
+        _filePreviewTextureManager = filePreviewTextureManager;
         Background =
             new UiColor(
                 24,
@@ -208,14 +210,15 @@ public sealed class EditorMainShell :
         _workspace;
 
     private EditorUiWorkspaceView CreateUiWorkspaceView(
-    EditorUiDocument document)
+        EditorUiDocument document)
     {
         var view =
             new EditorUiWorkspaceView(
                 document,
                 Editor,
                 _overlays,
-                _assetPreviewTextures);
+                _assetPreviewTextures,
+                _filePreviewTextureManager);
 
         view.AssetActivated +=
             entry => AssetActivated?.Invoke(entry);
@@ -338,6 +341,8 @@ public sealed class EditorMainShell :
             return;
         }
 
+        _uiWorkspaceView.ReleaseResources();
+
         _workspace.RemoveChild(
             _uiWorkspaceView);
 
@@ -346,6 +351,12 @@ public sealed class EditorMainShell :
 
         _workspace.AddChild(
             _uiWorkspaceView);
+    }
+
+    public void ReleaseResources()
+    {
+        _workspaceView.ReleaseResources();
+        _uiWorkspaceView.ReleaseResources();
     }
 
     public void Refresh()

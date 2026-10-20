@@ -1,19 +1,21 @@
 ﻿namespace Engine.Editor.Projects;
 
 /// <summary>
-/// Describes a game project stored on disk.
-/// This is independent from the editor's open documents.
+/// Describes a game project loaded from a .vibeproject manifest.
+/// Independent from the editor's open documents.
 /// </summary>
 public sealed class GameProject
 {
     private GameProject(
         string name,
         string rootDirectory,
+        string manifestFilePath,
         string projectFilePath,
         string? solutionFilePath)
     {
         Name = name;
         RootDirectory = rootDirectory;
+        ManifestFilePath = manifestFilePath;
         ProjectFilePath = projectFilePath;
         SolutionFilePath = solutionFilePath;
     }
@@ -22,28 +24,126 @@ public sealed class GameProject
 
     public string RootDirectory { get; }
 
+    public string AssetsDirectoryPath =>
+        Path.Combine(RootDirectory, "Assets");
+
+    public string ManifestFilePath { get; }
+
     public string ProjectFilePath { get; }
 
     public string? SolutionFilePath { get; }
 
-    /// <summary>
-    /// Creates a project descriptor from an existing project directory.
-    /// The directory must contain exactly one top-level .csproj file.
-    /// </summary>
-    public static GameProject FromDirectory(
-        string directory)
+    public static GameProject Open(string manifestFilePath)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(manifestFilePath);
 
-        var rootDirectory = Path.GetFullPath(directory);
+        var fullManifestPath = Path.GetFullPath(manifestFilePath);
 
-        if (!Directory.Exists(rootDirectory))
+        if (!string.Equals(
+                Path.GetExtension(fullManifestPath),
+                ".vibeproject",
+                StringComparison.OrdinalIgnoreCase))
         {
-            throw new DirectoryNotFoundException(
-                $"Project directory does not exist: {rootDirectory}");
+            throw new ArgumentException(
+                "Select a .vibeproject file.",
+                nameof(manifestFilePath));
         }
 
-        var projectFiles = Directory
+        if (!File.Exists(fullManifestPath))
+        {
+            throw new FileNotFoundException(
+                "VibeEngine project manifest was not found.",
+                fullManifestPath);
+        }
+
+        var rootDirectory =
+            Path.GetDirectoryName(fullManifestPath)
+            ?? throw new InvalidOperationException(
+                "Cannot determine the project directory.");
+
+        var manifest =
+            VibeProjectManifest.Load(fullManifestPath);
+
+        var startupProjectPath = manifest.StartupProject;
+
+        if (Path.IsPathRooted(startupProjectPath))
+        {
+            throw new InvalidDataException(
+                "The 'startupProject' path must be relative to the project directory.");
+        }
+
+        var projectFilePath = Path.GetFullPath(
+            Path.Combine(rootDirectory, startupProjectPath));
+
+        var relativeProjectPath = Path.GetRelativePath(
+            rootDirectory,
+            projectFilePath);
+
+        if (IsOutsideProjectRoot(relativeProjectPath))
+        {
+            throw new InvalidDataException(
+                "The 'startupProject' path cannot point outside the project directory.");
+        }
+
+        if (!string.Equals(
+                Path.GetExtension(projectFilePath),
+                ".csproj",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "The 'startupProject' path must point to a .csproj file.");
+        }
+
+        if (!File.Exists(projectFilePath))
+        {
+            throw new FileNotFoundException(
+                $"Startup project '{startupProjectPath}' was not found.",
+                projectFilePath);
+        }
+
+        var solutionFilePath =
+            FindSolutionFilePath(
+                rootDirectory,
+                projectFilePath);
+
+        return new GameProject(
+            manifest.Name.Trim(),
+            Path.GetFullPath(rootDirectory),
+            fullManifestPath,
+            projectFilePath,
+            solutionFilePath);
+    }
+
+    private static bool IsOutsideProjectRoot(string relativePath)
+    {
+        return Path.IsPathRooted(relativePath)
+            || relativePath.Equals(
+                "..",
+                StringComparison.Ordinal)
+            || relativePath.StartsWith(
+                $"..{Path.DirectorySeparatorChar}",
+                StringComparison.Ordinal)
+            || relativePath.StartsWith(
+                $"..{Path.AltDirectorySeparatorChar}",
+                StringComparison.Ordinal);
+    }
+
+    private static string? FindSolutionFilePath(
+        string rootDirectory,
+        string projectFilePath)
+    {
+        var projectName =
+            Path.GetFileNameWithoutExtension(projectFilePath);
+
+        var expectedSolutionPath =
+            Path.Combine(rootDirectory, $"{projectName}.sln");
+
+        if (File.Exists(expectedSolutionPath))
+        {
+            return Path.GetFullPath(expectedSolutionPath);
+        }
+
+        var solutionFiles = Directory
             .EnumerateFiles(
                 rootDirectory,
                 "*",
@@ -51,63 +151,12 @@ public sealed class GameProject
             .Where(path =>
                 string.Equals(
                     Path.GetExtension(path),
-                    ".csproj",
+                    ".sln",
                     StringComparison.OrdinalIgnoreCase))
-            .OrderBy(
-                path => Path.GetFileName(path),
-                StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        if (projectFiles.Length == 0)
-        {
-            throw new FileNotFoundException(
-                $"No project file (.csproj) was found in '{rootDirectory}'.");
-        }
-
-        if (projectFiles.Length > 1)
-        {
-            throw new InvalidOperationException(
-                $"Multiple project files were found in '{rootDirectory}'.");
-        }
-
-        var projectFilePath = Path.GetFullPath(projectFiles[0]);
-
-        var name = Path.GetFileNameWithoutExtension(projectFilePath);
-
-        var expectedSolutionPath = Path.Combine(
-            rootDirectory,
-            $"{name}.sln");
-
-        string? solutionFilePath = null;
-
-        if (File.Exists(expectedSolutionPath))
-        {
-            solutionFilePath = Path.GetFullPath(expectedSolutionPath);
-        }
-        else
-        {
-            var solutionFiles = Directory
-                .EnumerateFiles(
-                    rootDirectory,
-                    "*",
-                    SearchOption.TopDirectoryOnly)
-                .Where(path =>
-                    string.Equals(
-                        Path.GetExtension(path),
-                        ".sln",
-                        StringComparison.OrdinalIgnoreCase))
-                .ToArray();
-
-            if (solutionFiles.Length == 1)
-            {
-                solutionFilePath = Path.GetFullPath(solutionFiles[0]);
-            }
-        }
-
-        return new GameProject(
-            name,
-            rootDirectory,
-            projectFilePath,
-            solutionFilePath);
+        return solutionFiles.Length == 1
+            ? Path.GetFullPath(solutionFiles[0])
+            : null;
     }
 }

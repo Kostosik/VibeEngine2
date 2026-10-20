@@ -1141,9 +1141,37 @@ public sealed class EditorUiCanvasPreviewView :
                 return;
             }
 
+            var destination = rect;
+
+            if (element.PreserveAspectRatio &&
+                _textures.TryGetDescription(
+                    path,
+                    out var description) &&
+                description.Width > 0 &&
+                description.Height > 0 &&
+                rect.Width > 0.0f &&
+                rect.Height > 0.0f)
+            {
+                var scale = MathF.Min(
+                    rect.Width / description.Width,
+                    rect.Height / description.Height);
+
+                var width =
+                    description.Width * scale;
+
+                var height =
+                    description.Height * scale;
+
+                destination = new UiRect(
+                    rect.X + (rect.Width - width) * 0.5f,
+                    rect.Y + (rect.Height - height) * 0.5f,
+                    width,
+                    height);
+            }
+
             context.DrawTexture(
                 texture,
-                rect,
+                destination,
                 new Rectangle(
                     0.0f,
                     0.0f,

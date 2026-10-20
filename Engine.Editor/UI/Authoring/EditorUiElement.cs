@@ -51,7 +51,7 @@ public sealed class EditorUiElement
     public string Text { get; internal set; } = string.Empty;
 
     public AssetPath? Texture { get; internal set; }
-
+    public bool PreserveAspectRatio { get; internal set; } = true;
     public string? Action { get; internal set; }
     public EditorUiElement? Parent { get; internal set; }
 

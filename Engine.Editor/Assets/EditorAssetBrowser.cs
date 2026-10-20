@@ -31,7 +31,7 @@ public sealed class EditorAssetBrowser
         Refresh();
     }
 
-    public string RootPath { get; }
+    public string RootPath { get; private set; }
 
     public string CurrentPath { get; private set; }
     public bool CanNavigateBack =>
@@ -77,6 +77,45 @@ public sealed class EditorAssetBrowser
         {
             Changed?.Invoke();
         }
+    }
+
+    public bool SetRootPath(string rootPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
+
+        var fullPath = Path.TrimEndingDirectorySeparator(
+            Path.GetFullPath(rootPath));
+
+        if (!Directory.Exists(fullPath))
+        {
+            throw new DirectoryNotFoundException(
+                $"Asset root '{fullPath}' was not found.");
+        }
+
+        if (string.Equals(
+                RootPath,
+                fullPath,
+                OperatingSystem.IsWindows()
+                    ? StringComparison.OrdinalIgnoreCase
+                    : StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        RootPath = fullPath;
+        CurrentPath = fullPath;
+
+        _navigationHistory.Clear();
+        _navigationHistory.Add(CurrentPath);
+        _navigationHistoryIndex = 0;
+
+        Selection.Clear();
+
+        RefreshCore();
+
+        Changed?.Invoke();
+
+        return true;
     }
 
     public bool NavigateTo(string path)

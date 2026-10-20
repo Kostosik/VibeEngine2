@@ -81,7 +81,7 @@ public sealed class EditorApplication :
         IEditorDocumentPersistence? documentPersistence = null,
         IEditorDocumentFileService? documentFiles = null,
         DebugConsole? debugConsole = null,
-        InspectorPropertyEditorRegistry? propertyEditors = null)
+        InspectorPropertyEditorRegistry? propertyEditors = null, ITextureManager? filePreviewTextureManager = null)
         : this(
             editor,
             ui,
@@ -93,7 +93,7 @@ public sealed class EditorApplication :
             debugConsole,
             propertyEditors,
             uiDocument,
-            uiAssetPath)
+            uiAssetPath, filePreviewTextureManager)
     {
     }
 
@@ -106,7 +106,7 @@ public sealed class EditorApplication :
         IEditorDocumentPersistence? documentPersistence = null,
         IEditorDocumentFileService? documentFiles = null,
         DebugConsole? debugConsole = null,
-        InspectorPropertyEditorRegistry? propertyEditors = null)
+        InspectorPropertyEditorRegistry? propertyEditors = null, ITextureManager? filePreviewTextureManager = null)
         : this(
             editor,
             ui,
@@ -118,7 +118,7 @@ public sealed class EditorApplication :
             debugConsole,
             propertyEditors,
             null,
-            null)
+            null, filePreviewTextureManager)
     {
     }
 
@@ -133,7 +133,7 @@ public sealed class EditorApplication :
         DebugConsole? debugConsole,
         InspectorPropertyEditorRegistry? propertyEditors,
         EditorUiDocument? uiDocument,
-        string? uiAssetPath)
+        string? uiAssetPath, ITextureManager? filePreviewTextureManager = null)
     {
 
         ArgumentNullException.ThrowIfNull(
@@ -250,6 +250,9 @@ public sealed class EditorApplication :
         MainShell.NewProjectRequested +=
     RequestNewProject;
 
+        MainShell.OpenProjectRequested +=
+    RequestOpenProject;
+
         MainShell.OpenRequested +=
             RequestOpenDocument;
 
@@ -329,10 +332,13 @@ public sealed class EditorApplication :
             var projectDirectory =
                 _projectCreationService.Create(request);
 
-            var project =
-                GameProject.FromDirectory(projectDirectory);
+            var manifestPath = Path.Combine(
+                projectDirectory,
+                $"{Path.GetFileName(projectDirectory)}.vibeproject");
 
-            Editor.SetActiveGameProject(project);
+            var project = GameProject.Open(manifestPath);
+
+            ActivateGameProject(project);
 
             _debugConsole?.WriteLine(
                 $"Game project created and activated: {project.Name}");
@@ -620,6 +626,10 @@ public sealed class EditorApplication :
         _newProjectDialog.CreateRequested -= CreateProject;
         MainShell.SaveAllRequested -=
     SaveAllDocuments;
+
+        MainShell.OpenProjectRequested -=
+    RequestOpenProject;
+
         MainShell.AssetActivated -= OnAssetActivated;
         _newDocumentDialog.WorldRequested -=
     RequestNewWorldDocument;
@@ -1225,6 +1235,47 @@ public sealed class EditorApplication :
             _errorDialog.ShowError(exception.Message);
         }
     }
+
+    private void RequestOpenProject()
+    {
+        try
+        {
+            var selectedPath =
+                _fileDialogs.ShowOpenProject(
+                    Editor.ActiveGameProject?.RootDirectory);
+
+            if (selectedPath is null)
+            {
+                return;
+            }
+
+            var project =
+                GameProject.Open(selectedPath);
+
+            ActivateGameProject(project);
+
+            _debugConsole?.WriteLine(
+                $"Game project opened: {project.Name}");
+        }
+        catch (Exception exception)
+        {
+            _debugConsole?.WriteException(
+                exception,
+                "Failed to open game project.");
+
+            _errorDialog.ShowError(
+                exception.Message);
+        }
+    }
+
+    private void ActivateGameProject(GameProject project)
+    {
+        Directory.CreateDirectory(
+            project.AssetsDirectoryPath);
+
+        Editor.SetActiveGameProject(project);
+    }
+
     private void CloseDocumentDialogAfterDecision()
     {
         _closingDocumentDialogAfterDecision = true;

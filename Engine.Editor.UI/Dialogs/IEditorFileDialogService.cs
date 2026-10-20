@@ -13,4 +13,7 @@ public interface IEditorFileDialogService
 
     string? ShowSelectFolder(
     string? initialDirectory = null);
+
+    string? ShowOpenProject(
+    string? initialDirectory = null);
 }

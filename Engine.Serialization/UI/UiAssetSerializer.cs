@@ -110,6 +110,9 @@ public sealed class UiAssetSerializer :
 
             writer.WriteInt32(
                 element.ZIndex);
+
+            writer.WriteBoolean(
+    element.PreserveAspectRatio);
         }
     }
 
@@ -302,6 +305,14 @@ public sealed class UiAssetSerializer :
                     reader.ReadInt32();
             }
 
+            var preserveAspectRatio = true;
+
+            if (version >= 5)
+            {
+                preserveAspectRatio =
+                    reader.ReadBoolean();
+            }
+
             elements.Add(
                 new UiAssetElement(
                     id,
@@ -318,7 +329,7 @@ public sealed class UiAssetSerializer :
                     maxLength,
                     visible,
                     enabled,
-                    zIndex));
+                    zIndex, preserveAspectRatio));
         }
 
         return new UiAsset(

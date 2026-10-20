@@ -159,7 +159,8 @@ var application =
         fileDialogs,
         documentPersistence,
         documentFiles,
-        debugConsole: debugConsole);
+        debugConsole: debugConsole, filePreviewTextureManager:
+    window.GraphicsDevice.Textures);
 
 
 window.CloseRequested +=

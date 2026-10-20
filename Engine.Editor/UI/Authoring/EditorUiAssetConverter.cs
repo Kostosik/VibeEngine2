@@ -53,7 +53,7 @@ public static class EditorUiAssetConverter
             element.MaxLength,
             element.Visible,
             element.Enabled,
-            element.ZIndex);
+            element.ZIndex, element.PreserveAspectRatio);
     }
 
     public static EditorUiDocument ConvertToDocument(
@@ -125,13 +125,16 @@ public static class EditorUiAssetConverter
                         descriptor.MaxLength,
 
                     Visible =
-    descriptor.Visible,
+                        descriptor.Visible,
 
-                    Enabled =
-    descriptor.Enabled,
+                        Enabled =
+                            descriptor.Enabled,
 
-                    ZIndex =
-    descriptor.ZIndex
+                        ZIndex =
+        descriptor.ZIndex,
+
+        PreserveAspectRatio =
+        descriptor.PreserveAspectRatio,
                 };
 
             elements.Add(

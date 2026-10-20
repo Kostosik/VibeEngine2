@@ -37,7 +37,7 @@ public sealed class EditorWorkspaceView :
     public EditorWorkspaceView(
         EditorContext editor, UiOverlayLayer overlays,
         ITextureResourceManager assetPreviewTextures,
-        DebugConsole? console = null, InspectorPropertyEditorRegistry? propertyEditors = null)
+        DebugConsole? console = null, InspectorPropertyEditorRegistry? propertyEditors = null, ITextureManager? filePreviewTextureManager = null)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -98,10 +98,12 @@ public sealed class EditorWorkspaceView :
         _inspectorHost.AddChild(
             Inspector);
 
-        _assetBrowser = new AssetBrowserPanelView(
-            editor,
-            overlays,
-            assetPreviewTextures);
+        _assetBrowser =
+            new AssetBrowserPanelView(
+                editor,
+                overlays,
+                assetPreviewTextures,
+                filePreviewTextureManager);
 
         _assetBrowser.AssetActivated +=
             entry => AssetActivated?.Invoke(entry);

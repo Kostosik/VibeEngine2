@@ -64,7 +64,7 @@ public sealed class AssetBrowserPanelView : UiPanel
     public AssetBrowserPanelView(
         EditorContext editor,
         UiOverlayLayer overlays,
-        ITextureResourceManager previewTextures)
+        ITextureResourceManager previewTextures, ITextureManager? filePreviewTextureManager = null)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -73,9 +73,10 @@ public sealed class AssetBrowserPanelView : UiPanel
 
         Editor = editor;
         _splitter = new AssetBrowserSplitter(ResizeBrowserAt);
-        _preview = new AssetPreviewPanelView(
-            editor,
-            previewTextures);
+        _preview =
+            new AssetPreviewPanelView(
+                editor,
+                filePreviewTextureManager);
         _textures = previewTextures;
         _contextMenu = new UiContextMenu(overlays)
         {

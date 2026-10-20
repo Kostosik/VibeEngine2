@@ -14,6 +14,8 @@ namespace Engine.Editor;
 
 public sealed class EditorContext
 {
+    private string? _defaultAssetBrowserRootPath;
+
     public EditorContext()
     {
         Session =
@@ -79,6 +81,16 @@ public sealed class EditorContext
                 project.RootDirectory))
         {
             return;
+        }
+
+        var assetRootPath =
+            project?.AssetsDirectoryPath
+            ?? _defaultAssetBrowserRootPath;
+
+        if (AssetBrowser is not null &&
+            assetRootPath is not null)
+        {
+            AssetBrowser.SetRootPath(assetRootPath);
         }
 
         ActiveGameProject = project;
@@ -423,10 +435,17 @@ public sealed class EditorContext
                 "Asset browser has already been initialized.");
         }
 
+        _defaultAssetBrowserRootPath =
+            Path.GetFullPath(rootPath);
+
+        var activeRootPath =
+            ActiveGameProject?.AssetsDirectoryPath
+            ?? _defaultAssetBrowserRootPath;
+
         AssetBrowser =
             new EditorAssetBrowser(
                 source,
-                rootPath);
+                activeRootPath);
     }
 
     public void SaveWorkspace(

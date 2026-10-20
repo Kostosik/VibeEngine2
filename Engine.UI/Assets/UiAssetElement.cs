@@ -20,7 +20,8 @@ public sealed class UiAssetElement
         int maxLength = 256,
         bool visible = true,
         bool enabled = true,
-        int zIndex = 0)
+        int zIndex = 0,
+        bool preserveAspectRatio = true)
     {
         if (id == Guid.Empty)
         {
@@ -90,7 +91,7 @@ public sealed class UiAssetElement
         Text = text;
         Texture = texture;
         Action = action;
-
+        PreserveAspectRatio = preserveAspectRatio;
         DropdownOptions =
             options;
 
@@ -134,7 +135,7 @@ public sealed class UiAssetElement
     public string Text { get; }
 
     public AssetPath? Texture { get; }
-
+    public bool PreserveAspectRatio { get; }
     public string? Action { get; }
 
     public IReadOnlyList<string> DropdownOptions { get; }

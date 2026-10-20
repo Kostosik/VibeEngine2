@@ -11,23 +11,22 @@ namespace Engine.Editor.UI.Workspace;
 public sealed class AssetPreviewPanelView : UiPanel
 {
     private readonly UiStackPanel _content;
-    private readonly ITextureResourceManager _textures;
+    private readonly ITextureManager? _textureManager;
+    private readonly ImageTextureLoader _imageLoader = new();
     private readonly EditorAssetInspector _inspector;
 
-    private AssetPath? _loadedAssetPath;
+    private string? _loadedPreviewPath;
+    private TextureHandle? _loadedPreviewTexture;
 
     public AssetPreviewPanelView(
         EditorContext editor,
-        ITextureResourceManager textures)
+        ITextureManager? textureManager)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
 
-        ArgumentNullException.ThrowIfNull(
-            textures);
-
         Editor = editor;
-        _textures = textures;
+        _textureManager = textureManager;
         _inspector = new EditorAssetInspector();
 
         Background =
@@ -155,9 +154,7 @@ public sealed class AssetPreviewPanelView : UiPanel
         if (metadata.PreviewKind ==
             EditorAssetPreviewKind.Image)
         {
-            AddImagePreview(
-                metadata,
-                browser!);
+            AddImagePreview(metadata);
         }
         else
         {
@@ -186,65 +183,91 @@ public sealed class AssetPreviewPanelView : UiPanel
     }
 
     private void AddImagePreview(
-        EditorAssetMetadata metadata,
-        EditorAssetBrowser browser)
+    EditorAssetMetadata metadata)
     {
-        var relativePath =
-            Path.GetRelativePath(
-                browser.RootPath,
-                metadata.Path);
-
-        var assetPath =
-            new AssetPath(
-                relativePath);
-
-        if (!_loadedAssetPath.HasValue ||
-            _loadedAssetPath.Value != assetPath)
-        {
-            UnloadPreview();
-
-            _textures.Load(
-                assetPath);
-
-            _loadedAssetPath =
-                assetPath;
-        }
-
-        if (!_textures.TryGet(
-                assetPath,
-                out var texture) ||
-            !_textures.TryGetDescription(
-                assetPath,
-                out var description))
+        if (_textureManager is null)
         {
             UnloadPreview();
 
             AddError(
-                "Failed to load image preview.");
+                "Image preview texture manager is not configured.");
 
             return;
         }
 
-        var image =
-            new UiImage(
-                texture,
-                new Vector2(
-                    description.Width,
-                    description.Height))
+        var fullPath = Path.GetFullPath(metadata.Path);
+
+        try
+        {
+            var samePath =
+                string.Equals(
+                    _loadedPreviewPath,
+                    fullPath,
+                    OperatingSystem.IsWindows()
+                        ? StringComparison.OrdinalIgnoreCase
+                        : StringComparison.Ordinal);
+
+            var textureIsValid =
+                _loadedPreviewTexture.HasValue &&
+                _textureManager.Exists(
+                    _loadedPreviewTexture.Value);
+
+            if (!samePath || !textureIsValid)
             {
-                Height = 140.0f,
+                UnloadPreview();
 
-                HorizontalAlignment =
-                    UiHorizontalAlignment.Stretch,
+                var imageData =
+                    _imageLoader.Load(
+                        File.ReadAllBytes(fullPath));
 
-                VerticalAlignment =
-                    UiVerticalAlignment.Top,
+                var texture =
+                    _textureManager.Create(imageData);
 
-                PreserveAspectRatio = true
-            };
+                if (!texture.IsValid ||
+                    !_textureManager.Exists(texture))
+                {
+                    throw new InvalidOperationException(
+                        "Graphics backend failed to create the preview texture.");
+                }
 
-        _content.AddChild(
-            image);
+                _loadedPreviewPath = fullPath;
+                _loadedPreviewTexture = texture;
+            }
+
+            var loadedTexture =
+                _loadedPreviewTexture!.Value;
+
+            var description =
+                _textureManager.GetDescription(
+                    loadedTexture);
+
+            var image =
+                new UiImage(
+                    loadedTexture,
+                    new Vector2(
+                        description.Width,
+                        description.Height))
+                {
+                    Height = 140.0f,
+
+                    HorizontalAlignment =
+                        UiHorizontalAlignment.Stretch,
+
+                    VerticalAlignment =
+                        UiVerticalAlignment.Top,
+
+                    PreserveAspectRatio = true
+                };
+
+            _content.AddChild(image);
+        }
+        catch (Exception exception)
+        {
+            UnloadPreview();
+
+            AddError(
+                $"Failed to load image preview: {exception.Message}");
+        }
     }
 
     private void AddMetadata(
@@ -350,15 +373,15 @@ public sealed class AssetPreviewPanelView : UiPanel
 
     private void UnloadPreview()
     {
-        if (!_loadedAssetPath.HasValue)
+        if (_loadedPreviewTexture is { } texture &&
+            _textureManager is not null &&
+            _textureManager.Exists(texture))
         {
-            return;
+            _textureManager.Destroy(texture);
         }
 
-        _textures.Unload(
-            _loadedAssetPath.Value);
-
-        _loadedAssetPath = null;
+        _loadedPreviewTexture = null;
+        _loadedPreviewPath = null;
     }
 
     protected override Vector2 MeasureCore(

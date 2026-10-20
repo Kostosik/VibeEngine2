@@ -87,6 +87,19 @@ public sealed class EditorUiInspector
                     },
                     displayName: "Texture",
                     order: 20));
+
+            properties.Add(
+    new EditorProperty(
+        "PreserveAspectRatio",
+        typeof(bool),
+        () => element.PreserveAspectRatio,
+        value =>
+        {
+            element.PreserveAspectRatio =
+                Convert.ToBoolean(value);
+        },
+        displayName: "Preserve Aspect Ratio",
+        order: 21));
         }
 
         properties.Add(

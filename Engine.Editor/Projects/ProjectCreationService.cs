@@ -130,8 +130,33 @@ public sealed class ProjectCreationService
                 runtimeDirectory,
                 engineDirectory);
 
-            var projectFileName =
-                $"{name}.csproj";
+            Directory.CreateDirectory(
+    Path.Combine(
+        stagingDirectory,
+        "Assets"));
+
+            var projectFileName = $"{name}.csproj";
+
+            WriteFile(
+                Path.Combine(
+                    stagingDirectory,
+                    projectFileName),
+                CreateProjectFileContents(
+                    runtimeAssemblies));
+
+            WriteFile(
+                Path.Combine(
+                    stagingDirectory,
+                    $"{name}.vibeproject"),
+                new VibeProjectManifest
+                {
+                    FormatVersion =
+                        VibeProjectManifest.CurrentFormatVersion,
+
+                    Name = name,
+
+                    StartupProject = projectFileName
+                }.ToJson());
 
             WriteFile(
                 Path.Combine(

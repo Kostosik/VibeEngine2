@@ -4,7 +4,7 @@ namespace Engine.UI.Assets;
 
 public sealed class UiAsset
 {
-    public const int CurrentVersion = 4;
+    public const int CurrentVersion = 5;
 
     public UiAsset(
         string name,

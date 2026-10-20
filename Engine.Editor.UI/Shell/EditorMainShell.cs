@@ -29,6 +29,7 @@ public sealed class EditorMainShell :
     private readonly ITextureResourceManager _assetPreviewTextures;
     private EditorUiWorkspaceView _uiWorkspaceView;
     public event Action? NewProjectRequested;
+    public event Action? OpenProjectRequested;
     public bool IsUiMode =>
         Editor.Session.ActiveEditorDocument
             is EditorUiDocument;
@@ -74,7 +75,11 @@ public sealed class EditorMainShell :
     public EditorMainShell(
         EditorContext editor,
         ITextureResourceManager assetPreviewTextures,
-        EditorUiDocument? uiDocument, UiOverlayLayer overlays, DebugConsole? console = null, InspectorPropertyEditorRegistry? propertyEditors = null)
+        EditorUiDocument? uiDocument, 
+        UiOverlayLayer overlays, 
+        DebugConsole? console = null, 
+        InspectorPropertyEditorRegistry? propertyEditors = null, 
+        ITextureManager? filePreviewTextureManager = null)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -138,10 +143,13 @@ public sealed class EditorMainShell :
 
         _workspaceView =
             new EditorWorkspaceView(
-                editor, overlays,
+                editor,
+                overlays,
                 assetPreviewTextures,
                 console,
-                propertyEditors);
+                propertyEditors,
+                filePreviewTextureManager);
+
         _workspaceView.AssetActivated +=
     entry => AssetActivated?.Invoke(entry);
         _uiWorkspaceView =
@@ -377,18 +385,19 @@ public sealed class EditorMainShell :
         _closeButton.Enabled =
             activeDocument is not null;
 
+        string documentStatus;
+
         if (worldDocument is not null)
         {
-            _documentLabel.Text =
-                BuildDocumentStatus(
-                    worldDocument,
-                    worldDocument.IsDirty
-                        ? "Unsaved changes"
-                        : "Saved");
+            documentStatus = BuildDocumentStatus(
+                worldDocument,
+                worldDocument.IsDirty
+                    ? "Unsaved changes"
+                    : "Saved");
         }
         else if (uiDocument is not null)
         {
-            _documentLabel.Text =
+            documentStatus =
                 $"UI • {uiDocument.DisplayName} • " +
                 (uiDocument.IsDirty
                     ? "Unsaved changes"
@@ -396,15 +405,19 @@ public sealed class EditorMainShell :
         }
         else
         {
-            _documentLabel.Text = "No document";
+            documentStatus = "No document";
         }
 
-        var documentStatus = _documentLabel.Text;
+        var projectStatus =
+            Editor.ActiveGameProject is { } project
+                ? $"Project: {project.Name}"
+                : "No project";
 
         _documentLabel.Text =
-            Editor.ActiveGameProject is { } project
-                ? $"Project: {project.Name} • {documentStatus}"
-                : $"No project • {documentStatus}";
+            $"{projectStatus} • {documentStatus}";
+
+        _workspaceView.Refresh();
+        _uiWorkspaceView.Refresh();
 
         _workspaceView.Refresh();
         _uiWorkspaceView.Refresh();
@@ -704,7 +717,12 @@ public sealed class EditorMainShell :
         AddButton("New Project", 112.0f,
     () => NewProjectRequested?.Invoke());
 
-        AddButton("New", 64.0f,
+        AddButton(
+    "Open Project",
+    112.0f,
+    () => OpenProjectRequested?.Invoke());
+
+        AddButton("New Doc", 64.0f,
             () => NewRequested?.Invoke());
 
         AddButton("Open", 64.0f,

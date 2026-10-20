@@ -3,6 +3,7 @@ using Engine.UI.Actions;
 using Engine.UI.Controls;
 using Engine.UI.Core;
 using Engine.UI.Layout;
+using Engine.Core.Math;
 
 namespace Engine.UI.Assets;
 
@@ -212,13 +213,29 @@ public sealed class UiAssetLoader
                 $"UI image '{element.Id}' requires a texture resource manager.");
         }
 
+        var texturePath =
+            element.Texture.Value;
+
         var texture =
             _textures.Load(
-                element.Texture.Value);
+                texturePath);
+
+        var imageSize =
+            _textures.TryGetDescription(
+                texturePath,
+                out var description)
+                    ? new Vector2(
+                        description.Width,
+                        description.Height)
+                    : element.Layout.Size;
 
         return new UiImage(
             texture,
-            element.Layout.Size);
+            imageSize)
+        {
+            PreserveAspectRatio =
+                element.PreserveAspectRatio
+        };
     }
 
     private static void ApplyLayout(

@@ -64,6 +64,32 @@ internal sealed class WindowsFileDialogService :
             });
     }
 
+    public string? ShowOpenProject(
+    string? initialDirectory = null)
+    {
+        return RunOnSta(
+            () =>
+            {
+                using var dialog = new OpenFileDialog
+                {
+                    Title = "Open Game Project",
+
+                    Filter =
+                        "VibeEngine projects (*.vibeproject)|*.vibeproject",
+
+                    CheckFileExists = true,
+                    Multiselect = false,
+
+                    InitialDirectory =
+                        GetInitialDirectory(initialDirectory)
+                };
+
+                return dialog.ShowDialog() == DialogResult.OK
+                    ? dialog.FileName
+                    : null;
+            });
+    }
+
     public string? ShowSelectFolder(
     string? initialDirectory = null)
     {

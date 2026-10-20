@@ -19,8 +19,7 @@ using Game.Sandbox.UI;
 
 namespace Game.Sandbox;
 
-public sealed class SandboxState :
-    SimulationState
+public sealed class SandboxState
 {
     private enum SandboxMode
     {
@@ -72,7 +71,6 @@ public sealed class SandboxState :
     GameSaveLoadService saveLoad,
     DebugConsoleOverlay? console = null,
     Func<SandboxScriptProbe?>? scriptProbeProvider = null)
-    : base(runtime.Simulation)
     {
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(ui);
@@ -188,7 +186,7 @@ public sealed class SandboxState :
             true;
     }
 
-    public override void Update(
+    public void Update(
         TimeSnapshot time)
     {
         _runtime.Profiler?.RecordFrame();
@@ -196,8 +194,6 @@ public sealed class SandboxState :
         using var profiler =
             _runtime.Profiler?.BeginScope(
                 "Sandbox.Update");
-
-        _input.Update();
 
         using (_runtime.Profiler?.BeginScope(
                    "Sandbox.NetworkProbe.Update"))
@@ -228,8 +224,6 @@ public sealed class SandboxState :
         {
             _topDown?.StopMovement();
 
-            base.Update(time);
-
             return;
         }
 
@@ -256,11 +250,6 @@ public sealed class SandboxState :
         if (_ui.ConsumesKeyboardInput)
         {
             _topDown?.StopMovement();
-
-            base.Update(time);
-
-            UpdateHud();
-
             return;
         }
         if (_input.IsPressed(
@@ -373,10 +362,6 @@ public sealed class SandboxState :
         {
             _topDown?.StopMovement();
         }
-
-        base.Update(time);
-
-        UpdateHud();
     }
 
     private void SaveGame()
@@ -459,9 +444,10 @@ public sealed class SandboxState :
                 exception);
         }
     }
-    public override void Render(
+    public void Render(
     double interpolationAlpha)
     {
+        UpdateHud();
         using var profiler =
             _runtime.Profiler?.BeginScope(
                 "Sandbox.Render");
@@ -505,7 +491,7 @@ public sealed class SandboxState :
         _console?.Render();
     }
 
-    public override void FixedUpdate(
+    public void FixedUpdate(
         SimulationTime time)
     {
         if (_mode ==
@@ -515,9 +501,6 @@ public sealed class SandboxState :
             _topDown?.FixedUpdate(
                 time.Delta.ToFloat());
         }
-
-        base.FixedUpdate(
-            time);
     }
 
     private void DisposeCurrentScenario()
@@ -825,7 +808,7 @@ public sealed class SandboxState :
         return localization;
     }
 
-    public override void Shutdown()
+    public void Shutdown()
     {
         DisposeCurrentScenario();
 
@@ -851,7 +834,5 @@ public sealed class SandboxState :
 
         _graphics.RenderTargets.Destroy(
             _renderTarget);
-
-        base.Shutdown();
     }
 }

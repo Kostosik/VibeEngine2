@@ -8,6 +8,8 @@ using Engine.Core.Math;
 using Engine.Editor;
 using Engine.Editor.Documents;
 using Engine.Editor.Documents.Persistence;
+using Engine.Editor.Persistence;
+using Engine.Editor.Projects;
 using Engine.Editor.UI;
 using Engine.Editor.UI.Authoring;
 using Engine.Graphics.Fonts;
@@ -94,6 +96,59 @@ var editorAssetRoot =
 editor.InitializeAssetBrowser(
     new Engine.Editor.Assets.FileSystemAssetSource(),
     editorAssetRoot);
+
+var projectStateStore =
+    new EditorProjectStateStore();
+
+// Сохраняем путь при создании, открытии
+// или переключении активного игрового проекта.
+editor.ActiveGameProjectChanged += project =>
+{
+    try
+    {
+        projectStateStore.SaveLastProjectManifestPath(
+            project?.ManifestFilePath);
+    }
+    catch (Exception exception)
+    {
+        debugConsole.WriteException(
+            exception,
+            "Failed to save editor project state.");
+    }
+};
+
+// Восстанавливаем последний активный проект.
+// Ошибка восстановления не должна закрывать редактор.
+try
+{
+    var lastProjectPath =
+        projectStateStore.LoadLastProjectManifestPath();
+
+    if (!string.IsNullOrWhiteSpace(lastProjectPath))
+    {
+        try
+        {
+            var project = GameProject.Open(lastProjectPath);
+
+            editor.SetActiveGameProject(project);
+
+            debugConsole.WriteLine(
+                $"Restored game project: {project.Name}");
+        }
+        catch (Exception exception)
+        {
+            debugConsole.WriteException(
+                exception,
+                "Failed to restore the last game project.");
+        }
+    }
+}
+catch (Exception exception)
+{
+    debugConsole.WriteException(
+        exception,
+        "Failed to load editor state.");
+}
 
 editor.ComponentTypes.RegisterEngineComponents();
 

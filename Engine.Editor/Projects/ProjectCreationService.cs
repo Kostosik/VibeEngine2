@@ -382,6 +382,19 @@ public sealed class ProjectCreationService
                 "    </None>");
         }
 
+        // Copy project assets to the game output directory.
+        lines.Add(
+            "    <None Update=\"Assets/**/*\">");
+
+        lines.Add(
+            "      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>");
+
+        lines.Add(
+            "      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>");
+
+        lines.Add(
+            "    </None>");
+
         lines.AddRange(
             new[]
             {

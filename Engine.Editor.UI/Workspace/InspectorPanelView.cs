@@ -203,7 +203,8 @@ public sealed class InspectorPanelView : UiPanel
                         document.World,
                         document.GetEntityReference(entity),
                         componentType,
-                        Editor.ComponentDependencies));
+                        Editor.ComponentDependencies,
+                        Editor.ComponentTypes));
             };
 
         _content.AddChild(

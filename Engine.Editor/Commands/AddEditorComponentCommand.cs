@@ -17,7 +17,9 @@ public sealed class AddEditorComponentCommand : IEditorCommand
     public AddEditorComponentCommand(
         World world,
         EditorEntityReference reference,
-        Type componentType,EditorComponentDependencyRegistry? dependencies = null)
+        Type componentType,
+        EditorComponentDependencyRegistry? dependencies = null,
+        EditorComponentTypeRegistry? componentTypes = null)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(reference);
@@ -49,10 +51,12 @@ public sealed class AddEditorComponentCommand : IEditorCommand
         _componentType = componentType;
 
         object defaultValue =
-            Activator.CreateInstance(
-                componentType)
-            ?? throw new InvalidOperationException(
-                $"Could not create default value for '{componentType.Name}'.");
+            componentTypes is not null
+                ? componentTypes.CreateDefaultValue(componentType)
+                : Activator.CreateInstance(componentType)
+                  ?? throw new InvalidOperationException(
+                      $"Could not create default value for " +
+                      $"'{componentType.Name}'.");
 
         if (componentType == typeof(LocalTransform2D) &&
             world.EcsWorld.Has<WorldTransform2D>(

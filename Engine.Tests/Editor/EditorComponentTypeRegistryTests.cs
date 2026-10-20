@@ -1,5 +1,4 @@
 ﻿
-using Engine.Editor;
 using Engine.Editor.Inspection;
 
 namespace Engine.Tests.Editor;
@@ -7,22 +6,61 @@ namespace Engine.Tests.Editor;
 public sealed class EditorComponentTypeRegistryTests
 {
     [Fact]
-    public void Register_GameComponent_AddsTypeToRegistry()
+    public void CreateDefaultValue_UsesRegisteredFactory()
     {
-        var editor = new EditorContext();
+        var registry =
+            new EditorComponentTypeRegistry();
 
-        editor.ComponentTypes.Register<GameComponent>();
+        registry.Register<TestComponent>(
+            () => new TestComponent
+            {
+                Value = 42
+            });
 
-        Assert.True(
-            editor.ComponentTypes.Contains(
-                typeof(GameComponent)));
+        var result =
+            registry.CreateDefaultValue(
+                typeof(TestComponent));
 
-        Assert.Contains(
-            typeof(GameComponent),
-            editor.ComponentTypes.Types);
+        var component =
+            Assert.IsType<TestComponent>(result);
+
+        Assert.Equal(
+            42,
+            component.Value);
     }
 
-    private struct GameComponent
+    [Fact]
+    public void RegisterWithoutFactory_CreatesDefaultValue()
+    {
+        var registry =
+            new EditorComponentTypeRegistry();
+
+        registry.Register<TestComponent>();
+
+        var result =
+            registry.CreateDefaultValue(
+                typeof(TestComponent));
+
+        var component =
+            Assert.IsType<TestComponent>(result);
+
+        Assert.Equal(
+            0,
+            component.Value);
+    }
+
+    [Fact]
+    public void CreateDefaultValue_RejectsUnregisteredType()
+    {
+        var registry =
+            new EditorComponentTypeRegistry();
+
+        Assert.Throws<InvalidOperationException>(
+            () => registry.CreateDefaultValue(
+                typeof(TestComponent)));
+    }
+
+    private struct TestComponent
     {
         public int Value { get; set; }
     }

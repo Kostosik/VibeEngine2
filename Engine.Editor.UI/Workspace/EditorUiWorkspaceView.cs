@@ -1,4 +1,5 @@
-﻿using Engine.Core.Math;
+﻿using Engine.Core.Assets;
+using Engine.Core.Math;
 using Engine.Editor.Assets;
 using Engine.Editor.UI.Authoring;
 using Engine.Graphics.Commands;
@@ -33,13 +34,6 @@ public sealed class EditorUiWorkspaceView :
 
     private const float MinAssetBrowserHeight = 120.0f;
     private const float MinTopWorkspaceHeight = 180.0f;
-
-    private readonly UiPanel _assetBrowserHost;
-
-    public event Action<EditorAssetEntry>? AssetActivated;
-
-
-
 
     public EditorUiWorkspaceView(
         EditorUiDocument document,
@@ -102,11 +96,13 @@ public sealed class EditorUiWorkspaceView :
 
         Preview =
             new EditorUiCanvasPreviewView(
-                document);
+                document,
+                assetPreviewTextures);
 
         Inspector =
             new EditorUiInspectorPanelView(
-                document);
+                document,
+                GetSelectedTexturePath);
 
         _hierarchyHost.AddChild(
             Hierarchy);
@@ -175,21 +171,64 @@ public sealed class EditorUiWorkspaceView :
         UiLayoutContext context,
         Vector2 availableSize)
     {
+        var browserHeight =
+            _assetBrowser is null
+                ? 0.0f
+                : CalculateAssetBrowserHeight(
+                    availableSize.Y);
+
+        var splitterHeight =
+            _bottomSplitter is null
+                ? 0.0f
+                : DockSplitterThickness;
+
+        var topHeight = MathF.Max(
+            0.0f,
+            availableSize.Y -
+            browserHeight -
+            splitterHeight);
+
+        var topSize = new Vector2(
+            availableSize.X,
+            topHeight);
+
         _hierarchyHost.Measure(
             context,
-            availableSize);
+            topSize);
 
         _previewHost.Measure(
             context,
-            availableSize);
+            topSize);
 
         _inspectorHost.Measure(
             context,
-            availableSize);
+            topSize);
 
-        _assetBrowser?.Measure(
-    context,
-    availableSize);
+        _leftSplitter.Measure(
+            context,
+            topSize);
+
+        _rightSplitter.Measure(
+            context,
+            topSize);
+
+        if (_bottomSplitter is not null)
+        {
+            _bottomSplitter.Measure(
+                context,
+                new Vector2(
+                    availableSize.X,
+                    splitterHeight));
+        }
+
+        if (_assetBrowser is not null)
+        {
+            _assetBrowser.Measure(
+                context,
+                new Vector2(
+                    availableSize.X,
+                    browserHeight));
+        }
 
         return availableSize;
     }
@@ -368,6 +407,49 @@ public sealed class EditorUiWorkspaceView :
             maxWidth) / totalWidth;
     }
 
+    private string? GetSelectedTexturePath()
+    {
+        var browser =
+            _assetBrowser?.Editor.AssetBrowser;
+
+        if (browser?.SelectedAsset is not
+            { } selectedAsset)
+        {
+            return null;
+        }
+
+        var extension =
+            Path.GetExtension(
+                selectedAsset.Name);
+
+        if (!extension.Equals(
+                ".png",
+                StringComparison.OrdinalIgnoreCase) &&
+            !extension.Equals(
+                ".jpg",
+                StringComparison.OrdinalIgnoreCase) &&
+            !extension.Equals(
+                ".jpeg",
+                StringComparison.OrdinalIgnoreCase) &&
+            !extension.Equals(
+                ".bmp",
+                StringComparison.OrdinalIgnoreCase) &&
+            !extension.Equals(
+                ".tga",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var relativePath =
+            Path.GetRelativePath(
+                browser.RootPath,
+                selectedAsset.Path);
+
+        return new AssetPath(
+            relativePath).Value;
+    }
+
     private void ResizeInspectorWidth(float width)
     {
         var totalWidth = Bounds.Width;
@@ -417,7 +499,7 @@ public sealed class EditorUiWorkspaceView :
             availableHeight / 3.0f);
 
         var minMainHeight = MathF.Min(
-            MinMainAreaHeight,
+            MinTopWorkspaceHeight,
             MathF.Max(
                 0.0f,
                 availableHeight - minBrowserHeight));
@@ -449,7 +531,7 @@ public sealed class EditorUiWorkspaceView :
             availableHeight / 3.0f);
 
         var minMainHeight = MathF.Min(
-            MinMainAreaHeight,
+            MinTopWorkspaceHeight,
             MathF.Max(
                 0.0f,
                 availableHeight - minBrowserHeight));

@@ -1,12 +1,17 @@
 [CmdletBinding()]
 param(
     [ValidateSet("Debug", "Release")]
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+
+    [ValidateSet("win-x64")]
+    [string]$RuntimeIdentifier = "win-x64"
 )
 
 $ErrorActionPreference = "Stop"
 
-$repoRoot = Split-Path -Parent $PSScriptRoot
+$repoRoot = [System.IO.Path]::GetFullPath(
+    (Join-Path $PSScriptRoot "..")
+)
 
 $projectPath = Join-Path `
     $repoRoot `
@@ -14,53 +19,13 @@ $projectPath = Join-Path `
 
 $outputDirectory = Join-Path `
     $repoRoot `
-    "artifacts\engine-runtime\win-x64"
+    "artifacts\engine-runtime\$RuntimeIdentifier"
 
-if (-not (Test-Path $projectPath)) {
-    throw "Engine.Hosting.Desktop project was not found: $projectPath"
+if (-not (Test-Path -LiteralPath $projectPath -PathType Leaf)) {
+    throw "Desktop host project was not found: $projectPath"
 }
 
-# This directory is generated output, so stale files must not survive rebuilds.
-if (Test-Path $outputDirectory) {
-    Remove-Item `
-        -LiteralPath $outputDirectory `
-        -Recurse `
-        -Force
-}
-
-New-Item `
-    -ItemType Directory `
-    -Path $outputDirectory `
-    -Force | Out-Null
-
-$dotnetArguments = @(
-    "publish"
-    $projectPath
-    "--configuration"
-    $Configuration
-    "--runtime"
-    "win-x64"
-    "--self-contained"
-    "false"
-    "-p:CopyLocalLockFileAssemblies=true"
-    "--output"
-    $outputDirectory
-)
-
-Push-Location $repoRoot
-
-try {
-    & dotnet @dotnetArguments
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to publish Engine.Hosting.Desktop. Exit code: $LASTEXITCODE"
-    }
-}
-finally {
-    Pop-Location
-}
-
-$requiredFiles = @(
+$requiredAssemblies = @(
     "Engine.Hosting.Desktop.dll"
     "Engine.Runtime.dll"
     "Engine.Graphics.OpenGL.dll"
@@ -68,26 +33,62 @@ $requiredFiles = @(
     "Engine.Input.SilkNet.dll"
 )
 
-$missingFiles = @(
-    $requiredFiles | Where-Object {
-        -not (Test-Path (Join-Path $outputDirectory $_))
+Write-Host "VibeEngine2 runtime build"
+Write-Host "Configuration: $Configuration"
+Write-Host "Runtime:       $RuntimeIdentifier"
+Write-Host "Output:        $outputDirectory"
+Write-Host ""
+
+# Remove only the generated runtime output so obsolete DLLs
+# from a previous build cannot remain in the distribution.
+if (Test-Path -LiteralPath $outputDirectory) {
+    Remove-Item `
+        -LiteralPath $outputDirectory `
+        -Recurse `
+        -Force
+}
+
+$outputParent = Split-Path -Parent $outputDirectory
+
+New-Item `
+    -ItemType Directory `
+    -Path $outputParent `
+    -Force | Out-Null
+
+& dotnet publish `
+    $projectPath `
+    --configuration $Configuration `
+    --runtime $RuntimeIdentifier `
+    --self-contained false `
+    "-p:CopyLocalLockFileAssemblies=true" `
+    --output $outputDirectory
+
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet publish failed with exit code $LASTEXITCODE."
+}
+
+$missingAssemblies = @(
+    $requiredAssemblies | Where-Object {
+        -not (
+            Test-Path -LiteralPath (
+                Join-Path $outputDirectory $_
+            ) -PathType Leaf
+        )
     }
 )
 
-if ($missingFiles.Count -gt 0) {
+if ($missingAssemblies.Count -gt 0) {
     throw (
-        "The engine runtime output is incomplete. Missing files: " +
-        ($missingFiles -join ", ")
+        "Runtime build finished, but required assemblies are missing: " +
+        ($missingAssemblies -join ", ")
     )
 }
 
 Write-Host ""
-Write-Host "Engine runtime distribution prepared:"
-Write-Host $outputDirectory
-Write-Host ""
+Write-Host "Runtime distribution created successfully." `
+    -ForegroundColor Green
 
-Get-ChildItem `
-    -LiteralPath $outputDirectory `
-    -File `
-    -Filter "*.dll" |
-    Select-Object -ExpandProperty Name
+Write-Host "Location: $outputDirectory"
+Write-Host "Assemblies: $(
+    (Get-ChildItem -LiteralPath $outputDirectory -Filter '*.dll' -File).Count
+)"

@@ -6,6 +6,7 @@ using Engine.Editor.Documents.Persistence;
 using Engine.Editor.Inspection;
 using Engine.Editor.Panels;
 using Engine.Editor.Persistence;
+using Engine.Editor.Projects;
 using Engine.Editor.Workspace;
 using Engine.Worlds;
 
@@ -55,6 +56,35 @@ public sealed class EditorContext
     public EditorSession Session { get; }
 
     public EditorWorkspace Workspace { get; }
+
+    /// <summary>
+    /// The currently selected game project.
+    /// This is independent from the active editor document.
+    /// </summary>
+    public GameProject? ActiveGameProject { get; private set; }
+
+    public event Action<GameProject?>? ActiveGameProjectChanged;
+
+    public void SetActiveGameProject(GameProject? project)
+    {
+        if (ReferenceEquals(ActiveGameProject, project))
+        {
+            return;
+        }
+
+        if (ActiveGameProject is not null &&
+            project is not null &&
+            PathsEqual(
+                ActiveGameProject.RootDirectory,
+                project.RootDirectory))
+        {
+            return;
+        }
+
+        ActiveGameProject = project;
+
+        ActiveGameProjectChanged?.Invoke(project);
+    }
 
     public EditorDocument? ActiveDocument =>
         Session.ActiveDocument;

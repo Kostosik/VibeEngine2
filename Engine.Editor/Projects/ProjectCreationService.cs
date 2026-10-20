@@ -279,23 +279,30 @@ public sealed class ProjectCreationService
     }
 
     private static string CreateProjectFileContents(
-        IReadOnlyList<string> runtimeAssemblies)
+    IReadOnlyList<string> runtimeAssemblies)
     {
         var lines = new List<string>
-        {
-            "<Project Sdk=\"Microsoft.NET.Sdk\">",
-            "  <PropertyGroup>",
-            "    <OutputType>Exe</OutputType>",
-            "    <TargetFramework>net8.0</TargetFramework>",
-            "    <ImplicitUsings>enable</ImplicitUsings>",
-            "    <Nullable>enable</Nullable>",
-            "  </PropertyGroup>",
-            "",
-            "  <ItemGroup>"
-        };
+    {
+        "<Project Sdk=\"Microsoft.NET.Sdk\">",
+        "  <PropertyGroup>",
+        "    <OutputType>Exe</OutputType>",
+        "    <TargetFramework>net8.0</TargetFramework>",
+        "    <PlatformTarget>x64</PlatformTarget>",
+        "    <ImplicitUsings>enable</ImplicitUsings>",
+        "    <Nullable>enable</Nullable>",
+        "  </PropertyGroup>",
+        "",
+        "  <ItemGroup>"
+    };
 
+        // Managed assemblies are referenced by the game project.
         foreach (var assemblyPath in runtimeAssemblies)
         {
+            if (!IsManagedAssembly(assemblyPath))
+            {
+                continue;
+            }
+
             var assemblyFile =
                 Path.GetFileName(assemblyPath);
 
@@ -318,21 +325,61 @@ public sealed class ProjectCreationService
         lines.AddRange(
             new[]
             {
-        "  </ItemGroup>",
-        "",
-        "  <ItemGroup>",
-        "    <None Update=\"Engine\\runtimes\\win-x64\\native\\**\\*.dll\">",
-        "      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>",
-        "      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>",
-        "      <TargetPath>runtimes\\win-x64\\native\\%(Filename)%(Extension)</TargetPath>",
-        "    </None>",
-        "  </ItemGroup>",
-        "</Project>"
+            "  </ItemGroup>",
+            "",
+            "  <ItemGroup>"
+            });
+
+        // Native DLLs are copied beside the generated game executable.
+        foreach (var nativePath in runtimeAssemblies)
+        {
+            if (IsManagedAssembly(nativePath))
+            {
+                continue;
+            }
+
+            var nativeFile =
+                Path.GetFileName(nativePath);
+
+            lines.Add(
+                $"    <None Update=\"Engine\\{XmlEscape(nativeFile)}\">");
+
+            lines.Add(
+                "      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>");
+
+            lines.Add(
+                "      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>");
+
+            lines.Add(
+                $"      <TargetPath>{XmlEscape(nativeFile)}</TargetPath>");
+
+            lines.Add(
+                "    </None>");
+        }
+
+        lines.AddRange(
+            new[]
+            {
+            "  </ItemGroup>",
+            "</Project>"
             });
 
         return string.Join(
             Environment.NewLine,
             lines) + Environment.NewLine;
+    }
+
+    private static bool IsManagedAssembly(string path)
+    {
+        try
+        {
+            _ = System.Reflection.AssemblyName.GetAssemblyName(path);
+            return true;
+        }
+        catch (BadImageFormatException)
+        {
+            return false;
+        }
     }
 
     private static string CreateProgramContents(

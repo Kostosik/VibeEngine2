@@ -14,13 +14,14 @@ public sealed class EditorUiInspectorPanelView :
     private readonly EditorUiDocument _document;
     private readonly EditorUiInspector _inspector;
     private readonly UiStackPanel _content;
-
+    private readonly Func<string?>? _getSelectedTexturePath;
     public EditorUiInspectorPanelView(
-        EditorUiDocument document)
+        EditorUiDocument document,
+        Func<string?>? getSelectedTexturePath = null)
     {
         ArgumentNullException.ThrowIfNull(
             document);
-
+        _getSelectedTexturePath = getSelectedTexturePath;
         _document = document;
         _inspector =
             new EditorUiInspector(
@@ -167,6 +168,15 @@ public sealed class EditorUiInspectorPanelView :
             return;
         }
 
+        if (property.Name == "Texture")
+        {
+            _content.AddChild(
+                CreateTextureProperty(
+                    property));
+
+            return;
+        }
+
         if (property.PropertyType == typeof(string))
         {
             _content.AddChild(
@@ -191,6 +201,125 @@ public sealed class EditorUiInspectorPanelView :
             {
                 FontSize = 12.0f
             });
+    }
+
+    private UiWidget CreateTextureProperty(
+    EditorProperty property)
+    {
+        var container =
+            new UiStackPanel
+            {
+                Orientation =
+                    UiOrientation.Vertical,
+
+                Spacing = 4.0f,
+
+                HorizontalAlignment =
+                    UiHorizontalAlignment.Stretch,
+
+                VerticalAlignment =
+                    UiVerticalAlignment.Top
+            };
+
+        container.AddChild(
+            new UiLabel(
+                property.DisplayName)
+            {
+                FontSize = 12.0f
+            });
+
+        var row =
+            new UiStackPanel
+            {
+                Orientation =
+                    UiOrientation.Horizontal,
+
+                Spacing = 4.0f,
+
+                HorizontalAlignment =
+                    UiHorizontalAlignment.Stretch,
+
+                VerticalAlignment =
+                    UiVerticalAlignment.Top
+            };
+
+        var textBox =
+            new UiTextBox(
+                property.GetValue()?.ToString()
+                ?? string.Empty)
+            {
+                Width = 150.0f,
+                Height = 32.0f,
+                FontSize = 12.0f
+            };
+
+        textBox.Submitted +=
+            value =>
+            {
+                _document.Execute(
+                    new SetEditorPropertyCommand(
+                        property,
+                        value));
+            };
+
+        row.AddChild(textBox);
+
+        if (_getSelectedTexturePath is not null)
+        {
+            var assignButton =
+                new UiButton("Use selected")
+                {
+                    Width = 90.0f,
+                    Height = 32.0f,
+                    FontSize = 11.0f
+                };
+
+            assignButton.Clicked +=
+                () =>
+                {
+                    var path =
+                        _getSelectedTexturePath();
+
+                    if (string.IsNullOrWhiteSpace(path))
+                    {
+                        return;
+                    }
+
+                    _document.Execute(
+                        new SetEditorPropertyCommand(
+                            property,
+                            path));
+
+                    Refresh();
+                };
+
+            row.AddChild(assignButton);
+
+            var clearButton =
+    new UiButton("Clear")
+    {
+        Width = 50.0f,
+        Height = 32.0f,
+        FontSize = 11.0f
+    };
+
+            clearButton.Clicked +=
+                () =>
+                {
+                    _document.Execute(
+                        new SetEditorPropertyCommand(
+                            property,
+                            string.Empty));
+
+                    Refresh();
+                };
+
+            row.AddChild(clearButton);
+        }
+
+        container.AddChild(row);
+
+        return container;
     }
 
     private UiWidget CreateBooleanProperty(

@@ -25,6 +25,8 @@ public sealed class EditorMainShell :
     private readonly UiLabel _documentLabel;
     public event Action<EditorAssetEntry>? AssetActivated;
     private readonly EditorWorkspaceView _workspaceView;
+    private readonly UiOverlayLayer _overlays;
+    private readonly ITextureResourceManager _assetPreviewTextures;
     private EditorUiWorkspaceView _uiWorkspaceView;
     public event Action? NewProjectRequested;
     public bool IsUiMode =>
@@ -82,7 +84,8 @@ public sealed class EditorMainShell :
 
         Editor =
             editor;
-
+        _overlays = overlays;
+        _assetPreviewTextures = assetPreviewTextures;
         Background =
             new UiColor(
                 24,
@@ -142,7 +145,7 @@ public sealed class EditorMainShell :
         _workspaceView.AssetActivated +=
     entry => AssetActivated?.Invoke(entry);
         _uiWorkspaceView =
-            new EditorUiWorkspaceView(
+            CreateUiWorkspaceView(
                 uiDocument ??
                 new EditorUiDocument(
                     "UI Workspace"));
@@ -195,6 +198,22 @@ public sealed class EditorMainShell :
 
     public UiPanel Workspace =>
         _workspace;
+
+    private EditorUiWorkspaceView CreateUiWorkspaceView(
+    EditorUiDocument document)
+    {
+        var view =
+            new EditorUiWorkspaceView(
+                document,
+                Editor,
+                _overlays,
+                _assetPreviewTextures);
+
+        view.AssetActivated +=
+            entry => AssetActivated?.Invoke(entry);
+
+        return view;
+    }
 
     protected override Vector2 MeasureCore(
     UiLayoutContext context,
@@ -315,7 +334,7 @@ public sealed class EditorMainShell :
             _uiWorkspaceView);
 
         _uiWorkspaceView =
-            new EditorUiWorkspaceView(document);
+            CreateUiWorkspaceView(document);
 
         _workspace.AddChild(
             _uiWorkspaceView);
@@ -380,7 +399,12 @@ public sealed class EditorMainShell :
             _documentLabel.Text = "No document";
         }
 
+        var documentStatus = _documentLabel.Text;
 
+        _documentLabel.Text =
+            Editor.ActiveGameProject is { } project
+                ? $"Project: {project.Name} • {documentStatus}"
+                : $"No project • {documentStatus}";
 
         _workspaceView.Refresh();
         _uiWorkspaceView.Refresh();

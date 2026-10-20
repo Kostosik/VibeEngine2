@@ -1,5 +1,7 @@
-﻿using Engine.Core.Math;
+﻿using Engine.Core.Assets;
+using Engine.Core.Math;
 using Engine.Graphics.Commands;
+using Engine.Graphics.Resources;
 using Engine.Input;
 using Engine.UI.Controls;
 using Engine.UI.Core;
@@ -14,6 +16,10 @@ public sealed class EditorUiCanvasPreviewView :
     private const float CanvasPadding = 16.0f;
 
     private readonly EditorUiDocument _document;
+
+    private readonly ITextureResourceManager? _textures;
+
+    private readonly HashSet<AssetPath> _unavailableTextures = new();
 
     private const float MinZoom = 0.25f;
     private const float MaxZoom = 8.0f;
@@ -74,13 +80,14 @@ public sealed class EditorUiCanvasPreviewView :
     }
 
     public EditorUiCanvasPreviewView(
-        EditorUiDocument document)
+        EditorUiDocument document,
+        ITextureResourceManager? textures = null)
     {
         ArgumentNullException.ThrowIfNull(
             document);
 
         _document = document;
-
+        _textures = textures;
         Background =
             new UiColor(
                 22,
@@ -1000,6 +1007,14 @@ public sealed class EditorUiCanvasPreviewView :
                     GetElementBackground(element),
                     filled: true);
 
+                if (element.Type == EditorUiElementType.Image)
+                {
+                    RenderImage(
+                        context,
+                        element,
+                        rect);
+                }
+
                 context.DrawRectangle(
                     rect,
                     _document.Selection.Contains(element.Id)
@@ -1029,7 +1044,8 @@ public sealed class EditorUiCanvasPreviewView :
                         layer: 2);
                 }
 
-                if (string.IsNullOrEmpty(element.Text) &&
+                if (element.Type != EditorUiElementType.Image &&
+                    string.IsNullOrEmpty(element.Text) &&
                     rect.Width >= 80.0f &&
                     rect.Height >= 26.0f)
                 {
@@ -1076,6 +1092,108 @@ public sealed class EditorUiCanvasPreviewView :
             context.PopRotation();
         }
     }
+
+    private void RenderImage(
+    UiRenderContext context,
+    EditorUiElement element,
+    UiRect rect)
+    {
+        if (_textures is null ||
+            element.Texture is not AssetPath path ||
+            string.IsNullOrWhiteSpace(path.Value))
+        {
+            DrawImagePlaceholder(
+                context,
+                rect,
+                "No texture");
+
+            return;
+        }
+
+        if (_unavailableTextures.Contains(path))
+        {
+            DrawImagePlaceholder(
+                context,
+                rect,
+                "Texture unavailable");
+
+            return;
+        }
+
+        try
+        {
+            if (!_textures.TryGet(
+                    path,
+                    out var texture))
+            {
+                texture = _textures.Load(path);
+            }
+
+            if (!texture.IsValid)
+            {
+                _unavailableTextures.Add(path);
+
+                DrawImagePlaceholder(
+                    context,
+                    rect,
+                    "Texture unavailable");
+
+                return;
+            }
+
+            context.DrawTexture(
+                texture,
+                rect,
+                new Rectangle(
+                    0.0f,
+                    0.0f,
+                    1.0f,
+                    1.0f));
+        }
+        catch (Exception)
+        {
+            _unavailableTextures.Add(path);
+
+            DrawImagePlaceholder(
+                context,
+                rect,
+                "Texture unavailable");
+        }
+    }
+
+    private static void DrawImagePlaceholder(
+        UiRenderContext context,
+        UiRect rect,
+        string message)
+    {
+        if (rect.Width < 1.0f ||
+            rect.Height < 1.0f)
+        {
+            return;
+        }
+
+        var textSize = context.MeasureText(
+            message,
+            10.0f);
+
+        var textPosition = UiTextLayout.CalculatePosition(
+            rect,
+            textSize,
+            UiTextHorizontalAlignment.Center,
+            UiTextVerticalAlignment.Center);
+
+        context.DrawText(
+            message,
+            textPosition,
+            10.0f,
+            new UiColor(
+                210,
+                170,
+                170,
+                255),
+            layer: 2);
+    }
+
     private static bool ShouldDrawText(
     EditorUiElement element)
     {

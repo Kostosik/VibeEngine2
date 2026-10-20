@@ -270,7 +270,8 @@ public sealed class EditorApplication :
 
         Editor.Session.ActiveEditorDocumentChanged +=
             OnActiveEditorDocumentChanged;
-
+        Editor.ActiveGameProjectChanged +=
+    OnActiveGameProjectChanged;
         Editor.Workspace.Changed +=
     MarkUiDirty;
 
@@ -296,7 +297,10 @@ public sealed class EditorApplication :
         _documentFiles = documentFiles;
     }
 
-
+    private void OnActiveGameProjectChanged(GameProject? project)
+    {
+        MarkUiDirty();
+    }
 
     private void OnActiveEditorDocumentChanged(
     IEditorDocument? document)
@@ -325,8 +329,13 @@ public sealed class EditorApplication :
             var projectDirectory =
                 _projectCreationService.Create(request);
 
+            var project =
+                GameProject.FromDirectory(projectDirectory);
+
+            Editor.SetActiveGameProject(project);
+
             _debugConsole?.WriteLine(
-                $"Project scaffold created: {projectDirectory}");
+                $"Game project created and activated: {project.Name}");
 
             _newProjectDialog.CloseAfterCreation();
         }
@@ -614,7 +623,8 @@ public sealed class EditorApplication :
         MainShell.AssetActivated -= OnAssetActivated;
         _newDocumentDialog.WorldRequested -=
     RequestNewWorldDocument;
-
+        Editor.ActiveGameProjectChanged -=
+    OnActiveGameProjectChanged;
         _newDocumentDialog.UiRequested -=
             CreateNewUiDocument;
 

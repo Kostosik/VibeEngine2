@@ -1,4 +1,6 @@
-﻿using Engine.Runtime;
+﻿using Engine.Content.Loading;
+using Engine.Input;
+using Engine.Runtime;
 
 namespace Engine.Hosting.Desktop;
 
@@ -13,4 +15,19 @@ public sealed class DesktopGameHostOptions
     public string? AssetsDirectory { get; init; }
 
     public EngineRuntimeOptions RuntimeOptions { get; init; } = new();
+
+    /// <summary>
+    /// Optional input map configured by the application.
+    /// </summary>
+    public InputActionMap? InputActions { get; init; }
+
+    /// <summary>
+    /// Adds application-specific content loaders before
+    /// the content manager is created.
+    /// </summary>
+    public Action<ContentLoaderRegistry>? ConfigureContentLoaders
+    {
+        get;
+        init;
+    }
 }

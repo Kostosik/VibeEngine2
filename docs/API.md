@@ -1,157 +1,147 @@
 # VibeEngine2 API Guide
 
-Практическое руководство по основным API VibeEngine2.
+Практическое руководство по использованию API VibeEngine2 при разработке игр на C#/.NET.
 
 Архитектурное описание: [ENGINE.md](ENGINE.md).
 
-Главный принцип:
+## Часть I. Основы разработки игры
 
-> Engine предоставляет механизмы, Game определяет смысл.
+# 1. Основные принципы API
 
----
+## 1.1. Граница между Engine и Game
 
-# 1. Базовая runtime-модель
+VibeEngine2 предоставляет универсальные механизмы, на основе которых разрабатывается конкретная игра.
 
-Типичная composition выглядит так:
+**Engine отвечает за механизмы, Game — за игровую логику.**
 
-~~~text
-Application
-    ↓
-EngineRuntime
-    ├── ECS World
-    ├── Simulation
-    ├── Physics
-    └── Engine services
-         ├── Graphics
-         ├── Input
-         ├── Camera
-         ├── Audio
-         └── Content
-~~~
+Engine предоставляет:
+- ECS и системы выполнения игровой логики;
+- симуляцию, физику и пространственные преобразования;
+- графику, ввод, аудио и UI;
+- загрузку ресурсов, сериализацию и сетевые механизмы;
+- инструменты диагностики и отладки.
 
-Runtime получает application services через EngineRuntimeServices:
+Игра определяет, как использовать эти возможности. Её собственные компоненты, системы, игровые правила и данные должны находиться в проекте игры, если они не представляют собой универсальный механизм движка.
 
-~~~csharp
-var services =
-    new EngineRuntimeServices(
-        graphics,
-        input,
-        camera,
-        audio,
-        content);
+Например, движок предоставляет возможность создавать сущности и добавлять им компоненты. Но то, что именно представляет сущность — персонажа, здание или производственную машину, — определяет игра.
 
-var runtime =
-    new EngineRuntime(
-        new EngineRuntimeOptions(),
-        services);
-~~~
+## 1.2. Проекты, пространства имён и зависимости
 
-Настройки можно переопределить через инициализатор. Значения по умолчанию — chunk размером 32 × 32, 20 тиков симуляции в секунду и включённый tooling.
+API движка разделено на специализированные проекты, каждый из которых отвечает за определённую область функциональности.
 
-~~~csharp
-var options =
-    new EngineRuntimeOptions
-    {
-        ChunkSize = new ChunkSize(64, 64),
-        SimulationRate = new SimulationRate(30),
-        ToolingEnabled = true
-    };
+При использовании API ориентируйся на публичные типы и их пространства имён. Имя проекта (`.csproj`), имя сборки и пространство имён не обязательно совпадают.
 
-var runtime =
-    new EngineRuntime(
-        options,
-        services);
-~~~
+Игровой проект должен подключать необходимые проекты движка и использовать их публичные API. Не следует обращаться к внутренней реализации или конкретному backend без необходимости, если требуемая возможность доступна через общую абстракцию.
 
-Для headless-сценариев, например отдельной симуляции или автоматических тестов, Runtime можно создать без application services. В этом случае tooling необходимо отключить:
+## 1.3. Как пользоваться руководством
 
-~~~csharp
-using var runtime =
-    new EngineRuntime(
-        new EngineRuntimeOptions
-        {
-            ToolingEnabled = false
-        });
+Разделы этого руководства посвящены практическому использованию API в игровом коде.
 
-runtime.Initialize();
+Примеры показывают использование конкретных возможностей и не всегда содержат полную настройку приложения. Если пример зависит от уже созданного Runtime, ECS-мира, графического устройства или другого сервиса, это должно учитываться при его использовании.
 
-// Запуск и обновление симуляции выполняет игровой цикл.
+Для понимания общей архитектуры движка смотри [ENGINE.md](ENGINE.md). Здесь основное внимание уделяется тому, как программист игры использует API на практике.
 
-runtime.Shutdown();
-~~~
+### 2. ECS
+## Сущности и их жизненный цикл
 
-В headless-режиме ECS, World, Simulation и Physics доступны. Сервисы приложения (Graphics, Input, Camera, Audio, Content) не настроены; обращение к ним приводит к InvalidOperationException.
+Сущность (`EntityId`) — это идентификатор игрового объекта в ECS. Сама сущность не содержит игровую логику или данные: они представлены компонентами, которые будут рассмотрены далее.
 
-Lifecycle:
+Для работы с сущностями используется `Engine.ECS.World`.
 
-~~~csharp
-runtime.Initialize();
+### Создание сущности
 
-runtime.Update(context);
-runtime.FixedUpdate(fixedContext);
+```csharp
+var world = new Engine.ECS.World();
 
-// ...
+var entity = world.CreateEntity();
+```
 
-runtime.Shutdown();
-runtime.Dispose();
-~~~
+Метод `CreateEntity()` создаёт сущность и возвращает её идентификатор (`EntityId`).
 
----
+### Проверка существования
 
-# 2. ECS
+Перед выполнением операций с сущностью можно проверить, существует ли она в текущем мире:
 
-Основной тип:
-
-~~~csharp
-Engine.ECS.World
-~~~
-
-Создание:
-
-~~~csharp
-var world =
-    new Engine.ECS.World();
-~~~
-
-## Entity
-
-~~~csharp
-var entity =
-    world.CreateEntity();
-
+```csharp
 if (world.Exists(entity))
 {
-    // entity существует
+    // Сущность существует.
 }
+```
 
-world.DestroyEntity(entity);
-~~~
+Проверка также позволяет обнаружить идентификатор сущности, которая уже была удалена.
 
-## Components
+### Удаление сущности
 
-Component — обычный struct.
+```csharp
+var removed = world.DestroyEntity(entity);
+```
 
-~~~csharp
+`DestroyEntity()` возвращает `true`, если сущность была удалена, и `false`, если она не существовала.
+
+При удалении сущности ECS автоматически удаляет все её компоненты. Дополнительно мир публикует событие `EntityDestroyed`.
+
+### Важные правила
+
+- `EntityId` — это идентификатор, а не самостоятельный игровой объект с поведением.
+- После удаления сущности не следует продолжать использовать её старый идентификатор как действительный.
+- Если сущность больше не существует, `DestroyEntity()` не выполняет повторное удаление и возвращает `false`.
+
+Создание и удаление сущностей обычно выполняется игровым кодом в соответствии с правилами конкретной игры.
+## Собственные компоненты игры
+
+Компонент (`Component`) — это структура данных, прикреплённая к сущности. В VibeEngine2 игровые компоненты создаются непосредственно в проекте игры.
+
+Компонент должен быть структурой (`struct`). Обычно он содержит данные, которые используются игровыми системами: здоровье, скорость, запас ресурсов, состояние производства и другие игровые характеристики.
+
+### Объявление компонента
+
+Например, создадим компонент для хранения здоровья игрового объекта:
+
+```csharp
 public struct Health
 {
     public int Value;
 }
-~~~
+```
 
-Добавление:
+Компонент не содержит игровой логики. Он хранит только значение здоровья, а правила его изменения определяет игровая система.
 
-~~~csharp
+### Добавление компонента
+
+Для добавления компонента используется метод `World.Add<T>()`:
+
+```csharp
 world.Add(
     entity,
     new Health
     {
         Value = 100
     });
-~~~
+```
 
-Получение:
+После выполнения операции сущность получает компонент `Health` со значением здоровья `100`.
 
-~~~csharp
+У одной сущности может быть несколько компонентов разных типов.
+
+### Проверка наличия компонента
+
+Перед обращением к компоненту можно проверить, прикреплён ли он к сущности:
+
+```csharp
+if (world.Has<Health>(entity))
+{
+    // Компонент Health существует.
+}
+```
+
+Метод `Has<T>()` возвращает `true`, если сущность существует и содержит указанный компонент.
+
+### Получение и изменение данных
+
+Метод `World.Get<T>()` возвращает компонент по ссылке (`ref`). Благодаря этому можно изменять данные непосредственно в ECS, не добавляя компонент повторно.
+
+```csharp
 if (world.Has<Health>(entity))
 {
     ref var health =
@@ -159,913 +149,201 @@ if (world.Has<Health>(entity))
 
     health.Value -= 10;
 }
-~~~
+```
 
-Удаление:
+В результате здоровье уменьшается на 10.
 
-~~~csharp
+Обращение через `ref` позволяет изменять компонент непосредственно в хранилище ECS. Поэтому важно не терять `ref`, когда требуется изменить существующие данные.
+
+### Удаление компонента
+
+Чтобы удалить отдельный компонент, используй `World.Remove<T>()`:
+
+```csharp
 world.Remove<Health>(entity);
-~~~
+```
+
+Удаление компонента не уничтожает саму сущность. Остальные компоненты сущности сохраняются.
+
+### Основные правила
+
+- Компоненты игры принадлежат игровому проекту, а не движку.
+- Компоненты предназначены для хранения данных, а системы — для выполнения логики.
+- Для получения компонента используй `Get<T>()`, а перед обращением при необходимости проверяй его наличие через `Has<T>()`.
+- Для изменения существующего компонента используй `ref`, чтобы изменить данные непосредственно в ECS.
 
 ## Queries
 
-Для массовой обработки:
+Query позволяет перебирать сущности, которые содержат определённый компонент, не проверяя каждую сущность вручную.
 
-~~~csharp
+Используй Query, когда необходимо обработать все подходящие игровые объекты: например, обновить здоровье, переместить объекты или рассчитать производство ресурсов.
+
+### Чтение и изменение компонентов
+
+Для обработки с возможностью изменения данных используется `World.Query<T>()`.
+
+```csharp
+foreach (var item in world.Query<Health>())
+{
+    var entity = item.Entity;
+
+    ref var health = ref item.Component;
+
+    health.Value -= 1;
+}
+```
+
+В этом примере перебираются сущности с компонентом `Health`, и здоровье каждой из них уменьшается на единицу.
+
+Каждый элемент Query предоставляет:
+
+- `Entity` — идентификатор сущности;
+- `Component` — ссылку на компонент, доступную для изменения.
+
+Обращение через `ref` позволяет изменять данные непосредственно в ECS.
+
+### Только чтение
+
+Если данные не требуется изменять, используй `World.QueryReadOnly<T>()`.
+
+```csharp
 foreach (var item in world.QueryReadOnly<Health>())
 {
-    var entity =
-        item.Entity;
+    var entity = item.Entity;
 
-    ref readonly var health =
-        ref item.Component;
+    ref readonly var health = ref item.Component;
 
-    // обработка
-}
-~~~
-
-Для массовой read-only обработки также доступны parallel APIs через Job System.
-
-## Commands
-
-Для structural changes используется command buffer:
-
-~~~csharp
-var commands =
-    world.Commands;
-~~~
-
-На runtime-уровне доступен также runtime.Commands.
-
----
-
-# 3. Simulation и Systems
-
-`EngineRuntime` объединяет ECS, симуляцию и встроенные системы движка. Игровая логика добавляется через собственные системы и регистрируется в `runtime.Scheduler`.
-
-## Update и FixedUpdate
-
-Используй `IUpdateSystem`, когда логика должна выполняться на каждом обычном обновлении. Используй `IFixedUpdateSystem` для логики, которая должна выполняться в фиксированных шагах симуляции.
-
-```csharp
-public sealed class ExampleSystem : IFixedUpdateSystem
-{
-    public void FixedUpdate(FixedSystemContext context)
-    {
-        // Игровая логика фиксированного шага.
-        var delta = context.Time.Delta;
-        var tick = context.Time.Tick;
-    }
+    // Использование health.Value без изменения компонента.
 }
 ```
 
-`FixedSystemContext` предоставляет `SimulationTime`, содержащий длительность шага `Delta` и номер шага `Tick`.
-
-## Регистрация собственной системы
-
-Все системы необходимо зарегистрировать **до `runtime.Initialize()`**. Инициализация строит расписание выполнения и блокирует дальнейшую регистрацию.
-
-```csharp
-var system = new ExampleSystem();
-
-runtime.Scheduler.Add(
-    system,
-    SystemPhase.FixedUpdate);
-
-runtime.Initialize();
-```
-
-После инициализации игровая система будет выполняться вместе с остальными системами соответствующей фазы, когда игровой цикл вызывает обновление Runtime.
-
-## Пример системы, работающей с ECS
-
-Игровые компоненты принадлежат игре, а не движку.
-
-```csharp
-public struct ProductionCounter
-{
-    public int Ticks;
-}
-```
-
-Система может обрабатывать все сущности с этим компонентом:
-
-```csharp
-public sealed class ProductionTickSystem : IFixedUpdateSystem
-{
-    private readonly Engine.ECS.World _world;
-
-    public ProductionTickSystem(Engine.ECS.World world)
-    {
-        ArgumentNullException.ThrowIfNull(world);
-        _world = world;
-    }
-
-    public void FixedUpdate(FixedSystemContext context)
-    {
-        foreach (var item in _world.Query<ProductionCounter>())
-        {
-            ref var counter = ref item.Component;
-            counter.Ticks++;
-        }
-    }
-}
-```
-
-Подключение:
-
-```csharp
-var entity = runtime.EcsWorld.CreateEntity();
-
-runtime.EcsWorld.Add(
-    entity,
-    new ProductionCounter());
-
-runtime.Scheduler.Add(
-    new ProductionTickSystem(runtime.EcsWorld),
-    SystemPhase.FixedUpdate);
-
-runtime.Initialize();
-```
-
-`Query<T>()` предоставляет доступ к компонентам для чтения и изменения. Для read-only обработки используй `QueryReadOnly<T>()`.
-
-## Зависимости между системами
-
-Если одной системе необходимо выполняться после другой, используй `.After<TSystem>()`.
-
-```csharp
-runtime.Scheduler.Add(
-    new MovementSystem(runtime.EcsWorld),
-    SystemPhase.FixedUpdate);
-
-runtime.Scheduler.Add(
-    new ProductionTickSystem(runtime.EcsWorld),
-    SystemPhase.FixedUpdate)
-    .After<MovementSystem>();
-```
-
-Система, на которую ссылается зависимость, должна быть зарегистрирована в той же фазе. Отсутствующая система, зависимость между разными фазами или цикл зависимостей приведут к ошибке при построении расписания.
-
-## Команды симуляции
-
-Для отправки игровых команд используй:
-
-```csharp
-runtime.Simulation.Submit(command);
-```
-
-Команды обрабатываются на фиксированном шаге до выполнения систем `FixedUpdate`. Для регистрации обработчика используется `runtime.Simulation.CommandDispatcher`.
-
-## Детерминированное состояние
-
-Runtime автоматически регистрирует ECS World и настройки физики как детерминированное состояние. Для включения дополнительного игрового состояния в хеш симуляции зарегистрируй собственную реализацию `IDeterministicState` до `runtime.Initialize()`.
-
-```csharp
-runtime.Simulation.RegisterDeterministicState(gameState);
-```
-
-После инициализации текущее детерминированное состояние можно получить через:
-
-```csharp
-var hash = runtime.GetStateHash();
-```
-
-
-
-# 4. Transform
-
-Transform вынесен в отдельный модуль Engine.Transform.
-
-Для 2D используется Transform2D.
-
-~~~csharp
-var transform =
-    new Transform2D(
-        new Vector2(
-            100.0f,
-            50.0f));
-~~~
-
-Основные свойства:
-
-~~~text
-Position
-Rotation
-Scale
-~~~
-
-В ECS:
-
-~~~csharp
-ref var transform =
-    ref world.Get<Transform2D>(
-        entity);
-
-transform.Position =
-    new Vector2(
-        200.0f,
-        100.0f);
-
-transform.Rotation =
-    0.5f;
-
-transform.Scale =
-    new Vector2(
-        2.0f,
-        2.0f);
-~~~
-
-Transform не ограничен rendering. Он может использоваться physics, audio, gameplay и editor.
-
----
-
-# 5. Camera2D
-
-Camera находится в Engine.Camera.
-
-Создание:
-
-~~~csharp
-var camera =
-    new Camera2D(
-        new Vector2(
-            1280.0f,
-            720.0f));
-~~~
-
-Положение и zoom:
-
-~~~csharp
-camera.Position =
-    new Vector2(
-        100.0f,
-        50.0f);
-
-camera.Zoom =
-    2.0f;
-~~~
-
-World → screen:
-
-~~~csharp
-var screen =
-    camera.WorldToScreen(
-        worldPosition);
-~~~
-
-Screen → world:
-
-~~~csharp
-var world =
-    camera.ScreenToWorld(
-        screenPosition);
-~~~
-
-Culling:
-
-~~~csharp
-if (camera.IsVisible(bounds))
-{
-    // объект может быть отрисован
-}
-~~~
-
-При resize:
-
-~~~csharp
-camera.SetViewportSize(
-    viewportSize);
-~~~
-
----
-
-# 6. Graphics
-
-Главная abstraction:
-
-~~~csharp
-IGraphicsDevice graphics
-~~~
-
-Она предоставляет:
-
-~~~text
-Textures
-Fonts
-Buffers
-Shaders
-RenderTargets
-Pipeline
-~~~
-
-Frame lifecycle:
-
-~~~csharp
-graphics.BeginFrame();
-
-// submit render commands
-
-graphics.EndFrame();
-~~~
-
-Команда:
-
-~~~csharp
-graphics.Submit(
-    command);
-~~~
-
-Render command содержит layer. Pipeline выбирает commands для каждого pass по layer range.
-
----
-
-# 7. Render Pipeline
-
-Pipeline:
-
-~~~csharp
-graphics.Pipeline
-~~~
-
-Очистка:
-
-~~~csharp
-graphics.Pipeline.Clear();
-~~~
-
-Добавление pass:
-
-~~~csharp
-graphics.Pipeline.AddPass(
-    new RenderPass(
-        "World",
-        renderTarget,
-        RenderState.Default,
-        true,
-        layers));
-~~~
-
-Pass выполняются последовательно:
-
-~~~text
-Render Queue
-    ↓
-Pass 1
-    ↓
-Pass 2
-    ↓
-Pass 3
-    ↓
-Backbuffer
-~~~
-
-Render target можно использовать как промежуточный результат следующего pass.
-
----
-
-# 8. Graphics2D
-
-2D-specific rendering находится в assembly Engine.Graphics.2D.
-
-Общие graphics contracts остаются в Engine.Graphics.
-
-Готовые 2D passes:
-
-~~~csharp
-RenderPass2D.Default
-RenderPass2D.World
-RenderPass2D.Ui
-RenderPass2D.Debug
-RenderPass2D.Present
-~~~
-
-2D layer содержит mechanisms для sprites, tilemaps и world textures.
-
----
-
-# 9. Physics
-
-Physics доступен через:
-
-~~~csharp
-runtime.Physics
-~~~
-
-Обычный игровой объект может объединять:
-
-~~~text
-Transform2D
-PhysicsBody2D
-Collider2D
-~~~
-
-Physics работает в fixed update.
-
-Доступны:
-
-- collision detection;
-- collision resolution;
-- joints;
-- sleeping;
-- contact events;
-- physics queries.
-
-Contacts:
-
-~~~csharp
-var contacts =
-    runtime.Physics.Contacts;
-~~~
-
-Contact events:
-
-~~~csharp
-var events =
-    runtime.Physics.ContactEvents;
-~~~
-
-Разовые пространственные запросы выполняются через PhysicsQuery2D.
-
----
-
-# 10. Audio
-
-Audio находится в Engine.Audio.
-
-В runtime:
-
-~~~csharp
-var audio =
-    runtime.Services.Audio;
-~~~
-
-Загрузка:
-
-~~~csharp
-var buffer =
-    audio.Load(
-        new AssetPath(
-            "Sounds/explosion.wav"));
-~~~
-
-Source:
-
-~~~csharp
-using var source =
-    audio.CreateSource(
-        buffer);
-
-source.SetGain(
-    0.8f);
-
-source.SetLooping(
-    true);
-
-source.Play();
-~~~
-
-Shortcut:
-
-~~~csharp
-using var source =
-    audio.Play(
-        buffer);
-~~~
-
-Returned IAudioSource является ресурсом, которым управляет вызывающая сторона.
-
-Listener:
-
-~~~csharp
-using var listener =
-    audio.CreateListener();
-
-listener.SetPosition(
-    listenerPosition);
-
-listener.SetOrientation(
-    forward,
-    up);
-~~~
-
-OpenAL является backend и находится в Engine.Audio.OpenAL.
-
----
-
-# 11. Input
-
-Главный интерфейс:
-
-~~~csharp
-IInput
-~~~
-
-В runtime:
-
-~~~csharp
-var input =
-    runtime.Services.Input;
-~~~
-
-Состояние action:
-
-~~~csharp
-if (input.IsDown(move))
-{
-    // action активен
-}
-
-if (input.IsPressed(jump))
-{
-    // нажатие в текущем frame
-}
-
-if (input.IsReleased(jump))
-{
-    // отпускание в текущем frame
-}
-~~~
-
-Analog value:
-
-~~~csharp
-var value =
-    input.GetValue(
-        moveHorizontal);
-~~~
-
-Actions связываются с physical input через InputActionMap:
-
-~~~csharp
-var actions =
-    new InputActionMap();
-
-actions.Bind(
-    moveLeft,
-    leftBinding);
-
-actions.Bind(
-    moveRight,
-    rightBinding);
-~~~
-
-Gameplay system работает с semantic actions, а не с конкретным backend input API.
-
----
-
-# 12. Content
-
-Content находится в Engine.Content.
-
-Через runtime:
-
-~~~csharp
-var content =
-    runtime.Services.Content;
-~~~
-
-Загрузка:
-
-~~~csharp
-var asset =
-    content.Load<MyAsset>(
-        path);
-~~~
-
-Проверка cache:
-
-~~~csharp
-if (content.IsLoaded<MyAsset>(path))
-{
-    // asset loaded
-}
-~~~
-
-Unload:
-
-~~~csharp
-content.Unload<MyAsset>(
-    path);
-~~~
-
-Reload:
-
-~~~csharp
-content.Reload<MyAsset>(
-    path);
-~~~
-
-Async:
-
-~~~csharp
-var asset =
-    await content.LoadAsync<MyAsset>(
-        path,
-        cancellationToken);
-~~~
-
-Для собственного типа можно зарегистрировать `IContentLoader<T>`. Загрузчик выбирается по типу результата и метаданным файла из каталога (`ContentAsset.Extension`). Для одной пары «тип результата + файл» должен подходить ровно один загрузчик.
-
-## Подключение Content
-
-`IAssetSource` читает байты, `IContentCatalog` описывает доступные пути, а `ContentLoaderRegistry` сопоставляет файлы с загрузчиками. Для файловой структуры можно использовать `FileAssetSource` и `FileContentCatalog`:
-
-~~~csharp
-var assetRoot =
-    Path.Combine(
-        AppContext.BaseDirectory,
-        "Assets");
-
-var loaders =
-    new ContentLoaderRegistry();
-
-loaders.Register(
-    new PlainTextContentLoader());
-
-using var content =
-    new ContentManager(
-        new FileAssetSource(assetRoot),
-        new FileContentCatalog(assetRoot),
-        loaders);
-
-var path =
-    new AssetPath("Text/Intro.txt");
-
-var intro =
-    content.Load<TextDocument>(path);
-~~~
-
-`FileContentCatalog` сканирует корневую папку и её подкаталоги. `AssetPath` задаётся относительно этого корня; файл должен присутствовать в каталоге.
-
-## Пример собственного загрузчика
-
-~~~csharp
-using System.Text;
-using Engine.Content.Assets;
-using Engine.Content.Loading;
-using Engine.Core.Assets;
-
-public sealed record TextDocument(string Content);
-
-public sealed class PlainTextContentLoader :
-    IContentLoader<TextDocument>
-{
-    public Type AssetType => typeof(TextDocument);
-
-    public bool CanLoad(ContentAsset asset) =>
-        asset.Extension.Equals(
-            ".txt",
-            StringComparison.OrdinalIgnoreCase);
-
-    public TextDocument Load(
-        AssetPath path,
-        IContentLoadContext context)
-    {
-        var bytes = context.ReadBytes(path);
-        return new TextDocument(
-            Encoding.UTF8.GetString(bytes.Span));
-    }
-
-    object IContentLoader.Load(
-        AssetPath path,
-        IContentLoadContext context) =>
-        Load(path, context);
-}
-~~~
-
-Загрузчик можно зарегистрировать в `ContentLoaderRegistry` до создания `ContentManager`, либо вызвать `Register` у самого `ContentManager` до первой загрузки соответствующего типа.
-
-## Cache и время жизни
-
-- `Load<T>` загружает ресурс при необходимости и возвращает закешированный экземпляр при повторном запросе.
-- Каждый успешный внешний вызов `Load<T>` учитывается как отдельная ссылка. Освобождай её соответствующим вызовом `Unload<T>(path)`.
-- `Unload<T>` возвращает `false`, если ресурс не загружен или у него нет внешней ссылки для освобождения. Ресурс удаляется из cache, когда больше не остаётся внешних ссылок и ссылок-зависимостей.
-- `Reload<T>` перезагружает уже загруженный ресурс; `LoadAsync<T>` предоставляет асинхронную загрузку.
-- `ContentManager.Dispose()` очищает cache и вызывает `Dispose()` у закешированных ресурсов, реализующих `IDisposable`.
-
-Не смешивай владение ресурсом и обычную ссылку на объект: после освобождения последней ссылки Content может удалить ресурс, если на него не ссылаются другие загруженные ресурсы.
-
----
-
-# 13. World и Chunks
-
-World доступен через:
-
-~~~csharp
-runtime.World
-~~~
-
-Создание chunk:
-
-~~~csharp
-var chunk =
-    world.CreateChunk(
-        chunkPosition);
-~~~
-
-Получение:
-
-~~~csharp
-if (world.TryGetChunk(
-        chunkPosition,
-        out var chunk))
-{
-    // use chunk
-}
-~~~
-
-Или:
-
-~~~csharp
-var chunk =
-    world.GetOrCreateChunk(
-        chunkPosition);
-~~~
-
-World также предоставляет преобразование world coordinates в chunk/local coordinates.
-
-Важное правило: spatial interest и simulation activity — независимые понятия. Далёкий chunk не обязан останавливаться только из-за отсутствия игрока рядом.
-
----
-
-# 14. Networking
-
-Networking находится в Engine.Networking.
-
-Основные уровни:
-
-~~~text
-Transport
-Session
-Channels
-Topology
-Lockstep
-Replication
-~~~
-
-Gameplay code должен работать с networking mechanisms и contracts, а не напрямую зависеть от конкретной transport implementation.
-
-Для state-driven multiplayer используются deterministic simulation и state hashes.
-
-Replication вынесена в Engine.Networking.Replication.
-
----
-
-# 15. UI
-
-UI находится в Engine.UI.
-
-Базовая модель:
-
-~~~text
-UiRoot
-  └── UiContainer
-       ├── UiLabel
-       ├── UiButton
-       └── ...
-~~~
-
-Основной base class:
-
-~~~csharp
-UiWidget
-~~~
-
-Основные свойства:
-
-~~~csharp
-widget.Visible = true;
-widget.Enabled = true;
-widget.Width = 200.0f;
-widget.Height = 40.0f;
-~~~
-
-UI использует retained-mode hierarchy и layout measurement/arrangement.
-
-Конкретный экран или gameplay UI создаётся приложением или игрой.
-
----
-
-# 16. Tooling и Validation
-
-При включённом tooling runtime может предоставлять:
-
-~~~text
-Inspection
-Debug Console
-Profiler
-Validation
-Debug Visualization
-Debug Execution
-~~~
-
-Например:
-
-~~~csharp
-runtime.Validation
-runtime.Inspection
-runtime.Console
-runtime.Profiler
-~~~
-
-Некоторые сервисы optional, потому что tooling может быть отключён через EngineRuntimeOptions.
-
----
-
-# 17. Resource Lifetime
-
-Большинство runtime resources имеют явный lifecycle.
-
-Пример:
-
-~~~csharp
-using var source =
-    audio.CreateSource(
-        buffer);
-~~~
-
-Важно различать:
-
-~~~text
-C# reference
-resource ownership
-backend lifetime
-~~~
-
-Перед Dispose или Unload необходимо понимать ownership конкретного объекта.
-
-Особенно это важно для graphics и audio resources.
-
----
-
-# 18. Backend Independence
-
-Игровой код должен по возможности работать с:
-
-~~~text
-IGraphicsDevice
-IInput
-IAudioManager
-IContentManager
-~~~
-
-а не с:
-
-~~~text
-OpenGL*
-OpenAL*
-Silk.NET*
-~~~
-
-Concrete backend создаётся на composition boundary приложения.
-
-Например:
-
-~~~text
-Application composition
-        ↓
-OpenGL / OpenAL / Silk.NET
-        ↓
-Engine abstractions
-        ↓
-Game systems
-~~~
-
----
-
-# 19. What belongs to Game
-
-Game владеет:
-
-- components;
-- gameplay systems;
-- game commands;
-- game events;
-- game rules;
-- game state;
-- game-specific assets;
-- game-specific networking policy.
-
-Engine владеет:
-
-- mechanisms;
-- infrastructure;
-- generic algorithms;
-- backend contracts;
-- runtime services;
-- lifecycle infrastructure.
-
----
-
-# 20. Main Rule
-
-При добавлении нового поведения задавай вопрос:
-
-> **Это механизм, полезный разным играм, или смысл конкретной игры?**
-
-Механизм может относиться к Engine.
-
-Смысл конкретной игры должен оставаться в Game.
-
-Это основной критерий сохранения VibeEngine2 универсальным и предотвращения game-specific API в Engine.
+`QueryReadOnly<T>()` предоставляет компонент по ссылке только для чтения. Это подходящий вариант для логики, которой необходимо анализировать состояние игровых объектов, не изменяя его.
+
+### Запрос по нескольким компонентам
+
+Если системе необходимы сразу несколько компонентов одной сущности, можно использовать `Query<T1, T2>()` или `QueryReadOnly<T1, T2>()`.
+
+Такие запросы возвращают только сущности, у которых присутствуют оба указанных компонента.
+
+### Как выбрать Query
+
+- `Query<T>()` — когда компонент нужно читать и изменять.
+- `QueryReadOnly<T>()` — когда компонент используется только для чтения.
+- Запросы по нескольким типам компонентов — когда обработка зависит от совместного наличия нескольких компонентов у одной сущности.
+
+Queries удобны для массовой обработки данных и часто используются внутри игровых систем, которые будут рассмотрены в следующем разделе.
+
+### 3. Игровые системы
+- `IUpdateSystem` и `IFixedUpdateSystem`.
+- Контексты обновления и время.
+- Регистрация игровых систем.
+- Фазы выполнения и зависимости между системами.
+
+### 4. Simulation
+- Фиксированные шаги симуляции.
+- Команды и события.
+- Детерминированное состояние.
+- Хеширование состояния симуляции.
+
+### 5. Интеграция Runtime и игровой цикл
+- `EngineRuntime` и его назначение.
+- Подключение сервисов.
+- Инициализация, обновление и завершение работы.
+- Ответственность игрового приложения и движка.
+
+### 6. World и Chunks
+- Пространственный мир.
+- Создание и получение чанков.
+- Координаты мира и чанков.
+- Работа с игровым пространством.
+
+### 7. Transform и Hierarchy
+- Пространственные преобразования.
+- Local и World Transform.
+- Позиция, поворот и масштаб.
+- Использование Transform в ECS.
+
+### 8. Physics
+- Физические тела и коллайдеры.
+- Настройки физики.
+- Контакты и события столкновений.
+- Пространственные запросы.
+
+## Часть II. Сервисы игры
+
+### 9. Input
+- Получение пользовательского ввода.
+- Действия и привязки ввода.
+- Клавиатура, мышь и аналоговые значения.
+
+### 10. Camera
+- Работа с `Camera2D`.
+- Преобразование координат.
+- Масштабирование и изменение viewport.
+
+### 11. Graphics
+- Графическое устройство.
+- Текстуры, шрифты и другие ресурсы.
+- Render commands и их отправка.
+
+### 12. Render Pipeline и Graphics2D
+- Render passes и слои.
+- Организация этапов рендеринга.
+- 2D-рендеринг, спрайты и тайловые карты.
+
+### 13. Content и Assets
+- Пути к ресурсам.
+- Каталоги и источники ассетов.
+- Загрузчики и регистрация собственных типов.
+- Кэширование и освобождение ресурсов.
+
+### 14. Audio
+- Загрузка аудиоданных.
+- Воспроизведение и управление источниками.
+- Audio listener и пространственные параметры.
+
+### 15. UI
+- Дерево UI-элементов.
+- Layout и размеры.
+- Обработка взаимодействия.
+- Создание игровых экранов и HUD.
+
+### 16. Scripting
+- Определения скриптов.
+- Регистрация и создание экземпляров.
+- Назначение скриптов сущностям.
+- Выполнение скриптов и обработка ошибок.
+
+## Часть III. Дополнительные возможности
+
+### 17. Serialization и Save/Load
+- Сериализация данных.
+- Сохранение и восстановление состояния игры.
+- Регистрация сериализаторов и сохраняемых состояний.
+
+### 18. Networking и Replication
+- Сетевые абстракции.
+- Обмен командами и состоянием.
+- Lockstep и проверка рассинхронизации.
+- Репликация ECS.
+
+### 19. Диагностика и инструменты
+- Логирование и диагностика ошибок.
+- Engine Console.
+- Inspection, Validation и Profiler.
+- Визуализация отладки.
+
+### 20. Владение ресурсами и время жизни
+- `IDisposable`.
+- Владение и освобождение ресурсов.
+- Правила работы с кэшем и зависимостями.
+
+### 21. Независимость от backend
+- Использование интерфейсов движка.
+- Разделение общих API и конкретных реализаций.
+- Какие зависимости допустимы в игровом коде.
+
+### 22. Практические сценарии
+- Минимальная структура игрового проекта.
+- Подключение собственных компонентов и систем.
+- Сборка основных возможностей в единый игровой процесс.

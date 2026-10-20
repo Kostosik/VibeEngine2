@@ -14,12 +14,15 @@ namespace Engine.Hosting.Desktop;
 
 public static class DesktopGameHost
 {
-    public static void Run<TGame>(
-        Func<EngineRuntime, TGame> createGame,
+    /// <summary>
+    /// Runs an application using the standard desktop services.
+    /// The application controls its own lifecycle and runtime usage.
+    /// </summary>
+    public static void Run(
+        Func<DesktopGameHostContext, IApplication> createApplication,
         DesktopGameHostOptions? options = null)
-        where TGame : EngineGame
     {
-        ArgumentNullException.ThrowIfNull(createGame);
+        ArgumentNullException.ThrowIfNull(createApplication);
 
         options ??= new DesktopGameHostOptions();
 
@@ -65,6 +68,9 @@ public static class DesktopGameHost
         contentLoaders.Register(
             new ImageTextureContentLoader());
 
+        options.ConfigureContentLoaders?.Invoke(
+            contentLoaders);
+
         using var content = new ContentManager(
             assetSource,
             contentCatalog,
@@ -74,7 +80,8 @@ public static class DesktopGameHost
             assetSource,
             new OpenALAudioDevice());
 
-        var inputActions = new InputActionMap();
+        var inputActions =
+            options.InputActions ?? new InputActionMap();
 
         var input = new ActionInput(
             window.InputBackend,
@@ -92,12 +99,21 @@ public static class DesktopGameHost
             options.RuntimeOptions,
             runtimeServices);
 
-        var game = createGame(runtime)
+        using var context = new DesktopGameHostContext(
+            runtime,
+            assetSource,
+            content,
+            inputActions,
+            window);
+
+        var application = createApplication(context)
             ?? throw new InvalidOperationException(
-                "The game factory returned null.");
+                "The application factory returned null.");
+
+        var hostedApplication = new HostedApplication(application);
 
         var gameLoop = new GameLoop(
-            game,
+            hostedApplication,
             runtime.SimulationRate);
 
         if (runtime.DebugRegistry is not null)
@@ -108,14 +124,101 @@ public static class DesktopGameHost
         try
         {
             gameLoop.Initialize();
+
             window.Run(gameLoop);
         }
         finally
         {
-            if (gameLoop.IsInitialized &&
-                !gameLoop.IsShutdown)
+            try
             {
-                gameLoop.Shutdown();
+                if (gameLoop.IsInitialized &&
+                    !gameLoop.IsShutdown)
+                {
+                    gameLoop.Shutdown();
+                }
+            }
+            finally
+            {
+                hostedApplication.Dispose();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Compatibility overload for games using EngineGame.
+    /// </summary>
+    public static void Run<TGame>(
+        Func<EngineRuntime, TGame> createGame,
+        DesktopGameHostOptions? options = null)
+        where TGame : EngineGame
+    {
+        ArgumentNullException.ThrowIfNull(createGame);
+
+        Run(
+            context => createGame(context.Runtime),
+            options);
+    }
+
+    private sealed class HostedApplication :
+    IApplication,
+    IDisposable
+    {
+        private readonly IApplication _inner;
+
+        private bool _shutdown;
+        private bool _disposed;
+
+        public HostedApplication(IApplication inner)
+        {
+            ArgumentNullException.ThrowIfNull(inner);
+            _inner = inner;
+        }
+
+        public void Initialize() =>
+            _inner.Initialize();
+
+        public void Update(
+            Engine.Core.Time.TimeSnapshot time) =>
+            _inner.Update(time);
+
+        public void FixedUpdate(
+            Engine.Core.Time.SimulationTime time) =>
+            _inner.FixedUpdate(time);
+
+        public void Render(double interpolationAlpha) =>
+            _inner.Render(interpolationAlpha);
+
+        public void Shutdown()
+        {
+            if (_shutdown)
+            {
+                return;
+            }
+
+            _shutdown = true;
+
+            try
+            {
+                _inner.Shutdown();
+            }
+            finally
+            {
+                Dispose();
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+
+            if (_inner is IDisposable disposable)
+            {
+                disposable.Dispose();
             }
         }
     }

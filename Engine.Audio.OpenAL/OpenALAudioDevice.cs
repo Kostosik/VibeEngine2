@@ -35,8 +35,10 @@ public sealed class OpenALAudioDevice : IAudioDevice
     public OpenALAudioDevice()
     {
         _al = AL.GetApi(
-    soft: true);
-        _alc = ALContext.GetApi();
+            soft: true);
+
+        _alc = ALContext.GetApi(
+            soft: true);
 
         try
         {

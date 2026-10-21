@@ -262,7 +262,8 @@ static void Benchmark(
     string name,
     int warmupIterations,
     int iterations,
-    Action action)
+    Action action,
+    bool measureCurrentThreadAllocations = false)
 {
     const int sampleCount = 5;
 
@@ -298,8 +299,9 @@ static void Benchmark(
     {
         // false: не просим счётчик выделений инициировать
         // принудительную сборку мусора.
-        var allocatedBefore =
-            GC.GetTotalAllocatedBytes(precise: false);
+        var allocatedBefore = measureCurrentThreadAllocations
+            ? GC.GetAllocatedBytesForCurrentThread()
+            : GC.GetTotalAllocatedBytes(precise: true);
 
         var gen0Before = GC.CollectionCount(0);
         var gen1Before = GC.CollectionCount(1);
@@ -314,8 +316,9 @@ static void Benchmark(
 
         stopwatch.Stop();
 
-        var allocatedAfter =
-            GC.GetTotalAllocatedBytes(precise: false);
+        var allocatedAfter = measureCurrentThreadAllocations
+            ? GC.GetAllocatedBytesForCurrentThread()
+            : GC.GetTotalAllocatedBytes(precise: true);
 
         timesMsPerOperation[sample] =
             stopwatch.Elapsed.TotalMilliseconds / iterations;
@@ -1055,7 +1058,7 @@ static void BenchmarkContentPipeline()
                     }
 
                     GC.KeepAlive(asset);
-                });
+                }, measureCurrentThreadAllocations: true);
 
             if (!content.Unload<ProbeContentAsset>(cachedPath))
             {

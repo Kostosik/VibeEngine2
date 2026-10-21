@@ -20,6 +20,12 @@ public sealed class EditorMainShell :
     private UiButton _validateButton;
     private readonly UiPanel _menuBar;
     private readonly UiPanel _toolbar;
+    private UiButton _playButton;
+    private UiButton _stopButton;
+    private UiButton _restartButton;
+
+    private bool _isGameRunning;
+
     private readonly UiPanel _workspace;
     private UiButton _closeButton;
     private readonly UiLabel _documentLabel;
@@ -32,6 +38,9 @@ public sealed class EditorMainShell :
     public event Action? NewProjectRequested;
     public event Action? OpenProjectRequested;
     public event Action? OpenProjectInIdeRequested;
+    public event Action? PlayRequested;
+    public event Action? StopRequested;
+    public event Action? RestartRequested;
     public bool IsUiMode =>
         Editor.Session.ActiveEditorDocument
             is EditorUiDocument;
@@ -427,7 +436,7 @@ public sealed class EditorMainShell :
 
         _documentLabel.Text =
             $"{projectStatus} • {documentStatus}";
-
+        UpdateGameControls();
         _workspaceView.Refresh();
         _uiWorkspaceView.Refresh();
 
@@ -727,17 +736,34 @@ public sealed class EditorMainShell :
         }
 
         AddButton("New Project", 112.0f,
-    () => NewProjectRequested?.Invoke());
+        () => NewProjectRequested?.Invoke());
 
         AddButton(
-    "Open Project",
-    112.0f,
-    () => OpenProjectRequested?.Invoke());
+        "Open Project",
+        112.0f,
+        () => OpenProjectRequested?.Invoke());
 
         AddButton(
-    "Open IDE",
-    88.0f,
-    () => OpenProjectInIdeRequested?.Invoke());
+        "Open IDE",
+        88.0f,
+        () => OpenProjectInIdeRequested?.Invoke());
+
+        AddSeparator();
+
+        _playButton = AddButton(
+            "Play",
+            64.0f,
+            () => PlayRequested?.Invoke());
+
+        _stopButton = AddButton(
+            "Stop",
+            64.0f,
+            () => StopRequested?.Invoke());
+
+        _restartButton = AddButton(
+            "Restart",
+            80.0f,
+            () => RestartRequested?.Invoke());
 
         AddButton("New Doc", 64.0f,
             () => NewRequested?.Invoke());
@@ -785,5 +811,33 @@ public sealed class EditorMainShell :
         panel.AddChild(buttons);
 
         return panel;
+    }
+
+
+    public void SetGameRunning(bool isRunning)
+    {
+        if (_isGameRunning == isRunning)
+        {
+            return;
+        }
+
+        _isGameRunning = isRunning;
+
+        UpdateGameControls();
+    }
+
+    private void UpdateGameControls()
+    {
+        var hasProject =
+            Editor.ActiveGameProject is not null;
+
+        _playButton.Enabled =
+            hasProject && !_isGameRunning;
+
+        _stopButton.Enabled =
+            hasProject && _isGameRunning;
+
+        _restartButton.Enabled =
+            hasProject && _isGameRunning;
     }
 }

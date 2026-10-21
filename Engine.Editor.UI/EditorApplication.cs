@@ -52,7 +52,7 @@ public sealed class EditorApplication :
     _documentFiles;
 
     private readonly ProjectCreationService _projectCreationService = new();
-
+    private readonly GameProjectRunner _gameProjectRunner = new();
     private readonly DebugConsole? _debugConsole;
 
     private readonly EditorDocumentCloseDialog
@@ -252,12 +252,17 @@ public sealed class EditorApplication :
             RequestNewDocument;
 
         MainShell.NewProjectRequested +=
-    RequestNewProject;
+            RequestNewProject;
 
         MainShell.OpenProjectRequested +=
-    RequestOpenProject;
+            RequestOpenProject;
         MainShell.OpenProjectInIdeRequested +=
-    RequestOpenProjectInIde;
+            RequestOpenProjectInIde;
+
+        MainShell.PlayRequested += StartGame;
+        MainShell.StopRequested += StopGame;
+        MainShell.RestartRequested += RestartGame;
+
         MainShell.OpenRequested +=
             RequestOpenDocument;
 
@@ -596,13 +601,17 @@ public sealed class EditorApplication :
         RefreshIfNeeded();
     }
 
-    public void Update(
-        TimeSnapshot time)
+    public void Update(TimeSnapshot time)
     {
         Input.Update();
 
+        DrainGameOutput();
+
+        MainShell.SetGameRunning(
+            _gameProjectRunner.IsRunning);
+
         if (_textInput?.IsPressed(
-        TextInputKey.F1) == true)
+            TextInputKey.F1) == true)
         {
             ToggleConsole();
         }
@@ -628,8 +637,11 @@ public sealed class EditorApplication :
 
     public void Shutdown()
     {
+        _gameProjectRunner.Dispose();
         MainShell.ReleaseResources();
-
+        MainShell.PlayRequested -= StartGame;
+        MainShell.StopRequested -= StopGame;
+        MainShell.RestartRequested -= RestartGame;
         _newProjectDialog.CreateRequested -= CreateProject;
         MainShell.SaveAllRequested -=
     SaveAllDocuments;
@@ -953,6 +965,119 @@ public sealed class EditorApplication :
                     $"Unsupported document type: " +
                     $"'{Path.GetExtension(normalizedPath)}'. " +
                     "Supported extensions are .world and .ui.");
+        }
+    }
+
+    private void StartGame()
+    {
+        var project = Editor.ActiveGameProject;
+
+        if (project is null)
+        {
+            _debugConsole?.WriteError(
+                "Open a game project first.");
+
+            return;
+        }
+
+        try
+        {
+            _gameProjectRunner.Start(project);
+        }
+        catch (Exception exception)
+        {
+            _debugConsole?.WriteException(
+                exception,
+                "Failed to start game.");
+
+            _errorDialog.ShowError(
+                "Failed to start game.\n" +
+                exception.Message);
+        }
+
+        MainShell.SetGameRunning(
+            _gameProjectRunner.IsRunning);
+    }
+
+    private void StopGame()
+    {
+        try
+        {
+            _gameProjectRunner.Stop();
+        }
+        catch (Exception exception)
+        {
+            _debugConsole?.WriteException(
+                exception,
+                "Failed to stop game.");
+
+            _errorDialog.ShowError(
+                "Failed to stop game.\n" +
+                exception.Message);
+        }
+        finally
+        {
+            MainShell.SetGameRunning(
+                _gameProjectRunner.IsRunning);
+        }
+    }
+
+    private void RestartGame()
+    {
+        var project = Editor.ActiveGameProject;
+
+        if (project is null)
+        {
+            _debugConsole?.WriteError(
+                "Open a game project first.");
+
+            return;
+        }
+
+        try
+        {
+            if (_gameProjectRunner.IsRunning)
+            {
+                _gameProjectRunner.Stop();
+            }
+
+            _gameProjectRunner.Start(project);
+        }
+        catch (Exception exception)
+        {
+            _debugConsole?.WriteException(
+                exception,
+                "Failed to restart game.");
+
+            _errorDialog.ShowError(
+                "Failed to restart game.\n" +
+                exception.Message);
+        }
+
+        MainShell.SetGameRunning(
+            _gameProjectRunner.IsRunning);
+    }
+
+    private void DrainGameOutput()
+    {
+        while (_gameProjectRunner.TryDequeueOutput(
+            out var output))
+        {
+            if (output is null)
+            {
+                continue;
+            }
+
+            if (output.IsError)
+            {
+                _debugConsole?.WriteError(
+                    output.Message);
+            }
+            else
+            {
+                _debugConsole?.WriteLine(
+                    output.Message);
+            }
         }
     }
 

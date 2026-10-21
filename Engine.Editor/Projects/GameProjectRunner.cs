@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Text;
 
 namespace Engine.Editor.Projects;
 
@@ -15,6 +16,7 @@ public sealed class GameProjectRunner : IDisposable
     private readonly ConcurrentQueue<GameProjectOutput> _output = new();
 
     private Process? _process;
+    private bool _stopRequested;
     private bool _disposed;
 
     public bool IsRunning
@@ -39,11 +41,10 @@ public sealed class GameProjectRunner : IDisposable
         }
     }
 
-    public void Start(string projectDirectory)
+    public void Start(GameProject project)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-
-        ArgumentException.ThrowIfNullOrWhiteSpace(projectDirectory);
+        ArgumentNullException.ThrowIfNull(project);
 
         if (IsRunning)
         {
@@ -53,7 +54,11 @@ public sealed class GameProjectRunner : IDisposable
 
         ReleaseExitedProcess();
 
-        var fullDirectory = Path.GetFullPath(projectDirectory);
+        var fullDirectory = Path.GetFullPath(
+            project.RootDirectory);
+
+        var projectFilePath = Path.GetFullPath(
+            project.ProjectFilePath);
 
         if (!Directory.Exists(fullDirectory))
         {
@@ -61,15 +66,11 @@ public sealed class GameProjectRunner : IDisposable
                 $"Project directory does not exist: {fullDirectory}");
         }
 
-        var projectFiles = Directory.GetFiles(
-            fullDirectory,
-            "*.csproj",
-            SearchOption.TopDirectoryOnly);
-
-        if (projectFiles.Length != 1)
+        if (!File.Exists(projectFilePath))
         {
-            throw new InvalidOperationException(
-                "The project directory must contain exactly one .csproj file.");
+            throw new FileNotFoundException(
+                "Startup project file was not found.",
+                projectFilePath);
         }
 
         var startInfo = new ProcessStartInfo
@@ -79,12 +80,18 @@ public sealed class GameProjectRunner : IDisposable
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
             CreateNoWindow = true
         };
 
+        // Задаём язык интерфейса .NET CLI.
+        // Это также помогает обеспечить UTF-8 для его вывода.
+        startInfo.Environment["DOTNET_CLI_UI_LANGUAGE"] = "ru-RU";
+
         startInfo.ArgumentList.Add("run");
         startInfo.ArgumentList.Add("--project");
-        startInfo.ArgumentList.Add(projectFiles[0]);
+        startInfo.ArgumentList.Add(projectFilePath);
         startInfo.ArgumentList.Add("--configuration");
         startInfo.ArgumentList.Add("Debug");
         startInfo.ArgumentList.Add("--no-launch-profile");
@@ -117,10 +124,12 @@ public sealed class GameProjectRunner : IDisposable
         {
             try
             {
+                var exitCode = process.ExitCode;
+
                 _output.Enqueue(
                     new GameProjectOutput(
-                        false,
-                        $"Game process exited with code {process.ExitCode}."));
+                        exitCode != 0 && !_stopRequested,
+                        $"Game process exited with code {exitCode}."));
             }
             catch (InvalidOperationException)
             {
@@ -130,6 +139,7 @@ public sealed class GameProjectRunner : IDisposable
 
         try
         {
+            _stopRequested = false;
             if (!process.Start())
             {
                 throw new InvalidOperationException(
@@ -141,7 +151,7 @@ public sealed class GameProjectRunner : IDisposable
             _output.Enqueue(
                 new GameProjectOutput(
                     false,
-                    $"Starting game project: {Path.GetFileName(fullDirectory)}"));
+                    $"Starting game project: {project.Name}"));
 
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
@@ -181,21 +191,36 @@ public sealed class GameProjectRunner : IDisposable
 
         try
         {
-            if (process.HasExited)
+            if (!process.HasExited)
             {
-                return;
+                _stopRequested = true;
+                process.Kill(entireProcessTree: true);
+
+                _output.Enqueue(
+                    new GameProjectOutput(
+                        false,
+                        "Stopping game process."));
             }
 
-            process.Kill(entireProcessTree: true);
-
-            _output.Enqueue(
-                new GameProjectOutput(
-                    false,
-                    "Stopping game process."));
+            // Дожидаемся завершения процесса и обработки
+            // асинхронного вывода из перенаправленных потоков.
+            process.WaitForExit();
         }
         catch (InvalidOperationException)
         {
-            // The process may have exited before Stop was called.
+            // Процесс мог завершиться до вызова Stop.
+        }
+        finally
+        {
+            if (process.HasExited)
+            {
+                if (ReferenceEquals(_process, process))
+                {
+                    _process = null;
+                }
+
+                process.Dispose();
+            }
         }
     }
 
@@ -235,7 +260,7 @@ public sealed class GameProjectRunner : IDisposable
         {
             return;
         }
-
+        _stopRequested = true;
         try
         {
             if (!process.HasExited)

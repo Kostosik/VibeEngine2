@@ -438,6 +438,32 @@ public sealed class ProjectCreationService
         lines.Add(
             "    </None>");
 
+        // Copy project scenes to the game output directory.
+        lines.Add(
+            "    <None Update=\"Scenes/**/*\">");
+
+        lines.Add(
+            "      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>");
+
+        lines.Add(
+            "      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>");
+
+        lines.Add(
+            "    </None>");
+
+        // Copy the project manifest beside the game executable.
+        lines.Add(
+            "    <None Update=\"*.vibeproject\">");
+
+        lines.Add(
+            "      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>");
+
+        lines.Add(
+            "      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>");
+
+        lines.Add(
+            "    </None>");
+
         lines.AddRange(
             new[]
             {
@@ -464,74 +490,209 @@ public sealed class ProjectCreationService
     }
 
     private static string CreateProgramContents(
-        string projectName)
+    string projectName)
     {
         var title =
             EscapeCSharpString(projectName);
 
+        var manifestFileName =
+            EscapeCSharpString(
+                $"{projectName}.vibeproject");
+
         return $$"""
-            using Engine.Hosting.Desktop;
-            using Engine.Runtime;
+        using System.Text.Json;
+        using Engine.Hosting.Desktop;
+        using Engine.Runtime;
 
-            namespace GameProject;
+        namespace GameProject;
 
-            internal static class Program
+        internal static class Program
+        {
+            private static void Main(string[] args)
             {
-                private static void Main(string[] args)
-                {
-                    DesktopGameHost.Run(
-                        runtime => new GameMain(runtime),
-                        new DesktopGameHostOptions
-                        {
-                            Title = "{{title}}"
-                        });
-                }
+                var startupScenePath =
+                    ResolveStartupScenePath(
+                        "{{manifestFileName}}");
+
+                DesktopGameHost.Run(
+                    runtime => new GameMain(
+                        runtime,
+                        startupScenePath),
+                    new DesktopGameHostOptions
+                    {
+                        Title = "{{title}}"
+                    });
             }
-            """ + Environment.NewLine;
+
+            private static string ResolveStartupScenePath(
+                string manifestFileName)
+            {
+                var projectDirectory =
+                    Path.GetFullPath(
+                        AppContext.BaseDirectory);
+
+                var manifestPath =
+                    Path.Combine(
+                        projectDirectory,
+                        manifestFileName);
+
+                if (!File.Exists(manifestPath))
+                {
+                    throw new FileNotFoundException(
+                        "Game project manifest was not found beside the executable.",
+                        manifestPath);
+                }
+
+                using var document =
+                    JsonDocument.Parse(
+                        File.ReadAllText(manifestPath));
+
+                var relativeScenePath =
+                    "Scenes/Main.world";
+
+                if (document.RootElement.TryGetProperty(
+                        "startupScene",
+                        out var startupSceneElement) &&
+                    startupSceneElement.ValueKind ==
+                        JsonValueKind.String)
+                {
+                    var configuredPath =
+                        startupSceneElement.GetString();
+
+                    if (!string.IsNullOrWhiteSpace(
+                            configuredPath))
+                    {
+                        relativeScenePath =
+                            configuredPath;
+                    }
+                }
+
+                if (Path.IsPathRooted(
+                        relativeScenePath))
+                {
+                    throw new InvalidDataException(
+                        "The startupScene path must be relative to the project directory.");
+                }
+
+                var fullScenePath =
+                    Path.GetFullPath(
+                        Path.Combine(
+                            projectDirectory,
+                            relativeScenePath));
+
+                var relativePath =
+                    Path.GetRelativePath(
+                        projectDirectory,
+                        fullScenePath);
+
+                if (IsOutsideProjectRoot(
+                        relativePath))
+                {
+                    throw new InvalidDataException(
+                        "The startupScene path cannot point outside the project directory.");
+                }
+
+                return fullScenePath;
+            }
+
+            private static bool IsOutsideProjectRoot(
+                string relativePath)
+            {
+                return Path.IsPathRooted(relativePath)
+                    || relativePath.Equals(
+                        "..",
+                        StringComparison.Ordinal)
+                    || relativePath.StartsWith(
+                        $"..{Path.DirectorySeparatorChar}",
+                        StringComparison.Ordinal)
+                    || relativePath.StartsWith(
+                        $"..{Path.AltDirectorySeparatorChar}",
+                        StringComparison.Ordinal);
+            }
+        }
+        """ + Environment.NewLine;
     }
 
     private static string CreateGameContents()
     {
         return """
-            using Engine.Core.Math;
-            using Engine.Graphics.Commands;
-            using Engine.Graphics.DebugGraphics;
-            using Engine.Runtime;
+        using Engine.Core.Math;
+        using Engine.Graphics.Commands;
+        using Engine.Graphics.DebugGraphics;
+        using Engine.Runtime;
+        using Engine.Serialization.SaveLoad.Ecs;
+        using Engine.Serialization.SaveLoad.Worlds;
 
-            namespace GameProject;
+        namespace GameProject;
 
-            internal sealed class GameMain : EngineGame
+        internal sealed class GameMain : EngineGame
+        {
+            private readonly string _startupScenePath;
+
+            public GameMain(
+                EngineRuntime runtime,
+                string startupScenePath)
+                : base(runtime)
             {
-                public GameMain(EngineRuntime runtime)
-                    : base(runtime)
-                {
-                }
+                ArgumentException.ThrowIfNullOrWhiteSpace(
+                    startupScenePath);
 
-                protected override void OnInitialize()
-                {
-                    Console.WriteLine(
-                        "VibeEngine2 game initialized.");
-                }
-
-                protected override void OnRender(
-                    double interpolationAlpha)
-                {
-                    Runtime.Services.Graphics.Submit(
-                        new DrawDebugTextCommand(
-                            "VibeEngine2 game is running",
-                            new Vector2(24.0f, 24.0f),
-                            DebugColor.White,
-                            2.0f,
-                            DebugRenderSpace.Screen));
-                }
-
-                protected override void OnShutdown()
-                {
-                    Console.WriteLine(
-                        "VibeEngine2 game stopped.");
-                }
+                _startupScenePath =
+                    Path.GetFullPath(
+                        startupScenePath);
             }
-            """ + Environment.NewLine;
+
+            protected override void ConfigureRuntime()
+            {
+                if (!File.Exists(_startupScenePath))
+                {
+                    throw new FileNotFoundException(
+                        "Startup scene was not found.",
+                        _startupScenePath);
+                }
+
+                var serializers =
+                    new EcsComponentSerializerRegistry();
+
+                serializers.RegisterEngineComponents();
+
+                var saveLoad =
+                    new WorldSaveLoadService(
+                        serializers);
+
+                saveLoad.Load(
+                    _startupScenePath,
+                    Runtime.World);
+            }
+
+            protected override void OnInitialize()
+            {
+                Console.WriteLine(
+                    $"Startup scene loaded: {_startupScenePath}");
+
+                Console.WriteLine(
+                    "VibeEngine2 game initialized.");
+            }
+
+            protected override void OnRender(
+                double interpolationAlpha)
+            {
+                Runtime.Services.Graphics.Submit(
+                    new DrawDebugTextCommand(
+                        "VibeEngine2 game is running",
+                        new Vector2(24.0f, 24.0f),
+                        DebugColor.White,
+                        2.0f,
+                        DebugRenderSpace.Screen));
+            }
+
+            protected override void OnShutdown()
+            {
+                Console.WriteLine(
+                    "VibeEngine2 game stopped.");
+            }
+        }
+        """ + Environment.NewLine;
     }
 
     private static void CopyDirectory(

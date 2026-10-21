@@ -6,6 +6,9 @@ namespace Engine.Jobs.Scheduling;
 public sealed class JobScheduler :
     IDisposable
 {
+    [ThreadStatic]
+    private static JobScheduler? _currentWorkerScheduler;
+
     private readonly BlockingCollection<JobWorkItem> _queue =
         new();
 
@@ -244,6 +247,31 @@ public sealed class JobScheduler :
             GetNode(
                 handle);
 
+        // Внешний поток ждёт только нужную задачу
+        // и не забирает из очереди постороннюю работу.
+        if (_currentWorkerScheduler != this)
+        {
+            node.Completion.Wait();
+            return;
+        }
+
+        // Рабочий поток может выполнять другие задачи,
+        // пока ждёт завершения нужной.
+        while (!node.Completion.IsCompleted)
+        {
+            if (_queue.TryTake(
+                    out var workItem,
+                    10))
+            {
+                Execute(
+                    workItem.Node);
+
+                continue;
+            }
+
+            Thread.Yield();
+        }
+
         node.Completion.Wait();
     }
 
@@ -357,17 +385,23 @@ public sealed class JobScheduler :
 
     private void WorkerLoop()
     {
+        var previousScheduler = _currentWorkerScheduler;
+        _currentWorkerScheduler = this;
+
         try
         {
             foreach (var workItem in _queue.GetConsumingEnumerable())
             {
-                Execute(
-                    workItem.Node);
+                Execute(workItem.Node);
             }
         }
         catch (ObjectDisposedException)
         {
             // Scheduler shutdown.
+        }
+        finally
+        {
+            _currentWorkerScheduler = previousScheduler;
         }
     }
 

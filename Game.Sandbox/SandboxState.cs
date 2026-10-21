@@ -65,7 +65,6 @@ public sealed class SandboxState
 
     private string _serializationStatus =
         "READY";
-    private readonly InputAction _playAudioAction;
     public SandboxState(
     EngineRuntime runtime,
     UiSystem ui,
@@ -364,7 +363,7 @@ public sealed class SandboxState
         }
 
         if (_input.IsPressed(
-        _playAudioAction))
+                _actions.PlayAudio))
         {
             _topDown?.PlayTestSound();
         }

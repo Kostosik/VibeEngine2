@@ -28,6 +28,12 @@ public sealed class InspectorPropertyEditorRegistry
             new EnumInspectorPropertyEditor());
 
         registry.Register(
+            new PhysicsMaterial2DInspectorPropertyEditor());
+
+        registry.Register(
+            new PhysicsShape2DInspectorPropertyEditor());
+
+        registry.Register(
             new ReadOnlyInspectorPropertyEditor());
 
         registry.Register(

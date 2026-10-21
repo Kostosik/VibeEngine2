@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Engine.Editor\Engine.Editor.csproj" />
+    <ProjectReference Include="..\Engine.Physics\Engine.Physics.csproj" />
     <ProjectReference Include="..\Engine.Tooling\Engine.Tooling.csproj" />
     <ProjectReference Include="..\Engine.UI\Engine.UI.csproj" />
   </ItemGroup>

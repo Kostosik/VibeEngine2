@@ -1,6 +1,7 @@
 ﻿using Engine.Core.Math;
 using Engine.ECS.Components;
 using Engine.Editor.Commands;
+using Engine.Editor.Components;
 using Engine.Editor.Documents;
 using Engine.Editor.Inspection;
 using Engine.Worlds;
@@ -10,6 +11,67 @@ namespace Engine.Tests.Editor;
 
 public sealed class EditorCommandTests
 {
+    [Fact]
+    public void RemoveEditorComponent_RejectsRemovingRequiredComponent()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+        var entity =
+            ecsWorld.CreateEntity();
+
+        ecsWorld.Add(
+            entity,
+            new RequiredComponent());
+
+        ecsWorld.Add(
+            entity,
+            new DependentComponent());
+
+        using var document =
+            new EditorDocument(world);
+
+        var dependencies =
+            new EditorComponentDependencyRegistry();
+
+        dependencies.Register(
+            typeof(DependentComponent),
+            typeof(RequiredComponent));
+
+        var command =
+            new RemoveEditorComponentCommand(
+                world,
+                document.GetEntityReference(entity),
+                typeof(RequiredComponent),
+                dependencies);
+
+        var exception =
+            Assert.Throws<InvalidOperationException>(
+                command.Execute);
+
+        Assert.Contains(
+            nameof(DependentComponent),
+            exception.Message);
+
+        Assert.True(
+            ecsWorld.Has<RequiredComponent>(entity));
+
+        Assert.True(
+            ecsWorld.Has<DependentComponent>(entity));
+    }
+
+    private struct RequiredComponent
+    {
+    }
+
+    private struct DependentComponent
+    {
+    }
 
     [Fact]
     public void RenameEntity_ExecuteUndoRedo_AddsAndRemovesName()

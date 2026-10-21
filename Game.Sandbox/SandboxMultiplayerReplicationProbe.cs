@@ -38,7 +38,6 @@ public sealed class SandboxMultiplayerReplicationProbe : IDisposable
     private EntityId _clientEntity;
     private ConnectionId _connection;
 
-    private bool _serverEntityCreated;
     private bool _clientSpawnAckSent;
     private bool _clientUpdateAckSent;
     private bool _clientDespawnAckSent;
@@ -113,7 +112,6 @@ public sealed class SandboxMultiplayerReplicationProbe : IDisposable
             if (_options.Role == SandboxNetworkRole.Server)
             {
                 _serverEntity = world.CreateEntity();
-                _serverEntityCreated = true;
 
                 _entityMap.Register(
                     _serverEntity,
@@ -331,8 +329,6 @@ public sealed class SandboxMultiplayerReplicationProbe : IDisposable
 
         _world.DestroyEntity(_serverEntity);
         _entityMap.Unregister(_serverEntity);
-        _serverEntityCreated = false;
-
         SetStatus(
             "SERVER REPLICATION: DESPAWN SENT");
     }
@@ -511,8 +507,6 @@ public sealed class SandboxMultiplayerReplicationProbe : IDisposable
 
         _entityMap = null;
         _stateService = null;
-
-        _serverEntityCreated = false;
         _connection = ConnectionId.Invalid;
     }
 

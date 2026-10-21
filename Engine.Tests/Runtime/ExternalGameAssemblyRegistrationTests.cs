@@ -1,4 +1,9 @@
 ﻿
+using Engine.Core.Math;
+using Engine.ECS.Components;
+using Engine.Serialization.SaveLoad.Ecs;
+using Engine.Serialization.SaveLoad.Worlds;
+using Engine.Worlds.Spatial;
 using System.Diagnostics;
 using System.Security;
 using System.Text;
@@ -50,8 +55,6 @@ public sealed class ExternalGameAssemblyRegistrationTests
 
     private static void CreateGameProject(string directory)
     {
-        // Используем собранные библиотеки движка из каталога тестов.
-        // Пользовательская игра будет отдельной сборкой.
         var assemblies = Directory
             .EnumerateFiles(
                 AppContext.BaseDirectory,
@@ -96,29 +99,77 @@ public sealed class ExternalGameAssemblyRegistrationTests
                 "Engine assemblies were not found in the test output directory.");
         }
 
+        var engineDirectory = Path.Combine(
+            directory,
+            "Engine");
+
+        Directory.CreateDirectory(engineDirectory);
+
+        foreach (var assembly in assemblies)
+        {
+            File.Copy(
+                assembly,
+                Path.Combine(
+                    engineDirectory,
+                    Path.GetFileName(assembly)));
+        }
+
+        var assetsDirectory = Path.Combine(
+    directory,
+    "Assets",
+    "Probe");
+
+        Directory.CreateDirectory(assetsDirectory);
+
+        File.WriteAllText(
+            Path.Combine(assetsDirectory, "marker.txt"),
+            "outside-repository-asset",
+            new UTF8Encoding(false));
+
+        var scenesDirectory = Path.Combine(
+            directory,
+            "Scenes");
+
+        Directory.CreateDirectory(scenesDirectory);
+
+        CreateStartupScene(
+            Path.Combine(scenesDirectory, "Main.world"));
+
         var references = string.Join(
             Environment.NewLine,
             assemblies.Select(path =>
                 $$"""
-                  <Reference Include="{{SecurityElement.Escape(Path.GetFileNameWithoutExtension(path))}}">
-                    <HintPath>{{SecurityElement.Escape(path)}}</HintPath>
-                    <Private>true</Private>
-                  </Reference>
-                  """));
+              <Reference Include="{{SecurityElement.Escape(Path.GetFileNameWithoutExtension(path))}}">
+                <HintPath>Engine/{{SecurityElement.Escape(Path.GetFileName(path))}}</HintPath>
+                <Private>true</Private>
+              </Reference>
+              """));
 
         var projectContents = $$"""
-            <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup>
-                <OutputType>Exe</OutputType>
-                <TargetFramework>net8.0</TargetFramework>
-                <ImplicitUsings>enable</ImplicitUsings>
-                <Nullable>enable</Nullable>
-              </PropertyGroup>
-              <ItemGroup>
-            {{references}}
-              </ItemGroup>
-            </Project>
-            """;
+        <Project Sdk="Microsoft.NET.Sdk">
+          <PropertyGroup>
+            <OutputType>Exe</OutputType>
+            <TargetFramework>net8.0</TargetFramework>
+            <ImplicitUsings>enable</ImplicitUsings>
+            <Nullable>enable</Nullable>
+          </PropertyGroup>
+          <ItemGroup>
+        {{references}}
+          </ItemGroup>
+
+                  <ItemGroup>
+          <None Update="Assets/**/*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+          </None>
+          <None Update="Scenes/**/*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+          </None>
+        </ItemGroup>
+
+        </Project>
+        """;
 
         File.WriteAllText(
             Path.Combine(directory, "ExternalGame.csproj"),
@@ -132,26 +183,64 @@ public sealed class ExternalGameAssemblyRegistrationTests
     }
 
     private static (int ExitCode, string Output) BuildAndRunGame(
-        string directory)
+    string directory)
+    {
+        var dotnet =
+            Environment.GetEnvironmentVariable("DOTNET_HOST_PATH")
+            ?? "dotnet";
+
+        var publishDirectory =
+            Path.Combine(directory, "publish");
+
+        // Сначала публикуем внешний игровой проект.
+        var publishResult = RunProcess(
+            directory,
+            dotnet,
+            "publish",
+            Path.Combine(directory, "ExternalGame.csproj"),
+            "--configuration",
+            "Release",
+            "--output",
+            publishDirectory);
+
+        if (publishResult.ExitCode != 0)
+        {
+            return publishResult;
+        }
+
+        // Затем запускаем опубликованную игру,
+        // а не исходный проект.
+        var runResult = RunProcess(
+            publishDirectory,
+            dotnet,
+            Path.Combine(publishDirectory, "ExternalGame.dll"));
+
+        return (
+            runResult.ExitCode,
+            publishResult.Output
+            + Environment.NewLine
+            + runResult.Output);
+    }
+
+    private static (int ExitCode, string Output) RunProcess(
+    string workingDirectory,
+    string fileName,
+    params string[] arguments)
     {
         var startInfo = new ProcessStartInfo
         {
-            FileName =
-                Environment.GetEnvironmentVariable("DOTNET_HOST_PATH")
-                ?? "dotnet",
-            WorkingDirectory = directory,
+            FileName = fileName,
+            WorkingDirectory = workingDirectory,
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true
         };
 
-        startInfo.ArgumentList.Add("run");
-        startInfo.ArgumentList.Add("--project");
-        startInfo.ArgumentList.Add(
-            Path.Combine(directory, "ExternalGame.csproj"));
-        startInfo.ArgumentList.Add("--configuration");
-        startInfo.ArgumentList.Add("Release");
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
 
         using var process = new Process
         {
@@ -191,7 +280,7 @@ public sealed class ExternalGameAssemblyRegistrationTests
         if (!process.Start())
         {
             throw new InvalidOperationException(
-                "Failed to start the external game project.");
+                $"Failed to start process: {fileName}");
         }
 
         process.BeginOutputReadLine();
@@ -203,15 +292,45 @@ public sealed class ExternalGameAssemblyRegistrationTests
             process.WaitForExit();
 
             throw new TimeoutException(
-                "Building or running the external game timed out."
+                "External game process timed out."
                 + Environment.NewLine
                 + ReadOutput());
         }
 
-        // Дожидаемся завершения обработки асинхронного вывода.
+        // Дожидаемся обработки асинхронного вывода.
         process.WaitForExit();
 
         return (process.ExitCode, ReadOutput());
+    }
+
+    private static void CreateStartupScene(string path)
+    {
+        var serializers =
+            new EcsComponentSerializerRegistry();
+
+        serializers.RegisterEngineComponents();
+
+        var saveLoad =
+            new WorldSaveLoadService(serializers);
+
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        using var world =
+            new Engine.Worlds.World(
+                new ChunkSize(4, 4),
+                ecsWorld);
+
+        var entity = ecsWorld.CreateEntity();
+
+        ecsWorld.Add(
+            entity,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromInt(12),
+                    Fixed32.FromInt(34))));
+
+        saveLoad.Save(path, world);
     }
 
     private const string GameSource = """
@@ -220,6 +339,11 @@ public sealed class ExternalGameAssemblyRegistrationTests
         using Engine.Core.Time;
         using Engine.ECS.Entities;
         using Engine.Runtime;
+        using Engine.ECS.Components;
+        using Engine.Serialization.SaveLoad.Ecs;
+        using Engine.Serialization.SaveLoad.Worlds;
+        using Engine.Worlds.Spatial;
+
 
         namespace ExternalGame;
 
@@ -227,15 +351,53 @@ public sealed class ExternalGameAssemblyRegistrationTests
         {
             private static int Main()
             {
-                using var runtime = new EngineRuntime(
-                    new EngineRuntimeOptions
-                    {
-                        ToolingEnabled = false
-                    });
+        using var runtime = new EngineRuntime(
+            new EngineRuntimeOptions
+            {
+                ToolingEnabled = false,
+                ChunkSize = new ChunkSize(4, 4)
+            });
 
-                var game = new ProbeGame(runtime);
+        var game = new ProbeGame(runtime);
 
                 game.Initialize();
+
+                        var sceneEntity = new EntityId(1, 1);
+
+        if (!runtime.EcsWorld.Exists(sceneEntity))
+        {
+            throw new InvalidOperationException(
+                "Published startup scene entity was not loaded.");
+        }
+
+        var position =
+            runtime.EcsWorld
+                .Get<WorldTransform2D>(sceneEntity)
+                .Position;
+
+        if (position.X != Fixed32.FromInt(12) ||
+            position.Y != Fixed32.FromInt(34))
+        {
+            throw new InvalidOperationException(
+                "Published startup scene position is incorrect.");
+        }
+
+        var assetPath = Path.Combine(
+            AppContext.BaseDirectory,
+            "Assets",
+            "Probe",
+            "marker.txt");
+
+        if (!File.Exists(assetPath) ||
+            File.ReadAllText(assetPath) !=
+                "outside-repository-asset")
+        {
+            throw new InvalidOperationException(
+                "Published game asset was not loaded.");
+        }
+
+        Console.WriteLine(
+            "PASS: published project asset and startup scene loaded.");
 
         game.FixedUpdate(
         new SimulationTime(
@@ -299,6 +461,21 @@ public sealed class ExternalGameAssemblyRegistrationTests
 
             protected override void ConfigureRuntime()
             {
+                    var serializers =
+            new EcsComponentSerializerRegistry();
+
+        serializers.RegisterEngineComponents();
+
+        var saveLoad =
+            new WorldSaveLoadService(serializers);
+
+        saveLoad.Load(
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "Scenes",
+                "Main.world"),
+            Runtime.World);
+
                 Entity = Runtime.EcsWorld.CreateEntity();
 
                 Runtime.EcsWorld.Add(

@@ -253,7 +253,7 @@ BenchmarkWorldLifecycleMemory(entityCount);
 BenchmarkPopulatedWorldMemory(entityCount);
 
 BenchmarkContentPipeline();
-
+Engine.Benchmarks.EngineRuntimeGameBenchmark.Run();
 Console.WriteLine(
     "Baseline complete.");
 

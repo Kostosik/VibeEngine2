@@ -272,6 +272,16 @@ public sealed class InspectorPanelView : UiPanel
             return;
         }
 
+        var existingComponentTypes =
+    document.Inspector
+        .GetComponentTypes(entity)
+        .ToHashSet();
+
+        var dependentComponentTypes =
+            Editor.ComponentDependencies.GetDependents(
+                componentType,
+                existingComponentTypes);
+
         var header =
             new UiStackPanel
             {
@@ -311,7 +321,8 @@ public sealed class InspectorPanelView : UiPanel
             label);
 
         if (componentType !=
-            typeof(Engine.Worlds.Spatial.WorldPositionComponent))
+                typeof(Engine.Worlds.Spatial.WorldPositionComponent) &&
+            dependentComponentTypes.Count == 0)
         {
             var remove =
                 new UiButton("Remove")
@@ -333,11 +344,35 @@ public sealed class InspectorPanelView : UiPanel
                         new RemoveEditorComponentCommand(
                             document.World,
                             document.GetEntityReference(entity),
-                            componentType));
+                            componentType,
+                            Editor.ComponentDependencies));
                 };
 
             header.AddChild(
                 remove);
+        }
+
+        if (dependentComponentTypes.Count > 0)
+        {
+            var dependentNames =
+                string.Join(
+                    ", ",
+                    dependentComponentTypes.Select(
+                        static type => type.Name));
+
+            _content.AddChild(
+                new UiLabel(
+                    $"Required by: {dependentNames}.")
+                {
+                    FontSize = 11.0f,
+
+                    Color =
+                        new UiColor(
+                            175,
+                            165,
+                            140,
+                            255)
+                });
         }
 
         _content.AddChild(

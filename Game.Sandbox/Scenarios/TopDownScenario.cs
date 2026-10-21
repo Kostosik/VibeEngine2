@@ -62,7 +62,7 @@ public sealed class TopDownScenario :
     private readonly ParticleEmitterRuntime _particleEmitterRuntime;
     private readonly AnimationClip _particleEmissionClip;
     private readonly AnimationPlayer _particleEmissionPlayer;
-
+    private bool _disposed;
     private DeterministicRandom _particleRandom =
         new(0xC0FFEEUL);
 
@@ -261,7 +261,6 @@ public sealed class TopDownScenario :
         Reset();
     }
     public event Action<string?>? InteractionChanged;
-    private bool _playerInsideTrigger;
     public EntityId Player =>
         _player;
 
@@ -556,9 +555,6 @@ public sealed class TopDownScenario :
 
         _collisionCount = 0;
         _triggerCount = 0;
-
-        _playerInsideTrigger =
-    false;
 
         InteractionChanged?.Invoke(
             null);
@@ -1355,9 +1351,6 @@ public sealed class TopDownScenario :
                 switch (@event.Phase)
                 {
                     case PhysicsContactPhase.Enter:
-                        _playerInsideTrigger =
-                            true;
-
                         _triggerCount++;
                         PlayTestSound();
                         InteractionChanged?.Invoke(
@@ -1365,9 +1358,6 @@ public sealed class TopDownScenario :
                         break;
 
                     case PhysicsContactPhase.Exit:
-                        _playerInsideTrigger =
-                            false;
-
                         InteractionChanged?.Invoke(
                             null);
                         break;
@@ -1384,20 +1374,94 @@ public sealed class TopDownScenario :
         }
     }
 
+
     private void ClearEntities()
     {
-        foreach (var entity in _entities)
+        var failures = new List<Exception>();
+
+        try
         {
-            if (_ecsWorld.Exists(entity))
+            foreach (var entity in _entities)
             {
-                _ecsWorld.DestroyEntity(entity);
+                TryCleanup(failures, () =>
+                {
+                    if (_ecsWorld.Exists(entity))
+                    {
+                        _ecsWorld.DestroyEntity(entity);
+                    }
+                });
             }
         }
+        finally
+        {
+            _entities.Clear();
+            _resourceEntities.Clear();
+            _spawnedEntities.Clear();
+        }
 
-        _entities.Clear();
-        _resourceEntities.Clear();
-        _spawnedEntities.Clear();
+        if (failures.Count > 0)
+        {
+            throw new AggregateException(
+                "Failed to clear TopDownScenario entities.",
+                failures);
+        }
     }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
+        var failures = new List<Exception>();
+
+        TryCleanup(failures, _particleSystem.Clear);
+        TryCleanup(failures, _movementSubscription.Dispose);
+        TryCleanup(failures, _physicsSubscription.Dispose);
+
+        TryCleanup(failures, () =>
+            _resourceCollection.InteractionChanged -=
+                OnResourceInteractionChanged);
+
+        TryCleanup(failures, _resourceCollection.Dispose);
+
+        TryCleanup(failures, _testSoundSource.Dispose);
+        TryCleanup(failures, _audioListener.Dispose);
+
+        TryCleanup(failures, ClearEntities);
+
+        InteractionChanged = null;
+
+        if (failures.Count > 0)
+        {
+            throw new AggregateException(
+                "TopDownScenario cleanup failed.",
+                failures);
+        }
+    }
+
+    private static void TryCleanup(
+        List<Exception> failures,
+        Action cleanup)
+    {
+        try
+        {
+            cleanup();
+        }
+        catch (AggregateException exception)
+        {
+            failures.AddRange(
+                exception.Flatten().InnerExceptions);
+        }
+        catch (Exception exception)
+        {
+            failures.Add(exception);
+        }
+    }
+
 
     private static string Pass(
         bool value)
@@ -1405,22 +1469,5 @@ public sealed class TopDownScenario :
         return value
             ? "PASS"
             : "WAIT";
-    }
-
-    public void Dispose()
-    {
-        _particleSystem.Clear();
-        _movementSubscription.Dispose();
-        _physicsSubscription.Dispose();
-
-        _resourceCollection.InteractionChanged -=
-    OnResourceInteractionChanged;
-
-        _resourceCollection.Dispose();
-
-        _testSoundSource.Dispose();
-        _audioListener.Dispose();
-
-        ClearEntities();
     }
 }

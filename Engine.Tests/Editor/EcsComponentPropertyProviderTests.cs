@@ -1,5 +1,8 @@
 ﻿using Engine.Core.Math;
+using Engine.Editor.Commands;
+using Engine.Editor.Documents;
 using Engine.Editor.Inspection;
+using Engine.Physics.Components;
 using Engine.Worlds;
 using Engine.Worlds.Spatial;
 
@@ -7,6 +10,115 @@ namespace Engine.Tests.Editor;
 
 public sealed class EcsComponentPropertyProviderTests
 {
+    [Fact]
+    public void PhysicsBodyMassAndInertia_AreEditableAndUndoable()
+    {
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        var world =
+            new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+        var entity =
+            ecsWorld.CreateEntity();
+
+        ecsWorld.Add(
+            entity,
+            PhysicsBody2D.Dynamic(
+                Fixed32.One));
+
+        using var document =
+            new EditorDocument(world);
+
+        var properties =
+            document.Inspector.GetProperties(
+                entity,
+                typeof(PhysicsBody2D));
+
+        var mass =
+            Assert.Single(
+                properties.Where(
+                    property =>
+                        property.Name ==
+                        nameof(PhysicsBody2D.Mass)));
+
+        var inertia =
+            Assert.Single(
+                properties.Where(
+                    property =>
+                        property.Name ==
+                        nameof(PhysicsBody2D.Inertia)));
+
+        Assert.False(mass.IsReadOnly);
+        Assert.False(inertia.IsReadOnly);
+
+        var newMass =
+            Fixed32.FromInt(3);
+
+        var setMass =
+            new SetEditorPropertyCommand(
+                mass,
+                newMass);
+
+        setMass.Execute();
+
+        Assert.Equal(
+            newMass,
+            ecsWorld.Get<PhysicsBody2D>(
+                entity).Mass);
+
+        setMass.Undo();
+
+        Assert.Equal(
+            Fixed32.One,
+            ecsWorld.Get<PhysicsBody2D>(
+                entity).Mass);
+
+        var newInertia =
+            Fixed32.FromInt(2);
+
+        var setInertia =
+            new SetEditorPropertyCommand(
+                inertia,
+                newInertia);
+
+        setInertia.Execute();
+
+        Assert.Equal(
+            newInertia,
+            ecsWorld.Get<PhysicsBody2D>(
+                entity).Inertia);
+
+        setInertia.Undo();
+
+        Assert.Equal(
+            Fixed32.One,
+            ecsWorld.Get<PhysicsBody2D>(
+                entity).Inertia);
+    }
+
+    [Fact]
+    public void PhysicsBodyMassAndInertia_RejectNonPositiveValues()
+    {
+        var body =
+            PhysicsBody2D.Dynamic(
+                Fixed32.One);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => body.Mass = Fixed32.Zero);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => body.Mass = Fixed32.FromInt(-1));
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => body.Inertia = Fixed32.Zero);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => body.Inertia = Fixed32.FromInt(-1));
+    }
+
     [Fact]
     public void GetProperties_PrivateSetterIsReadOnly()
     {

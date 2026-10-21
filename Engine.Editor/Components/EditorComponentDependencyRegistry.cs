@@ -99,6 +99,24 @@ public sealed class EditorComponentDependencyRegistry
             existingComponentTypes).Count == 0;
     }
 
+    public IReadOnlyList<Type> GetDependents(
+    Type componentType,
+    IReadOnlySet<Type> existingComponentTypes)
+    {
+        ArgumentNullException.ThrowIfNull(componentType);
+        ArgumentNullException.ThrowIfNull(existingComponentTypes);
+
+        return _requirements
+            .Where(entry =>
+                existingComponentTypes.Contains(entry.Key) &&
+                entry.Value.Contains(componentType))
+            .Select(entry => entry.Key)
+            .OrderBy(
+                static type => type.FullName ?? type.Name,
+                StringComparer.Ordinal)
+            .ToArray();
+    }
+
     private static void ValidateComponentType(
         Type type,
         string parameterName)

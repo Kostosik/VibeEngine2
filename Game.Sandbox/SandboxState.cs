@@ -209,8 +209,8 @@ public sealed class SandboxState
         }
         else
         {
-            if (networkRoleOptions.Port > 65525 ||
-                networkRoleOptions.LocalPort > 65525)
+            if (networkRoleOptions.Port > 65515 ||
+                networkRoleOptions.LocalPort > 65515)
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(networkRoleOptions),
@@ -893,53 +893,95 @@ public sealed class SandboxState
 
     public void Shutdown()
     {
-        DisposeCurrentScenario();
+        var failures = new List<Exception>();
 
-        if (_multiplayerProbe is not null)
+        TryCleanup(failures, DisposeCurrentScenario);
+
+        var multiplayerProbe = _multiplayerProbe;
+        if (multiplayerProbe is not null)
         {
-            _multiplayerProbe.StatusChanged -=
-                _hud.SetMultiplayerStatus;
+            TryCleanup(failures, () =>
+                multiplayerProbe.StatusChanged -=
+                    _hud.SetMultiplayerStatus);
 
-            _multiplayerProbe.Dispose();
+            TryCleanup(failures, multiplayerProbe.Dispose);
         }
 
-        if (_multiplayerPlayerProbe is not null)
+        var multiplayerPlayerProbe = _multiplayerPlayerProbe;
+        if (multiplayerPlayerProbe is not null)
         {
-            _multiplayerPlayerProbe.StatusChanged -=
-                _hud.SetMultiplayerPlayerStatus;
+            TryCleanup(failures, () =>
+                multiplayerPlayerProbe.StatusChanged -=
+                    _hud.SetMultiplayerPlayerStatus);
 
-            _multiplayerPlayerProbe.Dispose();
+            TryCleanup(failures, multiplayerPlayerProbe.Dispose);
         }
 
-        if (_multiplayerReplicationProbe is not null)
-        {
-            _multiplayerReplicationProbe.StatusChanged -=
-                _hud.SetMultiplayerReplicationStatus;
+        var multiplayerReplicationProbe =
+            _multiplayerReplicationProbe;
 
-            _multiplayerReplicationProbe.Dispose();
+        if (multiplayerReplicationProbe is not null)
+        {
+            TryCleanup(failures, () =>
+                multiplayerReplicationProbe.StatusChanged -=
+                    _hud.SetMultiplayerReplicationStatus);
+
+            TryCleanup(failures, multiplayerReplicationProbe.Dispose);
         }
 
-        _playerReplicationProbe.StatusChanged -=
-    _hud.SetPlayerReplicationStatus;
+        TryCleanup(failures, () =>
+            _playerReplicationProbe.StatusChanged -=
+                _hud.SetPlayerReplicationStatus);
 
-        _playerReplicationProbe.Dispose();
+        TryCleanup(failures, _playerReplicationProbe.Dispose);
 
-        _networkReplicationProbe.StatusChanged -=
-    _hud.SetNetworkReplicationStatus;
+        TryCleanup(failures, () =>
+            _networkReplicationProbe.StatusChanged -=
+                _hud.SetNetworkReplicationStatus);
 
-        _networkReplicationProbe.Dispose();
+        TryCleanup(failures, _networkReplicationProbe.Dispose);
 
-        _networkProbe.StatusChanged -=
-    _hud.SetNetworkStatus;
+        TryCleanup(failures, () =>
+            _networkProbe.StatusChanged -=
+                _hud.SetNetworkStatus);
 
-        _networkProbe.Dispose();
+        TryCleanup(failures, _networkProbe.Dispose);
 
-        _uiShowcase.Close();
+        TryCleanup(failures, _uiShowcase.Close);
 
-        _ui.Root.RemoveChild(
-            _hud);
+        TryCleanup(failures, () =>
+            _ui.Root.RemoveChild(_hud));
 
-        _graphics.RenderTargets.Destroy(
-            _renderTarget);
+        TryCleanup(failures, () =>
+            _graphics.RenderTargets.Destroy(_renderTarget));
+
+        if (failures.Count > 0)
+        {
+            throw new AggregateException(
+                "Sandbox shutdown encountered cleanup failures.",
+                failures);
+        }
+    }
+
+    private static void TryCleanup(
+        List<Exception> failures,
+        Action cleanup)
+    {
+        try
+        {
+            cleanup();
+        }
+        catch (Exception exception)
+        {
+            if (exception is AggregateException aggregate)
+            {
+                failures.AddRange(
+                    aggregate.Flatten().InnerExceptions);
+            }
+            else
+            {
+                failures.Add(exception);
+            }
+        }
     }
 }

@@ -16,6 +16,8 @@ public struct PhysicsBody2D :
 
     private bool _isSleeping;
     private Fixed32 _sleepTimer;
+    private Fixed32 _mass;
+    private Fixed32 _inertia;
     public PhysicsBody2D(
         PhysicsBodyType bodyType,
         Fixed32 mass)
@@ -66,9 +68,17 @@ public struct PhysicsBody2D :
 
     public FixedVector2 Force { get; private set; }
 
-    public Fixed32 Mass { get; private set; }
+    public Fixed32 Mass
+    {
+        get => _mass;
+        set => SetMass(value);
+    }
 
-    public Fixed32 Inertia { get; private set; }
+    public Fixed32 Inertia
+    {
+        get => _inertia;
+        set => SetInertia(value);
+    }
 
     public Fixed32 GravityScale { get; set; }
 
@@ -180,7 +190,7 @@ public struct PhysicsBody2D :
                 "Mass must be greater than zero.");
         }
 
-        Mass = mass;
+        _mass = mass;
     }
     private Fixed32 _linearDamping;
     private Fixed32 _angularDamping;
@@ -226,7 +236,7 @@ public struct PhysicsBody2D :
                 "Inertia must be greater than zero.");
         }
 
-        Inertia = inertia;
+        _inertia = inertia;
     }
 
     public void AddToHash(

@@ -1,4 +1,5 @@
-﻿using Engine.Editor.Entities;
+﻿using Engine.Editor.Components;
+using Engine.Editor.Entities;
 using Engine.Editor.Inspection;
 using Engine.Worlds;
 
@@ -9,14 +10,16 @@ public sealed class RemoveEditorComponentCommand : IEditorCommand
     private readonly World _world;
     private readonly EditorEntityReference _reference;
     private readonly Type _componentType;
-
+    private readonly EditorComponentDependencyRegistry
+    _dependencies;
     private object? _oldValue;
     private bool _captured;
 
     public RemoveEditorComponentCommand(
         World world,
         EditorEntityReference reference,
-        Type componentType)
+        Type componentType,
+        EditorComponentDependencyRegistry? dependencies = null)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(reference);
@@ -44,6 +47,10 @@ public sealed class RemoveEditorComponentCommand : IEditorCommand
         _world = world;
         _reference = reference;
         _componentType = componentType;
+
+        _dependencies =
+    dependencies ??
+    EditorComponentDependencyRegistry.CreateDefault();
     }
 
     public void Execute()
@@ -53,6 +60,29 @@ public sealed class RemoveEditorComponentCommand : IEditorCommand
         {
             throw new InvalidOperationException(
                 "WorldPositionComponent must be managed by SpatialEntityManager.");
+        }
+
+        var existingComponentTypes =
+    _world.EcsWorld.Inspector
+        .GetComponentTypes(_reference.Entity)
+        .ToHashSet();
+
+        var dependents =
+            _dependencies.GetDependents(
+                _componentType,
+                existingComponentTypes);
+
+        if (dependents.Count > 0)
+        {
+            var dependentNames =
+                string.Join(
+                    ", ",
+                    dependents.Select(
+                        static type => type.Name));
+
+            throw new InvalidOperationException(
+                $"Cannot remove '{_componentType.Name}'. " +
+                $"It is required by: {dependentNames}.");
         }
 
         CaptureOnce();

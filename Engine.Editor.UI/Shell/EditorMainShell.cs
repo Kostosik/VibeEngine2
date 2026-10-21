@@ -1,4 +1,5 @@
-﻿using Engine.Core.Math;
+﻿using Engine.Core.Diagnostics;
+using Engine.Core.Math;
 using Engine.Editor.Assets;
 using Engine.Editor.Documents;
 using Engine.Editor.UI.Authoring;
@@ -25,7 +26,7 @@ public sealed class EditorMainShell :
     private UiButton _restartButton;
 
     private bool _isGameRunning;
-
+    private readonly DebugConsole? _debugConsole;
     private readonly UiPanel _workspace;
     private UiButton _closeButton;
     private readonly UiLabel _documentLabel;
@@ -97,7 +98,7 @@ public sealed class EditorMainShell :
 
         ArgumentNullException.ThrowIfNull(
             assetPreviewTextures);
-
+        _debugConsole = console;
         Editor =
             editor;
         _overlays = overlays;
@@ -801,9 +802,68 @@ public sealed class EditorMainShell :
             80.0f,
             () =>
             {
+                var document =
+                    Editor.Session.ActiveEditorDocument as EditorDocument;
+
+                if (document is null)
+                {
+                    return;
+                }
+
                 Editor.Actions.Execute(
                     "validation.validate",
                     Editor.ActionContext);
+
+                var result =
+                    document.LastValidationResult;
+
+                if (result is null)
+                {
+                    _debugConsole?.WriteError(
+                        "Validation did not produce a result.");
+
+                    Refresh();
+                    return;
+                }
+
+                if (result.Issues.Count == 0)
+                {
+                    _debugConsole?.WriteLine(
+                        $"Validation passed for '{document.DisplayName}'.");
+                }
+                else
+                {
+                    _debugConsole?.Write(
+                        result.IsValid
+                            ? DiagnosticLevel.Warning
+                            : DiagnosticLevel.Error,
+                        $"Validation finished for '{document.DisplayName}' " +
+                        $"with {result.Issues.Count} issue(s).");
+
+                    foreach (var issue in result.Issues)
+                    {
+                        var level =
+                            issue.Severity switch
+                            {
+                                ValidationSeverity.Info =>
+                                    DiagnosticLevel.Info,
+
+                                ValidationSeverity.Warning =>
+                                    DiagnosticLevel.Warning,
+
+                                ValidationSeverity.Error =>
+                                    DiagnosticLevel.Error,
+
+                                _ =>
+                                    DiagnosticLevel.Info
+                            };
+
+                        _debugConsole?.Write(
+                            level,
+                            $"[{issue.Code}] {issue.Message}",
+                            issue.Code);
+                    }
+                }
 
                 Refresh();
             });

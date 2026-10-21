@@ -58,7 +58,7 @@ public sealed class EcsComponentPropertyProvider :
     {
         Action<object?>? setter = null;
 
-        if (property.SetMethod is not null)
+        if (property.SetMethod is { IsPublic: true })
         {
             setter =
                 value =>

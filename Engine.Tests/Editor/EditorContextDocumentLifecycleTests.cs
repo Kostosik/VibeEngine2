@@ -9,7 +9,37 @@ namespace Engine.Tests.Editor;
 
 public sealed class EditorContextDocumentLifecycleTests
 {
+    [Fact]
+    public void OpenDocument_InvokesWorldDocumentConfiguringBeforeSessionOpen()
+    {
+        var editor = new EditorContext();
 
+        using var ecsWorld = new Engine.ECS.World();
+
+        var world = new World(
+            new ChunkSize(16, 16),
+            ecsWorld);
+
+        EditorDocument? configuredDocument = null;
+        var wasAlreadyOpen = false;
+
+        editor.WorldDocumentConfiguring += document =>
+        {
+            configuredDocument = document;
+
+            wasAlreadyOpen =
+                editor.Session.Documents.Contains(document);
+        };
+
+        var document = editor.OpenDocument(world);
+
+        Assert.Same(document, configuredDocument);
+        Assert.False(wasAlreadyOpen);
+
+        Assert.Contains(
+            document,
+            editor.Session.Documents);
+    }
 
     [Fact]
     public void CloseDocument_Cancel_LeavesDocumentOpen()

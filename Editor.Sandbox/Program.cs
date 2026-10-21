@@ -20,6 +20,7 @@ using Engine.Physics.Shapes;
 using Engine.Serialization.SaveLoad.Ecs;
 using Engine.Tooling.Debugging;
 using Engine.Tooling.Inspection;
+using Engine.Tooling.Validation;
 using Engine.UI.Controls;
 using Engine.UI.Core;
 using Engine.UI.Layout;
@@ -90,6 +91,13 @@ window.Resized +=
 
 var editor =
     new EditorContext();
+
+editor.WorldDocumentConfiguring += document =>
+{
+    document.Validation.Register(
+        new PhysicsValidator(
+            document.World.EcsWorld));
+};
 
 var editorAssetRoot =
     Path.Combine(

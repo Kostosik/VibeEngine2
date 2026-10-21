@@ -6,50 +6,95 @@ namespace Engine.Tooling.Validation;
 
 public sealed class PhysicsValidator : IValidator
 {
+    private const string BodyMissingWorldTransformCode =
+        "PHYSICS_BODY_MISSING_WORLD_TRANSFORM";
+
     private const string SimulatedBodyHasParentCode =
         "PHYSICS_SIMULATED_BODY_HAS_PARENT";
 
+    private const string ColliderMissingBodyCode =
+    "PHYSICS_COLLIDER_MISSING_BODY";
+
     private readonly World _world;
 
-    public PhysicsValidator(
-        World world)
+    public PhysicsValidator(World world)
     {
         ArgumentNullException.ThrowIfNull(world);
 
         _world = world;
     }
 
-    public ValidationResult Validate(
-        ValidationContext context)
+    public ValidationResult Validate(ValidationContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var result =
-            new ValidationResult();
+        var result = new ValidationResult();
 
-        ValidateParentedBodies(
-            result);
+        ValidateRequiredTransforms(result);
+        ValidateCollidersHaveBodies(result);
+        ValidateParentedBodies(result);
 
         return result;
     }
 
-    private void ValidateParentedBodies(
-        ValidationResult result)
+    private void ValidateRequiredTransforms(ValidationResult result)
     {
-        foreach (var entity in
-                 _world.Inspector.GetEntities())
+        foreach (var entity in _world.Inspector.GetEntities())
         {
-            if (!_world.Has<PhysicsBody2D>(
-                    entity) ||
-                !_world.Has<TransformParent2D>(
-                    entity))
+            if (!_world.Has<PhysicsBody2D>(entity))
             {
                 continue;
             }
 
-            var body =
-                _world.Get<PhysicsBody2D>(
-                    entity);
+            var body = _world.Get<PhysicsBody2D>(entity);
+
+            var requiresTransform =
+                body.BodyType is PhysicsBodyType.Dynamic or PhysicsBodyType.Kinematic ||
+                _world.Has<Collider2D>(entity);
+
+            if (!requiresTransform ||
+                _world.Has<WorldTransform2D>(entity))
+            {
+                continue;
+            }
+
+            result.Add(
+                ValidationSeverity.Error,
+                BodyMissingWorldTransformCode,
+                $"Entity '{entity}' has a PhysicsBody2D configuration " +
+                "that requires WorldTransform2D for simulation or collision detection.");
+        }
+    }
+
+    private void ValidateCollidersHaveBodies(ValidationResult result)
+    {
+        foreach (var entity in _world.Inspector.GetEntities())
+        {
+            if (!_world.Has<Collider2D>(entity) ||
+                _world.Has<PhysicsBody2D>(entity))
+            {
+                continue;
+            }
+
+            result.Add(
+                ValidationSeverity.Error,
+                ColliderMissingBodyCode,
+                $"Entity '{entity}' has a Collider2D but no PhysicsBody2D. " +
+                "The current PhysicsSystem2D processes colliders only on entities with a physics body.");
+        }
+    }
+
+    private void ValidateParentedBodies(ValidationResult result)
+    {
+        foreach (var entity in _world.Inspector.GetEntities())
+        {
+            if (!_world.Has<PhysicsBody2D>(entity) ||
+                !_world.Has<TransformParent2D>(entity))
+            {
+                continue;
+            }
+
+            var body = _world.Get<PhysicsBody2D>(entity);
 
             if (body.BodyType != PhysicsBodyType.Dynamic &&
                 body.BodyType != PhysicsBodyType.Kinematic)

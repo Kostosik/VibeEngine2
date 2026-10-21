@@ -66,7 +66,7 @@ public sealed class EditorContext
     public GameProject? ActiveGameProject { get; private set; }
 
     public event Action<GameProject?>? ActiveGameProjectChanged;
-
+    public event Action<EditorDocument>? WorldDocumentConfiguring;
     public void SetActiveGameProject(GameProject? project)
     {
         if (ReferenceEquals(ActiveGameProject, project))
@@ -102,21 +102,20 @@ public sealed class EditorContext
         Session.ActiveDocument;
 
     public EditorDocument OpenDocument(
-        World world,
-        string? filePath = null)
+    World world,
+    string? filePath = null)
     {
-        ArgumentNullException.ThrowIfNull(
-            world);
+        ArgumentNullException.ThrowIfNull(world);
 
-        var document =
-            new EditorDocument(
-                world,
-                filePath);
+        var document = new EditorDocument(
+            world,
+            filePath);
 
         try
         {
-            Session.Open(
-                document);
+            WorldDocumentConfiguring?.Invoke(document);
+
+            Session.Open(document);
 
             return document;
         }

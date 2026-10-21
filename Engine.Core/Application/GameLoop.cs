@@ -255,9 +255,14 @@ public sealed class GameLoop : IGameLoopController
 
         _clock.Stop();
 
-        _application.Shutdown();
-
-        _shutdown = true;
+        try
+        {
+            _application.Shutdown();
+        }
+        finally
+        {
+            _shutdown = true;
+        }
     }
 
     private void EnsureInitialized()

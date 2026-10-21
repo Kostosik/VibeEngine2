@@ -19,7 +19,7 @@ public sealed class OpenGLWindow : IDisposable
     private SilkNetInputBackend? _inputBackend;
     public event Func<bool>? CloseRequested;
     private bool _closeApproved;
-
+    private bool _disposed;
     public ICursorService Cursor =>
     _inputBackend as ICursorService
     ?? throw new InvalidOperationException(
@@ -138,13 +138,17 @@ public sealed class OpenGLWindow : IDisposable
         }
         finally
         {
-            if (!gameLoop.IsShutdown)
+            try
             {
-                gameLoop.Shutdown();
+                if (!gameLoop.IsShutdown)
+                {
+                    gameLoop.Shutdown();
+                }
             }
-
-            _graphicsDevice?.Dispose();
-            _graphicsDevice = null;
+            finally
+            {
+                ReleasePlatformResources();
+            }
         }
     }
 
@@ -242,16 +246,44 @@ public sealed class OpenGLWindow : IDisposable
         }
         finally
         {
-            _graphicsDevice?.Dispose();
+            ReleasePlatformResources();
+        }
+    }
+
+    private void ReleasePlatformResources()
+    {
+        var inputBackend = _inputBackend;
+        _inputBackend = null;
+
+        try
+        {
+            inputBackend?.Dispose();
+        }
+        finally
+        {
+            var graphicsDevice = _graphicsDevice;
             _graphicsDevice = null;
+
+            graphicsDevice?.Dispose();
         }
     }
 
     public void Dispose()
     {
-        _graphicsDevice?.Dispose();
-        _graphicsDevice = null;
+        if (_disposed)
+        {
+            return;
+        }
 
-        _window.Dispose();
+        _disposed = true;
+
+        try
+        {
+            ReleasePlatformResources();
+        }
+        finally
+        {
+            _window.Dispose();
+        }
     }
 }

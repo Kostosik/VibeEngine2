@@ -11,6 +11,58 @@ namespace Engine.Tests.Runtime;
 public sealed class EngineGameLifecycleTests
 {
     [Fact]
+    public void Initialize_WhenConfigureRuntimeThrows_CleansUpAndPreservesOriginalException()
+    {
+        using var runtime = CreateRuntime();
+
+        var originalException =
+            new InvalidOperationException("ConfigureRuntime failed.");
+
+        var game = new InitializationFailureProbeGame(
+            runtime,
+            failDuringConfigure: true,
+            originalException);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => game.Initialize());
+
+        Assert.Same(originalException, exception);
+        Assert.Equal(1, game.ShutdownCount);
+        Assert.False(runtime.IsInitialized);
+
+        // Повторный Shutdown не вызывает очистку повторно.
+        game.Shutdown();
+
+        Assert.Equal(1, game.ShutdownCount);
+    }
+
+    [Fact]
+    public void Initialize_WhenOnInitializeThrows_CleansUpAndPreservesOriginalException()
+    {
+        using var runtime = CreateRuntime();
+
+        var originalException =
+            new InvalidOperationException("OnInitialize failed.");
+
+        var game = new InitializationFailureProbeGame(
+            runtime,
+            failDuringConfigure: false,
+            originalException);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => game.Initialize());
+
+        Assert.Same(originalException, exception);
+        Assert.Equal(1, game.ShutdownCount);
+        Assert.True(runtime.IsInitialized);
+        Assert.True(runtime.IsShutdown);
+
+        game.Shutdown();
+
+        Assert.Equal(1, game.ShutdownCount);
+    }
+
+    [Fact]
     public void Shutdown_IsIdempotent_AndRejectsFurtherGameLoopCalls()
     {
         using var runtime = CreateRuntime();
@@ -232,6 +284,49 @@ public sealed class EngineGameLifecycleTests
         protected override void OnShutdown()
         {
             ShutdownCount++;
+        }
+    }
+
+    private sealed class InitializationFailureProbeGame : EngineGame
+    {
+        private readonly bool _failDuringConfigure;
+        private readonly Exception _originalException;
+
+        public int ShutdownCount { get; private set; }
+
+        public InitializationFailureProbeGame(
+            EngineRuntime runtime,
+            bool failDuringConfigure,
+            Exception originalException)
+            : base(runtime)
+        {
+            _failDuringConfigure = failDuringConfigure;
+            _originalException = originalException;
+        }
+
+        protected override void ConfigureRuntime()
+        {
+            if (_failDuringConfigure)
+            {
+                throw _originalException;
+            }
+        }
+
+        protected override void OnInitialize()
+        {
+            if (!_failDuringConfigure)
+            {
+                throw _originalException;
+            }
+        }
+
+        protected override void OnShutdown()
+        {
+            ShutdownCount++;
+
+            // Проверяем, что ошибка очистки не подменяет
+            // первоначальную ошибку инициализации.
+            throw new InvalidOperationException("Cleanup failed.");
         }
     }
 }

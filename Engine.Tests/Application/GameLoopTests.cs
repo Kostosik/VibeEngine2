@@ -7,6 +7,90 @@ namespace Engine.Tests.Application;
 public sealed class GameLoopTests
 {
     [Fact]
+    public void ShutdownFailureStillMarksLoopAsShutdown()
+    {
+        var application = new ThrowingShutdownApplication(new InvalidOperationException());
+        var clock = new TestClock();
+
+        var loop = new GameLoop(
+            application,
+            new SimulationRate(20),
+            clock,
+            Duration.FromMilliseconds(250),
+            8);
+
+        loop.Initialize();
+
+        Assert.Throws<InvalidOperationException>(
+            () => loop.Shutdown());
+
+        Assert.False(clock.IsRunning);
+        Assert.True(loop.IsShutdown);
+        Assert.Equal(1, application.ShutdownCount);
+
+        Assert.Throws<InvalidOperationException>(
+            () => loop.Update(Duration.FromMilliseconds(16)));
+
+        Assert.Throws<InvalidOperationException>(
+            () => loop.Shutdown());
+
+        Assert.Equal(1, application.ShutdownCount);
+    }
+
+    [Fact]
+    public void Shutdown_WhenApplicationThrows_MarksLoopAsShutdown()
+    {
+        var originalException =
+            new InvalidOperationException("Shutdown failed.");
+
+        var application =
+            new ThrowingShutdownApplication(originalException);
+
+        var clock = new TestClock();
+
+        var loop = new GameLoop(
+            application,
+            new SimulationRate(20),
+            clock,
+            Duration.FromMilliseconds(250),
+            8);
+
+        loop.Initialize();
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => loop.Shutdown());
+
+        Assert.Same(originalException, exception);
+        Assert.False(clock.IsRunning);
+        Assert.True(loop.IsShutdown);
+        Assert.Equal(1, application.ShutdownCount);
+
+        Assert.Throws<InvalidOperationException>(
+            () => loop.Shutdown());
+
+        Assert.Equal(1, application.ShutdownCount);
+    }
+
+    private sealed class ThrowingShutdownApplication
+        : Engine.Core.Application.Application
+    {
+        private readonly Exception _exception;
+
+        public int ShutdownCount { get; private set; }
+
+        public ThrowingShutdownApplication(Exception exception)
+        {
+            _exception = exception;
+        }
+
+        public override void Shutdown()
+        {
+            ShutdownCount++;
+            throw _exception;
+        }
+    }
+
+    [Fact]
     public void InitializeInitializesApplicationAndStartsClock()
     {
         var application =

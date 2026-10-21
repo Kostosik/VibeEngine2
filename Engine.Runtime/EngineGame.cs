@@ -99,8 +99,21 @@ public abstract class EngineGame : Application
         }
         catch
         {
-            ShutdownRuntimeSafely();
-            _shutdown = true;
+            try
+            {
+                OnShutdown();
+            }
+            catch
+            {
+                // Не подменяем исходную ошибку инициализации
+                // исключением, возникшим во время очистки.
+            }
+            finally
+            {
+                ShutdownRuntimeSafely();
+                _shutdown = true;
+            }
+
             throw;
         }
     }

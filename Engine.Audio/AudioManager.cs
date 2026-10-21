@@ -1,5 +1,6 @@
 ﻿using Engine.Audio.Resources;
 using Engine.Core.Assets;
+using System.Runtime.ExceptionServices;
 
 namespace Engine.Audio;
 
@@ -51,21 +52,31 @@ public sealed class AudioManager :
             buffer);
     }
 
-    public IAudioSource Play(
-        IAudioBuffer buffer)
+    public IAudioSource Play(IAudioBuffer buffer)
     {
         EnsureNotDisposed();
+        ArgumentNullException.ThrowIfNull(buffer);
 
-        ArgumentNullException.ThrowIfNull(
-            buffer);
+        var source = _device.CreateSource(buffer);
 
-        var source =
-            _device.CreateSource(
-                buffer);
+        try
+        {
+            source.Play();
+            return source;
+        }
+        catch
+        {
+            try
+            {
+                source.Dispose();
+            }
+            catch
+            {
+                // Сохраняем исходную ошибку воспроизведения.
+            }
 
-        source.Play();
-
-        return source;
+            throw;
+        }
     }
 
     public IAudioListener CreateListener()
@@ -82,10 +93,32 @@ public sealed class AudioManager :
             return;
         }
 
-        _resources.Dispose();
-        _device.Dispose();
-
         _disposed = true;
+
+        Exception? firstException = null;
+
+        try
+        {
+            _resources.Dispose();
+        }
+        catch (Exception exception)
+        {
+            firstException = exception;
+        }
+
+        try
+        {
+            _device.Dispose();
+        }
+        catch (Exception exception)
+        {
+            firstException ??= exception;
+        }
+
+        if (firstException is not null)
+        {
+            ExceptionDispatchInfo.Capture(firstException).Throw();
+        }
     }
 
     private void EnsureNotDisposed()

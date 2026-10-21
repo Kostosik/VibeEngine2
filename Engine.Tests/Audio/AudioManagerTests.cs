@@ -8,6 +8,29 @@ namespace Engine.Tests.Audio;
 public sealed class AudioManagerTests
 {
     [Fact]
+    public void Play_DisposesSourceWhenPlaybackFails()
+    {
+        var path = new AssetPath("test.wav");
+        var device = new TestAudioDevice
+        {
+            ThrowOnPlay = true
+        };
+
+        using var manager = new AudioManager(
+            new InMemoryAssetSource(path, CreateTestWav()),
+            device);
+
+        var buffer = manager.Load(path);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => manager.Play(buffer));
+
+        Assert.Equal("Playback failed.", exception.Message);
+        Assert.NotNull(device.LastCreatedSource);
+        Assert.True(device.LastCreatedSource.Disposed);
+    }
+
+    [Fact]
     public void Load_CachesBufferForSamePath()
     {
         var path =
@@ -194,30 +217,32 @@ public sealed class AudioManagerTests
         return wav;
     }
 
-    private sealed class InMemoryAssetSource :
-        IAssetSource
+    private sealed class InMemoryAssetSource : IAssetSource
     {
-        private readonly AssetPath _path;
-        private readonly byte[] _data;
+        private readonly Dictionary<AssetPath, byte[]> _assets;
 
-        public InMemoryAssetSource(
-            AssetPath path,
-            byte[] data)
+        public InMemoryAssetSource(AssetPath path, byte[] data)
+            : this(new[] { (Path: path, Data: data) })
         {
-            _path = path;
-            _data = data;
         }
 
-        public ReadOnlyMemory<byte> Load(
-            AssetPath path)
+        public InMemoryAssetSource(
+            params (AssetPath Path, byte[] Data)[] assets)
         {
-            if (path != _path)
+            _assets = assets.ToDictionary(
+                asset => asset.Path,
+                asset => asset.Data);
+        }
+
+        public ReadOnlyMemory<byte> Load(AssetPath path)
+        {
+            if (!_assets.TryGetValue(path, out var data))
             {
                 throw new FileNotFoundException(
                     $"Asset '{path}' was not found.");
             }
 
-            return _data;
+            return data;
         }
     }
 
@@ -225,9 +250,11 @@ public sealed class AudioManagerTests
         IAudioDevice
     {
         private readonly List<TestAudioBuffer> _buffers = [];
-
+        public bool ThrowOnBufferDispose { get; set; }
         public int CreatedBufferCount { get; private set; }
+        public bool ThrowOnPlay { get; set; }
 
+        public TestAudioSource? LastCreatedSource { get; private set; }
         public int CreatedSourceCount { get; private set; }
 
         public bool Disposed { get; private set; }
@@ -248,12 +275,13 @@ public sealed class AudioManagerTests
             return buffer;
         }
 
-        public IAudioSource CreateSource(
-            IAudioBuffer buffer)
+        public IAudioSource CreateSource(IAudioBuffer buffer)
         {
             CreatedSourceCount++;
 
-            return new TestAudioSource();
+            LastCreatedSource = new TestAudioSource(ThrowOnPlay);
+
+            return LastCreatedSource;
         }
 
         public IAudioListener CreateListener()
@@ -266,6 +294,12 @@ public sealed class AudioManagerTests
             if (!Disposed)
             {
                 BufferDisposalsBeforeDeviceDispose++;
+            }
+
+            if (ThrowOnBufferDispose)
+            {
+                throw new InvalidOperationException(
+                    "Buffer disposal failed.");
             }
         }
 
@@ -306,8 +340,22 @@ public sealed class AudioManagerTests
     {
         public bool Played { get; private set; }
 
+        private readonly bool _throwOnPlay;
+
+        public bool Disposed { get; private set; }
+
+        public TestAudioSource(bool throwOnPlay = false)
+        {
+            _throwOnPlay = throwOnPlay;
+        }
+
         public void Play()
         {
+            if (_throwOnPlay)
+            {
+                throw new InvalidOperationException("Playback failed.");
+            }
+
             Played = true;
         }
 
@@ -350,8 +398,50 @@ public sealed class AudioManagerTests
 
         public void Dispose()
         {
+            Disposed = true;
         }
     }
+
+    [Fact]
+    public void Dispose_AttemptsAllBuffersAndDeviceWhenBufferDisposalFails()
+    {
+        var firstPath = new AssetPath("first.wav");
+        var secondPath = new AssetPath("second.wav");
+
+        var device = new TestAudioDevice
+        {
+            ThrowOnBufferDispose = true
+        };
+
+        var assets = new InMemoryAssetSource(
+            (firstPath, CreateTestWav()),
+            (secondPath, CreateTestWav()));
+
+        var manager = new AudioManager(assets, device);
+
+        var first = Assert.IsType<TestAudioBuffer>(
+            manager.Load(firstPath));
+
+        var second = Assert.IsType<TestAudioBuffer>(
+            manager.Load(secondPath));
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => manager.Dispose());
+
+        Assert.Equal("Buffer disposal failed.", exception.Message);
+        Assert.True(first.Disposed);
+        Assert.True(second.Disposed);
+        Assert.True(device.Disposed);
+
+        Assert.Equal(
+            2,
+            device.BufferDisposalsBeforeDeviceDispose);
+
+        // Повторный Dispose безопасен и не повторяет очистку.
+        manager.Dispose();
+    }
+
+    
 
     private sealed class TestAudioListener :
         IAudioListener

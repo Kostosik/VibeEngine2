@@ -1,5 +1,6 @@
 ﻿using Engine.Audio.Loading;
 using Engine.Core.Assets;
+using System.Runtime.ExceptionServices;
 
 namespace Engine.Audio.Resources;
 
@@ -87,28 +88,43 @@ public sealed class AudioResourceManager
     public void UnloadAll()
     {
         EnsureNotDisposed();
-
-        foreach (var buffer in _loaded.Values)
-        {
-            buffer.Dispose();
-        }
-
-        _loaded.Clear();
+        DisposeLoadedBuffers();
     }
 
     public void Dispose()
     {
         if (_disposed)
-            return;
-
-        foreach (var buffer in _loaded.Values)
         {
-            buffer.Dispose();
+            return;
         }
 
+        _disposed = true;
+        DisposeLoadedBuffers();
+    }
+
+    private void DisposeLoadedBuffers()
+    {
+        var buffers = _loaded.Values.ToArray();
         _loaded.Clear();
 
-        _disposed = true;
+        Exception? firstException = null;
+
+        foreach (var buffer in buffers)
+        {
+            try
+            {
+                buffer.Dispose();
+            }
+            catch (Exception exception)
+            {
+                firstException ??= exception;
+            }
+        }
+
+        if (firstException is not null)
+        {
+            ExceptionDispatchInfo.Capture(firstException).Throw();
+        }
     }
 
     private static void EnsurePathValid(

@@ -7,7 +7,8 @@ public sealed class SilkNetInputBackend :
     IInputBackend,
     ITextInput,
     IPointerInput,
-    ICursorService
+    ICursorService,
+    IDisposable
 {
     private readonly IInputContext _inputContext;
 
@@ -21,7 +22,7 @@ public sealed class SilkNetInputBackend :
 
     private bool _currentLeftButton;
     private bool _previousLeftButton;
-
+    private bool _disposed;
     private bool _currentRightButton;
     private bool _previousRightButton;
 
@@ -60,14 +61,39 @@ public sealed class SilkNetInputBackend :
         _inputContext =
             inputContext;
 
-        InitializeDevices();
-        SubscribeToEvents();
-
-        if (_mouse is not null)
+        try
         {
-            _cursorService =
-                new SilkNetCursorService(
+            InitializeDevices();
+            SubscribeToEvents();
+
+            if (_mouse is not null)
+            {
+                _cursorService = new SilkNetCursorService(
                     _mouse.Cursor);
+            }
+        }
+        catch
+        {
+            // Сохраняем исходную ошибку инициализации.
+            try
+            {
+                UnsubscribeFromEvents();
+            }
+            catch
+            {
+                // Очистка не должна скрывать исходную ошибку.
+            }
+
+            try
+            {
+                _inputContext.Dispose();
+            }
+            catch
+            {
+                // Сохраняем исходную ошибку инициализации.
+            }
+
+            throw;
         }
     }
 
@@ -421,5 +447,51 @@ public sealed class SilkNetInputBackend :
     {
         _cursorService?.Set(
             shape);
+    }
+
+    private void UnsubscribeFromEvents()
+    {
+        if (_keyboard is not null)
+        {
+            _keyboard.KeyChar -= OnKeyChar;
+        }
+
+        if (_mouse is not null)
+        {
+            _mouse.Scroll -= OnMouseScroll;
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
+        try
+        {
+            UnsubscribeFromEvents();
+        }
+        finally
+        {
+            try
+            {
+                _inputContext.Dispose();
+            }
+            finally
+            {
+                _keyboard = null;
+                _mouse = null;
+                _cursorService = null;
+
+                _characters.Clear();
+                _pendingCharacters.Clear();
+                _currentTextKeys.Clear();
+                _previousTextKeys.Clear();
+            }
+        }
     }
 }

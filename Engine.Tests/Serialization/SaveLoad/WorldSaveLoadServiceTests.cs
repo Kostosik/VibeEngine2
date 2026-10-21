@@ -14,6 +14,69 @@ namespace Engine.Tests.Serialization.SaveLoad;
 
 public sealed class WorldSaveLoadServiceTests
 {
+
+    [Fact]
+    public void Save_RejectsRuntimeComponentWithoutRegisteredSerializer()
+    {
+        var registry =
+            new EcsComponentSerializerRegistry();
+
+        var saveLoad =
+            new WorldSaveLoadService(registry);
+
+        using var ecsWorld =
+            new Engine.ECS.World();
+
+        using var world =
+            new Engine.Worlds.World(
+                new ChunkSize(4, 4),
+                ecsWorld);
+
+        var entity =
+            ecsWorld.CreateEntity();
+
+        ecsWorld.Add(
+            entity,
+            new UnsavedRuntimeComponent(42));
+
+        var path =
+            Path.Combine(
+                Path.GetTempPath(),
+                $"vibe-unsaved-component-{Guid.NewGuid():N}.world");
+
+        try
+        {
+            var exception =
+                Assert.Throws<InvalidOperationException>(
+                    () => saveLoad.Save(
+                        path,
+                        world));
+
+            Assert.Contains(
+                "No ECS component serializer is registered",
+                exception.Message);
+
+            Assert.Contains(
+                nameof(UnsavedRuntimeComponent),
+                exception.Message);
+
+            // Ошибка возникает до записи файла сохранения.
+            Assert.False(
+                File.Exists(path));
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    private readonly record struct UnsavedRuntimeComponent(
+        int Value);
+
+
     [Fact]
     public void World_RestoreWithInvalidEcsState_DoesNotMutateExistingWorld()
     {

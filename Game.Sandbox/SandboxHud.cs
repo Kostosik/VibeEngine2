@@ -15,7 +15,9 @@ public sealed class SandboxHud :
     private readonly UiLabel _networkStatus;
     private readonly UiLabel _playerReplicationStatus;
     private readonly UiLabel _integrationStatus;
-
+    private readonly UiLabel _multiplayerStatus;
+    private readonly UiLabel _multiplayerReplicationStatus;
+    private readonly UiLabel _multiplayerPlayerStatus;
     public SandboxHud()
     {
         HorizontalAlignment =
@@ -74,16 +76,36 @@ public sealed class SandboxHud :
     {
         FontSize = 13.0f
     };
+        _multiplayerStatus = new UiLabel(
+    "MULTIPLAYER ROLE: OFF")
+        {
+            FontSize = 13.0f
+        };
+
+        _multiplayerReplicationStatus = new UiLabel(
+    "MULTIPLAYER REPLICATION: OFF")
+        {
+            FontSize = 13.0f
+        };
+
         _networkReplicationStatus =
     new UiLabel("NETWORK REPLICATION: IDLE")
     {
         FontSize = 13.0f
     };
+        _multiplayerPlayerStatus = new UiLabel(
+    "PLAYER STREAM: OFF")
+        {
+            FontSize = 13.0f
+        };
 
+        stack.AddChild(_multiplayerPlayerStatus);
         stack.AddChild(
             _networkReplicationStatus);
         stack.AddChild(
             _networkStatus);
+        stack.AddChild(_multiplayerStatus);
+        stack.AddChild(_multiplayerReplicationStatus);
 
         stack.AddChild(
             new UiLabel(
@@ -165,6 +187,11 @@ public sealed class SandboxHud :
         AddChild(panel);
     }
 
+    public void SetMultiplayerReplicationStatus(string status)
+    {
+        _multiplayerReplicationStatus.Text = status;
+    }
+
     public void SetPerformance(
     string text)
     {
@@ -187,6 +214,11 @@ public sealed class SandboxHud :
 
         _interaction.Visible =
             !string.IsNullOrEmpty(text);
+    }
+
+    public void SetMultiplayerPlayerStatus(string status)
+    {
+        _multiplayerPlayerStatus.Text = status;
     }
 
     public void SetIntegrationStatus(
@@ -213,6 +245,11 @@ public sealed class SandboxHud :
     string status)
     {
         _networkStatus.Text = status;
+    }
+
+    public void SetMultiplayerStatus(string status)
+    {
+        _multiplayerStatus.Text = status;
     }
 
     public void SetStatus(

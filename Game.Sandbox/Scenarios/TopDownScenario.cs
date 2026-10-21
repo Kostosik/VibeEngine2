@@ -996,6 +996,15 @@ public sealed class TopDownScenario :
                 _player).Position;
     }
 
+    public void RenderRemotePlayer(FixedVector2 position)
+    {
+        _spriteRenderer.DrawWorld(
+            _playerSprite,
+            new Vector2(
+                position.X.ToFloat() - 0.5f,
+                position.Y.ToFloat() - 0.5f));
+    }
+
     public void SpawnStressBatch()
     {
         for (var i = 0; i < 40; i++)

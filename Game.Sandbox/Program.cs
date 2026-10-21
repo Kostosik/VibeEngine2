@@ -32,18 +32,49 @@ if (args.Any(
         });
 
     return;
+
 }
+
+
+if (!SandboxNetworkRoleOptions.TryParse(
+        args,
+        out var multiplayerOptions,
+        out var parseError))
+{
+    Console.Error.WriteLine(
+        $"Invalid Game.Sandbox arguments: {parseError}");
+
+    Console.Error.WriteLine(
+        "Server: --server --bind 127.0.0.1 --port 27015");
+
+    Console.Error.WriteLine(
+        "Client: --client --host 127.0.0.1 " +
+        "--port 27015 --local-port 27016");
+
+    Environment.ExitCode = 2;
+    return;
+}
+
 
 var sandboxActions = new SandboxInputActions();
 
 DesktopGameHost.Run(
-    (DesktopGameHostContext context) =>
-        new SandboxGame(
-            context,
-            sandboxActions),
+
+(DesktopGameHostContext context) =>
+    new SandboxGame(
+        context,
+        sandboxActions,
+        multiplayerOptions),
+
     new DesktopGameHostOptions
     {
-        Title = "VibeEngine2 Sandbox",
+
+        Title = multiplayerOptions is null
+    ? "VibeEngine2 Sandbox"
+    : multiplayerOptions.Role == SandboxNetworkRole.Server
+        ? "VibeEngine2 Sandbox - Server"
+        : "VibeEngine2 Sandbox - Client",
+
         Width = 1280,
         Height = 720,
 

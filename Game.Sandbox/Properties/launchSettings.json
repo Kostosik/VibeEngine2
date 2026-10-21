@@ -2,6 +2,14 @@
   "profiles": {
     "Game.Sandbox": {
       "commandName": "Project"
+    },
+    "Multiplayer Server": {
+      "commandName": "Project",
+      "commandLineArgs": "--server --port 27015"
+    },
+    "Multiplayer Client": {
+      "commandName": "Project",
+      "commandLineArgs": "--client --host 127.0.0.1 --port 27015"
     }
   }
 }

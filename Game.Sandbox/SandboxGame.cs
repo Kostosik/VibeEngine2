@@ -22,7 +22,7 @@ internal sealed class SandboxGame : EngineGame, IDisposable
 {
     private readonly DesktopGameHostContext _context;
     private readonly SandboxInputActions _sandboxActions;
-
+    private readonly SandboxNetworkRoleOptions? _networkRoleOptions;
     private TextureResourceManager? _resources;
     private SandboxState? _sandbox;
     private SandboxScriptProbe? _scriptProbe;
@@ -31,7 +31,8 @@ internal sealed class SandboxGame : EngineGame, IDisposable
 
     public SandboxGame(
         DesktopGameHostContext context,
-        SandboxInputActions sandboxActions)
+        SandboxInputActions sandboxActions,
+        SandboxNetworkRoleOptions? networkRoleOptions = null)
         : base(
             (context ?? throw new ArgumentNullException(nameof(context)))
             .Runtime)
@@ -40,6 +41,7 @@ internal sealed class SandboxGame : EngineGame, IDisposable
 
         _context = context;
         _sandboxActions = sandboxActions;
+        _networkRoleOptions = networkRoleOptions;
     }
 
     protected override void OnInitialize()
@@ -166,7 +168,8 @@ internal sealed class SandboxGame : EngineGame, IDisposable
                 _sandboxActions,
                 saveLoad,
                 console,
-                () => _scriptProbe);
+                () => _scriptProbe,
+                _networkRoleOptions);
 
             _context.Resized += _sandbox.Resize;
         }

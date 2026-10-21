@@ -33,7 +33,9 @@ public sealed class SandboxState
     private readonly IGraphicsDevice _graphics;
     private readonly UiSystem _ui;
     private readonly DebugConsoleOverlay? _console;
-
+    private readonly SandboxMultiplayerProbe? _multiplayerProbe;
+    private readonly SandboxMultiplayerReplicationProbe?
+    _multiplayerReplicationProbe;
     private readonly SandboxPlayerReplicationProbe _playerReplicationProbe;
     private readonly UiShowcaseWindow _uiShowcase;
 
@@ -55,7 +57,8 @@ public sealed class SandboxState
 
     private readonly GameSaveLoadService _saveLoad;
     private readonly string _savePath;
-
+    private readonly SandboxMultiplayerPlayerProbe?
+    _multiplayerPlayerProbe;
     private readonly SandboxReplicationProbe _networkReplicationProbe;
 
     private readonly SandboxInputActions _actions;
@@ -70,7 +73,7 @@ public sealed class SandboxState
     SandboxInputActions actions,
     GameSaveLoadService saveLoad,
     DebugConsoleOverlay? console = null,
-    Func<SandboxScriptProbe?>? scriptProbeProvider = null)
+    Func<SandboxScriptProbe?>? scriptProbeProvider = null, SandboxNetworkRoleOptions? networkRoleOptions = null)
     {
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(ui);
@@ -182,6 +185,78 @@ public sealed class SandboxState
         _hud.SetPlayerReplicationStatus(
             _playerReplicationProbe.Status);
 
+        _multiplayerProbe = networkRoleOptions is null
+    ? null
+    : new SandboxMultiplayerProbe(networkRoleOptions);
+
+        if (_multiplayerProbe is null)
+        {
+            _hud.SetMultiplayerStatus("MULTIPLAYER ROLE: OFF");
+        }
+        else
+        {
+            _multiplayerProbe.StatusChanged +=
+                _hud.SetMultiplayerStatus;
+
+            _multiplayerProbe.Start();
+        }
+
+        if (networkRoleOptions is null)
+        {
+            _multiplayerReplicationProbe = null;
+
+            _hud.SetMultiplayerReplicationStatus(
+                "MULTIPLAYER REPLICATION: OFF");
+        }
+        else
+        {
+            if (networkRoleOptions.Port > 65525 ||
+                networkRoleOptions.LocalPort > 65525)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(networkRoleOptions),
+                    "Replication ports exceed the valid UDP port range.");
+            }
+
+            var replicationOptions = networkRoleOptions with
+            {
+                Port = networkRoleOptions.Port + 10,
+                LocalPort = networkRoleOptions.LocalPort + 10
+            };
+
+            _multiplayerReplicationProbe =
+                new SandboxMultiplayerReplicationProbe(
+                    replicationOptions);
+
+            _multiplayerReplicationProbe.StatusChanged +=
+                _hud.SetMultiplayerReplicationStatus;
+
+            _multiplayerPlayerProbe = networkRoleOptions is null
+    ? null
+    : new SandboxMultiplayerPlayerProbe(networkRoleOptions);
+
+            if (_multiplayerPlayerProbe is not null)
+            {
+                _multiplayerPlayerProbe.StatusChanged +=
+                    _hud.SetMultiplayerPlayerStatus;
+
+                _multiplayerPlayerProbe.Start(
+                    _runtime.EcsWorld,
+                    () => _topDown?.Player ?? default);
+            }
+            else
+            {
+                _hud.SetMultiplayerPlayerStatus(
+                    "PLAYER STREAM: OFF");
+            }
+
+            _hud.SetMultiplayerReplicationStatus(
+                _multiplayerReplicationProbe.Status);
+
+            _multiplayerReplicationProbe.Start(
+                _runtime.EcsWorld);
+        }
+
         _runtime.PhysicsDebugVisualizer!.Enabled =
             true;
     }
@@ -199,6 +274,9 @@ public sealed class SandboxState
                    "Sandbox.NetworkProbe.Update"))
         {
             _networkProbe.Update();
+            _multiplayerProbe?.Update();
+            _multiplayerReplicationProbe?.Update();
+            _multiplayerPlayerProbe?.Update();
         }
 
         using (_runtime.Profiler?.BeginScope(
@@ -457,6 +535,12 @@ public sealed class SandboxState
         {
             _topDown?.Render(
     interpolationAlpha);
+
+            if (_mode == SandboxMode.TopDown &&
+    _multiplayerPlayerProbe?.RemotePosition is { } remotePosition)
+            {
+                _topDown?.RenderRemotePlayer(remotePosition);
+            }
         }
         else
         {
@@ -811,6 +895,30 @@ public sealed class SandboxState
     public void Shutdown()
     {
         DisposeCurrentScenario();
+
+        if (_multiplayerProbe is not null)
+        {
+            _multiplayerProbe.StatusChanged -=
+                _hud.SetMultiplayerStatus;
+
+            _multiplayerProbe.Dispose();
+        }
+
+        if (_multiplayerPlayerProbe is not null)
+        {
+            _multiplayerPlayerProbe.StatusChanged -=
+                _hud.SetMultiplayerPlayerStatus;
+
+            _multiplayerPlayerProbe.Dispose();
+        }
+
+        if (_multiplayerReplicationProbe is not null)
+        {
+            _multiplayerReplicationProbe.StatusChanged -=
+                _hud.SetMultiplayerReplicationStatus;
+
+            _multiplayerReplicationProbe.Dispose();
+        }
 
         _playerReplicationProbe.StatusChanged -=
     _hud.SetPlayerReplicationStatus;

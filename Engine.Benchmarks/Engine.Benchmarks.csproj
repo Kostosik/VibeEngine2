@@ -9,6 +9,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="..\Engine.Content\Engine.Content.csproj" />
 		<ProjectReference Include="..\Engine.ECS\Engine.ECS.csproj" />
 		<ProjectReference Include="..\Engine.Jobs\Engine.Jobs.csproj" />
 	</ItemGroup>

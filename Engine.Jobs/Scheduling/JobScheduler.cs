@@ -244,21 +244,6 @@ public sealed class JobScheduler :
             GetNode(
                 handle);
 
-        while (!node.Completion.IsCompleted)
-        {
-            if (_queue.TryTake(
-                    out var workItem,
-                    10))
-            {
-                Execute(
-                    workItem.Node);
-
-                continue;
-            }
-
-            Thread.Yield();
-        }
-
         node.Completion.Wait();
     }
 

@@ -118,7 +118,7 @@
 
 #### 6.2. Интеграция игрового проекта и Editor
 
-- [ ] **Текущее покрытие:** `Add Component` поддерживает `LocalTransform2D`, `WorldTransform2D`, `PhysicsBody2D`, `Collider2D`; настройка физического тела, формы и материала, а также защита зависимостей проверены.
+- [x] **Текущее покрытие:** `Add Component` поддерживает `LocalTransform2D`, `WorldTransform2D`, `PhysicsBody2D`, `Collider2D`; Inspector редактирует параметры физического тела, форму коллайдера и материал, а зависимости защищены при добавлении и удалении. Проверено тестами `InspectorComponentPickerTests` и `EcsComponentPropertyProviderTests`.
 - [x] **Rendering:** добавлены сериализуемый `SpriteComponent` и runtime-отрисовка ECS-спрайтов; проверены регистрация, сериализация и `SpriteRenderSystemTests`.
 - [x] **Audio:** добавлены `AudioSourceComponent`/`AudioListenerComponent` и runtime-управление ресурсами; проверено тестами `AudioEcsSystemTests`.
 - [x] **Существующий ECS:** добавлено назначение `DistanceJoint2D` (две сущности и длина) и управление `TransformParent2D` через Hierarchy; проверено тестами `DistanceJointEditorCommandTests` и `TransformParentEditorCommandTests`.

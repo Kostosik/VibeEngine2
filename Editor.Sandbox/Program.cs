@@ -283,6 +283,10 @@ toolsMenu.AddItem(
     "Console",
     application.ToggleConsole);
 
+toolsMenu.AddItem(
+    "Set as Startup Scene",
+    application.SetActiveWorldAsStartupScene);
+
 Action<UiRect> toolsRequested = bounds =>
 {
     toolsMenu.Open(

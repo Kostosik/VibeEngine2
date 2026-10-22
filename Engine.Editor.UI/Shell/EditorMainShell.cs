@@ -24,7 +24,7 @@ public sealed class EditorMainShell :
     private UiButton _playButton;
     private UiButton _stopButton;
     private UiButton _restartButton;
-
+    private UiButton _hotReloadButton;
     private bool _isGameRunning;
     private readonly DebugConsole? _debugConsole;
     private readonly UiPanel _workspace;
@@ -42,6 +42,7 @@ public sealed class EditorMainShell :
     public event Action? PlayRequested;
     public event Action? StopRequested;
     public event Action? RestartRequested;
+    public event Action? HotReloadRequested;
     public bool IsUiMode =>
         Editor.Session.ActiveEditorDocument
             is EditorUiDocument;
@@ -755,7 +756,10 @@ public sealed class EditorMainShell :
             "Play",
             64.0f,
             () => PlayRequested?.Invoke());
-
+        _hotReloadButton = AddButton(
+    "Hot Reload",
+    100.0f,
+    () => HotReloadRequested?.Invoke());
         _stopButton = AddButton(
             "Stop",
             64.0f,
@@ -899,5 +903,7 @@ public sealed class EditorMainShell :
 
         _restartButton.Enabled =
             hasProject && _isGameRunning;
+        _hotReloadButton.Enabled =
+    hasProject && !_isGameRunning;
     }
 }

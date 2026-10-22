@@ -37,7 +37,7 @@ public sealed class GameProject
     /// <summary>
     /// Relative path to the startup scene, if configured.
     /// </summary>
-    public string? StartupSceneRelativePath { get; }
+    public string? StartupSceneRelativePath { get; private set; }
     public string? SolutionFilePath { get; }
 
     public static GameProject Open(string manifestFilePath)
@@ -122,6 +122,83 @@ public sealed class GameProject
             manifest.StartupScene);
     }
 
+    public void SetStartupScene(string sceneFilePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sceneFilePath);
+
+        var fullScenePath = Path.GetFullPath(sceneFilePath);
+
+        if (!ContainsPath(fullScenePath))
+        {
+            throw new ArgumentException(
+                "The startup scene must be inside the game project directory.",
+                nameof(sceneFilePath));
+        }
+
+        if (!string.Equals(
+                Path.GetExtension(fullScenePath),
+                ".world",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException(
+                "The startup scene must be a .world file.",
+                nameof(sceneFilePath));
+        }
+
+        if (!File.Exists(fullScenePath))
+        {
+            throw new FileNotFoundException(
+                "The startup scene file was not found.",
+                fullScenePath);
+        }
+
+        var relativePath = Path
+            .GetRelativePath(RootDirectory, fullScenePath)
+            .Replace('\\', '/');
+
+        var currentManifest =
+            VibeProjectManifest.Load(ManifestFilePath);
+
+        var updatedManifest = new VibeProjectManifest
+        {
+            FormatVersion = currentManifest.FormatVersion,
+            Name = currentManifest.Name,
+            StartupProject = currentManifest.StartupProject,
+            StartupScene = relativePath
+        };
+
+        var manifestDirectory =
+            Path.GetDirectoryName(ManifestFilePath)
+            ?? throw new InvalidOperationException(
+                "Cannot determine the project manifest directory.");
+
+        var temporaryPath = Path.Combine(
+            manifestDirectory,
+            $".{Path.GetFileName(ManifestFilePath)}.{Guid.NewGuid():N}.tmp");
+
+        try
+        {
+            File.WriteAllText(
+                temporaryPath,
+                updatedManifest.ToJson());
+
+            // Заменяем манифест только после успешной записи нового файла.
+            File.Move(
+                temporaryPath,
+                ManifestFilePath,
+                overwrite: true);
+
+            StartupSceneRelativePath = relativePath;
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
+    }
+
     private static bool IsOutsideProjectRoot(string relativePath)
     {
         return Path.IsPathRooted(relativePath)
@@ -134,6 +211,18 @@ public sealed class GameProject
             || relativePath.StartsWith(
                 $"..{Path.AltDirectorySeparatorChar}",
                 StringComparison.Ordinal);
+    }
+
+    internal bool ContainsPath(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        var fullPath = Path.GetFullPath(path);
+        var relativePath = Path.GetRelativePath(
+            RootDirectory,
+            fullPath);
+
+        return !IsOutsideProjectRoot(relativePath);
     }
 
     private static string? FindSolutionFilePath(

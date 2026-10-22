@@ -262,6 +262,7 @@ public sealed class EditorApplication :
         MainShell.PlayRequested += StartGame;
         MainShell.StopRequested += StopGame;
         MainShell.RestartRequested += RestartGame;
+        MainShell.HotReloadRequested += StartGameHotReload;
 
         MainShell.OpenRequested +=
             RequestOpenDocument;
@@ -608,7 +609,7 @@ public sealed class EditorApplication :
         DrainGameOutput();
 
         MainShell.SetGameRunning(
-            _gameProjectRunner.IsRunning);
+            _gameProjectRunner.IsSessionActive);
 
         if (_textInput?.IsPressed(
             TextInputKey.F1) == true)
@@ -645,7 +646,7 @@ public sealed class EditorApplication :
         _newProjectDialog.CreateRequested -= CreateProject;
         MainShell.SaveAllRequested -=
     SaveAllDocuments;
-
+        MainShell.HotReloadRequested -= StartGameHotReload;
         MainShell.OpenProjectRequested -=
     RequestOpenProject;
         MainShell.OpenProjectInIdeRequested -=
@@ -968,7 +969,46 @@ public sealed class EditorApplication :
         }
     }
 
-    private void StartGame()
+    public void SetActiveWorldAsStartupScene()
+    {
+        if (Editor.Session.ActiveEditorDocument
+            is not EditorDocument document)
+        {
+            _errorDialog.ShowError(
+                "Select a world document first.");
+
+            return;
+        }
+
+        try
+        {
+            Editor.SetStartupScene(document);
+
+            var project = Editor.ActiveGameProject!;
+
+            _debugConsole?.WriteLine(
+                $"Startup scene set to '{project.StartupSceneRelativePath}'.");
+
+            MarkUiDirty();
+        }
+        catch (Exception exception)
+        {
+            _debugConsole?.WriteException(
+                exception,
+                "Failed to set the startup scene.");
+
+            _errorDialog.ShowError(exception.Message);
+        }
+    }
+
+
+    private void StartGame() =>
+        StartGame(GameProjectRunMode.Standard);
+
+    private void StartGameHotReload() =>
+        StartGame(GameProjectRunMode.HotReload);
+
+    private void StartGame(GameProjectRunMode mode)
     {
         var project = Editor.ActiveGameProject;
 
@@ -982,7 +1022,12 @@ public sealed class EditorApplication :
 
         try
         {
-            _gameProjectRunner.Start(project);
+            _gameProjectRunner.Start(project, mode);
+
+            _debugConsole?.WriteLine(
+                mode == GameProjectRunMode.HotReload
+                    ? "Starting game with Hot Reload."
+                    : "Starting game normally.");
         }
         catch (Exception exception)
         {
@@ -996,8 +1041,9 @@ public sealed class EditorApplication :
         }
 
         MainShell.SetGameRunning(
-            _gameProjectRunner.IsRunning);
+            _gameProjectRunner.IsSessionActive);
     }
+
 
     private void StopGame()
     {
@@ -1033,7 +1079,9 @@ public sealed class EditorApplication :
 
             return;
         }
-
+        var mode =
+    _gameProjectRunner.ActiveRunMode
+    ?? GameProjectRunMode.Standard;
         try
         {
             if (_gameProjectRunner.IsRunning)
@@ -1041,7 +1089,7 @@ public sealed class EditorApplication :
                 _gameProjectRunner.Stop();
             }
 
-            _gameProjectRunner.Start(project);
+            _gameProjectRunner.Start(project, mode);
         }
         catch (Exception exception)
         {

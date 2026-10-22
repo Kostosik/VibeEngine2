@@ -3,6 +3,7 @@ using Engine.ECS.Systems;
 using Engine.Editor.Commands;
 using Engine.Editor.Entities;
 using Engine.Editor.Inspection;
+using Engine.Editor.Projects;
 using Engine.Editor.Selection;
 using Engine.Editor.Viewport;
 using Engine.Tooling.Validation;
@@ -14,6 +15,12 @@ namespace Engine.Editor.Documents;
 public sealed class EditorDocument : IDisposable, IEditorDocument
 {
     private ValidationResult? _lastValidationResult;
+
+    /// <summary>
+    /// The game project this document belongs to.
+    /// Independent from the editor's currently active project.
+    /// </summary>
+    public GameProject? Project { get; private set; }
 
     private readonly TransformHierarchySystem
     _transformHierarchySystem;
@@ -173,6 +180,11 @@ OnEntityDestroyed;
 
         FilePath =
             path;
+    }
+
+    internal void SetProject(GameProject? project)
+    {
+        Project = project;
     }
 
     internal void RemapEntityReference(

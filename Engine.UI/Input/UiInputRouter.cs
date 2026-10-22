@@ -11,7 +11,7 @@ public sealed class UiInputRouter
     private readonly ITextInput _textInput;
     private readonly UiFocusManager _focus;
     private readonly ICursorService? _cursor;
-
+    private readonly UiDragDropCoordinator _dragDrop;
     private UiWidget? _middlePressedWidget;
     private UiWidget? _rightPressedWidget;
 
@@ -34,6 +34,7 @@ public sealed class UiInputRouter
         ArgumentNullException.ThrowIfNull(focus);
 
         _root = root;
+        _dragDrop = new UiDragDropCoordinator(root);
         _pointer = pointer;
         _textInput = textInput;
         _focus = focus;
@@ -41,6 +42,14 @@ public sealed class UiInputRouter
 
         _focus.SetRoot(
             root);
+    }
+
+    public bool IsDragging => _dragDrop.IsDragging;
+
+    public float DragStartThreshold
+    {
+        get => _dragDrop.DragStartThreshold;
+        set => _dragDrop.DragStartThreshold = value;
     }
 
     public void Update()
@@ -106,6 +115,11 @@ public sealed class UiInputRouter
                 ApplyCaptureRequest(
                     pointerEvent);
             }
+
+            _dragDrop.PointerDown(
+                hovered,
+                position,
+                _capturedWidget);
         }
 
         if (_pointer.IsPressed(
@@ -236,6 +250,33 @@ public sealed class UiInputRouter
                 pointerEvent);
         }
 
+        // Новый блок из пункта 3.4
+        var wasDragging = _dragDrop.IsDragging;
+        var previousDragSource = _dragDrop.SourceWidget;
+
+        var dragStarted = _dragDrop.Update(
+            position,
+            _pointer.IsDown(InputMouseButton.Left),
+            _pointer.IsReleased(InputMouseButton.Left),
+            _capturedWidget,
+            hovered);
+
+        if (dragStarted)
+        {
+            _capturedWidget = _dragDrop.SourceWidget;
+            _capturedButton = InputMouseButton.Left;
+        }
+        else if (wasDragging &&
+                 !_dragDrop.IsDragging &&
+                 _capturedButton == InputMouseButton.Left &&
+                 ReferenceEquals(
+                     _capturedWidget,
+                     previousDragSource))
+        {
+            ClearCapture();
+        }
+
+        // Старый код продолжается здесь
         if (_pointer.IsReleased(
                 InputMouseButton.Left))
         {
@@ -269,6 +310,10 @@ public sealed class UiInputRouter
                 ApplyCaptureRequest(
                     pointerEvent);
             }
+
+            _dragDrop.PointerReleased(
+    position,
+    _root.HitTest(position));
 
             if (_pressedWidget is not null)
             {
@@ -721,6 +766,16 @@ public sealed class UiInputRouter
         if (_textInput.IsPressed(
                 TextInputKey.Escape))
         {
+            if (_dragDrop.Cancel())
+            {
+                if (_capturedButton == InputMouseButton.Left)
+                {
+                    ClearCapture();
+                }
+
+                return;
+            }
+
             var keyEvent =
                 new UiKeyEvent(
                     TextInputKey.Escape);

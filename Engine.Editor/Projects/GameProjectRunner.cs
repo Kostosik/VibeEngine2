@@ -18,8 +18,13 @@ public sealed class GameProjectRunner : IDisposable
     private Process? _process;
     private bool _stopRequested;
     private bool _disposed;
-
-    public bool IsRunning
+    private GameProjectRunMode? _activeRunMode;
+    /// <summary>
+    /// Indicates whether the controlled process or watch session is active.
+    /// In Hot Reload mode, this represents the watcher session,
+    /// not necessarily the lifetime of the game process.
+    /// </summary>
+    public bool IsSessionActive
     {
         get
         {
@@ -41,7 +46,21 @@ public sealed class GameProjectRunner : IDisposable
         }
     }
 
-    public void Start(GameProject project)
+    /// <summary>
+    /// The mode of the currently active session.
+    /// </summary>
+    public GameProjectRunMode? ActiveRunMode =>
+        IsSessionActive ? _activeRunMode : null;
+
+    /// <summary>
+    /// Compatibility property for existing callers.
+    /// In Hot Reload mode, this means the watcher session is active.
+    /// </summary>
+    public bool IsRunning => IsSessionActive;
+
+    public void Start(
+        GameProject project,
+        GameProjectRunMode mode = GameProjectRunMode.Standard)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(project);
@@ -89,12 +108,37 @@ public sealed class GameProjectRunner : IDisposable
         // Это также помогает обеспечить UTF-8 для его вывода.
         startInfo.Environment["DOTNET_CLI_UI_LANGUAGE"] = "ru-RU";
 
-        startInfo.ArgumentList.Add("run");
-        startInfo.ArgumentList.Add("--project");
-        startInfo.ArgumentList.Add(projectFilePath);
-        startInfo.ArgumentList.Add("--configuration");
-        startInfo.ArgumentList.Add("Debug");
-        startInfo.ArgumentList.Add("--no-launch-profile");
+        switch (mode)
+        {
+            case GameProjectRunMode.Standard:
+                startInfo.ArgumentList.Add("run");
+                startInfo.ArgumentList.Add("--project");
+                startInfo.ArgumentList.Add(projectFilePath);
+                startInfo.ArgumentList.Add("--configuration");
+                startInfo.ArgumentList.Add("Debug");
+                startInfo.ArgumentList.Add("--no-launch-profile");
+                break;
+
+            case GameProjectRunMode.HotReload:
+                startInfo.Environment["DOTNET_WATCH_SUPPRESS_EMOJIS"] = "1";
+
+                startInfo.ArgumentList.Add("watch");
+                startInfo.ArgumentList.Add("--project");
+                startInfo.ArgumentList.Add(projectFilePath);
+                startInfo.ArgumentList.Add("--non-interactive");
+                startInfo.ArgumentList.Add("--verbose");
+                startInfo.ArgumentList.Add("run");
+                startInfo.ArgumentList.Add("--configuration");
+                startInfo.ArgumentList.Add("Debug");
+                startInfo.ArgumentList.Add("--no-launch-profile");
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException(
+                    nameof(mode),
+                    mode,
+                    "Unsupported game project run mode.");
+        }
 
         var process = new Process
         {
@@ -116,7 +160,9 @@ public sealed class GameProjectRunner : IDisposable
             if (args.Data is not null)
             {
                 _output.Enqueue(
-                    new GameProjectOutput(true, args.Data));
+                    new GameProjectOutput(
+                        IsErrorOutput(args.Data, mode),
+                        args.Data));
             }
         };
 
@@ -147,7 +193,7 @@ public sealed class GameProjectRunner : IDisposable
             }
 
             _process = process;
-
+            _activeRunMode = mode;
             _output.Enqueue(
                 new GameProjectOutput(
                     false,
@@ -161,6 +207,7 @@ public sealed class GameProjectRunner : IDisposable
             if (ReferenceEquals(_process, process))
             {
                 _process = null;
+                _activeRunMode = null;
             }
 
             try
@@ -178,6 +225,27 @@ public sealed class GameProjectRunner : IDisposable
             process.Dispose();
             throw;
         }
+    }
+
+    private static bool IsErrorOutput(
+    string message,
+    GameProjectRunMode mode)
+    {
+        if (mode == GameProjectRunMode.Standard)
+        {
+            // Сохраняем существующее поведение обычного запуска.
+            return true;
+        }
+
+        return message.Contains(
+                   "error",
+                   StringComparison.OrdinalIgnoreCase)
+               || message.Contains(
+                   "failed",
+                   StringComparison.OrdinalIgnoreCase)
+               || message.Contains(
+                   "fatal",
+                   StringComparison.OrdinalIgnoreCase);
     }
 
     public void Stop()

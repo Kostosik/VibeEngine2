@@ -113,6 +113,9 @@ public sealed class EditorContext
 
         try
         {
+            document.SetProject(
+                ResolveProjectForDocument(filePath));
+
             WorldDocumentConfiguring?.Invoke(document);
 
             Session.Open(document);
@@ -124,6 +127,30 @@ public sealed class EditorContext
             document.Dispose();
             throw;
         }
+    }
+
+    private GameProject? ResolveProjectForDocument(
+    string? path,
+    GameProject? preferredProject = null)
+    {
+        if (path is null)
+        {
+            return null;
+        }
+
+        if (preferredProject is not null &&
+            preferredProject.ContainsPath(path))
+        {
+            return preferredProject;
+        }
+
+        if (ActiveGameProject is not null &&
+            ActiveGameProject.ContainsPath(path))
+        {
+            return ActiveGameProject;
+        }
+
+        return null;
     }
 
     public EditorSessionState CaptureSessionState()
@@ -392,12 +419,18 @@ public sealed class EditorContext
                 "Document is not open.");
         }
 
+        var project = ResolveProjectForDocument(
+    path,
+    document.Project);
+
         persistence.Save(
             path,
             document);
 
         document.SetFilePath(
             path);
+
+        document.SetProject(project);
 
         document.MarkSaved();
     }
@@ -419,6 +452,37 @@ public sealed class EditorContext
         return OpenDocument(
             world,
             path);
+    }
+
+    public void SetStartupScene(EditorDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        if (!Session.Documents.Contains(document))
+        {
+            throw new InvalidOperationException(
+                "Document is not open in this editor.");
+        }
+
+        var filePath = document.FilePath
+            ?? throw new InvalidOperationException(
+                "Save the world document before setting it as the startup scene.");
+
+        var project = ActiveGameProject
+            ?? throw new InvalidOperationException(
+                "Open a game project first.");
+
+        if (document.Project is null ||
+            !PathsEqual(
+                document.Project.RootDirectory,
+                project.RootDirectory))
+        {
+            throw new InvalidOperationException(
+                "The world document must belong to the active game project. " +
+                "Save it inside the project or reopen it from that project.");
+        }
+
+        project.SetStartupScene(filePath);
     }
 
     public void InitializeAssetBrowser(

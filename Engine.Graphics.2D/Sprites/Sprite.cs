@@ -1,7 +1,7 @@
 ﻿using Engine.Core.Math;
 using Engine.Graphics.Resources;
 
-namespace Engine.Graphics.Sprites;
+namespace Engine.Graphics2D.Sprites;
 
 public readonly record struct Sprite(
     TextureHandle Texture,

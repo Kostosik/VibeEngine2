@@ -132,6 +132,7 @@ public sealed class GameLoop : IGameLoopController
         }
     }
 
+
     public void Initialize()
     {
         if (_initialized)
@@ -146,12 +147,42 @@ public sealed class GameLoop : IGameLoopController
                 "Game loop has already been shut down.");
         }
 
-        _application.Initialize();
+        try
+        {
+            _application.Initialize();
 
-        _clock.Restart();
+            _clock.Restart();
 
-        _initialized = true;
+            _initialized = true;
+        }
+        catch
+        {
+            // Экземпляр с неудачной инициализацией нельзя запускать повторно.
+            _shutdown = true;
+
+            try
+            {
+                _application.Shutdown();
+            }
+            catch
+            {
+                // Не подменяем исходную ошибку инициализации.
+            }
+
+            try
+            {
+                _clock.Stop();
+            }
+            catch
+            {
+                // Ошибка остановки часов также не должна
+                // подменять первоначальную ошибку.
+            }
+
+            throw;
+        }
     }
+
 
     public void Update()
     {
@@ -253,15 +284,36 @@ public sealed class GameLoop : IGameLoopController
                 "Game loop has already been shut down.");
         }
 
-        _clock.Stop();
+        Exception? clockStopException = null;
+
+        try
+        {
+            _clock.Stop();
+        }
+        catch (Exception exception)
+        {
+            clockStopException = exception;
+        }
 
         try
         {
             _application.Shutdown();
         }
+        catch when (clockStopException is not null)
+        {
+            // Сохраняем исходную ошибку часов,
+            // даже если завершение приложения тоже завершилось ошибкой.
+        }
         finally
         {
             _shutdown = true;
+        }
+
+        if (clockStopException is not null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo
+                .Capture(clockStopException)
+                .Throw();
         }
     }
 

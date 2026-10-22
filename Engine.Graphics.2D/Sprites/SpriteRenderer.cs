@@ -1,8 +1,9 @@
 ﻿using Engine.Camera;
 using Engine.Core.Math;
-using Engine.Graphics.Commands;
+using Engine.Graphics;
+using Engine.Graphics2D.Commands;
 
-namespace Engine.Graphics.Sprites;
+namespace Engine.Graphics2D.Sprites;
 
 public sealed class SpriteRenderer
 {

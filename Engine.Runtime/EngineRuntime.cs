@@ -5,6 +5,9 @@ using Engine.Core.Diagnostics;
 using Engine.Core.Events;
 using Engine.Core.Systems;
 using Engine.Core.Time;
+using Engine.ECS.Components;
+using Engine.Graphics.Sprites;
+using Engine.Graphics2D.Sprites;
 using Engine.Physics;
 using Engine.Scripting;
 using Engine.Simulations;
@@ -25,7 +28,7 @@ public sealed class EngineRuntime :
     private DebugExecutionController? _debugExecution;
     public ValidationService? Validation { get; private set; }
     public DebugVisualizationRenderer? DebugVisualizationRenderer { get; private set; }
-
+    private SpriteRenderSystem? _spriteRenderSystem;
     public ScriptRegistry ScriptRegistry { get; }
 
     public ScriptRuntime Scripts { get; }
@@ -329,6 +332,38 @@ Services.Graphics;
             context);
     }
 
+    internal void RenderSprites()
+    {
+        EnsureNotDisposed();
+
+        var enumerator =
+            EcsWorld
+                .Query<SpriteComponent, WorldTransform2D>()
+                .GetEnumerator();
+
+        if (!enumerator.MoveNext())
+        {
+            return;
+        }
+
+        _spriteRenderSystem ??=
+            new SpriteRenderSystem(
+                EcsWorld,
+                Services.Graphics,
+                Services.Content,
+                Services.Camera);
+
+        _spriteRenderSystem.Render();
+    }
+
+    private void DisposeSpriteRenderSystem()
+    {
+        var renderer = _spriteRenderSystem;
+        _spriteRenderSystem = null;
+
+        renderer?.Dispose();
+    }
+
     public void RenderDebugVisualization()
     {
         EnsureNotDisposed();
@@ -405,6 +440,7 @@ Services.Graphics;
         Simulation.Shutdown();
     }
 
+
     public void Dispose()
     {
         if (_disposed)
@@ -412,22 +448,44 @@ Services.Graphics;
             return;
         }
 
+        // Освобождаем ссылки на игровой цикл и его команды.
+        if (_debugExecution is not null)
+        {
+            DebugRegistry?.Unregister("pause");
+            DebugRegistry?.Unregister("resume");
+            DebugRegistry?.Unregister("step");
+
+            _debugExecution = null;
+        }
+
         if (Simulation.IsInitialized &&
             !Simulation.IsShutdown)
         {
-            Simulation.Shutdown();
+            try
+            {
+                Simulation.Shutdown();
+            }
+            finally
+            {
+                DisposeSpriteRenderSystem();
+            }
         }
         EngineConsole?.Dispose();
         SchedulerProfiler?.Dispose();
+
         Scripts.ScriptFaulted -= OnScriptFaulted;
         Scripts.Dispose();
 
-        World.Dispose();
+        Commands.Clear();
 
+        Events.Dispose();
+        Simulation.Dispose();
+        World.Dispose();
         EcsWorld.Dispose();
-        
+
         _disposed = true;
     }
+
 
     private void EnsureNotDisposed()
     {

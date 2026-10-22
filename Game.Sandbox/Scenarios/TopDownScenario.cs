@@ -9,7 +9,7 @@ using Engine.Core.Math;
 using Engine.ECS.Components;
 using Engine.ECS.Entities;
 using Engine.Graphics.Resources;
-using Engine.Graphics.Sprites;
+using Engine.Graphics2D.Sprites;
 using Engine.Graphics.Tilemaps;
 using Engine.Input;
 using Engine.Navigation;

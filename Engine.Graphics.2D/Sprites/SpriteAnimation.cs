@@ -1,6 +1,6 @@
 ﻿using Engine.Animation;
 
-namespace Engine.Graphics.Sprites;
+namespace Engine.Graphics2D.Sprites;
 
 public sealed class SpriteAnimation
 {

@@ -6,12 +6,13 @@ using Engine.Core.Systems;
 
 namespace Engine.Simulations;
 
-public sealed class Simulation : ISimulation
+public sealed class Simulation : ISimulation, IDisposable
 {
     private readonly CommandDispatcher _commandDispatcher;
 
     private bool _initialized;
     private bool _shutdown;
+    private bool _disposed;
     private readonly List<IDeterministicState> _deterministicStates = new();
     public Simulation(
         SystemScheduler scheduler,
@@ -138,6 +139,19 @@ public sealed class Simulation : ISimulation
         Systems.FixedUpdate(context);
 
         Events.DispatchPending();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _commandDispatcher.Dispose();
+        Systems.Dispose();
+        _deterministicStates.Clear();
+
+        _shutdown = true;
+        _disposed = true;
     }
 
     public void Shutdown()

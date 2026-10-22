@@ -26,16 +26,20 @@ public static class EcsComponentSerializerRegistryExtensions
             new DistanceJoint2DSerializer());
 
         registry.Register(
+            "engine.graphics.sprite2d",
+            new SpriteComponentSerializer());
+
+        registry.Register(
             "engine.world.position",
             new WorldPositionComponentSerializer());
         registry.Register(
-    "engine.scripting.assignments",
-    new ScriptAssignmentsComponentSerializer());
+            "engine.scripting.assignments",
+            new ScriptAssignmentsComponentSerializer());
         registry.Register(
-    "engine.local.transform2d",
-    new LocalTransform2DSerializer());
+            "engine.local.transform2d",
+            new LocalTransform2DSerializer());
         registry.Register(
-    "engine.entity.name",
-    new EntityNameSerializer());
+            "engine.entity.name",
+            new EntityNameSerializer());
     }
 }

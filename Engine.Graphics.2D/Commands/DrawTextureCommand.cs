@@ -1,8 +1,9 @@
 ﻿using Engine.Core.Math;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
+using Engine.Graphics.Commands;
 
-namespace Engine.Graphics.Commands;
+namespace Engine.Graphics2D.Commands;
 
 public sealed record DrawTextureCommand(
     TextureHandle Texture,

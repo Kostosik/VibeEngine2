@@ -28,6 +28,239 @@ namespace Engine.Tests.Runtime;
 public sealed class EngineRuntimeTests
 {
     [Fact]
+    public void Dispose_DisablesSchedulerAndClearsExecutionSubscriptions()
+    {
+        var runtime = CreateRuntime(
+            new EngineRuntimeOptions
+            {
+                ToolingEnabled = false
+            });
+
+        runtime.Initialize();
+
+        var executionCount = 0;
+
+        runtime.Scheduler.SystemExecuting +=
+            _ => executionCount++;
+
+        runtime.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(
+            () => runtime.Scheduler.Update(default));
+
+        Assert.Equal(0, executionCount);
+
+        Assert.Throws<ObjectDisposedException>(
+            () => runtime.Scheduler.FixedUpdate(default));
+    }
+
+    [Fact]
+    public void Dispose_DisablesCommandDispatcherAndReleasesHandlers()
+    {
+        var runtime = CreateRuntime(
+            new EngineRuntimeOptions
+            {
+                ToolingEnabled = false
+            });
+
+        var dispatcher = runtime.Simulation.CommandDispatcher;
+        var commands = runtime.Commands;
+        var handler = new RuntimeShutdownProbeCommandHandler();
+
+        dispatcher.Register(handler);
+
+        runtime.Dispose();
+
+        // Старая ссылка на диспетчер не должна исполнять команды.
+        commands.Enqueue(new RuntimeShutdownProbeCommand());
+
+        Assert.Throws<ObjectDisposedException>(
+            () => dispatcher.DispatchPending());
+
+        Assert.Equal(0, handler.ExecutionCount);
+    }
+
+
+    private sealed class RuntimeShutdownProbeCommandHandler
+        : Engine.Core.Commands.ICommandHandler<RuntimeShutdownProbeCommand>
+    {
+        public int ExecutionCount { get; private set; }
+
+        public void Handle(RuntimeShutdownProbeCommand command)
+        {
+            ExecutionCount++;
+        }
+    }
+
+
+    [Fact]
+    public void Dispose_DisablesSimulationEvenWhenNeverInitialized()
+    {
+        var runtime = CreateRuntime(
+            new EngineRuntimeOptions
+            {
+                ToolingEnabled = false
+            });
+
+        var simulation = runtime.Simulation;
+
+        Assert.False(simulation.IsInitialized);
+        Assert.False(simulation.IsShutdown);
+
+        runtime.Dispose();
+
+        Assert.True(simulation.IsShutdown);
+
+        Assert.Throws<InvalidOperationException>(
+            () => simulation.Initialize());
+    }
+
+
+    [Fact]
+    public void Dispose_ClearsPendingRuntimeCommands()
+    {
+        var runtime = CreateRuntime(
+            new EngineRuntimeOptions
+            {
+                ToolingEnabled = false
+            });
+
+        var commands = runtime.Commands;
+
+        commands.Enqueue(new RuntimeShutdownProbeCommand());
+
+        Assert.Equal(1, commands.Count);
+
+        runtime.Dispose();
+
+        Assert.Equal(0, commands.Count);
+
+        // Повторное освобождение безопасно.
+        runtime.Dispose();
+    }
+
+    private sealed record RuntimeShutdownProbeCommand
+        : Engine.Core.Commands.ICommand;
+
+
+    [Fact]
+    public void Dispose_PreventsFurtherRuntimeEventBusUsage()
+    {
+        var runtime = CreateRuntime(
+            new EngineRuntimeOptions
+            {
+                ToolingEnabled = false
+            });
+
+        var events = runtime.Events;
+
+        runtime.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(
+            () => events.Publish(
+                new RuntimeShutdownProbeEvent()));
+
+        Assert.Throws<ObjectDisposedException>(
+            () =>
+            {
+                events.Subscribe<RuntimeShutdownProbeEvent>(
+                    _ => { });
+            });
+
+        Assert.Throws<ObjectDisposedException>(
+            () => events.DispatchPending());
+    }
+
+    [Fact]
+    public void Dispose_ClearsRuntimeEventSubscriptions()
+    {
+        var runtime = CreateRuntime(
+            new EngineRuntimeOptions
+            {
+                ToolingEnabled = false
+            });
+
+        var events = runtime.Events;
+        var receivedCount = 0;
+
+        events.Subscribe<RuntimeShutdownProbeEvent>(
+            _ => receivedCount++);
+
+        runtime.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(
+            () => events.Publish(
+                new RuntimeShutdownProbeEvent()));
+
+        Assert.Equal(0, receivedCount);
+    }
+
+
+    [Fact]
+    public void Dispose_ClearsPendingRuntimeEvents()
+    {
+        var runtime = CreateRuntime(
+            new EngineRuntimeOptions
+            {
+                ToolingEnabled = false
+            });
+
+        var events = runtime.Events;
+
+        events.Publish(new RuntimeShutdownProbeEvent());
+
+        Assert.Equal(1, events.PendingCount);
+
+        runtime.Dispose();
+
+        Assert.Equal(0, events.PendingCount);
+
+        // Повторное освобождение должно оставаться безопасным.
+        runtime.Dispose();
+    }
+
+    private sealed record RuntimeShutdownProbeEvent
+        : Engine.Core.Events.IEvent;
+
+
+    [Fact]
+    public void Dispose_DetachesGameLoopControllerAndRemovesLoopCommands()
+    {
+        using var runtime = CreateRuntime();
+
+        var loop = new FakeGameLoopController();
+
+        runtime.AttachGameLoopController(loop);
+
+        var registry = runtime.DebugRegistry
+            ?? throw new InvalidOperationException(
+                "Debug registry is not configured.");
+
+        var console = runtime.Console
+            ?? throw new InvalidOperationException(
+                "Debug console is not configured.");
+
+        Assert.NotNull(runtime.DebugExecution);
+
+        Assert.True(registry.TryGet("pause", out _));
+        Assert.True(registry.TryGet("resume", out _));
+        Assert.True(registry.TryGet("step", out _));
+
+        runtime.Dispose();
+
+        Assert.Null(runtime.DebugExecution);
+
+        Assert.False(registry.TryGet("pause", out _));
+        Assert.False(registry.TryGet("resume", out _));
+        Assert.False(registry.TryGet("step", out _));
+
+        var result = console.Execute("pause");
+
+        Assert.False(result.Success);
+        Assert.False(loop.IsPaused);
+    }
+
+    [Fact]
     public void RuntimeSchedulesScriptsAndDisposesThem()
     {
         using var runtime = CreateRuntime();

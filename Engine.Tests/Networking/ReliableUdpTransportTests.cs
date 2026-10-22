@@ -2,6 +2,8 @@
 using Engine.Networking.Packets;
 using Engine.Networking.Sessions;
 using Engine.Networking.Transport;
+using System.Net;
+using System.Net.Sockets;
 
 namespace Engine.Tests.Networking;
 
@@ -26,15 +28,8 @@ public sealed class ReliableUdpTransportTests
             new NetworkSession(
                 client);
 
-        var serverEndpoint =
-            new NetworkEndpoint(
-                "127.0.0.1",
-                32100);
-
-        var clientEndpoint =
-            new NetworkEndpoint(
-                "127.0.0.1",
-                32101);
+        var (serverEndpoint, clientEndpoint) =
+            CreateEndpoints();
 
         serverSession.Start(
             serverEndpoint);
@@ -106,6 +101,48 @@ public sealed class ReliableUdpTransportTests
         Assert.Equal(
             serverConnection,
             receivedConnection);
+    }
+
+    private static (
+    NetworkEndpoint Server,
+    NetworkEndpoint Client) CreateEndpoints()
+    {
+        using var serverSocket =
+            new Socket(
+                AddressFamily.InterNetwork,
+                SocketType.Dgram,
+                ProtocolType.Udp);
+
+        using var clientSocket =
+            new Socket(
+                AddressFamily.InterNetwork,
+                SocketType.Dgram,
+                ProtocolType.Udp);
+
+        serverSocket.Bind(
+            new IPEndPoint(
+                IPAddress.Loopback,
+                0));
+
+        clientSocket.Bind(
+            new IPEndPoint(
+                IPAddress.Loopback,
+                0));
+
+        var serverPort =
+            ((IPEndPoint)serverSocket.LocalEndPoint!).Port;
+
+        var clientPort =
+            ((IPEndPoint)clientSocket.LocalEndPoint!).Port;
+
+        return (
+            new NetworkEndpoint(
+                "127.0.0.1",
+                serverPort),
+
+            new NetworkEndpoint(
+                "127.0.0.1",
+                clientPort));
     }
 
     private static ConnectionId WaitForAccept(

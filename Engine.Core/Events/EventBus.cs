@@ -1,13 +1,13 @@
 ﻿namespace Engine.Core.Events;
 
-public sealed class EventBus
+public sealed class EventBus : IDisposable
 {
     private readonly Queue<IEvent> _events = new();
 
     private readonly Dictionary<
         Type,
         List<Action<IEvent>>> _handlers = new();
-
+    private bool _disposed;
     public int PendingCount =>
         _events.Count;
 
@@ -15,6 +15,7 @@ public sealed class EventBus
         Action<TEvent> handler)
         where TEvent : IEvent
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(handler);
 
         var eventType =
@@ -50,12 +51,14 @@ public sealed class EventBus
         TEvent @event)
         where TEvent : IEvent
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         _events.Enqueue(
             @event);
     }
 
     public void DispatchPending()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         while (_events.TryDequeue(
             out var @event))
         {
@@ -63,8 +66,15 @@ public sealed class EventBus
         }
     }
 
+    public void ClearSubscriptions()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _handlers.Clear();
+    }
+
     public void ClearPending()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         _events.Clear();
     }
 
@@ -107,5 +117,18 @@ public sealed class EventBus
         {
             _handlers.Remove(eventType);
         }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _events.Clear();
+        _handlers.Clear();
+
+        _disposed = true;
     }
 }

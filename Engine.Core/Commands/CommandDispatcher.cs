@@ -1,7 +1,8 @@
 ﻿namespace Engine.Core.Commands;
 
-public sealed class CommandDispatcher
+public sealed class CommandDispatcher : IDisposable
 {
+    private bool _disposed;
     public event Action<ICommand>? CommandDispatched;
 
     private readonly CommandQueue _queue;
@@ -26,6 +27,7 @@ public sealed class CommandDispatcher
         ICommandHandler<TCommand> handler)
         where TCommand : ICommand
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(
             handler);
 
@@ -61,6 +63,7 @@ public sealed class CommandDispatcher
         while (_queue.TryPeek(
             out var command))
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
             ArgumentNullException.ThrowIfNull(
                 command);
 
@@ -91,6 +94,7 @@ public sealed class CommandDispatcher
 
     public void ClearPending()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         _queue.Clear();
     }
 
@@ -114,5 +118,15 @@ public sealed class CommandDispatcher
 
         _handlers.Remove(
             commandType);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _handlers.Clear();
+        CommandDispatched = null;
+        _disposed = true;
     }
 }

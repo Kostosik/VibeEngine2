@@ -145,6 +145,8 @@ public abstract class EngineGame : Application
         EnsureActive();
 
         OnRender(interpolationAlpha);
+
+        Runtime.RenderSprites();
     }
 
     public sealed override void Shutdown()

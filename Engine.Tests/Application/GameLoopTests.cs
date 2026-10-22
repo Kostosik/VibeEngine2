@@ -7,6 +7,130 @@ namespace Engine.Tests.Application;
 public sealed class GameLoopTests
 {
     [Fact]
+    public void Shutdown_WhenClockStopThrowsStillShutsDownApplication()
+    {
+        var originalException =
+            new InvalidOperationException("Clock stop failed.");
+
+        var application = new TestApplication();
+        var clock = new ThrowingStopClock(originalException);
+
+        var loop = new GameLoop(
+            application,
+            new SimulationRate(20),
+            clock,
+            Duration.FromMilliseconds(250),
+            8);
+
+        loop.Initialize();
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => loop.Shutdown());
+
+        Assert.Same(originalException, exception);
+        Assert.Equal(1, application.ShutdownCount);
+        Assert.True(loop.IsShutdown);
+
+        Assert.Throws<InvalidOperationException>(
+            () => loop.Shutdown());
+
+        Assert.Equal(1, application.ShutdownCount);
+    }
+
+    private sealed class ThrowingStopClock : IClock
+    {
+        private readonly Exception _exception;
+
+        public TimeSpan Elapsed => TimeSpan.Zero;
+
+        public bool IsRunning { get; private set; }
+
+        public ThrowingStopClock(Exception exception)
+        {
+            _exception = exception;
+        }
+
+        public void Start()
+        {
+            IsRunning = true;
+        }
+
+        public void Restart()
+        {
+            IsRunning = true;
+        }
+
+        public void Stop()
+        {
+            IsRunning = false;
+            throw _exception;
+        }
+    }
+
+    [Fact]
+    public void Initialize_WhenApplicationThrows_ShutsDownApplicationAndPreservesOriginalException()
+    {
+        var originalException =
+            new InvalidOperationException("Initialize failed.");
+
+        var application =
+            new ThrowingInitializeApplication(originalException);
+
+        var clock = new TestClock();
+
+        var loop = new GameLoop(
+            application,
+            new SimulationRate(20),
+            clock,
+            Duration.FromMilliseconds(250),
+            8);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => loop.Initialize());
+
+        Assert.Same(originalException, exception);
+        Assert.Equal(1, application.ShutdownCount);
+        Assert.False(loop.IsInitialized);
+        Assert.True(loop.IsShutdown);
+        Assert.False(clock.IsRunning);
+
+        // Не разрешаем повторно запускать экземпляр
+        // после неудачной инициализации.
+        Assert.Throws<InvalidOperationException>(
+            () => loop.Initialize());
+
+        Assert.Equal(1, application.InitializeCount);
+        Assert.Equal(1, application.ShutdownCount);
+    }
+
+    private sealed class ThrowingInitializeApplication
+        : Engine.Core.Application.Application
+    {
+        private readonly Exception _exception;
+
+        public int InitializeCount { get; private set; }
+
+        public int ShutdownCount { get; private set; }
+
+        public ThrowingInitializeApplication(Exception exception)
+        {
+            _exception = exception;
+        }
+
+        public override void Initialize()
+        {
+            InitializeCount++;
+            throw _exception;
+        }
+
+        public override void Shutdown()
+        {
+            ShutdownCount++;
+        }
+    }
+
+
+    [Fact]
     public void ShutdownFailureStillMarksLoopAsShutdown()
     {
         var application = new ThrowingShutdownApplication(new InvalidOperationException());

@@ -1,7 +1,8 @@
 ﻿namespace Engine.Core.Systems;
 
-public sealed class SystemScheduler
+public sealed class SystemScheduler : IDisposable
 {
+    private bool _disposed;
     private readonly List<SystemRegistration> _registrations = new();
     private readonly ISystemExecutionStrategy _executionStrategy;
     private readonly Dictionary<
@@ -36,6 +37,7 @@ public sealed class SystemScheduler
         object system,
         SystemPhase phase)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(
             system);
 
@@ -75,6 +77,7 @@ public sealed class SystemScheduler
 
     public void Build()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureNotBuilt();
 
         ValidateDependencies();
@@ -110,6 +113,7 @@ public sealed class SystemScheduler
     public void Update(
         SystemContext context)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureBuilt();
 
         _updatePlan!.Execute(
@@ -123,6 +127,7 @@ public sealed class SystemScheduler
     public void FixedUpdate(
         FixedSystemContext context)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureBuilt();
 
         _fixedUpdatePlan!.Execute(
@@ -295,5 +300,23 @@ public sealed class SystemScheduler
             throw new InvalidOperationException(
                 "Scheduler must be built before execution.");
         }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        SystemExecuting = null;
+        SystemExecuted = null;
+
+        _updatePlan = null;
+        _fixedUpdatePlan = null;
+
+        _registrations.Clear();
+        _registrationsByType.Clear();
+
+        _built = false;
+        _disposed = true;
     }
 }

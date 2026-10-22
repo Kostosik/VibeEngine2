@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <RootNamespace>Engine.Graphics._2D</RootNamespace>
+    <RootNamespace>Engine.Graphics2D</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
@@ -10,6 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Engine.Animation\Engine.Animation.csproj" />
     <ProjectReference Include="..\Engine.Camera\Engine.Camera.csproj" />
+    <ProjectReference Include="..\Engine.ECS\Engine.ECS.csproj" />
     <ProjectReference Include="..\Engine.Graphics\Engine.Graphics.csproj" />
   </ItemGroup>
 

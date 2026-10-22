@@ -1,5 +1,6 @@
 ﻿
 using Engine.ECS.Components;
+using Engine.Graphics2D.Sprites;
 
 namespace Engine.Editor.Inspection;
 
@@ -96,6 +97,8 @@ public sealed class EditorComponentTypeRegistry
     {
         Register<LocalTransform2D>();
         Register<WorldTransform2D>();
+        Register<SpriteComponent>(
+    () => new SpriteComponent());
     }
 
     public bool Unregister(

@@ -1,9 +1,12 @@
-﻿using Engine.Core.Math;
+﻿using Engine.Core.Assets;
+using Engine.Core.Math;
 using Engine.ECS.Components;
 using Engine.ECS.Entities;
 using Engine.Editor.Commands;
 using Engine.Editor.Viewport.Gizmos;
 using Engine.Graphics.Commands;
+using Engine.Graphics.Resources;
+using Engine.Graphics2D.Sprites;
 using Engine.UI.Controls;
 using Engine.UI.Core;
 using Engine.UI.Input;
@@ -21,6 +24,24 @@ public sealed class ViewportPanelView :
         Rotate,
         Scale
     }
+
+    private readonly ITextureManager? _projectTextureManager;
+
+    private readonly ImageTextureLoader _projectImageLoader = new();
+
+    private readonly Dictionary<string, TextureHandle> _projectTextures =
+        new(
+            OperatingSystem.IsWindows()
+                ? StringComparer.OrdinalIgnoreCase
+                : StringComparer.Ordinal);
+
+    private readonly HashSet<string> _unavailableProjectTextures =
+        new(
+            OperatingSystem.IsWindows()
+                ? StringComparer.OrdinalIgnoreCase
+                : StringComparer.Ordinal);
+
+    private string? _projectAssetsRoot;
 
     private TransformTool _activeTool = TransformTool.Move;
     private bool _translationUsesLocalTransform;
@@ -73,12 +94,13 @@ public sealed class ViewportPanelView :
     private Vector2 _translationStartMouseWorld;
 
     public ViewportPanelView(
-        EditorContext editor)
+        EditorContext editor,
+        ITextureManager? projectTextureManager = null)
     {
-        ArgumentNullException.ThrowIfNull(
-            editor);
+        ArgumentNullException.ThrowIfNull(editor);
 
         Editor = editor;
+        _projectTextureManager = projectTextureManager;
 
         Background =
             new UiColor(
@@ -301,17 +323,10 @@ public sealed class ViewportPanelView :
 
         try
         {
-            DrawGrid(
-                context,
-                document);
-
-            DrawEntities(
-                context,
-                document);
-
-            DrawSelection(
-                context,
-                document);
+            DrawGrid(context, document);
+            DrawSprites(context, document);
+            DrawEntities(context, document);
+            DrawSelection(context, document);
 
             DrawActiveGizmo(context, document);
 
@@ -342,6 +357,274 @@ public sealed class ViewportPanelView :
             case TransformTool.Scale:
                 DrawScaleGizmo(context, document);
                 break;
+        }
+    }
+
+    private void DrawSprites(
+    UiRenderContext context,
+    Engine.Editor.Documents.EditorDocument document)
+    {
+        var project = Editor.ActiveGameProject;
+
+        if (project is null || _projectTextureManager is null)
+        {
+            if (_projectAssetsRoot is not null)
+            {
+                ReleaseProjectTextures();
+                _projectAssetsRoot = null;
+            }
+
+            return;
+        }
+
+        var assetsRoot = project.AssetsDirectoryPath;
+
+        EnsureProjectAssetsRoot(assetsRoot);
+
+        var zoom = document.Viewport.State.Zoom;
+
+        var sprites = document.World.EcsWorld
+            .Query<SpriteComponent, WorldTransform2D>();
+
+        foreach (var item in sprites)
+        {
+            var sprite = item.First;
+            var transform = item.Second;
+
+            if (string.IsNullOrWhiteSpace(sprite.TexturePath))
+            {
+                continue;
+            }
+
+            if (!float.IsFinite(sprite.Width) ||
+                !float.IsFinite(sprite.Height) ||
+                sprite.Width <= 0.0f ||
+                sprite.Height <= 0.0f)
+            {
+                continue;
+            }
+
+            var scaleX = MathF.Abs(transform.Scale.X.ToFloat());
+            var scaleY = MathF.Abs(transform.Scale.Y.ToFloat());
+
+            var width = sprite.Width * scaleX;
+            var height = sprite.Height * scaleY;
+
+            if (!float.IsFinite(width) ||
+                !float.IsFinite(height) ||
+                width <= 0.0f ||
+                height <= 0.0f)
+            {
+                continue;
+            }
+
+            var screenWidth = width * zoom;
+            var screenHeight = height * zoom;
+
+            var localScreen = document.Viewport.Transform.WorldToScreen(
+                new Vector2(
+                    transform.Position.X.ToFloat(),
+                    transform.Position.Y.ToFloat()));
+
+            var center = new Vector2(
+                Bounds.X + localScreen.X,
+                Bounds.Y + localScreen.Y);
+
+            var destination = new UiRect(
+                center.X - screenWidth * 0.5f,
+                center.Y - screenHeight * 0.5f,
+                screenWidth,
+                screenHeight);
+
+            if (!TryLoadProjectTexture(
+                    sprite.TexturePath,
+                    assetsRoot,
+                    out var texture))
+            {
+                DrawSpriteTexturePlaceholder(
+                    context,
+                    destination,
+                    sprite.Layer);
+
+                continue;
+            }
+
+            context.DrawTexture(
+                texture,
+                destination,
+                new Rectangle(0.0f, 0.0f, 1.0f, 1.0f),
+                layer: sprite.Layer);
+        }
+    }
+
+    private bool TryLoadProjectTexture(
+        string texturePath,
+        string assetsRoot,
+        out TextureHandle texture)
+    {
+        texture = default;
+
+        if (_unavailableProjectTextures.Contains(texturePath))
+        {
+            return false;
+        }
+
+        string? fullPath = null;
+
+        try
+        {
+            fullPath = ResolveProjectTexturePath(
+                assetsRoot,
+                texturePath);
+
+            if (_projectTextures.TryGetValue(
+                    fullPath,
+                    out texture) &&
+                _projectTextureManager!.Exists(texture))
+            {
+                return true;
+            }
+
+            var imageData = _projectImageLoader.Load(
+                File.ReadAllBytes(fullPath));
+
+            texture = _projectTextureManager!.Create(imageData);
+
+            if (!texture.IsValid ||
+                !_projectTextureManager.Exists(texture))
+            {
+                throw new InvalidOperationException(
+                    "Graphics backend failed to create the sprite texture.");
+            }
+
+            _projectTextures[fullPath] = texture;
+
+            return true;
+        }
+        catch (Exception exception)
+        {
+            _unavailableProjectTextures.Add(texturePath);
+
+            System.Diagnostics.Debug.WriteLine(
+                $"[Viewport] Failed to load sprite texture " +
+                $"'{texturePath}': {exception}");
+
+            texture = default;
+
+            return false;
+        }
+    }
+
+    private static string ResolveProjectTexturePath(
+        string assetsRoot,
+        string texturePath)
+    {
+        if (Path.IsPathRooted(texturePath))
+        {
+            throw new InvalidDataException(
+                "Sprite texture paths must be relative to the project's Assets directory.");
+        }
+
+        var fullRoot = Path.GetFullPath(assetsRoot);
+
+        var relativeAssetPath = new AssetPath(texturePath).Value;
+
+        if (string.IsNullOrWhiteSpace(relativeAssetPath))
+        {
+            throw new InvalidDataException(
+                "Sprite texture path is empty.");
+        }
+
+        var fullPath = Path.GetFullPath(
+            Path.Combine(fullRoot, relativeAssetPath));
+
+        var relativePath = Path.GetRelativePath(
+            fullRoot,
+            fullPath);
+
+        if (Path.IsPathRooted(relativePath) ||
+            relativePath.Equals("..", StringComparison.Ordinal) ||
+            relativePath.StartsWith(
+                $"..{Path.DirectorySeparatorChar}",
+                StringComparison.Ordinal) ||
+            relativePath.StartsWith(
+                $"..{Path.AltDirectorySeparatorChar}",
+                StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "Sprite texture path cannot point outside the project's Assets directory.");
+        }
+
+        return fullPath;
+    }
+
+    private void EnsureProjectAssetsRoot(string rootPath)
+    {
+        var fullRoot = Path.GetFullPath(rootPath);
+
+        if (_projectAssetsRoot is not null &&
+            string.Equals(
+                _projectAssetsRoot,
+                fullRoot,
+                OperatingSystem.IsWindows()
+                    ? StringComparison.OrdinalIgnoreCase
+                    : StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        ReleaseProjectTextures();
+
+        _projectAssetsRoot = fullRoot;
+    }
+
+    private void ReleaseProjectTextures()
+    {
+        if (_projectTextureManager is not null)
+        {
+            foreach (var texture in _projectTextures.Values)
+            {
+                if (_projectTextureManager.Exists(texture))
+                {
+                    _projectTextureManager.Destroy(texture);
+                }
+            }
+        }
+
+        _projectTextures.Clear();
+        _unavailableProjectTextures.Clear();
+    }
+
+    public void ReleaseResources()
+    {
+        ReleaseProjectTextures();
+        _projectAssetsRoot = null;
+    }
+
+    private static void DrawSpriteTexturePlaceholder(
+        UiRenderContext context,
+        UiRect rect,
+        int layer)
+    {
+        if (rect.Width < 2.0f || rect.Height < 2.0f)
+        {
+            return;
+        }
+
+        context.DrawRectangle(
+            rect,
+            new UiColor(190, 65, 65, 220),
+            filled: false,
+            layer: layer);
+
+        if (rect.Width >= 80.0f && rect.Height >= 20.0f)
+        {
+            context.DrawText(
+                "Texture unavailable",
+                new Vector2(rect.X + 4.0f, rect.Y + 4.0f),
+                10.0f,
+                new UiColor(235, 150, 150, 255),
+                layer: layer);
         }
     }
 

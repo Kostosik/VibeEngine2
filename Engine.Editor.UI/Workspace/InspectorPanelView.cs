@@ -2,8 +2,10 @@
 using Engine.ECS.Components;
 using Engine.ECS.Entities;
 using Engine.Editor.Commands;
+using Engine.Editor.Inspection;
 using Engine.Editor.UI.Inspection;
 using Engine.Graphics.Commands;
+using Engine.Graphics2D.Sprites;
 using Engine.Physics.Components;
 using Engine.Physics.Joints;
 using Engine.UI.Controls;
@@ -16,9 +18,11 @@ public sealed class InspectorPanelView : UiPanel
     private readonly UiScrollView _scrollView;
     private readonly UiStackPanel _content;
     private readonly InspectorPropertyEditorRegistry _propertyEditors;
+    private readonly Func<string?>? _getSelectedTexturePath;
     public InspectorPanelView(
-    EditorContext editor,
-    InspectorPropertyEditorRegistry? propertyEditors = null)
+        EditorContext editor,
+        InspectorPropertyEditorRegistry? propertyEditors = null,
+        Func<string?>? getSelectedTexturePath = null)
     {
         ArgumentNullException.ThrowIfNull(editor);
 
@@ -28,42 +32,31 @@ public sealed class InspectorPanelView : UiPanel
             propertyEditors ??
             InspectorPropertyEditorRegistry.CreateDefault();
 
-        Background =
-            new UiColor(28, 28, 28, 255);
+        _getSelectedTexturePath = getSelectedTexturePath;
 
-        Padding =
-            new UiThickness(6.0f);
+        Background = new UiColor(28, 28, 28, 255);
+        Padding = new UiThickness(6.0f);
 
-        _content =
-            new UiStackPanel
-            {
-                Orientation = UiOrientation.Vertical,
-                Spacing = 6.0f,
-                HorizontalAlignment = UiHorizontalAlignment.Stretch,
-                VerticalAlignment = UiVerticalAlignment.Top
-            };
+        _content = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical,
+            Spacing = 6.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
 
-        _scrollView =
-    new UiScrollView
-    {
-        HorizontalAlignment =
-            UiHorizontalAlignment.Stretch,
+        _scrollView = new UiScrollView
+        {
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Stretch,
+            HorizontalScrolling = false,
+            VerticalScrolling = true,
+            ShowHorizontalScrollBar = false,
+            ShowVerticalScrollBar = true
+        };
 
-        VerticalAlignment =
-            UiVerticalAlignment.Stretch,
-
-        HorizontalScrolling = false,
-        VerticalScrolling = true,
-
-        ShowHorizontalScrollBar = false,
-        ShowVerticalScrollBar = true
-    };
-
-        _scrollView.SetContent(
-            _content);
-
-        AddChild(
-            _scrollView);
+        _scrollView.SetContent(_content);
+        AddChild(_scrollView);
     }
 
     public EditorContext Editor { get; }
@@ -434,11 +427,117 @@ public sealed class InspectorPanelView : UiPanel
                      entity,
                      componentType))
         {
+            if (componentType == typeof(SpriteComponent) &&
+                property.Name == nameof(SpriteComponent.TexturePath))
+            {
+                _content.AddChild(
+                    CreateSpriteTexturePathProperty(
+                        document,
+                        property));
+
+                continue;
+            }
+
             _content.AddChild(
                 _propertyEditors.Create(
                     document,
                     property));
         }
+    }
+
+    private UiStackPanel CreateSpriteTexturePathProperty(
+    Engine.Editor.Documents.EditorDocument document,
+    EditorProperty property)
+    {
+        var container = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical,
+            Spacing = 4.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        container.AddChild(
+            new UiLabel(property.DisplayName)
+            {
+                FontSize = 12.0f
+            });
+
+        var row = new UiStackPanel
+        {
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 4.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        var textBox = new UiTextBox(
+            property.GetValue()?.ToString() ?? string.Empty)
+        {
+            Width = 150.0f,
+            Height = 32.0f,
+            FontSize = 12.0f
+        };
+
+        textBox.Submitted += value =>
+            document.Execute(
+                new SetEditorPropertyCommand(
+                    property,
+                    value));
+
+        row.AddChild(textBox);
+
+        if (_getSelectedTexturePath is not null)
+        {
+            var assignButton = new UiButton("Use selected")
+            {
+                Width = 90.0f,
+                Height = 32.0f,
+                FontSize = 11.0f
+            };
+
+            assignButton.Clicked += () =>
+            {
+                var path = _getSelectedTexturePath();
+
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    return;
+                }
+
+                document.Execute(
+                    new SetEditorPropertyCommand(
+                        property,
+                        path));
+
+                Refresh();
+            };
+
+            row.AddChild(assignButton);
+
+            var clearButton = new UiButton("Clear")
+            {
+                Width = 50.0f,
+                Height = 32.0f,
+                FontSize = 11.0f
+            };
+
+            clearButton.Clicked += () =>
+            {
+                document.Execute(
+                    new SetEditorPropertyCommand(
+                        property,
+                        string.Empty));
+
+                Refresh();
+            };
+
+            row.AddChild(clearButton);
+        }
+
+        container.AddChild(row);
+
+        return container;
     }
 
     private void AddDistanceJointSection(

@@ -1,4 +1,5 @@
-﻿using Engine.Core.Math;
+﻿using Engine.Core.Assets;
+using Engine.Core.Math;
 using Engine.Editor.Assets;
 using Engine.Editor.Panels;
 using Engine.Editor.UI.Inspection;
@@ -80,14 +81,14 @@ public sealed class EditorWorkspaceView :
             new HierarchyPanelView(
                 editor);
 
-        Viewport =
-            new ViewportPanelView(
-                editor);
+        Viewport = new ViewportPanelView(
+            editor,
+            filePreviewTextureManager);
 
-        Inspector =
-            new InspectorPanelView(
-                editor,
-                propertyEditors);
+        Inspector = new InspectorPanelView(
+            editor,
+            propertyEditors,
+            GetSelectedTexturePath);
 
         _hierarchyHost.AddChild(
             Hierarchy);
@@ -220,6 +221,33 @@ public sealed class EditorWorkspaceView :
         Inspector.Refresh();
         Viewport.Refresh();
         _assetBrowser.Refresh();
+    }
+
+    private string? GetSelectedTexturePath()
+    {
+        var browser = Editor.AssetBrowser;
+
+        if (browser?.SelectedAsset is not { } selectedAsset)
+        {
+            return null;
+        }
+
+        var extension = Path.GetExtension(selectedAsset.Name);
+
+        if (!extension.Equals(".png", StringComparison.OrdinalIgnoreCase) &&
+            !extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) &&
+            !extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase) &&
+            !extension.Equals(".bmp", StringComparison.OrdinalIgnoreCase) &&
+            !extension.Equals(".tga", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var relativePath = Path.GetRelativePath(
+            browser.RootPath,
+            selectedAsset.Path);
+
+        return new AssetPath(relativePath).Value;
     }
 
     private void ApplyPanelState()
@@ -462,6 +490,7 @@ public sealed class EditorWorkspaceView :
 
     public void ReleaseResources()
     {
+        Viewport.ReleaseResources();
         _assetBrowser.ReleaseResources();
     }
 

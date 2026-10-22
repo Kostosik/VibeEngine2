@@ -122,7 +122,7 @@
 - [x] **Rendering:** добавлены сериализуемый `SpriteComponent` и runtime-отрисовка ECS-спрайтов; проверены регистрация, сериализация и `SpriteRenderSystemTests`.
 - [x] **Audio:** добавлены `AudioSourceComponent`/`AudioListenerComponent` и runtime-управление ресурсами; проверено тестами `AudioEcsSystemTests`.
 - [x] **Существующий ECS:** добавлено назначение `DistanceJoint2D` (две сущности и длина) и управление `TransformParent2D` через Hierarchy; проверено тестами `DistanceJointEditorCommandTests` и `TransformParentEditorCommandTests`.
-- [ ] **Позже:** оценить ECS-интеграцию `Camera2D` и `ParticleEmitter`; Scripting и `NetworkIdentity` отложить до готовности соответствующих workflow.
+- [x] **Оценка ECS-интеграции:** `Camera2D` остаётся host/runtime-сервисом, а `ParticleEmitter`/`ParticleSystem` — самостоятельной подсистемой; для обоих пока нет полного entity-based workflow с ECS-компонентом, сериализацией сцены и runtime-интеграцией (для частиц также отсутствует ECS-отрисовка). Интеграцию проектировать отдельными задачами после согласования критериев. Scripting и `NetworkIdentity` отложены до готовности соответствующих workflow.
 - [x] Проверена пересборка C#-проекта и повторный запуск после изменения кода; `GameProjectRunnerBuildTests.Restart_BuildsUpdatedSource_AndRecoversAfterBuildFailure` подтверждает запуск обновлённого кода, диагностику ошибки компиляции и успешный повторный запуск после исправления. Это отдельный сценарий, не связанный с hot-reload ресурсов.
 - [ ] Рассмотреть встроенный Game View, Pause и пошаговое выполнение после устойчивой работы текущего запуска в отдельном процессе. Это задачи интеграции Editor/runtime, а не обязательные условия базовой готовности Engine Runtime.
 

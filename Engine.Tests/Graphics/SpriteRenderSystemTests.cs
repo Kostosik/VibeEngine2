@@ -1,4 +1,5 @@
-﻿using Engine.Camera;
+﻿using Engine.Audio;
+using Engine.Camera;
 using Engine.Content;
 using Engine.Content.Assets;
 using Engine.Content.Loading;
@@ -14,11 +15,71 @@ using Engine.Graphics.Resources;
 using Engine.Graphics.Sprites;
 using Engine.Graphics2D.Commands;
 using Engine.Graphics2D.Sprites;
+using Engine.Input;
+using Engine.Runtime;
 
 namespace Engine.Tests.Graphics;
 
 public sealed class SpriteRenderSystemTests
 {
+    [Fact]
+    public void Dispose_ReleasesSpriteResourcesWhenGameWasAlreadyShutdown()
+    {
+        var textures = new FakeTextureManager();
+        var graphics = new FakeGraphicsDevice(textures);
+
+        using var content = CreateContent();
+
+        var runtime = new EngineRuntime(
+            new EngineRuntimeOptions(),
+            new EngineRuntimeServices(
+                graphics,
+                new FakeInput(),
+                new Camera2D(new Vector2(100.0f, 100.0f)),
+                new FakeAudioManager(),
+                content));
+
+        var entity = runtime.EcsWorld.CreateEntity();
+
+        runtime.EcsWorld.Add(
+            entity,
+            new WorldTransform2D());
+
+        runtime.EcsWorld.Add(
+            entity,
+            new SpriteComponent("Textures/test.png"));
+
+        var assetPath = new AssetPath("Textures/test.png");
+
+        try
+        {
+            var game = new TestEngineGame(runtime);
+
+            game.Initialize();
+            game.Render(0.0);
+
+            Assert.Equal(1, textures.CreateCount);
+            Assert.True(content.IsLoaded<TextureData>(assetPath));
+
+            // Сначала останавливаем игру.
+            game.Shutdown();
+
+            Assert.True(runtime.IsShutdown);
+
+            // Затем освобождаем runtime.
+            runtime.Dispose();
+
+            Assert.Equal(1, textures.DestroyCount);
+
+            // Текстура выгружена, но ContentManager продолжает работать.
+            Assert.False(content.IsLoaded<TextureData>(assetPath));
+        }
+        finally
+        {
+            runtime.Dispose();
+        }
+    }
+
     [Fact]
     public void Render_SubmitsSpriteAndReusesLoadedTexture()
     {
@@ -96,6 +157,14 @@ public sealed class SpriteRenderSystemTests
         Assert.Equal(
             1,
             textures.CreateCount);
+    }
+
+    private sealed class TestEngineGame : EngineGame
+    {
+        public TestEngineGame(EngineRuntime runtime)
+            : base(runtime)
+        {
+        }
     }
 
     private static ContentManager CreateContent()
@@ -203,6 +272,60 @@ public sealed class SpriteRenderSystemTests
         }
     }
 
+    private sealed class FakeInput : IInput
+    {
+        public void Update()
+        {
+        }
+
+        public bool IsDown(InputAction action)
+        {
+            return false;
+        }
+
+        public bool IsPressed(InputAction action)
+        {
+            return false;
+        }
+
+        public bool IsReleased(InputAction action)
+        {
+            return false;
+        }
+
+        public float GetValue(InputAction action)
+        {
+            return 0.0f;
+        }
+    }
+
+    private sealed class FakeAudioManager : IAudioManager
+    {
+        public IAudioListener CreateListener()
+        {
+            throw new NotSupportedException();
+        }
+
+        public IAudioBuffer Load(AssetPath assetPath)
+        {
+            throw new NotSupportedException();
+        }
+
+        public IAudioSource CreateSource(IAudioBuffer buffer)
+        {
+            throw new NotSupportedException();
+        }
+
+        public IAudioSource Play(IAudioBuffer buffer)
+        {
+            throw new NotSupportedException();
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+
     private sealed class FakeTextureManager :
         ITextureManager
     {
@@ -211,7 +334,7 @@ public sealed class SpriteRenderSystemTests
             TextureDescription> _textures = new();
 
         private uint _nextId = 1;
-
+        public int DestroyCount { get; private set; }
         public int CreateCount { get; private set; }
 
         public TextureHandle Create(
@@ -243,7 +366,10 @@ public sealed class SpriteRenderSystemTests
 
         public void Destroy(TextureHandle texture)
         {
-            _textures.Remove(texture);
+            if (_textures.Remove(texture))
+            {
+                DestroyCount++;
+            }
         }
     }
 

@@ -1,4 +1,5 @@
-﻿using Engine.ECS.Components;
+﻿using Engine.Audio.Components;
+using Engine.ECS.Components;
 using Engine.Graphics2D.Sprites;
 
 namespace Engine.Editor.Components;
@@ -19,6 +20,14 @@ public sealed class EditorComponentDependencyRegistry
 
         registry.Register(
             typeof(SpriteComponent),
+            typeof(WorldTransform2D));
+
+        registry.Register(
+    typeof(AudioSourceComponent),
+    typeof(WorldTransform2D));
+
+        registry.Register(
+            typeof(AudioListenerComponent),
             typeof(WorldTransform2D));
 
         return registry;

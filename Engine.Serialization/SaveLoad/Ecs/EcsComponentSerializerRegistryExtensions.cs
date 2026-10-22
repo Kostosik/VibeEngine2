@@ -41,5 +41,13 @@ public static class EcsComponentSerializerRegistryExtensions
         registry.Register(
             "engine.entity.name",
             new EntityNameSerializer());
+
+        registry.Register(
+    "engine.audio.source",
+    new AudioSourceComponentSerializer());
+
+        registry.Register(
+            "engine.audio.listener",
+            new AudioListenerComponentSerializer());
     }
 }

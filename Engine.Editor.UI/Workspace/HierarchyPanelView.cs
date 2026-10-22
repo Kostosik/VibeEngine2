@@ -340,6 +340,12 @@ public sealed class HierarchyPanelView :
             }
         }
 
+        if (document.EntitySelection.Count == 1)
+        {
+            AddParentControls(
+                document,
+                document.EntitySelection.Items.First());
+        }
 
         var source =
             new EcsHierarchySource(
@@ -459,6 +465,179 @@ public sealed class HierarchyPanelView :
                 children,
                 rendered);
         }
+    }
+
+    private void AddParentControls(
+    Engine.Editor.Documents.EditorDocument document,
+    EntityId entity)
+    {
+        var world = document.World.EcsWorld;
+
+        if (!world.Exists(entity) ||
+            !world.Has<WorldTransform2D>(entity))
+        {
+            return;
+        }
+
+        var candidates = world.Inspector
+            .GetEntities()
+            .Where(candidate =>
+                candidate != entity &&
+                world.Has<WorldTransform2D>(candidate))
+            .OrderBy(candidate => candidate.Index)
+            .ToArray();
+
+        var hasParent = world.Has<TransformParent2D>(entity);
+
+        var currentParent = hasParent
+            ? world.Get<TransformParent2D>(entity).Parent
+            : EntityId.Invalid;
+
+        var section = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical,
+            Spacing = 4.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        section.AddChild(
+            new UiLabel("Transform Hierarchy")
+            {
+                FontSize = 13.0f,
+                Color = new UiColor(170, 170, 170, 255)
+            });
+
+        var targetDropdown = new UiDropdown();
+        var selectedIndex = 0;
+
+        foreach (var candidate in candidates)
+        {
+            var name = $"Entity {candidate.Index}";
+
+            if (world.Has<EntityName>(candidate))
+            {
+                var entityName = world.Get<EntityName>(candidate);
+
+                if (entityName.IsValid)
+                {
+                    name = entityName.Value;
+                }
+            }
+
+            targetDropdown.AddOption(
+                $"{name} [{candidate.Index}]");
+        }
+
+        if (candidates.Length > 0)
+        {
+            var currentIndex = Array.IndexOf(candidates, currentParent);
+
+            selectedIndex = currentIndex >= 0 ? currentIndex : 0;
+            targetDropdown.SetSelectedIndex(selectedIndex);
+
+            targetDropdown.SelectionChanged +=
+                (index, _) => selectedIndex = index;
+
+            section.AddChild(
+                new UiLabel("Parent")
+                {
+                    FontSize = 12.0f
+                });
+
+            section.AddChild(targetDropdown);
+        }
+        else
+        {
+            section.AddChild(
+                new UiLabel("No other entities available.")
+                {
+                    FontSize = 11.0f,
+                    Color = new UiColor(175, 165, 140, 255)
+                });
+        }
+
+        var buttons = new UiStackPanel
+        {
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 4.0f,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        var setParentButton = new UiButton("Set Parent")
+        {
+            Width = 100.0f,
+            Height = 30.0f,
+            Enabled = candidates.Length > 0
+        };
+
+        var clearParentButton = new UiButton("Clear Parent")
+        {
+            Width = 100.0f,
+            Height = 30.0f,
+            Enabled = hasParent
+        };
+
+        var errorLabel = new UiLabel(string.Empty)
+        {
+            FontSize = 11.0f,
+            Color = new UiColor(230, 130, 130, 255)
+        };
+
+        setParentButton.Clicked += () =>
+        {
+            if (selectedIndex < 0 || selectedIndex >= candidates.Length)
+            {
+                return;
+            }
+
+            try
+            {
+                document.Execute(
+                    new SetTransformParent2DCommand(
+                        document.World,
+                        document.GetEntityReference(entity),
+                        candidates[selectedIndex]));
+
+                Refresh();
+            }
+            catch (Exception exception) when (
+                exception is ArgumentException or
+                    InvalidOperationException or
+                    OverflowException)
+            {
+                errorLabel.Text = exception.Message;
+            }
+        };
+
+        clearParentButton.Clicked += () =>
+        {
+            try
+            {
+                document.Execute(
+                    new SetTransformParent2DCommand(
+                        document.World,
+                        document.GetEntityReference(entity),
+                        null));
+
+                Refresh();
+            }
+            catch (Exception exception) when (
+                exception is ArgumentException or
+                    InvalidOperationException or
+                    OverflowException)
+            {
+                errorLabel.Text = exception.Message;
+            }
+        };
+
+        buttons.AddChild(setParentButton);
+        buttons.AddChild(clearParentButton);
+
+        section.AddChild(buttons);
+        section.AddChild(errorLabel);
+
+        _toolbar.AddChild(section);
     }
 
     private void AddHierarchyNode(

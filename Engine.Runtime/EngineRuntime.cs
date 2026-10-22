@@ -1,4 +1,5 @@
-﻿using Engine.Core.Application;
+﻿using Engine.Audio.Components;
+using Engine.Core.Application;
 using Engine.Core.Commands;
 using Engine.Core.Determinism;
 using Engine.Core.Diagnostics;
@@ -30,7 +31,7 @@ public sealed class EngineRuntime :
     public DebugVisualizationRenderer? DebugVisualizationRenderer { get; private set; }
     private SpriteRenderSystem? _spriteRenderSystem;
     public ScriptRegistry ScriptRegistry { get; }
-
+    private AudioEcsSystem? _audioEcsSystem;
     public ScriptRuntime Scripts { get; }
     public EngineConsole? EngineConsole { get; private set; }
     public EngineRuntime(
@@ -314,13 +315,13 @@ Services.Graphics;
         Simulation.Initialize();
     }
 
-    public void Update(
-        SystemContext context)
+    public void Update(SystemContext context)
     {
         EnsureNotDisposed();
 
-        Simulation.Update(
-            context);
+        Simulation.Update(context);
+
+        UpdateAudio(context.Time.Delta.TotalSeconds);
     }
 
     public void FixedUpdate(
@@ -389,6 +390,46 @@ Services.Graphics;
         fault.Exception);
 }
 
+    private void UpdateAudio(double deltaSeconds)
+    {
+        if (_audioEcsSystem is null && !HasAudioComponents())
+        {
+            return;
+        }
+
+        _audioEcsSystem ??= new AudioEcsSystem(
+            EcsWorld,
+            Services.Audio);
+
+        _audioEcsSystem.Update(deltaSeconds);
+    }
+
+    private bool HasAudioComponents()
+    {
+        var sources = EcsWorld
+            .Query<AudioSourceComponent>()
+            .GetEnumerator();
+
+        if (sources.MoveNext())
+        {
+            return true;
+        }
+
+        var listeners = EcsWorld
+            .Query<AudioListenerComponent>()
+            .GetEnumerator();
+
+        return listeners.MoveNext();
+    }
+
+    private void DisposeAudioEcsSystem()
+    {
+        var audioSystem = _audioEcsSystem;
+        _audioEcsSystem = null;
+
+        audioSystem?.Dispose();
+    }
+
     public DeterministicStateHash GetStateHash()
     {
         EnsureNotDisposed();
@@ -437,7 +478,21 @@ Services.Graphics;
     {
         EnsureNotDisposed();
 
-        Simulation.Shutdown();
+        try
+        {
+            Simulation.Shutdown();
+        }
+        finally
+        {
+            try
+            {
+                DisposeAudioEcsSystem();
+            }
+            finally
+            {
+                DisposeSpriteRenderSystem();
+            }
+        }
     }
 
 
@@ -463,14 +518,26 @@ Services.Graphics;
         {
             try
             {
-                Simulation.Shutdown();
+                if (Simulation.IsInitialized &&
+                    !Simulation.IsShutdown)
+                {
+                    Simulation.Shutdown();
+                }
             }
             finally
             {
-                DisposeSpriteRenderSystem();
+                try
+                {
+                    DisposeAudioEcsSystem();
+                }
+                finally
+                {
+                    DisposeSpriteRenderSystem();
+                }
             }
         }
         EngineConsole?.Dispose();
+        Console?.Dispose();
         SchedulerProfiler?.Dispose();
 
         Scripts.ScriptFaulted -= OnScriptFaulted;

@@ -1,8 +1,11 @@
-﻿using Engine.ECS.Components;
+﻿using Engine.Core.Math;
+using Engine.ECS.Components;
 using Engine.ECS.Entities;
 using Engine.Editor.Commands;
 using Engine.Editor.UI.Inspection;
 using Engine.Graphics.Commands;
+using Engine.Physics.Components;
+using Engine.Physics.Joints;
 using Engine.UI.Controls;
 using Engine.UI.Layout;
 
@@ -148,6 +151,11 @@ public sealed class InspectorPanelView : UiPanel
                         item.ComponentType.Name,
                     StringComparer.Ordinal)
                 .ToArray();
+
+        AddDistanceJointSection(
+    document,
+    entity,
+    existingComponentTypeSet);
 
         var duplicateNames =
             addableComponentTypes
@@ -432,6 +440,172 @@ public sealed class InspectorPanelView : UiPanel
                     property));
         }
     }
+
+    private void AddDistanceJointSection(
+    Engine.Editor.Documents.EditorDocument document,
+    EntityId entity,
+    IReadOnlySet<Type> existingComponentTypes)
+    {
+        if (existingComponentTypes.Contains(typeof(DistanceJoint2D)))
+        {
+            return;
+        }
+
+        var world = document.World.EcsWorld;
+
+        if (!world.Has<WorldTransform2D>(entity) ||
+            !world.Has<PhysicsBody2D>(entity))
+        {
+            return;
+        }
+
+        var targets = world.Inspector
+            .GetEntities()
+            .Where(candidate =>
+                candidate != entity &&
+                world.Has<WorldTransform2D>(candidate) &&
+                world.Has<PhysicsBody2D>(candidate))
+            .OrderBy(candidate => candidate.Index)
+            .ToArray();
+
+        var section = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical,
+            Spacing = 4.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        section.AddChild(
+            new UiLabel("Distance Joint 2D")
+            {
+                FontSize = 13.0f,
+                Color = new UiColor(170, 170, 170, 255)
+            });
+
+        if (targets.Length == 0)
+        {
+            section.AddChild(
+                new UiLabel(
+                    "Create another entity with PhysicsBody2D " +
+                    "and WorldTransform2D to add a joint.")
+                {
+                    FontSize = 11.0f,
+                    Color = new UiColor(175, 165, 140, 255)
+                });
+
+            _content.AddChild(section);
+            return;
+        }
+
+        var targetDropdown = new UiDropdown();
+
+        foreach (var target in targets)
+        {
+            var name = $"Entity {target.Index}";
+
+            if (world.Has<EntityName>(target))
+            {
+                var entityName = world.Get<EntityName>(target);
+
+                if (entityName.IsValid)
+                {
+                    name = entityName.Value;
+                }
+            }
+
+            targetDropdown.AddOption(
+                $"{name} [{target.Index}]");
+        }
+
+        var selectedTargetIndex = 0;
+
+        targetDropdown.SetSelectedIndex(0);
+
+        targetDropdown.SelectionChanged +=
+            (index, _) => selectedTargetIndex = index;
+
+        section.AddChild(
+            new UiLabel("Connect to entity")
+            {
+                FontSize = 12.0f
+            });
+
+        section.AddChild(targetDropdown);
+
+        var lengthBox = new UiTextBox("1")
+        {
+            Width = 140.0f,
+            Height = 30.0f,
+            FontSize = 12.0f
+        };
+
+        var lengthRow = new UiStackPanel
+        {
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 6.0f,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        lengthRow.AddChild(
+            new UiLabel("Length")
+            {
+                Width = 90.0f,
+                FontSize = 12.0f
+            });
+
+        lengthRow.AddChild(lengthBox);
+        section.AddChild(lengthRow);
+
+        var errorLabel = new UiLabel(string.Empty)
+        {
+            FontSize = 11.0f,
+            Color = new UiColor(230, 130, 130, 255)
+        };
+
+        var addButton = new UiButton("Add Joint")
+        {
+            Width = 120.0f,
+            Height = 30.0f
+        };
+
+        addButton.Clicked += () =>
+        {
+            if (!Fixed32InspectorPropertyEditor.TryParseFixed32(
+                    lengthBox.Text,
+                    out var length) ||
+                length <= Fixed32.Zero)
+            {
+                errorLabel.Text =
+                    "Length must be a finite number greater than zero.";
+
+                return;
+            }
+
+            try
+            {
+                document.Execute(
+                    new AddDistanceJoint2DCommand(
+                        document.World,
+                        document.GetEntityReference(entity),
+                        targets[selectedTargetIndex],
+                        length));
+
+                errorLabel.Text = string.Empty;
+            }
+            catch (Exception exception) when (
+                exception is ArgumentException or InvalidOperationException)
+            {
+                errorLabel.Text = exception.Message;
+            }
+        };
+
+        section.AddChild(addButton);
+        section.AddChild(errorLabel);
+
+        _content.AddChild(section);
+    }
+
     private void AddWorldTransformValue(
     string name,
     string value)

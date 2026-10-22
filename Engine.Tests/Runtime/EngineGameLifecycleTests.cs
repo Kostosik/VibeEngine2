@@ -11,6 +11,59 @@ namespace Engine.Tests.Runtime;
 public sealed class EngineGameLifecycleTests
 {
     [Fact]
+    public void Shutdown_WhenOnShutdownThrowsStillShutsDownRuntime()
+    {
+        using var runtime = CreateRuntime();
+
+        var originalException =
+            new InvalidOperationException("Game shutdown failed.");
+
+        var game = new ShutdownFailureProbeGame(
+            runtime,
+            originalException);
+
+        game.Initialize();
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => game.Shutdown());
+
+        Assert.Same(originalException, exception);
+        Assert.True(runtime.IsShutdown);
+        Assert.Equal(1, game.ShutdownCount);
+
+        // Ошибка пользовательской очистки не должна
+        // позволять продолжить выполнение игры.
+        Assert.Throws<InvalidOperationException>(
+            () => game.Update(default));
+
+        // Повторная остановка не запускает очистку снова.
+        game.Shutdown();
+
+        Assert.Equal(1, game.ShutdownCount);
+    }
+
+    private sealed class ShutdownFailureProbeGame : EngineGame
+    {
+        private readonly Exception _exception;
+
+        public int ShutdownCount { get; private set; }
+
+        public ShutdownFailureProbeGame(
+            EngineRuntime runtime,
+            Exception exception)
+            : base(runtime)
+        {
+            _exception = exception;
+        }
+
+        protected override void OnShutdown()
+        {
+            ShutdownCount++;
+            throw _exception;
+        }
+    }
+
+    [Fact]
     public void Initialize_WhenConfigureRuntimeThrows_CleansUpAndPreservesOriginalException()
     {
         using var runtime = CreateRuntime();

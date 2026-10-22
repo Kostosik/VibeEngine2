@@ -1,4 +1,5 @@
 ﻿
+using Engine.Audio.Components;
 using Engine.ECS.Components;
 using Engine.Graphics2D.Sprites;
 
@@ -99,6 +100,12 @@ public sealed class EditorComponentTypeRegistry
         Register<WorldTransform2D>();
         Register<SpriteComponent>(
     () => new SpriteComponent());
+
+        Register<AudioSourceComponent>(
+    () => new AudioSourceComponent());
+
+        Register<AudioListenerComponent>(
+            () => new AudioListenerComponent());
     }
 
     public bool Unregister(

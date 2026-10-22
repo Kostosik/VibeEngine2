@@ -4,8 +4,9 @@ using System.Text;
 
 namespace Engine.Tooling.Debugging;
 
-public sealed class DebugConsole
+public sealed class DebugConsole : IDisposable
 {
+    private bool _disposed;
     private readonly DebugCommandRegistry _registry;
     private readonly ConsoleHistory _history;
     private readonly List<IConsoleSink> _sinks = new();
@@ -118,6 +119,7 @@ public sealed class DebugConsole
     public void AddSink(
         IConsoleSink sink)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(
             sink);
 
@@ -133,6 +135,7 @@ public sealed class DebugConsole
     public bool RemoveSink(
         IConsoleSink sink)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(
             sink);
 
@@ -143,6 +146,7 @@ public sealed class DebugConsole
     public DebugCommandResult Execute(
         string input)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentException.ThrowIfNullOrWhiteSpace(
             input);
 
@@ -238,6 +242,7 @@ public sealed class DebugConsole
         string? code = null,
         Exception? exception = null)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(message);
 
         var consoleMessage =
@@ -293,6 +298,7 @@ public sealed class DebugConsole
 
     public void Clear()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         _messages.Clear();
     }
 
@@ -352,5 +358,15 @@ public sealed class DebugConsole
         }
 
         return tokens;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _sinks.Clear();
+        MessageWritten = null;
+        _disposed = true;
     }
 }

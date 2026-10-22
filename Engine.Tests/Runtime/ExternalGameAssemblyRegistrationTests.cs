@@ -125,7 +125,7 @@ public sealed class ExternalGameAssemblyRegistrationTests
             Path.Combine(assetsDirectory, "marker.txt"),
             "outside-repository-asset",
             new UTF8Encoding(false));
-
+        CreateUserDependency(directory);
         var scenesDirectory = Path.Combine(
             directory,
             "Scenes");
@@ -156,7 +156,10 @@ public sealed class ExternalGameAssemblyRegistrationTests
           <ItemGroup>
         {{references}}
           </ItemGroup>
-
+                  <ItemGroup>
+          <ProjectReference Include="UserDependency/UserDependency.csproj" />
+          <Compile Remove="UserDependency/**/*.cs" />
+        </ItemGroup>
                   <ItemGroup>
           <None Update="Assets/**/*">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -220,6 +223,41 @@ public sealed class ExternalGameAssemblyRegistrationTests
             publishResult.Output
             + Environment.NewLine
             + runResult.Output);
+    }
+
+    private static void CreateUserDependency(string directory)
+    {
+        var dependencyDirectory = Path.Combine(
+            directory,
+            "UserDependency");
+
+        Directory.CreateDirectory(dependencyDirectory);
+
+        File.WriteAllText(
+            Path.Combine(dependencyDirectory, "UserDependency.csproj"),
+            """
+        <Project Sdk="Microsoft.NET.Sdk">
+          <PropertyGroup>
+            <TargetFramework>net8.0</TargetFramework>
+            <ImplicitUsings>enable</ImplicitUsings>
+            <Nullable>enable</Nullable>
+          </PropertyGroup>
+        </Project>
+        """,
+            new UTF8Encoding(false));
+
+        File.WriteAllText(
+            Path.Combine(dependencyDirectory, "DependencyProbe.cs"),
+            """
+        namespace UserDependency;
+
+        public static class DependencyProbe
+        {
+            public static string GetValue() =>
+                "external-user-dependency-loaded";
+        }
+        """,
+            new UTF8Encoding(false));
     }
 
     private static (int ExitCode, string Output) RunProcess(
@@ -387,6 +425,16 @@ public sealed class ExternalGameAssemblyRegistrationTests
             "Assets",
             "Probe",
             "marker.txt");
+
+                    if (UserDependency.DependencyProbe.GetValue() !=
+            "external-user-dependency-loaded")
+        {
+            throw new InvalidOperationException(
+                "Published user dependency was not loaded.");
+        }
+
+        Console.WriteLine(
+            "PASS: external user dependency loaded.");
 
         if (!File.Exists(assetPath) ||
             File.ReadAllText(assetPath) !=

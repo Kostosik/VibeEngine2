@@ -28,6 +28,62 @@ namespace Engine.Tests.Runtime;
 public sealed class EngineRuntimeTests
 {
     [Fact]
+    public void Dispose_DoesNotDisposeInjectedAudioService()
+    {
+        var audio = new FakeAudioManager();
+
+        using var content = new ContentManager(
+            new EmptyAssetSource(),
+            new EmptyContentCatalog(),
+            new ContentLoaderRegistry());
+
+        var services = new EngineRuntimeServices(
+            new FakeGraphicsDevice(),
+            new FakeInput(),
+            new Camera2D(
+                new Engine.Core.Math.Vector2(1280, 720)),
+            audio,
+            content);
+
+        using var runtime = new EngineRuntime(
+            new EngineRuntimeOptions
+            {
+                ToolingEnabled = false
+            },
+            services);
+
+        runtime.Dispose();
+
+        Assert.Equal(0, audio.DisposeCount);
+    }
+
+    [Fact]
+    public void Dispose_CanBeCalledMultipleTimes()
+    {
+        var runtime = CreateRuntime();
+
+        runtime.Dispose();
+
+        Assert.Null(
+            Record.Exception(() => runtime.Dispose()));
+    }
+
+    [Fact]
+    public void Dispose_DisablesDebugConsoleExecution()
+    {
+        var runtime = CreateRuntime();
+
+        var console = runtime.Console
+            ?? throw new InvalidOperationException(
+                "Debug console is not configured.");
+
+        runtime.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(
+            () => console.Execute("pause"));
+    }
+
+    [Fact]
     public void Dispose_DisablesSchedulerAndClearsExecutionSubscriptions()
     {
         var runtime = CreateRuntime(
@@ -52,6 +108,33 @@ public sealed class EngineRuntimeTests
 
         Assert.Throws<ObjectDisposedException>(
             () => runtime.Scheduler.FixedUpdate(default));
+    }
+
+    [Fact]
+    public void Dispose_DisablesDebugConsoleAndClearsExecutionSubscriptions()
+    {
+        var runtime = CreateRuntime(
+            new EngineRuntimeOptions
+            {
+                ToolingEnabled = true
+            });
+
+        var console = runtime.Console!;
+        var messageCount = 0;
+
+        console.MessageWritten +=
+            _ => messageCount++;
+
+        Assert.NotEmpty(console.Sinks);
+
+        runtime.Dispose();
+
+        Assert.Empty(console.Sinks);
+
+        Assert.Throws<ObjectDisposedException>(
+            () => console.WriteLine("after disposal"));
+
+        Assert.Equal(0, messageCount);
     }
 
     [Fact]
@@ -253,11 +336,6 @@ public sealed class EngineRuntimeTests
         Assert.False(registry.TryGet("pause", out _));
         Assert.False(registry.TryGet("resume", out _));
         Assert.False(registry.TryGet("step", out _));
-
-        var result = console.Execute("pause");
-
-        Assert.False(result.Success);
-        Assert.False(loop.IsPaused);
     }
 
     [Fact]
@@ -875,6 +953,8 @@ public sealed class EngineRuntimeTests
 
     private sealed class FakeAudioManager : IAudioManager
     {
+        public int DisposeCount { get; private set; }
+
         public IAudioListener CreateListener()
         {
             return null;
@@ -890,7 +970,7 @@ public sealed class EngineRuntimeTests
 
         public void Dispose()
         {
-
+            DisposeCount++;
         }
     }
 

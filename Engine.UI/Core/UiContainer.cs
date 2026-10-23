@@ -48,8 +48,7 @@ public abstract class UiContainer : UiWidget
             child);
     }
 
-    public virtual bool RemoveChild(
-        UiWidget child)
+    public virtual bool RemoveChild(UiWidget child)
     {
         ArgumentNullException.ThrowIfNull(child);
 
@@ -58,6 +57,10 @@ public abstract class UiContainer : UiWidget
             return false;
         }
 
+        // Уведомляем виджет, пока связь с родителем
+        // ещё сохранена.
+        child.NotifyDetachingFromTree();
+
         child.Parent = null;
 
         return true;
@@ -65,7 +68,14 @@ public abstract class UiContainer : UiWidget
 
     public virtual void ClearChildren()
     {
-        foreach (var child in _children)
+        var children = _children.ToArray();
+
+        foreach (var child in children)
+        {
+            child.NotifyDetachingFromTree();
+        }
+
+        foreach (var child in children)
         {
             child.Parent = null;
         }

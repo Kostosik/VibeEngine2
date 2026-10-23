@@ -4,6 +4,7 @@ using Engine.Editor;
 using Engine.Editor.Documents;
 using Engine.Editor.UI.Workspace;
 using Engine.Input;
+using Engine.Particles;
 using Engine.Physics.Components;
 using Engine.Physics.Shapes;
 using Engine.UI.Controls;
@@ -17,6 +18,106 @@ namespace Engine.Tests.Editor;
 
 public sealed class InspectorComponentPickerTests
 {
+    [Fact]
+    public void Inspector_AddsAndEditsParticleEffectComponent()
+    {
+        using var ecsWorld = new Engine.ECS.World();
+
+        using var world = new World(
+            new ChunkSize(16, 16),
+            ecsWorld);
+
+        var editor = new EditorContext();
+        editor.ComponentTypes.RegisterEngineComponents();
+
+        var entity = ecsWorld.CreateEntity();
+
+        // Эмиттеру нужен трансформ в мировых координатах.
+        ecsWorld.Add(entity, new WorldTransform2D());
+
+        var document = editor.OpenDocument(world);
+        document.EntitySelection.Set(entity);
+
+        try
+        {
+            var inspector = new InspectorPanelView(editor);
+            inspector.Refresh();
+
+            // Добавляем компонент через настоящий Add Component.
+            var addableTypes =
+                GetAddableTypes(editor, document, entity);
+
+            var particleIndex = Array.IndexOf(
+                addableTypes,
+                typeof(ParticleEffectComponent));
+
+            Assert.True(particleIndex >= 0);
+
+            FindComponentPicker(inspector)
+                .SetSelectedIndex(particleIndex);
+
+            Assert.True(
+                ecsWorld.Has<ParticleEffectComponent>(entity));
+
+            inspector.Refresh();
+
+            // Настраиваем ввод через UI.
+            var root = new UiRoot();
+            root.AddChild(inspector);
+
+            var focus = new UiFocusManager();
+
+            _ = new UiInputRouter(
+                root,
+                new EmptyPointerInput(),
+                new EmptyTextInput(),
+                focus);
+
+            var effectPathEditor =
+                FindBodyTextPropertyEditor(
+                    inspector,
+                    nameof(ParticleEffectComponent.EffectPath));
+
+            var effectPathBox = Assert.Single(
+                Descendants(effectPathEditor)
+                    .OfType<UiTextBox>());
+
+            effectPathBox.SetText(
+                "Particles/Smoke.particle.json");
+
+            focus.SetFocus(effectPathBox);
+            focus.Activate();
+
+            Assert.Equal(
+                "Particles/Smoke.particle.json",
+                ecsWorld.Get<ParticleEffectComponent>(entity)
+                    .EffectPath);
+
+            var burstEditor =
+                FindBodyTextPropertyEditor(
+                    inspector,
+                    nameof(ParticleEffectComponent.InitialBurstCount));
+
+            var burstBox = Assert.Single(
+                Descendants(burstEditor)
+                    .OfType<UiTextBox>());
+
+            burstBox.SetText("16");
+
+            focus.SetFocus(burstBox);
+            focus.Activate();
+
+            Assert.Equal(
+                16,
+                ecsWorld.Get<ParticleEffectComponent>(entity)
+                    .InitialBurstCount);
+        }
+        finally
+        {
+            editor.Session.Discard(document);
+        }
+    }
+
     [Fact]
     public void Inspector_UpdatesColliderShapeAndMaterialInEcs()
     {

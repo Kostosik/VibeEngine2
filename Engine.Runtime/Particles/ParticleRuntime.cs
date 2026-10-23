@@ -1,5 +1,7 @@
 ﻿using Engine.Camera;
 using Engine.Content;
+using Engine.Core.Assets;
+using Engine.Core.Determinism;
 using Engine.Core.Math;
 using Engine.ECS;
 using Engine.ECS.Components;
@@ -7,6 +9,8 @@ using Engine.ECS.Entities;
 using Engine.Graphics;
 using Engine.Graphics.Rendering;
 using Engine.Graphics2D.Particles;
+using Engine.Particles;
+using Engine.Particles.Particles;
 using Engine.Particles.Emission;
 using Engine.Particles.Initialization;
 
@@ -18,6 +22,11 @@ public sealed class ParticleRuntime : IDisposable
     private readonly ParticleRenderer _renderer;
     private readonly List<ParticleEmitterInstance> _emitters = [];
 
+    private readonly IContentManager _content;
+
+    private readonly Dictionary<EntityId, ComponentEmitterBinding>
+        _componentEmitters = new();
+
     private bool _disposed;
 
     public ParticleRuntime(
@@ -26,8 +35,10 @@ public sealed class ParticleRuntime : IDisposable
         IContentManager content,
         Camera2D camera)
     {
+        ArgumentNullException.ThrowIfNull(content);
+        
         ArgumentNullException.ThrowIfNull(ecsWorld);
-
+        _content = content;
         _ecsWorld = ecsWorld;
 
         _renderer = new ParticleRenderer(
@@ -115,7 +126,7 @@ public sealed class ParticleRuntime : IDisposable
             throw new ArgumentOutOfRangeException(
                 nameof(deltaSeconds));
         }
-
+        SynchronizeComponentEmitters();
         for (var i = _emitters.Count - 1; i >= 0; i--)
         {
             if (_emitters[i].Update(deltaSeconds))
@@ -140,6 +151,7 @@ public sealed class ParticleRuntime : IDisposable
 
     private void OnEntityDestroyed(EntityId entity)
     {
+        RemoveComponentEmitter(entity);
         for (var i = _emitters.Count - 1; i >= 0; i--)
         {
             if (_emitters[i].SourceEntity != entity)
@@ -161,6 +173,14 @@ public sealed class ParticleRuntime : IDisposable
 
         _ecsWorld.EntityDestroyed -= OnEntityDestroyed;
 
+        foreach (var binding in _componentEmitters.Values)
+        {
+            _content.Unload<ParticleEffectDefinition>(
+                binding.EffectPath);
+        }
+
+        _componentEmitters.Clear();
+
         foreach (var emitter in _emitters)
         {
             emitter.Deactivate();
@@ -179,4 +199,159 @@ public sealed class ParticleRuntime : IDisposable
             _disposed,
             this);
     }
+
+    private void SynchronizeComponentEmitters()
+    {
+        var entitiesWithComponent = new HashSet<EntityId>();
+
+        var query = _ecsWorld
+            .Query<ParticleEffectComponent>()
+            .GetEnumerator();
+
+        while (query.MoveNext())
+        {
+            var item = query.Current;
+            var entity = item.Entity;
+            var component = item.Component;
+
+            entitiesWithComponent.Add(entity);
+
+            if (component.InitialBurstCount < 0)
+            {
+                throw new InvalidOperationException(
+                    $"Particle effect on entity '{entity}' has a negative initial burst count.");
+            }
+
+            // Пустой путь означает, что ресурс ещё не назначен.
+            if (string.IsNullOrWhiteSpace(component.EffectPath))
+            {
+                RemoveComponentEmitter(entity);
+                continue;
+            }
+
+            if (!_ecsWorld.Has<WorldTransform2D>(entity))
+            {
+                RemoveComponentEmitter(entity);
+
+                throw new InvalidOperationException(
+                    $"Entity '{entity}' has ParticleEffectComponent " +
+                    "but lacks WorldTransform2D.");
+            }
+
+            var effectPath = new AssetPath(component.EffectPath);
+
+            if (_componentEmitters.TryGetValue(
+                    entity,
+                    out var existing) &&
+                existing.EffectPath == effectPath &&
+                existing.InitialBurstCount == component.InitialBurstCount)
+            {
+                continue;
+            }
+
+            // Если настройки изменились, заменяем старый экземпляр.
+            RemoveComponentEmitter(entity);
+
+            var definition =
+                _content.Load<ParticleEffectDefinition>(effectPath);
+
+            ParticleEmitterInstance? instance = null;
+
+            try
+            {
+                instance = CreateEmitter(
+                    entity,
+                    definition.TexturePath,
+                    new ParticleEmitter(
+                        definition.EmissionRatePerSecond),
+                    definition.MaxParticles,
+                    CreateParticleFactory(definition),
+                    seed: CreateParticleSeed(entity),
+                    layer: definition.Layer);
+
+                if (component.InitialBurstCount > 0)
+                {
+                    instance.Burst(component.InitialBurstCount);
+                }
+
+                _componentEmitters.Add(
+                    entity,
+                    new ComponentEmitterBinding(
+                        effectPath,
+                        component.InitialBurstCount,
+                        instance));
+            }
+            catch
+            {
+                if (instance is not null)
+                {
+                    RemoveEmitter(instance);
+                }
+
+                _content.Unload<ParticleEffectDefinition>(effectPath);
+                throw;
+            }
+        }
+
+        // Удаляем эмиттеры, если компонент сняли с Entity.
+        foreach (var entity in _componentEmitters.Keys.ToArray())
+        {
+            if (!entitiesWithComponent.Contains(entity))
+            {
+                RemoveComponentEmitter(entity);
+            }
+        }
+    }
+
+    private void RemoveComponentEmitter(EntityId entity)
+    {
+        if (!_componentEmitters.Remove(entity, out var binding))
+        {
+            return;
+        }
+
+        RemoveEmitter(binding.Instance);
+
+        _content.Unload<ParticleEffectDefinition>(
+            binding.EffectPath);
+    }
+
+    private static ParticleFactoryDelegate CreateParticleFactory(
+        ParticleEffectDefinition definition)
+    {
+        return (ref DeterministicRandom random) =>
+        {
+            var lifetime = random.NextFloat(
+                definition.LifetimeSeconds.Min,
+                definition.LifetimeSeconds.Max);
+
+            var size = random.NextFloat(
+                definition.Size.Min,
+                definition.Size.Max);
+
+            var velocityX = random.NextFloat(
+                definition.Velocity.Min.X,
+                definition.Velocity.Max.X);
+
+            var velocityY = random.NextFloat(
+                definition.Velocity.Min.Y,
+                definition.Velocity.Max.Y);
+
+            return new Particle(
+                Vector3.Zero,
+                new Vector3(velocityX, velocityY, 0.0f),
+                lifetime,
+                size);
+        };
+    }
+
+    private static ulong CreateParticleSeed(EntityId entity)
+    {
+        return ((ulong)entity.Index << 32) | entity.Generation;
+    }
+
+    private sealed record ComponentEmitterBinding(
+        AssetPath EffectPath,
+        int InitialBurstCount,
+        ParticleEmitterInstance Instance);
 }

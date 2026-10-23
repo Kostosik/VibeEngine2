@@ -49,5 +49,9 @@ public static class EcsComponentSerializerRegistryExtensions
         registry.Register(
             "engine.audio.listener",
             new AudioListenerComponentSerializer());
+
+        registry.Register(
+    "engine.particles.effect",
+    new ParticleEffectComponentSerializer());
     }
 }

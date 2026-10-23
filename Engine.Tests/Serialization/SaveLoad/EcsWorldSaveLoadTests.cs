@@ -1,5 +1,6 @@
 ﻿using Engine.ECS;
 using Engine.ECS.Components;
+using Engine.Particles;
 using Engine.Scripting;
 using Engine.Serialization.Binary;
 using Engine.Serialization.SaveLoad.Ecs;
@@ -8,6 +9,68 @@ namespace Engine.Tests.Serialization.SaveLoad;
 
 public sealed class EcsWorldSaveLoadTests
 {
+    [Fact]
+    public void ParticleEffectComponent_RoundTripsThroughEcsWorldSave()
+    {
+        var registry = new EcsComponentSerializerRegistry();
+        registry.RegisterEngineComponents();
+
+        var serializer = new EcsWorldStateSerializer(registry);
+
+        using var world = new Engine.ECS.World();
+
+        var entity = world.CreateEntity();
+
+        world.Add(
+            entity,
+            new ParticleEffectComponent
+            {
+                EffectPath = "Particles/Smoke.particle.json",
+                InitialBurstCount = 16
+            });
+
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"{Guid.NewGuid():N}.vbe");
+
+        try
+        {
+            BinaryFileSerializer.Save(
+                path,
+                world.CaptureState(),
+                serializer);
+
+            var state = BinaryFileSerializer.Load(
+                path,
+                serializer);
+
+            using var restoredWorld = new Engine.ECS.World();
+
+            restoredWorld.RestoreState(state);
+
+            Assert.True(
+                restoredWorld.Has<ParticleEffectComponent>(entity));
+
+            var restored =
+                restoredWorld.Get<ParticleEffectComponent>(entity);
+
+            Assert.Equal(
+                "Particles/Smoke.particle.json",
+                restored.EffectPath);
+
+            Assert.Equal(
+                16,
+                restored.InitialBurstCount);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
     [Fact]
     public void EntityName_RoundTripsThroughEcsWorldSave()
     {

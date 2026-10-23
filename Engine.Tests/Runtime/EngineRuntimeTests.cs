@@ -28,6 +28,68 @@ namespace Engine.Tests.Runtime;
 public sealed class EngineRuntimeTests
 {
     [Fact]
+    public void ScriptFault_IsReportedAndDoesNotStopHealthyScripts()
+    {
+        using var runtime = CreateRuntime(
+            new EngineRuntimeOptions
+            {
+                ToolingEnabled = false
+            });
+
+        var brokenScript = new ThrowingRuntimeScript();
+        var healthyScript = new RuntimeTestScript();
+
+        runtime.ScriptRegistry.Register(
+            "test.runtime-broken",
+            () => brokenScript);
+
+        runtime.ScriptRegistry.Register(
+            "test.runtime-healthy",
+            () => healthyScript);
+
+        runtime.Initialize();
+
+        var brokenEntity = runtime.EcsWorld.CreateEntity();
+        var healthyEntity = runtime.EcsWorld.CreateEntity();
+
+        runtime.Scripts.Attach(
+            brokenEntity,
+            "test.runtime-broken");
+
+        runtime.Scripts.Attach(
+            healthyEntity,
+            "test.runtime-healthy");
+
+        runtime.Update(default);
+
+        Assert.Equal(1, healthyScript.UpdateCount);
+
+        var diagnostic = Assert.Single(
+            runtime.DiagnosticCollector.Diagnostics);
+
+        Assert.Equal(
+            DiagnosticLevel.Error,
+            diagnostic.Level);
+
+        Assert.Equal(
+            "Engine.Script.ExecutionFault",
+            diagnostic.Code);
+
+        Assert.Contains(
+            "test.runtime-broken",
+            diagnostic.Message);
+
+        // Ошибочный скрипт больше не должен выполняться,
+        // а исправный должен продолжать работу.
+        runtime.Update(default);
+
+        Assert.Equal(2, healthyScript.UpdateCount);
+
+        Assert.Single(
+            runtime.DiagnosticCollector.Diagnostics);
+    }
+
+    [Fact]
     public void Dispose_DoesNotDisposeInjectedAudioService()
     {
         var audio = new FakeAudioManager();
@@ -948,6 +1010,17 @@ public sealed class EngineRuntimeTests
 
         public void Refresh()
         {
+        }
+    }
+
+    private sealed class ThrowingRuntimeScript : IEntityScript
+    {
+        public void Update(
+            ScriptContext context,
+            TimeSnapshot time)
+        {
+            throw new InvalidOperationException(
+                "Intentional runtime script failure.");
         }
     }
 

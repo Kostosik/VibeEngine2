@@ -9,6 +9,7 @@ using Engine.Core.Time;
 using Engine.ECS.Components;
 using Engine.Graphics.Sprites;
 using Engine.Graphics2D.Sprites;
+using Engine.Particles;
 using Engine.Physics;
 using Engine.Runtime.Particles;
 using Engine.Scripting;
@@ -354,8 +355,18 @@ Services.Graphics;
         _rebuildEngineCommand?.DrainOutput(Console);
 
         UpdateAudio(context.Time.Delta.TotalSeconds);
+        if (_particleRuntime is null &&
+            HasParticleEffectComponents())
+        {
+            _particleRuntime = new ParticleRuntime(
+                EcsWorld,
+                Services.Graphics,
+                Services.Content,
+                Services.Camera);
+        }
+
         _particleRuntime?.Update(
-    (float)context.Time.Delta.TotalSeconds);
+            (float)context.Time.Delta.TotalSeconds);
     }
 
     public void FixedUpdate(
@@ -412,6 +423,15 @@ Services.Graphics;
         _spriteRenderSystem = null;
 
         renderer?.Dispose();
+    }
+
+    private bool HasParticleEffectComponents()
+    {
+        var query = EcsWorld
+            .Query<ParticleEffectComponent>()
+            .GetEnumerator();
+
+        return query.MoveNext();
     }
 
     public void RenderDebugVisualization()
@@ -586,9 +606,22 @@ Services.Graphics;
                 }
                 finally
                 {
-                    DisposeSpriteRenderSystem();
+                    try
+                    {
+                        DisposeSpriteRenderSystem();
+                    }
+                    finally
+                    {
+                        DisposeParticleRuntime();
+                    }
                 }
             }
+        }
+        else
+        {
+            // Runtime мог создать частицы ещё до инициализации
+            // Simulation либо после её остановки.
+            DisposeParticleRuntime();
         }
         EngineConsole?.Dispose();
         Console?.Dispose();

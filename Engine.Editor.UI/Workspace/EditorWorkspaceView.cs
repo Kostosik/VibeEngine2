@@ -88,7 +88,8 @@ public sealed class EditorWorkspaceView :
         Inspector = new InspectorPanelView(
             editor,
             propertyEditors,
-            GetSelectedTexturePath);
+            GetSelectedTexturePath,
+            GetSelectedParticleEffectPath);
 
         _hierarchyHost.AddChild(
             Hierarchy);
@@ -887,6 +888,29 @@ public sealed class EditorWorkspaceView :
                 DockSplitterThickness * 0.5f,
                 finalRect.Width,
                 DockSplitterThickness));
+    }
+
+    private string? GetSelectedParticleEffectPath()
+    {
+        var browser = Editor.AssetBrowser;
+
+        if (browser?.SelectedAsset is not { } selectedAsset)
+        {
+            return null;
+        }
+
+        if (!selectedAsset.Name.EndsWith(
+                ".particle.json",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var relativePath = Path.GetRelativePath(
+            browser.RootPath,
+            selectedAsset.Path);
+
+        return new AssetPath(relativePath).Value;
     }
 
     private static UiPanel CreateHost(

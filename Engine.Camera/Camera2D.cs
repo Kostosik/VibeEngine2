@@ -61,11 +61,11 @@ public sealed class Camera2D
         get => _zoom;
         set
         {
-            if (value <= 0.0f)
+            if (!float.IsFinite(value) || value <= 0.0f)
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(value),
-                    "Zoom must be greater than zero.");
+                    "Zoom must be finite and greater than zero.");
             }
 
             _zoom = value;
@@ -107,18 +107,20 @@ public sealed class Camera2D
     public void SetViewportSize(
         Vector2 viewportSize)
     {
-        if (viewportSize.X <= 0.0f)
+        if (!float.IsFinite(viewportSize.X) ||
+            viewportSize.X <= 0.0f)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(viewportSize),
-                "Viewport width must be greater than zero.");
+                "Viewport width must be finite and greater than zero.");
         }
 
-        if (viewportSize.Y <= 0.0f)
+        if (!float.IsFinite(viewportSize.Y) ||
+            viewportSize.Y <= 0.0f)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(viewportSize),
-                "Viewport height must be greater than zero.");
+                "Viewport height must be finite and greater than zero.");
         }
 
         _viewportSize =

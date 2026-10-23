@@ -6,6 +6,7 @@ using Engine.Editor.Inspection;
 using Engine.Editor.UI.Inspection;
 using Engine.Graphics.Commands;
 using Engine.Graphics2D.Sprites;
+using Engine.Particles;
 using Engine.Physics.Components;
 using Engine.Physics.Joints;
 using Engine.UI.Controls;
@@ -18,11 +19,12 @@ public sealed class InspectorPanelView : UiPanel
     private readonly UiScrollView _scrollView;
     private readonly UiStackPanel _content;
     private readonly InspectorPropertyEditorRegistry _propertyEditors;
+    private readonly Func<string?>? _getSelectedParticleEffectPath;
     private readonly Func<string?>? _getSelectedTexturePath;
     public InspectorPanelView(
         EditorContext editor,
         InspectorPropertyEditorRegistry? propertyEditors = null,
-        Func<string?>? getSelectedTexturePath = null)
+        Func<string?>? getSelectedTexturePath = null, Func<string?>? getSelectedParticleEffectPath = null)
     {
         ArgumentNullException.ThrowIfNull(editor);
 
@@ -33,7 +35,8 @@ public sealed class InspectorPanelView : UiPanel
             InspectorPropertyEditorRegistry.CreateDefault();
 
         _getSelectedTexturePath = getSelectedTexturePath;
-
+        _getSelectedParticleEffectPath =
+    getSelectedParticleEffectPath;
         Background = new UiColor(28, 28, 28, 255);
         Padding = new UiThickness(6.0f);
 
@@ -438,11 +441,117 @@ public sealed class InspectorPanelView : UiPanel
                 continue;
             }
 
+            if (componentType == typeof(ParticleEffectComponent) &&
+    property.Name == nameof(ParticleEffectComponent.EffectPath))
+            {
+                _content.AddChild(
+                    CreateParticleEffectPathProperty(
+                        document,
+                        property));
+
+                continue;
+            }
+
             _content.AddChild(
                 _propertyEditors.Create(
                     document,
                     property));
         }
+    }
+
+    private UiStackPanel CreateParticleEffectPathProperty(
+    Engine.Editor.Documents.EditorDocument document,
+    EditorProperty property)
+    {
+        var container = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical,
+            Spacing = 4.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        container.AddChild(
+            new UiLabel(property.DisplayName)
+            {
+                FontSize = 12.0f
+            });
+
+        var row = new UiStackPanel
+        {
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 4.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        var textBox = new UiTextBox(
+            property.GetValue()?.ToString() ?? string.Empty)
+        {
+            Width = 150.0f,
+            Height = 32.0f,
+            FontSize = 12.0f
+        };
+
+        textBox.Submitted += value =>
+            document.Execute(
+                new SetEditorPropertyCommand(
+                    property,
+                    value));
+
+        row.AddChild(textBox);
+
+        if (_getSelectedParticleEffectPath is not null)
+        {
+            var assignButton = new UiButton("Use selected")
+            {
+                Width = 90.0f,
+                Height = 32.0f,
+                FontSize = 11.0f
+            };
+
+            assignButton.Clicked += () =>
+            {
+                var path = _getSelectedParticleEffectPath();
+
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    return;
+                }
+
+                document.Execute(
+                    new SetEditorPropertyCommand(
+                        property,
+                        path));
+
+                Refresh();
+            };
+
+            row.AddChild(assignButton);
+
+            var clearButton = new UiButton("Clear")
+            {
+                Width = 50.0f,
+                Height = 32.0f,
+                FontSize = 11.0f
+            };
+
+            clearButton.Clicked += () =>
+            {
+                document.Execute(
+                    new SetEditorPropertyCommand(
+                        property,
+                        string.Empty));
+
+                Refresh();
+            };
+
+            row.AddChild(clearButton);
+        }
+
+        container.AddChild(row);
+
+        return container;
     }
 
     private UiStackPanel CreateSpriteTexturePathProperty(

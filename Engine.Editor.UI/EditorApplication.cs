@@ -1664,7 +1664,6 @@ public sealed class EditorApplication :
                 ?? GameProjectRunMode.Standard;
 
             var gameStopped = !wasRunning;
-            var updateSucceeded = false;
 
             try
             {
@@ -1688,7 +1687,6 @@ public sealed class EditorApplication :
                 }
 
                 update.Apply();
-                updateSucceeded = true;
 
                 _debugConsole.WriteLine(
                     $"Engine DLLs updated for '{activeProject.Name}'.");

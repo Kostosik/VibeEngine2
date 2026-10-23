@@ -2,6 +2,7 @@
 using Engine.Audio.Components;
 using Engine.ECS.Components;
 using Engine.Graphics2D.Sprites;
+using Engine.Particles;
 
 namespace Engine.Editor.Inspection;
 
@@ -106,6 +107,8 @@ public sealed class EditorComponentTypeRegistry
 
         Register<AudioListenerComponent>(
             () => new AudioListenerComponent());
+        Register<ParticleEffectComponent>(
+    () => new ParticleEffectComponent());
     }
 
     public bool Unregister(

@@ -87,6 +87,25 @@ public abstract class UiWidget
     {
     }
 
+    internal void NotifyDetachingFromTree()
+    {
+        OnDetachingFromTree();
+
+        if (this is not UiContainer container)
+        {
+            return;
+        }
+
+        foreach (var child in container.Children.ToArray())
+        {
+            child.NotifyDetachingFromTree();
+        }
+    }
+
+    protected virtual void OnDetachingFromTree()
+    {
+    }
+
     public void Measure(
         UiLayoutContext context,
         Vector2 availableSize)

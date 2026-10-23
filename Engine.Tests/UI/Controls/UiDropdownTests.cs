@@ -11,6 +11,69 @@ namespace Engine.Tests.UI.Controls;
 
 public sealed class UiDropdownTests
 {
+
+    [Fact]
+    public void ClearChildren_WhenDropdownPopupIsOpen_ClosesPopup()
+    {
+        var root = new UiRoot();
+
+        var overlay = new UiOverlayLayer();
+        root.AddChild(overlay);
+
+        var content = new UiCanvas();
+        root.AddChild(content);
+
+        var dropdown = new UiDropdown();
+        dropdown.AddOption("First");
+
+        content.AddChild(dropdown);
+        content.SetPosition(
+            dropdown,
+            Vector2.Zero);
+
+        var layoutContext = new UiLayoutContext(
+            new TestFontManager(),
+            new UiTheme());
+
+        var viewportSize = new Vector2(400.0f, 300.0f);
+
+        var pointer = new TestPointerInput();
+        var focus = new UiFocusManager();
+
+        var router = new UiInputRouter(
+            root,
+            pointer,
+            new EmptyTextInput(),
+            focus);
+
+        root.Measure(
+            layoutContext,
+            viewportSize);
+
+        root.Arrange(
+            new UiRect(
+                0.0f,
+                0.0f,
+                viewportSize.X,
+                viewportSize.Y));
+
+        Click(
+            router,
+            pointer,
+            new Vector2(20.0f, 20.0f));
+
+        Assert.True(dropdown.IsOpen);
+        Assert.Single(overlay.Children);
+
+        // Имитируем обновление инспектора,
+        // которое удаляет старые элементы.
+        content.ClearChildren();
+
+        Assert.False(dropdown.IsOpen);
+        Assert.Empty(overlay.Children);
+    }
+
+
     [Fact]
     public void Popup_WhenOverlappingSiblingIsPresent_ReceivesPointerInput()
     {

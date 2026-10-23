@@ -170,6 +170,11 @@ public sealed class UiDropdown : UiContainer
             Height ?? 42.0f);
     }
 
+    protected override void OnDetachingFromTree()
+    {
+        ClosePopup();
+    }
+
     protected override void ArrangeCore(
         UiRect finalRect)
     {

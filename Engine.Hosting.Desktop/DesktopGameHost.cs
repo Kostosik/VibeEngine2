@@ -9,6 +9,7 @@ using Engine.Graphics.OpenGL;
 using Engine.Graphics.Resources;
 using Engine.Input;
 using Engine.Runtime;
+using Engine.Serialization.Content;
 
 namespace Engine.Hosting.Desktop;
 
@@ -67,6 +68,9 @@ public static class DesktopGameHost
 
         contentLoaders.Register(
             new ImageTextureContentLoader());
+
+        contentLoaders.Register(
+            new JsonParticleEffectContentLoader());
 
         options.ConfigureContentLoaders?.Invoke(
             contentLoaders);

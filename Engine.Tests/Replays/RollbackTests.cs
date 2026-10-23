@@ -164,7 +164,6 @@ public sealed class RollbackTests
         var events =
             new EventBus();
 
-    simulation:
         var simulation =
             new Simulation(
                 scheduler,

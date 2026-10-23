@@ -1,10 +1,30 @@
 ﻿
 using Engine.Editor.Inspection;
+using Engine.Particles;
 
 namespace Engine.Tests.Editor;
 
 public sealed class EditorComponentTypeRegistryTests
 {
+    [Fact]
+    public void RegisterEngineComponents_RegistersParticleEffectComponent()
+    {
+        var registry = new EditorComponentTypeRegistry();
+
+        registry.RegisterEngineComponents();
+
+        Assert.True(
+            registry.Contains(typeof(ParticleEffectComponent)));
+
+        var component =
+            Assert.IsType<ParticleEffectComponent>(
+                registry.CreateDefaultValue(
+                    typeof(ParticleEffectComponent)));
+
+        Assert.Equal(string.Empty, component.EffectPath);
+        Assert.Equal(0, component.InitialBurstCount);
+    }
+
     [Fact]
     public void CreateDefaultValue_UsesRegisteredFactory()
     {

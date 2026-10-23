@@ -19,9 +19,13 @@ using Engine.Graphics2D.Commands;
 using Engine.Graphics2D.Particles;
 using Engine.Graphics2D.Sprites;
 using Engine.Input;
+using Engine.Particles;
 using Engine.Particles.Emission;
 using Engine.Particles.Particles;
 using Engine.Runtime;
+using Engine.Runtime.Particles;
+using Engine.Serialization.Content;
+using System.Text;
 
 namespace Engine.Tests.Graphics;
 
@@ -166,6 +170,204 @@ public sealed class SpriteRenderSystemTests
             game.Shutdown();
 
             Assert.False(emitter.IsActive);
+            Assert.Equal(1, textures.DestroyCount);
+        }
+        finally
+        {
+            runtime.Dispose();
+        }
+    }
+
+    [Fact]
+    public void Render_CullsSpritesOutsideCameraAndShowsThemAfterCameraMoves()
+    {
+        var textures = new FakeTextureManager();
+        var graphics = new FakeGraphicsDevice(textures);
+
+        using var content = CreateContent();
+        using var world = new World();
+
+        var entity = world.CreateEntity();
+
+        world.Add(
+            entity,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromFloat(200.0f),
+                    Fixed32.FromFloat(200.0f))));
+
+        world.Add(
+            entity,
+            new SpriteComponent(
+                "Textures/test.png",
+                4.0f,
+                4.0f));
+
+        var camera = new Camera2D(new Vector2(100, 100));
+
+        using var renderer = new SpriteRenderSystem(
+            world,
+            graphics,
+            content,
+            camera);
+
+        // Объект находится за пределами видимой области.
+        renderer.Render();
+
+        Assert.Empty(graphics.Commands);
+
+        // Перемещаем камеру к объекту.
+        camera.Position = new Vector2(200, 200);
+
+        renderer.Render();
+
+        Assert.Single(graphics.Commands);
+
+        Assert.IsType<DrawWorldTextureCommand>(
+            graphics.Commands[0]);
+    }
+
+    [Fact]
+    public void EngineGame_CameraMovementChangesParticleVisibility()
+    {
+        var textures = new FakeTextureManager();
+        var graphics = new FakeGraphicsDevice(textures);
+
+        using var content = CreateContent();
+
+        var camera = new Camera2D(
+            new Vector2(100.0f, 100.0f));
+
+        var runtime = new EngineRuntime(
+            new EngineRuntimeOptions
+            {
+                ToolingEnabled = false
+            },
+            new EngineRuntimeServices(
+                graphics,
+                new FakeInput(),
+                camera,
+                new FakeAudioManager(),
+                content));
+
+        var entity = runtime.EcsWorld.CreateEntity();
+
+        runtime.EcsWorld.Add(
+            entity,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromFloat(200.0f),
+                    Fixed32.FromFloat(200.0f))));
+
+        var emitter = runtime.Particles.CreateEmitter(
+            entity,
+            "Textures/test.png",
+            new ParticleEmitter(),
+            maxParticles: 8,
+            factory: static (ref DeterministicRandom random) =>
+                new Particle(
+                    Vector3.Zero,
+                    Vector3.Zero,
+                    lifetimeSeconds: 5.0f,
+                    size: 4.0f),
+            seed: 123);
+
+        var game = new TestEngineGame(runtime);
+
+        try
+        {
+            game.Initialize();
+
+            Assert.Equal(1, emitter.Burst(1));
+
+            // Эмиттер далеко за пределами текущего обзора камеры.
+            game.Render(0.0);
+            Assert.Empty(graphics.Commands);
+
+            // Перемещаем ту же камеру, которой пользуется runtime.
+            camera.Position = new Vector2(200.0f, 200.0f);
+
+            game.Render(0.0);
+
+            var command =
+                Assert.IsType<DrawWorldTextureCommand>(
+                    Assert.Single(graphics.Commands));
+
+            Assert.Equal(
+                new Vector2(198.0f, 198.0f),
+                command.Position);
+
+            Assert.Equal(
+                new Vector2(4.0f, 4.0f),
+                command.Size);
+
+            game.Shutdown();
+
+            Assert.False(emitter.IsActive);
+        }
+        finally
+        {
+            runtime.Dispose();
+        }
+    }
+
+    [Fact]
+    public void EngineGame_CanConfigureCameraAndCreateEmitterDuringInitialization()
+    {
+        var textures = new FakeTextureManager();
+        var graphics = new FakeGraphicsDevice(textures);
+
+        using var content = CreateContent();
+
+        var camera = new Camera2D(
+            new Vector2(100.0f, 100.0f));
+
+        var runtime = new EngineRuntime(
+            new EngineRuntimeOptions
+            {
+                ToolingEnabled = false
+            },
+            new EngineRuntimeServices(
+                graphics,
+                new FakeInput(),
+                camera,
+                new FakeAudioManager(),
+                content));
+
+        var game = new CameraAndParticleProbeGame(runtime);
+
+        try
+        {
+            game.Initialize();
+
+            Assert.NotNull(game.Emitter);
+            Assert.Equal(
+                new Vector2(200.0f, 200.0f),
+                camera.Position);
+            Assert.Equal(2.0f, camera.Zoom);
+
+            game.Render(0.0);
+
+            var command =
+                Assert.IsType<DrawWorldTextureCommand>(
+                    Assert.Single(graphics.Commands));
+
+            Assert.Equal(
+                new Vector2(198.0f, 198.0f),
+                command.Position);
+
+            graphics.Commands.Clear();
+
+            // Та же камера определяет видимость частиц.
+            camera.Position = Vector2.Zero;
+
+            game.Render(0.0);
+
+            Assert.Empty(graphics.Commands);
+
+            game.Shutdown();
+
+            Assert.False(game.Emitter!.IsActive);
             Assert.Equal(1, textures.DestroyCount);
         }
         finally
@@ -523,6 +725,373 @@ public sealed class SpriteRenderSystemTests
                 DestroyCount++;
             }
         }
+    }
+
+    private sealed class CameraAndParticleProbeGame : EngineGame
+    {
+        public ParticleEmitterInstance? Emitter { get; private set; }
+
+        public CameraAndParticleProbeGame(EngineRuntime runtime)
+            : base(runtime)
+        {
+        }
+
+        protected override void OnInitialize()
+        {
+            var camera = Runtime.Services.Camera;
+
+            camera.Position = new Vector2(200.0f, 200.0f);
+            camera.Zoom = 2.0f;
+
+            var entity = Runtime.EcsWorld.CreateEntity();
+
+            Runtime.EcsWorld.Add(
+                entity,
+                new WorldTransform2D(
+                    new FixedVector2(
+                        Fixed32.FromFloat(200.0f),
+                        Fixed32.FromFloat(200.0f))));
+
+            Emitter = Runtime.Particles.CreateEmitter(
+                entity,
+                "Textures/test.png",
+                new ParticleEmitter(),
+                maxParticles: 8,
+                factory: static (ref DeterministicRandom random) =>
+                    new Particle(
+                        Vector3.Zero,
+                        Vector3.Zero,
+                        lifetimeSeconds: 5.0f,
+                        size: 4.0f),
+                seed: 123);
+
+            Emitter.Burst(1);
+        }
+    }
+
+    [Fact]
+    public void EngineGame_CreatesParticleEmitterFromEntityComponent()
+    {
+        var textures = new FakeTextureManager();
+        var graphics = new FakeGraphicsDevice(textures);
+
+        using var content = CreateContentWithParticleEffect();
+
+        var effectPath =
+            new AssetPath("Particles/Smoke.particle.json");
+
+        using var runtime = new EngineRuntime(
+            new EngineRuntimeOptions
+            {
+                ToolingEnabled = false
+            },
+            new EngineRuntimeServices(
+                graphics,
+                new FakeInput(),
+                new Camera2D(new Vector2(100.0f, 100.0f)),
+                new FakeAudioManager(),
+                content));
+
+        var entity = runtime.EcsWorld.CreateEntity();
+
+        runtime.EcsWorld.Add(
+            entity,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromFloat(10.0f),
+                    Fixed32.FromFloat(12.0f))));
+
+        runtime.EcsWorld.Add(
+            entity,
+            new ParticleEffectComponent
+            {
+                EffectPath = effectPath.Value,
+                InitialBurstCount = 1
+            });
+
+        var game = new TestEngineGame(runtime);
+
+        try
+        {
+            game.Initialize();
+
+            game.Update(
+                new TimeSnapshot(
+                    Duration.FromSeconds(0.1),
+                    Duration.FromSeconds(0.1),
+                    Tick.Zero));
+
+            // Runtime создал эмиттер без ручного CreateEmitter().
+            Assert.Equal(1, runtime.Particles.EmitterCount);
+
+            game.Render(0.0);
+
+            var command =
+                Assert.IsType<DrawWorldTextureCommand>(
+                    Assert.Single(graphics.Commands));
+
+            Assert.Equal(
+                new Vector2(8.0f, 10.0f),
+                command.Position);
+
+            Assert.Equal(
+                new Vector2(4.0f, 4.0f),
+                command.Size);
+
+            game.Shutdown();
+
+            Assert.False(
+                content.IsLoaded<ParticleEffectDefinition>(
+                    effectPath));
+
+            Assert.Equal(1, textures.DestroyCount);
+        }
+        finally
+        {
+            if (!runtime.IsShutdown)
+            {
+                game.Shutdown();
+            }
+        }
+    }
+
+    [Fact]
+    public void EngineGame_ReconcilesParticleEffectComponentChanges()
+    {
+        var textures = new FakeTextureManager();
+        var graphics = new FakeGraphicsDevice(textures);
+
+        using var content = CreateContentWithParticleEffect();
+
+        var smokePath =
+            new AssetPath("Particles/Smoke.particle.json");
+
+        var sparkPath =
+            new AssetPath("Particles/Spark.particle.json");
+
+        using var runtime = new EngineRuntime(
+            new EngineRuntimeOptions
+            {
+                ToolingEnabled = false
+            },
+            new EngineRuntimeServices(
+                graphics,
+                new FakeInput(),
+                new Camera2D(new Vector2(100.0f, 100.0f)),
+                new FakeAudioManager(),
+                content));
+
+        var entity = runtime.EcsWorld.CreateEntity();
+
+        runtime.EcsWorld.Add(
+            entity,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromFloat(10.0f),
+                    Fixed32.FromFloat(12.0f))));
+
+        runtime.EcsWorld.Add(
+            entity,
+            new ParticleEffectComponent
+            {
+                EffectPath = smokePath.Value,
+                InitialBurstCount = 1
+            });
+
+        var game = new TestEngineGame(runtime);
+
+        try
+        {
+            game.Initialize();
+
+            var time = new TimeSnapshot(
+                Duration.FromSeconds(0.1),
+                Duration.FromSeconds(0.1),
+                Tick.Zero);
+
+            // Первый Update создаёт эмиттер из компонента.
+            game.Update(time);
+
+            Assert.Equal(1, runtime.Particles.EmitterCount);
+            Assert.True(
+                content.IsLoaded<ParticleEffectDefinition>(smokePath));
+
+            game.Render(0.0);
+
+            Assert.Single(graphics.Commands);
+            graphics.Commands.Clear();
+
+            // Меняем ресурс эффекта у той же сущности.
+            ref var component =
+                ref runtime.EcsWorld.Get<ParticleEffectComponent>(
+                    entity);
+
+            component.EffectPath = sparkPath.Value;
+
+            game.Update(time);
+
+            Assert.Equal(1, runtime.Particles.EmitterCount);
+
+            Assert.False(
+                content.IsLoaded<ParticleEffectDefinition>(smokePath));
+
+            Assert.True(
+                content.IsLoaded<ParticleEffectDefinition>(sparkPath));
+
+            // Удаляем компонент: связанный эмиттер должен исчезнуть.
+            Assert.True(
+                runtime.EcsWorld.Remove<ParticleEffectComponent>(
+                    entity));
+
+            game.Update(time);
+
+            Assert.Equal(0, runtime.Particles.EmitterCount);
+
+            Assert.False(
+                content.IsLoaded<ParticleEffectDefinition>(sparkPath));
+
+            game.Shutdown();
+
+            Assert.Equal(1, textures.DestroyCount);
+        }
+        finally
+        {
+            if (!runtime.IsShutdown)
+            {
+                game.Shutdown();
+            }
+        }
+    }
+
+    [Fact]
+    public void Dispose_ReleasesParticleResourcesWithoutExplicitGameShutdown()
+    {
+        var textures = new FakeTextureManager();
+        var graphics = new FakeGraphicsDevice(textures);
+
+        using var content = CreateContent();
+
+        using var runtime = new EngineRuntime(
+            new EngineRuntimeOptions
+            {
+                ToolingEnabled = false
+            },
+            new EngineRuntimeServices(
+                graphics,
+                new FakeInput(),
+                new Camera2D(
+                    new Vector2(100.0f, 100.0f)),
+                new FakeAudioManager(),
+                content));
+
+        var game = new TestEngineGame(runtime);
+
+        game.Initialize();
+
+        var entity = runtime.EcsWorld.CreateEntity();
+
+        runtime.EcsWorld.Add(
+            entity,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromFloat(10.0f),
+                    Fixed32.FromFloat(12.0f))));
+
+        var emitter = runtime.Particles.CreateEmitter(
+            entity,
+            "Textures/test.png",
+            new ParticleEmitter(10.0f),
+            maxParticles: 8,
+            factory: static (ref DeterministicRandom random) =>
+                new Particle(
+                    Vector3.Zero,
+                    Vector3.Zero,
+                    lifetimeSeconds: 5.0f,
+                    size: 4.0f));
+
+        emitter.Burst(1);
+
+        game.Render(0.0);
+
+        Assert.Equal(1, textures.CreateCount);
+
+        // Проверяем прямое освобождение runtime.
+        // game.Shutdown() намеренно не вызывается.
+        runtime.Dispose();
+
+        Assert.Equal(1, textures.DestroyCount);
+    }
+
+
+
+    private static ContentManager CreateContentWithParticleEffect()
+    {
+        var texturePath =
+            new AssetPath("Textures/test.png");
+
+        var smokePath =
+            new AssetPath("Particles/Smoke.particle.json");
+
+        var sparkPath =
+            new AssetPath("Particles/Spark.particle.json");
+
+        static byte[] CreateEffectJson(int layer, int size)
+        {
+            var json = $$"""
+        {
+          "formatVersion": 1,
+          "texturePath": "Textures/test.png",
+          "emissionRatePerSecond": 0,
+          "maxParticles": 8,
+          "layer": {{layer}},
+          "particle": {
+            "lifetimeSeconds": {
+              "min": 5,
+              "max": 5
+            },
+            "size": {
+              "min": {{size}},
+              "max": {{size}}
+            },
+            "velocity": {
+              "min": {
+                "x": 0,
+                "y": 0
+              },
+              "max": {
+                "x": 0,
+                "y": 0
+              }
+            }
+          }
+        }
+        """;
+
+            return Encoding.UTF8.GetBytes(json);
+        }
+
+        var assets = new MemoryAssetSource(
+            new Dictionary<string, byte[]>
+            {
+                [texturePath.Value] = CreatePng(),
+                [smokePath.Value] = CreateEffectJson(25, 4),
+                [sparkPath.Value] = CreateEffectJson(40, 2)
+            });
+
+        var catalog = new MemoryContentCatalog(
+            texturePath,
+            smokePath,
+            sparkPath);
+
+        var loaders = new ContentLoaderRegistry();
+
+        loaders.Register(new ImageTextureContentLoader());
+        loaders.Register(new JsonParticleEffectContentLoader());
+
+        return new ContentManager(
+            assets,
+            catalog,
+            loaders);
     }
 
     private sealed class FakeGraphicsDevice :

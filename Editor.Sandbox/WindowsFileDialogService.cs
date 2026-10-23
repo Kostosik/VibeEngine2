@@ -17,7 +17,8 @@ internal sealed class WindowsFileDialogService :
                         Title = "Open Document",
 
                         Filter =
-                            "Supported documents (*.world;*.ui)|*.world;*.ui|" +
+                            "Supported documents (*.world;*.ui;*.particle.json)|*.world;*.ui;*.particle.json|" +
+                            "Particle Effects (*.particle.json)|*.particle.json|" +
                             "World files (*.world)|*.world|" +
                             "UI files (*.ui)|*.ui|" +
                             "All files (*.*)|*.*",

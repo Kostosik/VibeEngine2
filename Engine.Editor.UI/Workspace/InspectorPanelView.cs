@@ -1,8 +1,10 @@
 ﻿using Engine.Core.Math;
 using Engine.ECS.Components;
 using Engine.ECS.Entities;
+using Engine.Editor.Assets;
 using Engine.Editor.Commands;
 using Engine.Editor.Inspection;
+using Engine.Editor.UI.Dialogs;
 using Engine.Editor.UI.Inspection;
 using Engine.Graphics.Commands;
 using Engine.Graphics2D.Sprites;
@@ -18,18 +20,19 @@ public sealed class InspectorPanelView : UiPanel
 {
     private readonly UiScrollView _scrollView;
     private readonly UiStackPanel _content;
+    private readonly EditorAssetPickerDialog? _assetPickerDialog;
     private readonly InspectorPropertyEditorRegistry _propertyEditors;
     private readonly Func<string?>? _getSelectedParticleEffectPath;
     private readonly Func<string?>? _getSelectedTexturePath;
     public InspectorPanelView(
         EditorContext editor,
         InspectorPropertyEditorRegistry? propertyEditors = null,
-        Func<string?>? getSelectedTexturePath = null, Func<string?>? getSelectedParticleEffectPath = null)
+        Func<string?>? getSelectedTexturePath = null, Func<string?>? getSelectedParticleEffectPath = null, EditorAssetPickerDialog? assetPickerDialog = null)
     {
         ArgumentNullException.ThrowIfNull(editor);
 
         Editor = editor;
-
+        _assetPickerDialog = assetPickerDialog;
         _propertyEditors =
             propertyEditors ??
             InspectorPropertyEditorRegistry.CreateDefault();
@@ -485,23 +488,51 @@ public sealed class InspectorPanelView : UiPanel
             VerticalAlignment = UiVerticalAlignment.Top
         };
 
-        var textBox = new UiTextBox(
-            property.GetValue()?.ToString() ?? string.Empty)
+        var currentPath =
+            property.GetValue()?.ToString();
+
+        var pickerField = new UiPickerField(
+            string.IsNullOrWhiteSpace(currentPath)
+                ? null
+                : currentPath)
         {
             Width = 150.0f,
             Height = 32.0f,
-            FontSize = 12.0f
+            FontSize = 12.0f,
+            Placeholder = "Select particle effect..."
         };
 
-        textBox.Submitted += value =>
-            document.Execute(
-                new SetEditorPropertyCommand(
-                    property,
-                    value));
+        pickerField.SelectionRequested += () =>
+        {
+            if (_assetPickerDialog is not null)
+            {
+                _assetPickerDialog.Show(
+                    "Select particle effect",
+                    IsParticleEffectAsset,
+                    path =>
+                    {
+                        document.Execute(
+                            new SetEditorPropertyCommand(
+                                property,
+                                path));
 
-        row.AddChild(textBox);
+                        Refresh();
+                    });
 
-        if (_getSelectedParticleEffectPath is not null)
+                return;
+            }
+
+            // Совместимость с инспектором без диалогового сервиса.
+            AssignSelectedParticleEffectPath(
+                document,
+                property);
+        };
+
+        row.AddChild(pickerField);
+
+        // Сохраняем прежний сценарий для существующих тестов.
+        if (_assetPickerDialog is null &&
+            _getSelectedParticleEffectPath is not null)
         {
             var assignButton = new UiButton("Use selected")
             {
@@ -511,24 +542,16 @@ public sealed class InspectorPanelView : UiPanel
             };
 
             assignButton.Clicked += () =>
-            {
-                var path = _getSelectedParticleEffectPath();
-
-                if (string.IsNullOrWhiteSpace(path))
-                {
-                    return;
-                }
-
-                document.Execute(
-                    new SetEditorPropertyCommand(
-                        property,
-                        path));
-
-                Refresh();
-            };
+                AssignSelectedParticleEffectPath(
+                    document,
+                    property);
 
             row.AddChild(assignButton);
+        }
 
+        if (_assetPickerDialog is not null ||
+            _getSelectedParticleEffectPath is not null)
+        {
             var clearButton = new UiButton("Clear")
             {
                 Width = 50.0f,
@@ -554,9 +577,38 @@ public sealed class InspectorPanelView : UiPanel
         return container;
     }
 
+    private void AssignSelectedParticleEffectPath(
+        Engine.Editor.Documents.EditorDocument document,
+        EditorProperty property)
+    {
+        var path =
+            _getSelectedParticleEffectPath?.Invoke();
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        document.Execute(
+            new SetEditorPropertyCommand(
+                property,
+                path));
+
+        Refresh();
+    }
+
+    private static bool IsParticleEffectAsset(
+        EditorAssetEntry entry)
+    {
+        return !entry.IsDirectory &&
+               entry.Name.EndsWith(
+                   ".particle.json",
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
     private UiStackPanel CreateSpriteTexturePathProperty(
-    Engine.Editor.Documents.EditorDocument document,
-    EditorProperty property)
+     Engine.Editor.Documents.EditorDocument document,
+     EditorProperty property)
     {
         var container = new UiStackPanel
         {
@@ -580,23 +632,52 @@ public sealed class InspectorPanelView : UiPanel
             VerticalAlignment = UiVerticalAlignment.Top
         };
 
-        var textBox = new UiTextBox(
-            property.GetValue()?.ToString() ?? string.Empty)
+        var currentPath =
+            property.GetValue()?.ToString();
+
+        var pickerField = new UiPickerField(
+            string.IsNullOrWhiteSpace(currentPath)
+                ? null
+                : currentPath)
         {
             Width = 150.0f,
             Height = 32.0f,
-            FontSize = 12.0f
+            FontSize = 12.0f,
+            Placeholder = "Select texture..."
         };
 
-        textBox.Submitted += value =>
-            document.Execute(
-                new SetEditorPropertyCommand(
-                    property,
-                    value));
+        pickerField.SelectionRequested += () =>
+        {
+            if (_assetPickerDialog is not null)
+            {
+                _assetPickerDialog.Show(
+                    "Select texture",
+                    IsTextureAsset,
+                    path =>
+                    {
+                        document.Execute(
+                            new SetEditorPropertyCommand(
+                                property,
+                                path));
 
-        row.AddChild(textBox);
+                        Refresh();
+                    });
 
-        if (_getSelectedTexturePath is not null)
+                return;
+            }
+
+            // Fallback для инспектора, созданного без диалогового сервиса.
+            AssignSelectedTexturePath(
+                document,
+                property);
+        };
+
+        row.AddChild(pickerField);
+
+        // Сохраняем старый сценарий для тестов и standalone-инспектора,
+        // которому не передали модальный выбор ресурсов.
+        if (_assetPickerDialog is null &&
+            _getSelectedTexturePath is not null)
         {
             var assignButton = new UiButton("Use selected")
             {
@@ -606,24 +687,16 @@ public sealed class InspectorPanelView : UiPanel
             };
 
             assignButton.Clicked += () =>
-            {
-                var path = _getSelectedTexturePath();
-
-                if (string.IsNullOrWhiteSpace(path))
-                {
-                    return;
-                }
-
-                document.Execute(
-                    new SetEditorPropertyCommand(
-                        property,
-                        path));
-
-                Refresh();
-            };
+                AssignSelectedTexturePath(
+                    document,
+                    property);
 
             row.AddChild(assignButton);
+        }
 
+        if (_assetPickerDialog is not null ||
+            _getSelectedTexturePath is not null)
+        {
             var clearButton = new UiButton("Clear")
             {
                 Width = 50.0f,
@@ -647,6 +720,41 @@ public sealed class InspectorPanelView : UiPanel
         container.AddChild(row);
 
         return container;
+    }
+
+    private void AssignSelectedTexturePath(
+        Engine.Editor.Documents.EditorDocument document,
+        EditorProperty property)
+    {
+        var path = _getSelectedTexturePath?.Invoke();
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        document.Execute(
+            new SetEditorPropertyCommand(
+                property,
+                path));
+
+        Refresh();
+    }
+
+    private static bool IsTextureAsset(
+        EditorAssetEntry entry)
+    {
+        if (entry.IsDirectory)
+        {
+            return false;
+        }
+
+        return Path.GetExtension(entry.Name).ToLowerInvariant() is
+            ".png" or
+            ".jpg" or
+            ".jpeg" or
+            ".bmp" or
+            ".tga";
     }
 
     private void AddDistanceJointSection(

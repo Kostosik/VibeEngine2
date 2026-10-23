@@ -2,6 +2,7 @@
 using Engine.Core.Math;
 using Engine.Editor.Assets;
 using Engine.Editor.Panels;
+using Engine.Editor.UI.Dialogs;
 using Engine.Editor.UI.Inspection;
 using Engine.Editor.UI.Panels;
 using Engine.Editor.Workspace;
@@ -38,7 +39,7 @@ public sealed class EditorWorkspaceView :
     public EditorWorkspaceView(
         EditorContext editor, UiOverlayLayer overlays,
         ITextureResourceManager assetPreviewTextures,
-        DebugConsole? console = null, InspectorPropertyEditorRegistry? propertyEditors = null, ITextureManager? filePreviewTextureManager = null)
+        DebugConsole? console = null, InspectorPropertyEditorRegistry? propertyEditors = null, ITextureManager? filePreviewTextureManager = null, EditorAssetPickerDialog? assetPickerDialog = null)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -89,7 +90,8 @@ public sealed class EditorWorkspaceView :
             editor,
             propertyEditors,
             GetSelectedTexturePath,
-            GetSelectedParticleEffectPath);
+            GetSelectedParticleEffectPath,
+            assetPickerDialog);
 
         _hierarchyHost.AddChild(
             Hierarchy);

@@ -77,6 +77,90 @@ public sealed class UiTextBoxTests
     }
 
     [Fact]
+    public void Backspace_RepeatsWhileHeld()
+    {
+        var root = new UiRoot();
+        var textBox = new UiTextBox("abcdef");
+
+        root.AddChild(textBox);
+
+        var pointer = new EmptyPointerInput();
+        var textInput = new TestTextInput();
+        var focus = new UiFocusManager();
+
+        var router = new UiInputRouter(
+            root,
+            pointer,
+            textInput,
+            focus);
+
+        focus.SetFocus(textBox);
+
+        textInput.Press(TextInputKey.Backspace);
+        router.Update();
+
+        Assert.Equal("abcde", textBox.Text);
+
+        textInput.AdvanceFrame();
+        router.Update(0.46);
+
+        Assert.Equal("abcd", textBox.Text);
+
+        textInput.Release();
+        router.Update(1.0);
+
+        Assert.Equal("abcd", textBox.Text);
+    }
+
+    [Fact]
+    public void MouseDrag_SelectsTextAndBackspaceDeletesSelection()
+    {
+        var root = new UiRoot();
+        var textBox = new UiTextBox("abc");
+
+        root.AddChild(textBox);
+        root.Arrange(new UiRect(0, 0, 300, 60));
+
+        var pointer = new EmptyPointerInput
+        {
+            Position = new Vector2(1, 20),
+            LeftDown = true,
+            LeftPressed = true
+        };
+
+        var textInput = new TestTextInput();
+        var focus = new UiFocusManager();
+
+        var router = new UiInputRouter(
+            root,
+            pointer,
+            textInput,
+            focus);
+
+        router.Update();
+
+        pointer.LeftPressed = false;
+        pointer.Position = new Vector2(50, 20);
+
+        router.Update(1.0 / 60.0);
+
+        Assert.True(textBox.HasSelection);
+        Assert.Equal(0, textBox.SelectionStartIndex);
+        Assert.Equal(3, textBox.SelectionLength);
+
+        pointer.LeftDown = false;
+        pointer.LeftReleased = true;
+
+        router.Update();
+
+        textInput.Press(TextInputKey.Backspace);
+        router.Update();
+
+        Assert.Equal(string.Empty, textBox.Text);
+        Assert.False(textBox.HasSelection);
+    }
+
+    [Fact]
     public void Backspace_RemovesTextElementBeforeCursor()
     {
         var root =
@@ -183,37 +267,45 @@ public sealed class UiTextBoxTests
         ITextInput
     {
         private TextInputKey? _pressed;
+        private TextInputKey? _down;
         private IReadOnlyList<char> _characters =
             Array.Empty<char>();
 
         public IReadOnlyList<char> Characters =>
             _characters;
 
-        public bool IsPressed(
-            TextInputKey key)
-        {
-            return _pressed == key;
-        }
+        public bool IsPressed(TextInputKey key) =>
+     _pressed == key;
 
-        public void Press(
-            TextInputKey key)
+        public bool IsDown(TextInputKey key) =>
+            _down == key;
+
+        public void Press(TextInputKey key)
         {
             _pressed = key;
-            _characters =
-                Array.Empty<char>();
+            _down = key;
+            _characters = Array.Empty<char>();
+        }
+
+        // Имитирует следующий кадр:
+        // клавиша всё ещё удерживается, но нового нажатия нет.
+        public void AdvanceFrame()
+        {
+            _pressed = null;
+            _characters = Array.Empty<char>();
         }
 
         public void Release()
         {
             _pressed = null;
-            _characters =
-                Array.Empty<char>();
+            _down = null;
+            _characters = Array.Empty<char>();
         }
 
-        public void SetCharacters(
-            params char[] characters)
+        public void SetCharacters(params char[] characters)
         {
             _pressed = null;
+            _down = null;
             _characters = characters;
         }
     }
@@ -221,22 +313,32 @@ public sealed class UiTextBoxTests
     private sealed class EmptyPointerInput :
         IPointerInput
     {
-        public Vector2 Position =>
-            Vector2.Zero;
+        public Vector2 Position { get; set; }
 
-        public float ScrollDelta =>
-            0.0f;
+        public float ScrollDelta { get; set; }
 
-        public bool IsDown(
-            InputMouseButton button) =>
-            false;
+        public bool LeftDown { get; set; }
+        public bool LeftPressed { get; set; }
+        public bool LeftReleased { get; set; }
 
-        public bool IsPressed(
-            InputMouseButton button) =>
-            false;
+        public bool IsDown(InputMouseButton button) =>
+            button == InputMouseButton.Left && LeftDown;
 
-        public bool IsReleased(
-            InputMouseButton button) =>
-            false;
+        public bool IsPressed(InputMouseButton button) =>
+            button == InputMouseButton.Left && LeftPressed;
+
+        public bool IsReleased(InputMouseButton button)
+        {
+            var released =
+                button == InputMouseButton.Left &&
+                LeftReleased;
+
+            if (released)
+            {
+                LeftReleased = false;
+            }
+
+            return released;
+        }
     }
 }

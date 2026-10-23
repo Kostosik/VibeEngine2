@@ -3,6 +3,7 @@ using Engine.Core.Math;
 using Engine.Editor.Assets;
 using Engine.Editor.Documents;
 using Engine.Editor.UI.Authoring;
+using Engine.Editor.UI.Dialogs;
 using Engine.Editor.UI.Inspection;
 using Engine.Editor.UI.Workspace;
 using Engine.Graphics.Commands;
@@ -11,6 +12,7 @@ using Engine.Tooling.Debugging;
 using Engine.Tooling.Validation;
 using Engine.UI.Controls;
 using Engine.UI.Core;
+using Engine.UI.Input;
 using Engine.UI.Layout;
 
 namespace Engine.Editor.UI.Shell;
@@ -41,7 +43,6 @@ public sealed class EditorMainShell :
     private readonly ITextureManager? _filePreviewTextureManager;
     private EditorUiWorkspaceView _uiWorkspaceView;
     private ParticleEffectEditorPanelView? _particleEffectWorkspaceView;
-    private ParticleEffectDocument? _particleEffectWorkspaceDocument;
     public event Action? NewProjectRequested;
     public event Action? OpenProjectRequested;
     public event Action? OpenProjectInIdeRequested;
@@ -103,7 +104,7 @@ public sealed class EditorMainShell :
         UiOverlayLayer overlays, 
         DebugConsole? console = null, 
         InspectorPropertyEditorRegistry? propertyEditors = null, 
-        ITextureManager? filePreviewTextureManager = null)
+        ITextureManager? filePreviewTextureManager = null, UiFocusManager? focus = null)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -182,14 +183,22 @@ public sealed class EditorMainShell :
                     UiVerticalAlignment.Stretch
             };
 
-        _workspaceView =
-            new EditorWorkspaceView(
-                editor,
-                overlays,
-                assetPreviewTextures,
-                console,
-                propertyEditors,
-                filePreviewTextureManager);
+        var assetPickerDialog =
+            focus is null
+                ? null
+                : new EditorAssetPickerDialog(
+                    editor,
+                    overlays,
+                    focus);
+
+        _workspaceView = new EditorWorkspaceView(
+            editor,
+            overlays,
+            assetPreviewTextures,
+            console,
+            propertyEditors,
+            filePreviewTextureManager,
+            assetPickerDialog);
 
         _workspaceView.AssetActivated +=
     entry => AssetActivated?.Invoke(entry);
@@ -370,6 +379,41 @@ public sealed class EditorMainShell :
                 documentHeight));
     }
 
+    private void BindParticleEffectDocument(
+    ParticleEffectDocument? document)
+    {
+        if (ReferenceEquals(
+                _particleEffectWorkspaceView?.Document,
+                document))
+        {
+            return;
+        }
+
+        if (_particleEffectWorkspaceView is not null)
+        {
+            _particleEffectWorkspaceView.ReleaseResources();
+
+            _workspace.RemoveChild(
+                _particleEffectWorkspaceView);
+
+            _particleEffectWorkspaceView = null;
+        }
+
+        if (document is null)
+        {
+            return;
+        }
+
+        _particleEffectWorkspaceView =
+            new ParticleEffectEditorPanelView(
+                document,
+                Editor,
+                _filePreviewTextureManager);
+
+        _workspace.AddChild(
+            _particleEffectWorkspaceView);
+    }
+
     private void BindUiDocument(
     EditorUiDocument document)
     {
@@ -398,7 +442,7 @@ public sealed class EditorMainShell :
     {
         _workspaceView.ReleaseResources();
         _uiWorkspaceView.ReleaseResources();
-        UpdateParticleEffectWorkspace(null);
+        BindParticleEffectDocument(null);
     }
 
     public void Refresh()
@@ -415,7 +459,7 @@ public sealed class EditorMainShell :
         var particleEffectDocument =
             activeDocument as ParticleEffectDocument;
 
-        UpdateParticleEffectWorkspace(particleEffectDocument);
+        BindParticleEffectDocument(particleEffectDocument);
 
         RefreshDocumentTabs();
 

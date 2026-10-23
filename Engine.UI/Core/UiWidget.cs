@@ -447,6 +447,11 @@ public abstract class UiWidget
         OnPointerUp(pointer);
     }
 
+    internal void RaiseFocusChanged(bool isFocused)
+    {
+        OnFocusChanged(isFocused);
+    }
+
     internal void RaiseTextInput(
         char character)
     {
@@ -471,6 +476,10 @@ public abstract class UiWidget
     internal void RaiseSubmit()
     {
         OnSubmit();
+    }
+
+    protected virtual void OnFocusChanged(bool isFocused)
+    {
     }
 
     protected virtual void OnPointerEnter(

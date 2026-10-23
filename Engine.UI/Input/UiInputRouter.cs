@@ -20,7 +20,10 @@ public sealed class UiInputRouter
 
     private UiWidget? _capturedWidget;
     private InputMouseButton? _capturedButton;
+    private const double BackspaceRepeatDelay = 0.45;
+    private const double BackspaceRepeatInterval = 0.05;
 
+    private double _backspaceRepeatTimer;
     public UiInputRouter(
         UiRoot root,
         IPointerInput pointer,
@@ -52,7 +55,7 @@ public sealed class UiInputRouter
         set => _dragDrop.DragStartThreshold = value;
     }
 
-    public void Update()
+    public void Update(double deltaSeconds = 0.0)
     {
         UpdatePointer();
 
@@ -62,7 +65,7 @@ public sealed class UiInputRouter
 
         _focus.ValidateFocus();
 
-        UpdateTextInput();
+        UpdateTextInput(deltaSeconds);
     }
 
     private void UpdatePointer()
@@ -861,35 +864,53 @@ public sealed class UiInputRouter
         }
     }
 
-    private void UpdateTextInput()
+    private void UpdateTextInput(
+    double deltaSeconds)
     {
-        var focused =
-            _focus.FocusedWidget;
+        var focused = _focus.FocusedWidget;
 
         if (focused is null)
         {
+            _backspaceRepeatTimer = BackspaceRepeatDelay;
             return;
         }
 
-        foreach (var character in
-                 _textInput.Characters)
+        foreach (var character in _textInput.Characters)
         {
-            focused.RaiseTextInput(
-                character);
+            focused.RaiseTextInput(character);
         }
 
-        if (_textInput.IsPressed(
-                TextInputKey.Backspace))
+        if (_textInput.IsPressed(TextInputKey.Backspace))
         {
-            focused.RaiseKeyPressed(
-                TextInputKey.Backspace);
+            // Первое удаление выполняется немедленно.
+            focused.RaiseKeyPressed(TextInputKey.Backspace);
+
+            _backspaceRepeatTimer = BackspaceRepeatDelay;
+        }
+        else if (_textInput.IsDown(TextInputKey.Backspace))
+        {
+            // Повторяем удаление после начальной задержки.
+            _backspaceRepeatTimer -= Math.Max(
+                0.0,
+                deltaSeconds);
+
+            while (_backspaceRepeatTimer <= 0.0)
+            {
+                focused.RaiseKeyPressed(
+                    TextInputKey.Backspace);
+
+                _backspaceRepeatTimer +=
+                    BackspaceRepeatInterval;
+            }
+        }
+        else
+        {
+            _backspaceRepeatTimer = 0.0;
         }
 
-        if (_textInput.IsPressed(
-                TextInputKey.Delete))
+        if (_textInput.IsPressed(TextInputKey.Delete))
         {
-            focused.RaiseKeyPressed(
-                TextInputKey.Delete);
+            focused.RaiseKeyPressed(TextInputKey.Delete);
         }
     }
 }

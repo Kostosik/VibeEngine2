@@ -474,8 +474,6 @@ public sealed class AssetBrowserPanelView : UiPanel
     private TextureHandle GetEntryIcon(EditorAssetEntry entry)
     {
         var extension = Path.GetExtension(entry.Name).ToLowerInvariant();
-        System.Diagnostics.Debug.WriteLine(
-    $"[AssetBrowser] Loading icon for: {entry.Name}");
         var iconName = entry.IsDirectory
             ? "folder.png"
             : extension switch
@@ -513,16 +511,13 @@ public sealed class AssetBrowserPanelView : UiPanel
         {
             var texture = _textures.Load(
                 new AssetPath($"UI/EditorIcons/{iconName}"));
-            System.Diagnostics.Debug.WriteLine(
-    $"[AssetBrowser] Icon '{iconName}', valid: {texture.IsValid}");
+
             _iconTextures[iconName] = texture;
 
             return texture;
         }
-        catch (Exception ex)
+        catch
         {
-            System.Diagnostics.Debug.WriteLine(
-    $"[AssetBrowser] Failed to load icon '{iconName}': {ex}");
             // Отсутствующая иконка не должна ломать Asset Browser.
             _iconTextures[iconName] = default;
             return default;

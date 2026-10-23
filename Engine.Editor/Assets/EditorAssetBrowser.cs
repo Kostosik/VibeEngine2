@@ -31,6 +31,8 @@ public sealed class EditorAssetBrowser
         Refresh();
     }
 
+
+
     public string RootPath { get; private set; }
 
     public string CurrentPath { get; private set; }
@@ -294,6 +296,22 @@ public sealed class EditorAssetBrowser
 
         return entriesChanged ||
                selectionChanged;
+    }
+
+    public IReadOnlyList<EditorAssetEntry> GetEntriesAtPath(
+    string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        var fullPath = Path.GetFullPath(path);
+
+        if (!IsWithinRoot(fullPath) ||
+            !Directory.Exists(fullPath))
+        {
+            return Array.Empty<EditorAssetEntry>();
+        }
+
+        return _source.GetEntries(fullPath);
     }
 
     private bool IsWithinRoot(

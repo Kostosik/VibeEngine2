@@ -160,6 +160,12 @@ public sealed class SilkNetInputBackend :
             0.0f;
     }
 
+    public bool IsDown(TextInputKey key)
+    {
+        return _currentTextKeys.Contains(
+            ToSilkKey(key));
+    }
+
     public bool IsPressed(
         TextInputKey key)
     {

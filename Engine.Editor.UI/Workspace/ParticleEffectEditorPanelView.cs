@@ -1,26 +1,36 @@
 ﻿
-using System.Globalization;
+using Engine.Editor.Assets;
 using Engine.Editor.Documents;
+using Engine.Editor.UI.Dialogs;
 using Engine.Graphics.Commands;
+using Engine.Graphics.Resources;
 using Engine.Particles;
 using Engine.UI.Controls;
 using Engine.UI.Core;
 using Engine.UI.Layout;
+using System.Globalization;
 
 namespace Engine.Editor.UI.Workspace;
 
 public sealed class ParticleEffectEditorPanelView : UiPanel
 {
     private readonly ParticleEffectDocument _document;
+    private readonly ParticleEffectPreviewView _previewView;
+
+    public ParticleEffectDocument Document => _document;
     private readonly Dictionary<string, UiTextBox> _fields = new();
+    private readonly EditorAssetPickerDialog? _assetPickerDialog;
+    private UiPickerField? _texturePathPicker;
     private readonly UiLabel _messageLabel;
 
     public ParticleEffectEditorPanelView(
-        ParticleEffectDocument document)
+        ParticleEffectDocument document,
+        EditorAssetPickerDialog? assetPickerDialog = null)
     {
         ArgumentNullException.ThrowIfNull(document);
 
         _document = document;
+        _assetPickerDialog = assetPickerDialog;
 
         Padding = new UiThickness(12.0f);
         Background = new UiColor(28, 28, 28, 255);
@@ -46,9 +56,17 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
             Color = new UiColor(170, 170, 170, 255)
         });
 
+        _previewView = new ParticleEffectPreviewView(
+    document,
+    editor,
+    textureManager);
+        _previewView.Width = 400.0f;
+        _previewView.Height = 250.0f;
+
         var scroll = new UiScrollView
         {
-            Height = 440.0f,
+            Width = 820.0f,
+            Height = 250.0f,
             HorizontalScrolling = false,
             VerticalScrolling = true,
             ShowVerticalScrollBar = true,
@@ -65,7 +83,18 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
 
         scroll.SetContent(fieldsPanel);
 
-        layout.AddChild(scroll);
+        var contentRow = new UiStackPanel
+        {
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 12.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        contentRow.AddChild(scroll);
+        contentRow.AddChild(_previewView);
+
+        layout.AddChild(contentRow);
 
         _messageLabel = new UiLabel
         {
@@ -99,6 +128,8 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
 
         resetButton.Clicked += ResetFields;
 
+
+
         buttons.AddChild(applyButton);
         buttons.AddChild(resetButton);
         layout.AddChild(buttons);
@@ -129,6 +160,7 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
     public void ReleaseResources()
     {
         _document.Changed -= OnDocumentChanged;
+        _previewView.ReleaseResources();
     }
 
     private void AddField(
@@ -165,6 +197,22 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
         panel.AddChild(row);
     }
 
+    private static bool IsTextureAsset(EditorAssetEntry entry)
+    {
+        if (entry.IsDirectory)
+        {
+            return false;
+        }
+
+        var extension = Path.GetExtension(entry.Name);
+
+        return extension.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".bmp", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".tga", StringComparison.OrdinalIgnoreCase);
+    }
+
     private void RefreshFields()
     {
         var definition = _document.Definition;
@@ -188,6 +236,16 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
 
     private void SetField(string key, string value)
     {
+        if (key == "texturePath")
+        {
+            if (_texturePathPicker is not null)
+            {
+                _texturePathPicker.SelectedText = value;
+            }
+
+            return;
+        }
+
         _fields[key].SetText(value);
     }
 
@@ -237,7 +295,9 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
 
     private string ReadString(string key)
     {
-        var value = _fields[key].Text.Trim();
+        var value = key == "texturePath"
+            ? _texturePathPicker?.SelectedText?.Trim() ?? string.Empty
+            : _fields[key].Text.Trim();
 
         if (string.IsNullOrWhiteSpace(value))
         {

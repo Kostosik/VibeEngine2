@@ -226,7 +226,7 @@ public sealed class UiSystem
     {
         Layout();
 
-        _inputRouter?.Update();
+        _inputRouter?.Update(deltaSeconds);
 
         Screens.Update(
             deltaSeconds);

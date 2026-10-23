@@ -272,7 +272,7 @@ public sealed class EditorApplication :
                 ui.Overlays,
                 debugConsole,
                 PropertyEditors,
-                filePreviewTextureManager);
+                filePreviewTextureManager, ui.Focus);
 
         MainShell.AssetActivated += OnAssetActivated;
         MainShell.SaveRequested +=

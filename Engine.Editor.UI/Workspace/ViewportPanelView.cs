@@ -497,13 +497,9 @@ public sealed class ViewportPanelView :
 
             return true;
         }
-        catch (Exception exception)
+        catch 
         {
             _unavailableProjectTextures.Add(texturePath);
-
-            System.Diagnostics.Debug.WriteLine(
-                $"[Viewport] Failed to load sprite texture " +
-                $"'{texturePath}': {exception}");
 
             texture = default;
 

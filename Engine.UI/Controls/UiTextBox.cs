@@ -12,6 +12,8 @@ public sealed class UiTextBox : UiWidget
 {
     private float _cursorTimer;
     private bool _cursorVisible = true;
+    private int _selectionAnchorIndex;
+    private bool _isSelecting;
     private UiLayoutContext? _layoutContext;
 
     public UiTextBox(
@@ -19,7 +21,7 @@ public sealed class UiTextBox : UiWidget
     {
         Text = text;
         CursorIndex = text.Length;
-
+        _selectionAnchorIndex = CursorIndex;
         Focusable = true;
         ConsumesKeyboardInput = true;
         Width = 240.0f;
@@ -45,6 +47,18 @@ public sealed class UiTextBox : UiWidget
     public string Text { get; private set; }
 
     public int CursorIndex { get; private set; }
+
+    public int SelectionStartIndex =>
+    Math.Min(_selectionAnchorIndex, CursorIndex);
+
+    public int SelectionLength =>
+        Math.Abs(CursorIndex - _selectionAnchorIndex);
+
+    public bool HasSelection =>
+        SelectionLength > 0;
+
+    public UiColor SelectionBackground { get; set; } =
+        new(70, 110, 170, 200);
 
     public string Placeholder { get; set; } = "";
 
@@ -106,6 +120,19 @@ public sealed class UiTextBox : UiWidget
         }
     }
 
+    protected override void OnFocusChanged(bool isFocused)
+    {
+        if (isFocused)
+        {
+            return;
+        }
+
+        _isSelecting = false;
+        _selectionAnchorIndex = CursorIndex;
+
+        ResetCursor();
+    }
+
     public void SetText(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
@@ -122,7 +149,7 @@ public sealed class UiTextBox : UiWidget
 
         Text = text;
         CursorIndex = Text.Length;
-
+        _selectionAnchorIndex = CursorIndex;
         ResetCursor();
 
         TextChanged?.Invoke(Text);
@@ -132,30 +159,49 @@ public sealed class UiTextBox : UiWidget
     char character)
     {
         if (!Enabled ||
-            Text.Length >= MaxLength ||
             char.IsControl(character))
         {
             return;
         }
 
-        Text =
-            Text.Insert(
-                CursorIndex,
-                character.ToString());
+        var selectionStart = SelectionStartIndex;
+        var selectionLength = SelectionLength;
 
-        CursorIndex++;
+        if (Text.Length - selectionLength >= MaxLength)
+        {
+            return;
+        }
+
+        if (selectionLength > 0)
+        {
+            Text = Text.Remove(
+                selectionStart,
+                selectionLength);
+        }
+
+        Text = Text.Insert(
+            selectionStart,
+            character.ToString());
+
+        CursorIndex = selectionStart + 1;
+        _selectionAnchorIndex = CursorIndex;
 
         ResetCursor();
 
-        TextChanged?.Invoke(
-            Text);
+        TextChanged?.Invoke(Text);
     }
 
     protected override void OnPointerDown(
-        UiPointerEvent pointer)
+    UiPointerEvent pointer)
     {
         if (!Enabled)
         {
+            return;
+        }
+
+        if (pointer.Button != InputMouseButton.Left)
+        {
+            pointer.Handled = true;
             return;
         }
 
@@ -164,8 +210,74 @@ public sealed class UiTextBox : UiWidget
 
         SetCursorFromPointer(localPoint.X);
 
+        _selectionAnchorIndex = CursorIndex;
+        _isSelecting = true;
+
         ResetCursor();
 
+        // Продолжаем получать движение мыши,
+        // даже если указатель покинул TextBox.
+        pointer.RequestCapture();
+        pointer.Handled = true;
+    }
+
+    protected override void OnPointerMove(
+        UiPointerEvent pointer)
+    {
+        if (!_isSelecting ||
+            !Enabled ||
+            pointer.Button != InputMouseButton.Left)
+        {
+            return;
+        }
+
+        var localPoint = TransformPointToLocalSpace(
+            pointer.Position);
+
+        // Якорь остаётся на месте нажатия,
+        // курсор перемещается вслед за мышью.
+        SetCursorFromPointer(localPoint.X);
+
+        ResetCursor();
+
+        pointer.Handled = true;
+    }
+
+    private bool DeleteSelection()
+    {
+        if (!HasSelection)
+        {
+            return false;
+        }
+
+        var selectionStart = SelectionStartIndex;
+
+        Text = Text.Remove(
+            selectionStart,
+            SelectionLength);
+
+        CursorIndex = selectionStart;
+        _selectionAnchorIndex = CursorIndex;
+
+        ResetCursor();
+
+        TextChanged?.Invoke(Text);
+
+        return true;
+    }
+
+    protected override void OnPointerUp(
+        UiPointerEvent pointer)
+    {
+        if (!_isSelecting ||
+            pointer.Button != InputMouseButton.Left)
+        {
+            return;
+        }
+
+        _isSelecting = false;
+
+        pointer.ReleaseCapture();
         pointer.Handled = true;
     }
 
@@ -208,12 +320,14 @@ public sealed class UiTextBox : UiWidget
 
             case TextInputKey.Home:
                 CursorIndex = 0;
+                _selectionAnchorIndex = CursorIndex;
                 ResetCursor();
                 keyEvent.Handled = true;
                 break;
 
             case TextInputKey.End:
                 CursorIndex = Text.Length;
+                _selectionAnchorIndex = CursorIndex;
                 ResetCursor();
                 keyEvent.Handled = true;
                 break;
@@ -222,6 +336,11 @@ public sealed class UiTextBox : UiWidget
 
     private void DeletePreviousTextElement()
     {
+        if (DeleteSelection())
+        {
+            return;
+        }
+
         if (CursorIndex == 0)
         {
             return;
@@ -247,7 +366,7 @@ public sealed class UiTextBox : UiWidget
 
         CursorIndex =
             previousIndex;
-
+        _selectionAnchorIndex = CursorIndex;
         ResetCursor();
 
         TextChanged?.Invoke(
@@ -256,6 +375,11 @@ public sealed class UiTextBox : UiWidget
 
     private void DeleteNextTextElement()
     {
+        if (DeleteSelection())
+        {
+            return;
+        }
+
         if (CursorIndex >= Text.Length)
         {
             return;
@@ -278,7 +402,7 @@ public sealed class UiTextBox : UiWidget
             Text.Remove(
                 CursorIndex,
                 endIndex - CursorIndex);
-
+        _selectionAnchorIndex = CursorIndex;
         ResetCursor();
 
         TextChanged?.Invoke(
@@ -351,6 +475,36 @@ public sealed class UiTextBox : UiWidget
                 UiTextHorizontalAlignment.Left,
                 UiTextVerticalAlignment.Center);
 
+        if (HasSelection)
+        {
+            var selectionStart = SelectionStartIndex;
+            var selectionEnd = selectionStart + SelectionLength;
+
+            var selectionLeft =
+                textPosition.X +
+                context.MeasureText(
+                    Text[..selectionStart],
+                    FontSize).X;
+
+            var selectionRight =
+                textPosition.X +
+                context.MeasureText(
+                    Text[..selectionEnd],
+                    FontSize).X;
+
+            if (selectionRight > selectionLeft)
+            {
+                context.DrawRectangle(
+                    new UiRect(
+                        selectionLeft,
+                        textPosition.Y,
+                        selectionRight - selectionLeft,
+                        textSize.Y),
+                    SelectionBackground,
+                    filled: true);
+            }
+        }
+
         context.DrawText(
             displayText,
             textPosition,
@@ -403,6 +557,14 @@ public sealed class UiTextBox : UiWidget
 
     private void MoveCursorLeft()
     {
+        if (HasSelection)
+        {
+            CursorIndex = SelectionStartIndex;
+            _selectionAnchorIndex = CursorIndex;
+            ResetCursor();
+            return;
+        }
+
         if (CursorIndex == 0)
         {
             return;
@@ -421,14 +583,22 @@ public sealed class UiTextBox : UiWidget
             return;
         }
 
-        CursorIndex =
-            previousIndex;
+        CursorIndex = previousIndex;
+        _selectionAnchorIndex = CursorIndex;
 
         ResetCursor();
     }
 
     private void MoveCursorRight()
     {
+        if (HasSelection)
+        {
+            CursorIndex = SelectionStartIndex + SelectionLength;
+            _selectionAnchorIndex = CursorIndex;
+            ResetCursor();
+            return;
+        }
+
         if (CursorIndex >= Text.Length)
         {
             return;
@@ -441,16 +611,16 @@ public sealed class UiTextBox : UiWidget
         {
             if (start > CursorIndex)
             {
-                CursorIndex =
-                    start;
+                CursorIndex = start;
+                _selectionAnchorIndex = CursorIndex;
 
                 ResetCursor();
                 return;
             }
         }
 
-        CursorIndex =
-            Text.Length;
+        CursorIndex = Text.Length;
+        _selectionAnchorIndex = CursorIndex;
 
         ResetCursor();
     }

@@ -65,15 +65,15 @@ public sealed class UiFocusManager
 
         if (FocusedWidget is not null)
         {
-            FocusedWidget.IsFocused =
-                false;
+            var previousFocus = FocusedWidget;
+
+            previousFocus.IsFocused = false;
+            previousFocus.RaiseFocusChanged(false);
         }
 
-        FocusedWidget =
-            widget;
-
-        FocusedWidget.IsFocused =
-            true;
+        FocusedWidget = widget;
+        FocusedWidget.IsFocused = true;
+        FocusedWidget.RaiseFocusChanged(true);
     }
 
     public void ClearFocus()

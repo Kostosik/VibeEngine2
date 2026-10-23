@@ -96,7 +96,12 @@ public sealed class EngineConsole : IDisposable
         var commandName =
             tokens[0];
 
-        if (!_registry.TryGet(
+        var registry =
+    _registry ??
+    throw new InvalidOperationException(
+        "A forwarded console cannot execute local commands.");
+
+        if (!registry.TryGet(
                 commandName,
                 out var command))
         {

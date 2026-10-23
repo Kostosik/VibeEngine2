@@ -1,0 +1,121 @@
+﻿namespace Engine.Editor.Assets;
+
+public sealed class EditorAssetCreationRegistry
+{
+    private readonly List<EditorAssetCreationDefinition> _definitions = new();
+
+    public IReadOnlyList<EditorAssetCreationDefinition> Definitions =>
+        _definitions.AsReadOnly();
+
+    public void Register(EditorAssetCreationDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+
+        if (_definitions.Any(
+                item => string.Equals(
+                    item.Id,
+                    definition.Id,
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException(
+                $"Asset creation type '{definition.Id}' is already registered.");
+        }
+
+        _definitions.Add(definition);
+    }
+
+    public EditorAssetCreationDefinition GetRequired(string id)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+
+        return _definitions.FirstOrDefault(
+                   item => string.Equals(
+                       item.Id,
+                       id,
+                       StringComparison.OrdinalIgnoreCase))
+               ?? throw new KeyNotFoundException(
+                   $"Asset creation type '{id}' is not registered.");
+    }
+
+    public static EditorAssetCreationRegistry CreateDefault()
+    {
+        var registry = new EditorAssetCreationRegistry();
+
+        registry.Register(
+            new EditorAssetCreationDefinition(
+                id: "folder",
+                displayName: "Folder",
+                defaultName: "New Folder",
+                kind: EditorAssetCreationKind.Directory,
+                extension: string.Empty));
+
+        registry.Register(
+            new EditorAssetCreationDefinition(
+                id: "particle-effect",
+                displayName: "Particle Effect",
+                defaultName: "New Particle Effect",
+                kind: EditorAssetCreationKind.TextFile,
+                extension: ".particle.json",
+                contentFactory: static _ => """
+                {
+                  "formatVersion": 1,
+                  "texturePath": "Textures/particle.png",
+                  "emissionRatePerSecond": 12,
+                  "maxParticles": 128,
+                  "layer": 0,
+                  "particle": {
+                    "lifetimeSeconds": { "min": 0.8, "max": 1.4 },
+                    "size": { "min": 2, "max": 6 },
+                    "velocity": {
+                      "min": { "x": -8, "y": -24 },
+                      "max": { "x": 8, "y": -4 }
+                    }
+                  }
+                }
+                """));
+
+        registry.Register(
+            new EditorAssetCreationDefinition(
+                id: "script-definition",
+                displayName: "Script Definition",
+                defaultName: "New Script",
+                kind: EditorAssetCreationKind.TextFile,
+                extension: ".script.json",
+                contentFactory: CreateScriptDefinitionTemplate));
+
+        return registry;
+    }
+
+    private static string CreateScriptDefinitionTemplate(string name)
+    {
+        var slug = new string(
+            name.ToLowerInvariant()
+                .Select(
+                    character => char.IsAsciiLetterOrDigit(character)
+                        ? character
+                        : '_')
+                .ToArray())
+            .Trim('_');
+
+        while (slug.Contains("__", StringComparison.Ordinal))
+        {
+            slug = slug.Replace(
+                "__",
+                "_",
+                StringComparison.Ordinal);
+        }
+
+        if (string.IsNullOrWhiteSpace(slug))
+        {
+            slug = "new_script";
+        }
+
+        return $$"""
+        {
+          "formatVersion": 1,
+          "scriptId": "game.{{slug}}",
+          "defaultConfiguration": {}
+        }
+        """;
+    }
+}

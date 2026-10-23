@@ -366,7 +366,7 @@ public sealed class ScriptRuntimeTests
         runtime.UpdateSystem.Update(default);
         runtime.UpdateSystem.Update(default);
 
-        Assert.Equal(1, faults.Count);
+        Assert.Single(faults);
         Assert.Equal(
             ScriptExecutionPhase.Update,
             faults[0].Phase);

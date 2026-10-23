@@ -78,7 +78,7 @@ public sealed class UiTooltip : UiPanel
 
     public double ShowDelay { get; set; } = 0.5;
 
-    public Vector2 Offset { get; set; } =
+    public new Vector2 Offset { get; set; } =
         new(
             8.0f,
             8.0f);

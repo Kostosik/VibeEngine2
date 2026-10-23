@@ -1,4 +1,6 @@
-﻿namespace Engine.Editor.Inspection;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace Engine.Editor.Inspection;
 
 public sealed class EditorPropertyProviderRegistry :
     IEditorPropertyProviderRegistry
@@ -38,7 +40,7 @@ public sealed class EditorPropertyProviderRegistry :
 
     public bool TryGetProvider(
         Type type,
-        out IEditorPropertyProvider? provider)
+        [NotNullWhen(true)] out IEditorPropertyProvider? provider)
     {
         ArgumentNullException.ThrowIfNull(
             type);

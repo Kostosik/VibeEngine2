@@ -321,13 +321,13 @@ public sealed class InspectorComponentPickerTests
             // После обновления Collider должен стать доступен.
             inspector.Refresh();
 
-            Assert.False(
+            Assert.DoesNotContain(
                 Descendants(inspector)
-                    .OfType<UiLabel>()
-                    .Any(label =>
-                        label.Text.StartsWith(
-                            "Collider2D requires:",
-                            StringComparison.Ordinal)));
+                    .OfType<UiLabel>(),
+                label =>
+                    label.Text.StartsWith(
+                        "Collider2D requires:",
+                        StringComparison.Ordinal));
 
             var colliderIndex = Array.IndexOf(
                 GetAddableTypes(editor, document, entity),
@@ -634,7 +634,7 @@ public sealed class InspectorComponentPickerTests
             .Single(panel =>
                 panel.Children.OfType<UiLabel>()
                     .Any(label => label.Text == propertyName) &&
-                panel.Children.OfType<UiTextBox>().Any());
+                Descendants(panel).OfType<UiTextBox>().Any());
     }
 
     private static UiStackPanel FindBodyEnumPropertyEditor(

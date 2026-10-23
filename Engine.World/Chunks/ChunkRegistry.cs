@@ -1,4 +1,5 @@
 ﻿using Engine.Worlds.Spatial;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Engine.Worlds.Chunks;
 
@@ -99,7 +100,7 @@ public sealed class ChunkRegistry
 
     public bool TryGet(
         ChunkPosition position,
-        out ChunkRecord? record)
+        [NotNullWhen(true)] out ChunkRecord? record)
     {
         return _records.TryGetValue(
             position,
@@ -108,7 +109,7 @@ public sealed class ChunkRegistry
 
     public bool TryGetLoaded(
         ChunkPosition position,
-        out Chunk? chunk)
+        [NotNullWhen(true)] out Chunk? chunk)
     {
         if (_records.TryGetValue(
                 position,

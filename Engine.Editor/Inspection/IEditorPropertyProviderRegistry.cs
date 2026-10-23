@@ -1,4 +1,6 @@
-﻿namespace Engine.Editor.Inspection;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace Engine.Editor.Inspection;
 
 public interface IEditorPropertyProviderRegistry
 {
@@ -10,5 +12,5 @@ public interface IEditorPropertyProviderRegistry
 
     bool TryGetProvider(
         Type type,
-        out IEditorPropertyProvider? provider);
+        [NotNullWhen(true)] out IEditorPropertyProvider? provider);
 }

@@ -1,6 +1,7 @@
 ﻿using Engine.Core.Assets;
 using Engine.Core.Math;
 using Engine.Editor.Inspection;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Engine.Editor.UI.Authoring;
 
@@ -18,7 +19,7 @@ public sealed class EditorUiInspector
     }
 
     public bool TryGetSelectedElement(
-        out EditorUiElement? element)
+        [NotNullWhen(true)] out EditorUiElement? element)
     {
         if (_document.Selection.Count != 1)
         {

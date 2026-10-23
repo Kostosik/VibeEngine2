@@ -50,8 +50,6 @@ public readonly struct Fixed32 :
         else if (raw < -Pi._raw)
             raw += TwoPi._raw;
 
-        var sign = 1;
-
         if (raw > HalfPi._raw)
         {
             raw =

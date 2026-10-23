@@ -83,7 +83,7 @@ public sealed class UiContextMenu : UiCanvas
         set => _menuPanel.Background = value;
     }
 
-    public float Width
+    public new float Width
     {
         get => _menuPanel.Width ?? 200.0f;
         set => _menuPanel.Width = value;

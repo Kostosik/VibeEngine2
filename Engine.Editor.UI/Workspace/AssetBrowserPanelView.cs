@@ -16,6 +16,7 @@ public sealed class AssetBrowserPanelView : UiPanel
     private readonly UiStackPanel _toolbar;
     private readonly UiButton _upButton;
     private readonly UiButton _backButton;
+    private readonly UiButton _createButton;
     private readonly UiButton _forwardButton;
     private readonly UiScrollView _breadcrumbScrollView;
     private readonly UiStackPanel _breadcrumbItems;
@@ -46,7 +47,6 @@ public sealed class AssetBrowserPanelView : UiPanel
     private const float TileWidth = 116.0f;
     private const float TileHeight = 72.0f;
     private const float TileSpacing = 6.0f;
-
     private string? _lastClickedEntryPath;
     private string? _lastClickedDirectoryPath;
     private long _lastClickTimestamp;
@@ -59,7 +59,7 @@ public sealed class AssetBrowserPanelView : UiPanel
         EditorAssetEntry Entry)> _entryButtons = new();
 
     public event Action<EditorAssetEntry>? AssetActivated;
-
+    public event Action<string?>? CreateRequested;
 
     public AssetBrowserPanelView(
         EditorContext editor,
@@ -171,9 +171,20 @@ public sealed class AssetBrowserPanelView : UiPanel
                 }
             };
 
+        _createButton = new UiButton("Create")
+        {
+            Width = 64.0f,
+            Height = 28.0f,
+            FontSize = 12.0f
+        };
+
+        _createButton.Clicked +=
+            () => CreateRequested?.Invoke(null);
+
         _toolbar.AddChild(_backButton);
         _toolbar.AddChild(_forwardButton);
         _toolbar.AddChild(_upButton);
+        _toolbar.AddChild(_createButton);
 
         _breadcrumbItems = new UiStackPanel
         {
@@ -692,6 +703,7 @@ public sealed class AssetBrowserPanelView : UiPanel
     }
 
 
+
     protected override void OnPointerDown(
         UiPointerEvent pointer)
     {
@@ -711,13 +723,14 @@ public sealed class AssetBrowserPanelView : UiPanel
             item => item.Button.Bounds.Contains(
                 pointer.Position));
 
-        // Пустая область вне списка не должна открывать меню.
         if (entryIndex < 0 &&
             !_list.Bounds.Contains(pointer.Position) &&
             !_gridScrollView.Bounds.Contains(pointer.Position))
         {
             return;
         }
+
+        string? targetDirectory = null;
 
         _contextMenu.ClearItems();
 
@@ -732,6 +745,8 @@ public sealed class AssetBrowserPanelView : UiPanel
 
             if (entry.IsDirectory)
             {
+                targetDirectory = entry.Path;
+
                 _contextMenu.AddItem(
                     "Open Folder",
                     () =>
@@ -753,6 +768,10 @@ public sealed class AssetBrowserPanelView : UiPanel
         }
 
         _contextMenu.AddItem(
+            "Create...",
+            () => CreateRequested?.Invoke(targetDirectory));
+
+        _contextMenu.AddItem(
             "Refresh Current Folder",
             () =>
             {
@@ -768,11 +787,8 @@ public sealed class AssetBrowserPanelView : UiPanel
             });
 
         _contextMenu.Open(pointer.Position);
-
         pointer.Handled = true;
     }
-
-
 
     protected override Vector2 MeasureCore(
         UiLayoutContext context,
@@ -850,7 +866,6 @@ public sealed class AssetBrowserPanelView : UiPanel
         const float rowHeight = 28.0f;
         const float breadcrumbHeight = 36.0f;
         const float spacing = 4.0f;
-        const float paneSpacing = 8.0f;
 
         var browserWidth = CalculateBrowserWidth(content.Width);
 

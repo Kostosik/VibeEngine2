@@ -169,7 +169,7 @@ public sealed class ContentManager :
                 }
             }
             _cache.Clear();
-            _loading.Value.Clear();
+            _loading.Value!.Clear();
         }
     }
 
@@ -364,7 +364,7 @@ public sealed class ContentManager :
         ContentLoadFrame? ownerFrame =
             null;
 
-        foreach (var frame in _loading.Value)
+        foreach (var frame in _loading.Value!)
         {
             if (frame.Key == owner)
             {
@@ -483,7 +483,7 @@ public sealed class ContentManager :
     private bool IsLoading(
         ContentKey key)
     {
-        foreach (var frame in _loading.Value)
+        foreach (var frame in _loading.Value!)
         {
             if (frame.Key == key)
             {
@@ -828,7 +828,7 @@ public sealed class ContentManager :
             new ContentLoadFrame(
                 key);
 
-        _loading.Value.Push(
+        _loading.Value!.Push(
             frame);
 
         try
@@ -998,7 +998,7 @@ public sealed class ContentManager :
     private ContentLoadFrame? GetCurrentLoadingFrame()
     {
         var loading =
-            _loading.Value;
+            _loading.Value!;
 
         if (loading.Count > 0)
         {

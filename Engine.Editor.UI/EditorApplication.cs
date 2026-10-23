@@ -44,7 +44,7 @@ public sealed class EditorApplication :
     private readonly EditorNewDocumentDialog _newDocumentDialog;
 
     private readonly IClipboardService? _clipboardService;
-
+    private readonly EditorAssetCreationDialog _assetCreationDialog;
     private bool _copyShortcutWasDown;
 
     private readonly HashSet<EditorUiDocument>
@@ -218,6 +218,15 @@ public sealed class EditorApplication :
         ui.Overlays,
         ui.Focus);
 
+        _assetCreationDialog =
+    new EditorAssetCreationDialog(
+        ui.Overlays,
+        ui.Focus,
+        EditorAssetCreationRegistry.CreateDefault());
+
+        _assetCreationDialog.CreateRequested +=
+            CreateAssetFromDialog;
+
         _newProjectDialog =
     new EditorNewProjectDialog(
         ui.Overlays,
@@ -267,7 +276,7 @@ public sealed class EditorApplication :
         MainShell.AssetActivated += OnAssetActivated;
         MainShell.SaveRequested +=
             SaveActiveDocument;
-
+        MainShell.AssetCreationRequested += RequestCreateAsset;
         MainShell.NewRequested +=
             RequestNewDocument;
 
@@ -680,6 +689,12 @@ public sealed class EditorApplication :
         MainShell.OpenProjectInIdeRequested -=
     RequestOpenProjectInIde;
         MainShell.AssetActivated -= OnAssetActivated;
+
+        MainShell.AssetCreationRequested -= RequestCreateAsset;
+
+        _assetCreationDialog.CreateRequested -=
+            CreateAssetFromDialog;
+
         _newDocumentDialog.WorldRequested -=
     RequestNewWorldDocument;
         Editor.ActiveGameProjectChanged -=
@@ -987,6 +1002,7 @@ public sealed class EditorApplication :
     {
         try
         {
+            OpenDocumentRequested?.Invoke();
             var activeDocument =
                 Editor.Session.ActiveEditorDocument;
 
@@ -1267,6 +1283,7 @@ public sealed class EditorApplication :
 
     private void RequestSaveDocumentAs()
     {
+        SaveDocumentAsRequested?.Invoke();
         switch (Editor.Session.ActiveEditorDocument)
         {
             case EditorUiDocument uiDocument:
@@ -1393,6 +1410,68 @@ public sealed class EditorApplication :
 
         MarkUiDirty();
     }
+
+    private void RequestCreateAsset(string? targetDirectory)
+    {
+        if (Editor.ActiveGameProject is null)
+        {
+            _errorDialog.ShowError(
+                "Open a game project before creating assets.");
+
+            return;
+        }
+
+        if (Editor.AssetBrowser is null)
+        {
+            _errorDialog.ShowError(
+                "The Asset Browser is not initialized.");
+
+            return;
+        }
+
+        _assetCreationDialog.ShowFor(targetDirectory);
+    }
+
+    private void CreateAssetFromDialog(
+        EditorAssetCreationDefinition definition,
+        string name,
+        string? targetDirectory)
+    {
+        try
+        {
+            if (Editor.ActiveGameProject is null)
+            {
+                throw new InvalidOperationException(
+                    "Open a game project before creating assets.");
+            }
+
+            var browser = Editor.AssetBrowser
+                ?? throw new InvalidOperationException(
+                    "The Asset Browser is not initialized.");
+
+            var service = new EditorAssetCreationService(browser);
+
+            var path = service.Create(
+                definition,
+                name,
+                targetDirectory);
+
+            _debugConsole?.WriteLine(
+                $"Created {definition.DisplayName}: " +
+                Path.GetRelativePath(browser.RootPath, path));
+
+            MarkUiDirty();
+        }
+        catch (Exception exception)
+        {
+            _debugConsole?.WriteException(
+                exception,
+                "Failed to create asset.");
+
+            _errorDialog.ShowError(exception.Message);
+        }
+    }
+
     private void MarkUiDirty()
     {
         _uiDirty = true;

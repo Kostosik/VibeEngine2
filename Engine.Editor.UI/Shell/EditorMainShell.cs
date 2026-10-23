@@ -18,17 +18,21 @@ namespace Engine.Editor.UI.Shell;
 public sealed class EditorMainShell :
     UiPanel
 {
-    private UiButton _validateButton;
+    private readonly UiButton _validateButton;
+    private readonly UiButton _playButton;
+    private readonly UiButton _stopButton;
+    private readonly UiButton _restartButton;
+    private readonly UiButton _hotReloadButton;
+    private readonly UiButton _closeButton;
+    private readonly UiButton _worldButton;
+    private readonly UiButton _uiButton;
+    private readonly UiButton _toolsButton;
+
     private readonly UiPanel _menuBar;
     private readonly UiPanel _toolbar;
-    private UiButton _playButton;
-    private UiButton _stopButton;
-    private UiButton _restartButton;
-    private UiButton _hotReloadButton;
     private bool _isGameRunning;
     private readonly DebugConsole? _debugConsole;
     private readonly UiPanel _workspace;
-    private UiButton _closeButton;
     private readonly UiLabel _documentLabel;
     public event Action<EditorAssetEntry>? AssetActivated;
     private readonly EditorWorkspaceView _workspaceView;
@@ -87,11 +91,9 @@ public sealed class EditorMainShell :
     public event Action<UiRect>? ToolsRequested;
     public event Action<UiRect>? ViewRequested;
     public event Action<UiRect>? EditRequested;
-
+    public event Action<string?>? AssetCreationRequested;
     private readonly UiScrollView _documentTabs;
-    private UiButton _worldButton;
-    private UiButton _uiButton;
-    private UiButton _toolsButton;
+
     public EditorMainShell(
         EditorContext editor,
         ITextureResourceManager assetPreviewTextures,
@@ -125,9 +127,25 @@ public sealed class EditorMainShell :
         VerticalAlignment =
             UiVerticalAlignment.Stretch;
 
-        _menuBar =
+        var menuBar =
             CreateMenuBar();
-        _toolbar = CreateToolbar();
+
+        _menuBar = menuBar.Panel;
+        _toolsButton = menuBar.ToolsButton;
+
+        var toolbar =
+            CreateToolbar();
+
+        _toolbar = toolbar.Panel;
+        _validateButton = toolbar.ValidateButton;
+        _playButton = toolbar.PlayButton;
+        _stopButton = toolbar.StopButton;
+        _restartButton = toolbar.RestartButton;
+        _hotReloadButton = toolbar.HotReloadButton;
+        _closeButton = toolbar.CloseButton;
+        _worldButton = toolbar.WorldButton;
+        _uiButton = toolbar.UiModeButton;
+
         _documentTabs = new UiScrollView
         {
             Background = new UiColor(28, 28, 28, 255),
@@ -173,6 +191,8 @@ public sealed class EditorMainShell :
 
         _workspaceView.AssetActivated +=
     entry => AssetActivated?.Invoke(entry);
+        _workspaceView.AssetCreationRequested +=
+    directory => AssetCreationRequested?.Invoke(directory);
         _uiWorkspaceView =
             CreateUiWorkspaceView(
                 uiDocument ??
@@ -641,7 +661,7 @@ public sealed class EditorMainShell :
 
         Refresh();
     }
-    private UiPanel CreateMenuBar()
+    private (UiPanel Panel, UiButton ToolsButton) CreateMenuBar()
     {
         var panel = new UiPanel
         {
@@ -688,17 +708,26 @@ public sealed class EditorMainShell :
             64.0f,
             bounds => ViewRequested?.Invoke(bounds));
 
-        _toolsButton = AddMenuButton(
+        var toolsButton = AddMenuButton(
             "Tools",
             72.0f,
             bounds => ToolsRequested?.Invoke(bounds));
 
         panel.AddChild(buttons);
 
-        return panel;
+        return (panel, toolsButton);
     }
 
-    private UiPanel CreateToolbar()
+    private (
+        UiPanel Panel,
+        UiButton ValidateButton,
+        UiButton PlayButton,
+        UiButton StopButton,
+        UiButton RestartButton,
+        UiButton HotReloadButton,
+        UiButton CloseButton,
+        UiButton WorldButton,
+        UiButton UiModeButton) CreateToolbar()
     {
         var panel = new UiPanel
         {
@@ -759,20 +788,20 @@ public sealed class EditorMainShell :
 
         AddSeparator();
 
-        _playButton = AddButton(
+        var playButton = AddButton(
             "Play",
             64.0f,
             () => PlayRequested?.Invoke());
-        _hotReloadButton = AddButton(
+        var hotReloadButton = AddButton(
     "Hot Reload",
     100.0f,
     () => HotReloadRequested?.Invoke());
-        _stopButton = AddButton(
+        var stopButton = AddButton(
             "Stop",
             64.0f,
             () => StopRequested?.Invoke());
 
-        _restartButton = AddButton(
+        var restartButton = AddButton(
             "Restart",
             80.0f,
             () => RestartRequested?.Invoke());
@@ -791,24 +820,24 @@ public sealed class EditorMainShell :
         AddButton("Save As", 78.0f,
             () => SaveAsRequested?.Invoke());
 
-        _closeButton = AddButton(
+        var closeButton = AddButton(
             "Close",
             64.0f,
             () => CloseRequested?.Invoke());
 
         AddSeparator();
 
-        _worldButton = AddButton(
+        var worldButton = AddButton(
             "World",
             72.0f,
             ShowWorld);
 
-        _uiButton = AddButton(
+        var uiButton = AddButton(
             "UI",
             56.0f,
             ShowUi);
 
-        _validateButton = AddButton(
+        var validateButton = AddButton(
             "Validate",
             80.0f,
             () =>
@@ -881,7 +910,16 @@ public sealed class EditorMainShell :
 
         panel.AddChild(buttons);
 
-        return panel;
+        return (
+    panel,
+    validateButton,
+    playButton,
+    stopButton,
+    restartButton,
+    hotReloadButton,
+    closeButton,
+    worldButton,
+    uiButton);
     }
 
 

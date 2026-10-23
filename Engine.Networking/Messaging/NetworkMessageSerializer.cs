@@ -55,9 +55,18 @@ public sealed class NetworkMessageSerializer<T> :
         ReadOnlySpan<byte> payload,
         SerializationContext context)
     {
-        return BinarySerializer.Deserialize(
-            payload,
-            _serializer,
-            context);
+        var message =
+            BinarySerializer.Deserialize(
+                payload,
+                _serializer,
+                context);
+
+        if (message is null)
+        {
+            throw new InvalidDataException(
+                "Deserialized network message cannot be null.");
+        }
+
+        return message;
     }
 }

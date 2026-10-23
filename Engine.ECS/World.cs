@@ -8,6 +8,7 @@ using Engine.ECS.Persistence;
 using Engine.ECS.Queries;
 using Engine.Jobs.Jobs;
 using Engine.Jobs.Scheduling;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Engine.ECS;
 
@@ -1044,7 +1045,7 @@ public sealed class World :
     }
 
     private bool TryGetStorage<T>(
-        out ComponentStorage<T>? storage)
+        [NotNullWhen(true)] out ComponentStorage<T>? storage)
         where T : struct
     {
         if (_componentStorages.TryGetValue(

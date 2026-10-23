@@ -673,6 +673,16 @@ public sealed class SandboxState
         return scenario;
     }
 
+    private TopDownScenario GetTopDownScenarioOrThrow() =>
+    _topDown ??
+    throw new InvalidOperationException(
+        "Top-down scenario is not active.");
+
+    private PhysicsScenario GetPhysicsScenarioOrThrow() =>
+        _physics ??
+        throw new InvalidOperationException(
+            "Physics scenario is not active.");
+
     private void ResetCurrentScenario()
     {
         if (_playerReplicationProbe.IsRunning)
@@ -683,11 +693,11 @@ public sealed class SandboxState
         if (_mode ==
             SandboxMode.TopDown)
         {
-            _topDown.Reset();
+            GetTopDownScenarioOrThrow().Reset();
         }
         else
         {
-            _physics.Reset();
+            GetPhysicsScenarioOrThrow().Reset();
         }
     }
 
@@ -696,11 +706,11 @@ public sealed class SandboxState
         if (_mode ==
             SandboxMode.TopDown)
         {
-            _topDown.SpawnStressBatch();
+            GetTopDownScenarioOrThrow().SpawnStressBatch();
         }
         else
         {
-            _physics.SpawnStressBatch();
+            GetPhysicsScenarioOrThrow().SpawnStressBatch();
         }
     }
 
@@ -709,11 +719,11 @@ public sealed class SandboxState
         if (_mode ==
             SandboxMode.TopDown)
         {
-            _topDown.ClearSpawnedEntities();
+            GetTopDownScenarioOrThrow().ClearSpawnedEntities();
         }
         else
         {
-            _physics.ClearSpawnedEntities();
+            GetPhysicsScenarioOrThrow().ClearSpawnedEntities();
         }
     }
 
@@ -722,7 +732,7 @@ public sealed class SandboxState
         if (_mode ==
             SandboxMode.Physics)
         {
-            _physics.ApplyForce();
+            GetPhysicsScenarioOrThrow().ApplyForce();
         }
     }
 
@@ -731,11 +741,11 @@ public sealed class SandboxState
         if (_mode ==
             SandboxMode.TopDown)
         {
-            _topDown.ToggleTrigger();
+            GetTopDownScenarioOrThrow().ToggleTrigger();
         }
         else
         {
-            _physics.ToggleTrigger();
+            GetPhysicsScenarioOrThrow().ToggleTrigger();
         }
     }
 
@@ -744,11 +754,11 @@ public sealed class SandboxState
         if (_mode ==
             SandboxMode.TopDown)
         {
-            _topDown.RotateObstacle();
+            GetTopDownScenarioOrThrow().RotateObstacle();
         }
         else
         {
-            _physics.RotatePolygon();
+            GetPhysicsScenarioOrThrow().RotatePolygon();
         }
     }
 

@@ -66,9 +66,8 @@ public sealed class EditorUiAssetFileTests
                 restored.Root,
                 restoredPanel.Parent);
 
-            Assert.Equal(
-                1,
-                restoredPanel.Children.Count);
+            Assert.Single(
+                restoredPanel.Children);
 
             Assert.Equal(
                 "PlayButton",

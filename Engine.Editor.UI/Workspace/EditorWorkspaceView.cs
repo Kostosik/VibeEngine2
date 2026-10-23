@@ -34,7 +34,7 @@ public sealed class EditorWorkspaceView :
     private readonly EditorDockSplitter _rightSplitter;
     private readonly EditorDockSplitter _topSplitter;
     private readonly EditorDockSplitter _bottomSplitter;
-
+    public event Action<string?>? AssetCreationRequested;
     public EditorWorkspaceView(
         EditorContext editor, UiOverlayLayer overlays,
         ITextureResourceManager assetPreviewTextures,
@@ -109,7 +109,8 @@ public sealed class EditorWorkspaceView :
 
         _assetBrowser.AssetActivated +=
             entry => AssetActivated?.Invoke(entry);
-
+        _assetBrowser.CreateRequested +=
+    directory => AssetCreationRequested?.Invoke(directory);
         _console =
     new EditorConsolePanel(console);
 

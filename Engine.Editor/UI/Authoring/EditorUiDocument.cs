@@ -2,6 +2,7 @@
 using Engine.Editor.Commands;
 using Engine.Editor.Documents;
 using Engine.Editor.Selection;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Engine.Editor.UI.Authoring;
 
@@ -172,7 +173,7 @@ public sealed class EditorUiDocument : IEditorDocument
 
     public bool TryGetElement(
         Guid elementId,
-        out EditorUiElement? element)
+        [NotNullWhen(true)] out EditorUiElement? element)
     {
         return _elements.TryGetValue(
             elementId,

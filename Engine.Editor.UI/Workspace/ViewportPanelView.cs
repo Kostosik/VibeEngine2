@@ -53,8 +53,6 @@ public sealed class ViewportPanelView :
     private readonly UiButton _rotateToolButton;
     private readonly UiButton _scaleToolButton;
 
-    private int _debugRenderCounter;
-
     private readonly EditorTranslationGizmo _translationGizmo =
     new();
 
@@ -90,8 +88,6 @@ public sealed class ViewportPanelView :
     private Vector2 _lastPanPosition;
     private const float EntityMarkerWorldSize = 10.0f;
     private const float SelectionOutlineWorldSize = 10.5f;
-
-    private Vector2 _translationStartMouseWorld;
 
     public ViewportPanelView(
         EditorContext editor,
@@ -783,7 +779,6 @@ public sealed class ViewportPanelView :
             _translationGizmo.ArmLength;
 
         const float thickness = 3.0f;
-        const float arrowSize = 8.0f;
 
         var xColor =
             new UiColor(

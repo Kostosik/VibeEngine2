@@ -1030,16 +1030,27 @@ public sealed class EngineRuntimeTests
 
         public IAudioListener CreateListener()
         {
-            return null;
+            throw new NotSupportedException(
+                "FakeAudioManager does not create audio listeners.");
         }
+
         public IAudioBuffer Load(AssetPath assetPath)
         {
-            return null;
+            throw new NotSupportedException(
+                "FakeAudioManager does not load audio buffers.");
         }
 
-        public IAudioSource CreateSource(IAudioBuffer buffer) { return null; }
+        public IAudioSource CreateSource(IAudioBuffer buffer)
+        {
+            throw new NotSupportedException(
+                "FakeAudioManager does not create audio sources.");
+        }
 
-        public IAudioSource Play(IAudioBuffer buffer) { return null; }
+        public IAudioSource Play(IAudioBuffer buffer)
+        {
+            throw new NotSupportedException(
+                "FakeAudioManager does not play audio.");
+        }
 
         public void Dispose()
         {

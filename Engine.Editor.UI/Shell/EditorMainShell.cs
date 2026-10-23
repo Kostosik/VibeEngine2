@@ -43,6 +43,13 @@ public sealed class EditorMainShell :
     public event Action? StopRequested;
     public event Action? RestartRequested;
     public event Action? HotReloadRequested;
+
+    public UiWidget ConsoleOutputWidget =>
+    _workspaceView.Console.ConsoleOutputWidget;
+
+    public string ConsoleSelectedText =>
+        _workspaceView.Console.SelectedText;
+
     public bool IsUiMode =>
         Editor.Session.ActiveEditorDocument
             is EditorUiDocument;

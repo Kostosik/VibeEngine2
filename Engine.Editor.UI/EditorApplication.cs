@@ -5,6 +5,7 @@ using Engine.Editor.Documents;
 using Engine.Editor.Documents.Persistence;
 using Engine.Editor.Projects;
 using Engine.Editor.UI.Authoring;
+using Engine.Editor.UI.Commands;
 using Engine.Editor.UI.Dialogs;
 using Engine.Editor.UI.Inspection;
 using Engine.Editor.UI.Shell;
@@ -21,6 +22,9 @@ namespace Engine.Editor.UI;
 public sealed class EditorApplication :
     IApplication
 {
+    private static readonly InputBinding CopyKey =
+    new("Keyboard.C");
+
     private static readonly InputBinding UndoKey =
     new("Keyboard.Z");
 
@@ -39,6 +43,10 @@ public sealed class EditorApplication :
     private readonly EditorNewProjectDialog _newProjectDialog;
     private readonly EditorNewDocumentDialog _newDocumentDialog;
 
+    private readonly IClipboardService? _clipboardService;
+
+    private bool _copyShortcutWasDown;
+
     private readonly HashSet<EditorUiDocument>
         _subscribedUiDocuments = new();
 
@@ -54,7 +62,7 @@ public sealed class EditorApplication :
     private readonly ProjectCreationService _projectCreationService = new();
     private readonly GameProjectRunner _gameProjectRunner = new();
     private readonly DebugConsole? _debugConsole;
-
+    private readonly RebuildEngineCommand? _rebuildEngineCommand;
     private readonly EditorDocumentCloseDialog
     _documentCloseDialog;
 
@@ -82,7 +90,7 @@ public sealed class EditorApplication :
         IEditorDocumentPersistence? documentPersistence = null,
         IEditorDocumentFileService? documentFiles = null,
         DebugConsole? debugConsole = null,
-        InspectorPropertyEditorRegistry? propertyEditors = null, ITextureManager? filePreviewTextureManager = null)
+        InspectorPropertyEditorRegistry? propertyEditors = null, ITextureManager? filePreviewTextureManager = null, IClipboardService? clipboard = null)
         : this(
             editor,
             ui,
@@ -94,7 +102,7 @@ public sealed class EditorApplication :
             debugConsole,
             propertyEditors,
             uiDocument,
-            uiAssetPath, filePreviewTextureManager)
+            uiAssetPath, filePreviewTextureManager, clipboard)
     {
     }
 
@@ -107,7 +115,7 @@ public sealed class EditorApplication :
         IEditorDocumentPersistence? documentPersistence = null,
         IEditorDocumentFileService? documentFiles = null,
         DebugConsole? debugConsole = null,
-        InspectorPropertyEditorRegistry? propertyEditors = null, ITextureManager? filePreviewTextureManager = null)
+        InspectorPropertyEditorRegistry? propertyEditors = null, ITextureManager? filePreviewTextureManager = null, IClipboardService? clipboard = null)
         : this(
             editor,
             ui,
@@ -119,7 +127,7 @@ public sealed class EditorApplication :
             debugConsole,
             propertyEditors,
             null,
-            null, filePreviewTextureManager)
+            null, filePreviewTextureManager,clipboard)
     {
     }
 
@@ -134,7 +142,7 @@ public sealed class EditorApplication :
         DebugConsole? debugConsole,
         InspectorPropertyEditorRegistry? propertyEditors,
         EditorUiDocument? uiDocument,
-        string? uiAssetPath, ITextureManager? filePreviewTextureManager = null)
+        string? uiAssetPath, ITextureManager? filePreviewTextureManager = null, IClipboardService? clipboard = null)
     {
 
         ArgumentNullException.ThrowIfNull(
@@ -151,7 +159,7 @@ public sealed class EditorApplication :
 
         ArgumentNullException.ThrowIfNull(
     fileDialogs);
-
+        _clipboardService = clipboard;
         if (uiDocument is null &&
     uiAssetPath is not null)
         {
@@ -165,6 +173,8 @@ public sealed class EditorApplication :
             ArgumentException.ThrowIfNullOrWhiteSpace(
                 uiAssetPath);
         }
+
+
 
         Editor = editor;
         Ui = ui;
@@ -182,6 +192,16 @@ public sealed class EditorApplication :
             new EditorUiHost(
                 editor,
                 ui);
+
+        if (_debugConsole is not null)
+        {
+            _rebuildEngineCommand =
+                new RebuildEngineCommand(
+                    () => Editor.ActiveGameProject);
+
+            _debugConsole.RegisterCommand(
+                _rebuildEngineCommand);
+        }
 
         _errorDialog =
     new EditorErrorDialog(
@@ -606,13 +626,13 @@ public sealed class EditorApplication :
     {
         Input.Update();
 
+        DrainEngineRebuildEvents();
         DrainGameOutput();
 
         MainShell.SetGameRunning(
             _gameProjectRunner.IsSessionActive);
 
-        if (_textInput?.IsPressed(
-            TextInputKey.F1) == true)
+        if (_textInput?.IsPressed(TextInputKey.F1) == true)
         {
             ToggleConsole();
         }
@@ -638,6 +658,14 @@ public sealed class EditorApplication :
 
     public void Shutdown()
     {
+        if (_rebuildEngineCommand is not null)
+        {
+            _debugConsole?.UnregisterCommand(
+                _rebuildEngineCommand.Name);
+
+            _rebuildEngineCommand.Dispose();
+        }
+
         _gameProjectRunner.Dispose();
         MainShell.ReleaseResources();
         MainShell.PlayRequested -= StartGame;
@@ -775,6 +803,10 @@ public sealed class EditorApplication :
             Input.GetValue(LeftControlKey) > 0.5f ||
             Input.GetValue(RightControlKey) > 0.5f;
 
+        var copyDown =
+    controlDown &&
+    Input.GetValue(CopyKey) > 0.5f;
+        
         var undoDown =
             controlDown &&
             Input.GetValue(UndoKey) > 0.5f;
@@ -789,6 +821,44 @@ public sealed class EditorApplication :
             Ui.Focus.ActiveScope is not null ||
             Ui.Focus.FocusedWidget is UiTextBox;
 
+        var consoleOutput = MainShell.ConsoleOutputWidget;
+        var focusedWidget = Ui.Focus.FocusedWidget;
+
+        var canCopyConsoleSelection =
+            Ui.Focus.ActiveScope is null &&
+            focusedWidget is not UiTextBox &&
+            (ReferenceEquals(focusedWidget, consoleOutput) ||
+             consoleOutput.IsHovered);
+
+        if (copyDown &&
+            !_copyShortcutWasDown &&
+            canCopyConsoleSelection)
+        {
+            var selectedText = MainShell.ConsoleSelectedText;
+
+            if (selectedText.Length > 0)
+            {
+                if (_clipboardService is null)
+                {
+                    _debugConsole?.WriteError(
+                        "Clipboard service is not configured.");
+                }
+                else
+                {
+                    try
+                    {
+                        _clipboardService.SetText(selectedText);
+                    }
+                    catch (Exception exception)
+                    {
+                        _debugConsole?.WriteException(
+                            exception,
+                            "Failed to copy console selection.");
+                    }
+                }
+            }
+        }
+
         if (!shortcutSuppressed)
         {
             if (undoDown && !_undoShortcutWasDown)
@@ -800,12 +870,37 @@ public sealed class EditorApplication :
             {
                 MainShell.Redo();
             }
+
+            if (copyDown &&
+    !_copyShortcutWasDown &&
+    ReferenceEquals(
+        Ui.Focus.FocusedWidget,
+        MainShell.ConsoleOutputWidget))
+            {
+                var selectedText = MainShell.ConsoleSelectedText;
+
+                if (selectedText.Length > 0 &&
+                    _clipboardService is not null)
+                {
+                    try
+                    {
+                        _clipboardService.SetText(selectedText);
+                    }
+                    catch (Exception exception)
+                    {
+                        _debugConsole?.WriteException(
+                            exception,
+                            "Failed to copy console selection.");
+                    }
+                }
+            }
         }
 
         // Trigger only once per key press, not every frame
         // while the shortcut remains held.
         _undoShortcutWasDown = undoDown;
         _redoShortcutWasDown = redoDown;
+        _copyShortcutWasDown = copyDown;
     }
 
     private void SaveAllDocuments()
@@ -1126,6 +1221,13 @@ public sealed class EditorApplication :
                 _debugConsole?.WriteLine(
                     output.Message);
             }
+        }
+        if (_gameProjectRunner.TryConsumeHotReloadIdleSignal())
+        {
+            _gameProjectRunner.Stop();
+
+            _debugConsole?.WriteLine(
+                "Hot Reload session stopped because the game exited.");
         }
     }
 
@@ -1504,6 +1606,137 @@ public sealed class EditorApplication :
             project.AssetsDirectoryPath);
 
         Editor.SetActiveGameProject(project);
+    }
+
+    private void DrainEngineRebuildEvents()
+    {
+        var command = _rebuildEngineCommand;
+
+        if (command is null || _debugConsole is null)
+        {
+            return;
+        }
+
+        while (command.TryDequeueEvent(out var item))
+        {
+            if (item is null)
+            {
+                continue;
+            }
+
+            if (item.PreparedUpdate is null)
+            {
+                _debugConsole.Write(
+                    item.Level,
+                    item.Message);
+
+                if (item.IsTerminal)
+                {
+                    command.Complete();
+                }
+
+                continue;
+            }
+
+            var update = item.PreparedUpdate;
+
+            var activeProject = Editor.ActiveGameProject;
+
+            if (activeProject is null ||
+                !SameProjectRoot(
+                    activeProject.RootDirectory,
+                    update.ProjectRoot))
+            {
+                _debugConsole.Write(
+                    Engine.Core.Diagnostics.DiagnosticLevel.Warning,
+                    "The active project changed during the rebuild. " +
+                    "The prepared update was discarded.");
+
+                update.Dispose();
+                command.Complete();
+                continue;
+            }
+
+            var wasRunning = _gameProjectRunner.IsSessionActive;
+
+            var runMode =
+                _gameProjectRunner.ActiveRunMode
+                ?? GameProjectRunMode.Standard;
+
+            var gameStopped = !wasRunning;
+            var updateSucceeded = false;
+
+            try
+            {
+                if (wasRunning)
+                {
+                    try
+                    {
+                        _gameProjectRunner.Stop();
+                    }
+                    finally
+                    {
+                        gameStopped =
+                            !_gameProjectRunner.IsSessionActive;
+                    }
+
+                    if (!gameStopped)
+                    {
+                        throw new InvalidOperationException(
+                            "The game process could not be stopped.");
+                    }
+                }
+
+                update.Apply();
+                updateSucceeded = true;
+
+                _debugConsole.WriteLine(
+                    $"Engine DLLs updated for '{activeProject.Name}'.");
+            }
+            catch (Exception exception)
+            {
+                _debugConsole.WriteException(
+                    exception,
+                    "Failed to apply the engine update.");
+            }
+            finally
+            {
+                if (wasRunning &&
+                    gameStopped &&
+                    update.CanRestartGame &&
+                    SameProjectRoot(
+                        Editor.ActiveGameProject?.RootDirectory,
+                        update.ProjectRoot))
+                {
+                    // Если обновление откатилось успешно, можно безопасно
+                    // запустить прежнюю версию игры.
+                    StartGame(runMode);
+                }
+
+                update.Dispose();
+                command.Complete();
+
+                MainShell.SetGameRunning(
+                    _gameProjectRunner.IsSessionActive);
+            }
+        }
+    }
+
+    private static bool SameProjectRoot(
+        string? left,
+        string? right)
+    {
+        if (left is null || right is null)
+        {
+            return false;
+        }
+
+        return string.Equals(
+            Path.GetFullPath(left),
+            Path.GetFullPath(right),
+            OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal);
     }
 
     private void CloseDocumentDialogAfterDecision()

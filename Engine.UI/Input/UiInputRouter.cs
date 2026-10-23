@@ -70,6 +70,10 @@ public sealed class UiInputRouter
         var position =
             _pointer.Position;
 
+        var leftReleased =
+    _pointer.IsReleased(
+        InputMouseButton.Left);
+
         ValidatePointerTargets();
 
         var hovered =
@@ -257,7 +261,7 @@ public sealed class UiInputRouter
         var dragStarted = _dragDrop.Update(
             position,
             _pointer.IsDown(InputMouseButton.Left),
-            _pointer.IsReleased(InputMouseButton.Left),
+            leftReleased,
             _capturedWidget,
             hovered);
 
@@ -277,52 +281,54 @@ public sealed class UiInputRouter
         }
 
         // Старый код продолжается здесь
-        if (_pointer.IsReleased(
-                InputMouseButton.Left))
+        if (leftReleased)
         {
-            var releaseTarget =
-                _capturedButton ==
-                    InputMouseButton.Left
-                    ? _capturedWidget
-                    : _pressedWidget;
-
-            if (releaseTarget is not null &&
-                IsAttachedToRoot(
-                    releaseTarget))
+            if (!wasDragging &&
+                !dragStarted &&
+                !_dragDrop.IsDragging)
             {
-                var pointerEvent =
-                    new UiPointerEvent(
-                        position,
-                        InputMouseButton.Left,
-                        _pointer.ScrollDelta);
+                var releaseTarget =
+                    _capturedButton ==
+                        InputMouseButton.Left
+                        ? _capturedWidget
+                        : _pressedWidget;
 
-                RoutePointerEvent(
-                    releaseTarget,
-                    pointerEvent,
-                    static (
-                        widget,
-                        @event) =>
-                    {
-                        widget.RaisePointerUp(
-                            @event);
-                    });
+                if (releaseTarget is not null &&
+                    IsAttachedToRoot(
+                        releaseTarget))
+                {
+                    var pointerEvent =
+                        new UiPointerEvent(
+                            position,
+                            InputMouseButton.Left,
+                            _pointer.ScrollDelta);
 
-                ApplyCaptureRequest(
-                    pointerEvent);
+                    RoutePointerEvent(
+                        releaseTarget,
+                        pointerEvent,
+                        static (
+                            widget,
+                            @event) =>
+                        {
+                            widget.RaisePointerUp(
+                                @event);
+                        });
+
+                    ApplyCaptureRequest(
+                        pointerEvent);
+                }
             }
 
             _dragDrop.PointerReleased(
-    position,
-    _root.HitTest(position));
+                position,
+                _root.HitTest(position));
 
             if (_pressedWidget is not null)
             {
-                _pressedWidget.IsPressed =
-                    false;
+                _pressedWidget.IsPressed = false;
             }
 
-            _pressedWidget =
-                null;
+            _pressedWidget = null;
 
             if (_capturedButton ==
                 InputMouseButton.Left)

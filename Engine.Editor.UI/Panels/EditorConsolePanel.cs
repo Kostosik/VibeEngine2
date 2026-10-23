@@ -2,12 +2,15 @@
 using Engine.Core.Math;
 using Engine.Graphics.Commands;
 using Engine.Input;
+using Engine.Input.Cursors;
 using Engine.Tooling.Console;
 using Engine.Tooling.Debugging;
 using Engine.UI.Controls;
 using Engine.UI.Core;
 using Engine.UI.Input;
 using Engine.UI.Layout;
+using System.Globalization;
+using System.Text;
 
 namespace Engine.Editor.UI.Panels;
 
@@ -229,6 +232,10 @@ public sealed class EditorConsolePanel : UiPanel
 
     public UiTextBox CommandInput =>
         _commandInput;
+
+    public UiWidget ConsoleOutputWidget => _output;
+
+    public string SelectedText => _output.SelectedText;
 
     protected override Vector2 MeasureCore(
         UiLayoutContext context,
@@ -552,6 +559,17 @@ public sealed class EditorConsolePanel : UiPanel
 
         private readonly List<RenderLine> _lines = new();
 
+        private readonly List<int> _lineStartOffsets = new();
+
+        private string _documentText = string.Empty;
+
+        private UiLayoutContext? _layoutContext;
+
+        private int _selectionAnchor = -1;
+        private int _selectionCaret = -1;
+
+        private bool _isSelecting;
+
         private readonly List<ConsoleMessage> _renderedMessages = new();
 
         private float _builtWidth = -1.0f;
@@ -564,6 +582,43 @@ public sealed class EditorConsolePanel : UiPanel
         private bool _followTailPending;
         private int _followTailDelay;
 
+        public ConsoleOutputView()
+        {
+            Focusable = true;
+            ConsumesKeyboardInput = true;
+            Cursor = CursorShape.Text;
+        }
+
+        public string SelectedText
+        {
+            get
+            {
+                if (_selectionAnchor < 0 ||
+                    _selectionCaret < 0 ||
+                    _selectionAnchor == _selectionCaret)
+                {
+                    return string.Empty;
+                }
+
+                var start = Math.Min(
+                    _selectionAnchor,
+                    _selectionCaret);
+
+                var end = Math.Max(
+                    _selectionAnchor,
+                    _selectionCaret);
+
+                if (start < 0 || end > _documentText.Length)
+                {
+                    return string.Empty;
+                }
+
+                return _documentText.Substring(
+                    start,
+                    end - start);
+            }
+        }
+
         public void SetMessages(
      IReadOnlyList<ConsoleMessage> messages,
      string emptyMessage,
@@ -571,12 +626,19 @@ public sealed class EditorConsolePanel : UiPanel
         {
             var wasAtBottom = IsAtBottom();
 
-            var changed =
-                !HaveSameMessages(_messages, messages) ||
+            var emptyMessageChanged =
                 !string.Equals(
                     _emptyMessage,
                     emptyMessage,
                     StringComparison.Ordinal);
+
+            var changed =
+                !HaveSameMessages(_messages, messages) ||
+                emptyMessageChanged;
+
+            var canPreserveSelection =
+                !emptyMessageChanged &&
+                IsPrefixOf(_messages, messages);
 
             _messages = messages;
             _emptyMessage = emptyMessage;
@@ -584,6 +646,11 @@ public sealed class EditorConsolePanel : UiPanel
             if (changed)
             {
                 _layoutDirty = true;
+
+                if (!canPreserveSelection)
+                {
+                    ClearSelection();
+                }
             }
 
             if (forceScrollToBottom || wasAtBottom)
@@ -591,6 +658,137 @@ public sealed class EditorConsolePanel : UiPanel
                 _followTailPending = true;
                 _followTailDelay = 1;
             }
+        }
+
+        protected override void OnPointerDown(
+    UiPointerEvent pointer)
+        {
+            if (pointer.Button != InputMouseButton.Left)
+            {
+                return;
+            }
+
+            _selectionAnchor =
+                GetTextIndexFromPointer(pointer.Position);
+
+            _selectionCaret = _selectionAnchor;
+            _isSelecting = true;
+
+            pointer.RequestCapture();
+            pointer.Handled = true;
+        }
+
+        protected override void OnPointerMove(
+            UiPointerEvent pointer)
+        {
+            if (!_isSelecting)
+            {
+                return;
+            }
+
+            _selectionCaret =
+                GetTextIndexFromPointer(pointer.Position);
+
+            pointer.Handled = true;
+        }
+
+        protected override void OnPointerUp(
+            UiPointerEvent pointer)
+        {
+            if (!_isSelecting ||
+                pointer.Button != InputMouseButton.Left)
+            {
+                return;
+            }
+
+            _selectionCaret =
+                GetTextIndexFromPointer(pointer.Position);
+
+            _isSelecting = false;
+            pointer.Handled = true;
+        }
+
+        private int GetTextIndexFromPointer(
+    Vector2 position)
+        {
+            if (_lines.Count == 0 ||
+                _lineStartOffsets.Count != _lines.Count ||
+                _layoutContext is null)
+            {
+                return 0;
+            }
+
+            var textTop = Bounds.Y + 4.0f;
+
+            var lineIndex = Math.Clamp(
+                (int)MathF.Floor(
+                    (position.Y - textTop) / LineHeight),
+                0,
+                _lines.Count - 1);
+
+            var lineText = _lines[lineIndex].Text;
+
+            var targetX = MathF.Max(
+                0.0f,
+                position.X - Bounds.X - 6.0f);
+
+            // Границы текстовых элементов не дают разрезать
+            // суррогатные пары и составные символы.
+            var elementStarts =
+                StringInfo.ParseCombiningCharacters(lineText);
+
+            var boundaries = new int[elementStarts.Length + 1];
+
+            Array.Copy(
+                elementStarts,
+                boundaries,
+                elementStarts.Length);
+
+            boundaries[^1] = lineText.Length;
+
+            var low = 0;
+            var high = boundaries.Length - 1;
+
+            while (low < high)
+            {
+                var middle = low + (high - low) / 2;
+
+                var prefixWidth =
+                    _layoutContext.MeasureText(
+                        lineText[..boundaries[middle]],
+                        FontSize).X;
+
+                if (prefixWidth < targetX)
+                {
+                    low = middle + 1;
+                }
+                else
+                {
+                    high = middle;
+                }
+            }
+
+            if (low > 0)
+            {
+                var previousWidth =
+                    _layoutContext.MeasureText(
+                        lineText[..boundaries[low - 1]],
+                        FontSize).X;
+
+                var currentWidth =
+                    _layoutContext.MeasureText(
+                        lineText[..boundaries[low]],
+                        FontSize).X;
+
+                if (MathF.Abs(targetX - previousWidth) <
+                    MathF.Abs(targetX - currentWidth))
+                {
+                    low--;
+                }
+            }
+
+            return _lineStartOffsets[lineIndex] +
+                   boundaries[low];
         }
 
         private static bool HaveSameMessages(
@@ -625,9 +823,23 @@ public sealed class EditorConsolePanel : UiPanel
             var widthChanged =
                 MathF.Abs(maximumWidth - _builtWidth) > 0.5f;
 
+            _layoutContext = context;
+
             if (_layoutDirty || widthChanged)
             {
-                BuildLines(context, maximumWidth);
+                // После изменения ширины переносы строк меняются,
+                // поэтому старое выделение больше невалидно.
+                if (widthChanged && _builtWidth >= 0.0f)
+                {
+                    ClearSelection();
+                }
+
+                BuildLines(
+                    context,
+                    maximumWidth);
+
+                RebuildTextIndex();
+
                 _layoutDirty = false;
             }
 
@@ -636,6 +848,59 @@ public sealed class EditorConsolePanel : UiPanel
                 MathF.Max(
                     LineHeight + 8.0f,
                     _lines.Count * LineHeight + 8.0f));
+        }
+
+        private void RebuildTextIndex()
+        {
+            _lineStartOffsets.Clear();
+
+            var builder = new StringBuilder();
+
+            for (var i = 0; i < _lines.Count; i++)
+            {
+                if (i > 0)
+                {
+                    builder.Append('\n');
+                }
+
+                _lineStartOffsets.Add(builder.Length);
+                builder.Append(_lines[i].Text);
+            }
+
+            _documentText = builder.ToString();
+
+            if (_selectionAnchor > _documentText.Length ||
+                _selectionCaret > _documentText.Length)
+            {
+                ClearSelection();
+            }
+        }
+
+        private void ClearSelection()
+        {
+            _selectionAnchor = -1;
+            _selectionCaret = -1;
+            _isSelecting = false;
+        }
+
+        private static bool IsPrefixOf(
+            IReadOnlyList<ConsoleMessage> prefix,
+            IReadOnlyList<ConsoleMessage> messages)
+        {
+            if (prefix.Count > messages.Count)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < prefix.Count; i++)
+            {
+                if (!prefix[i].Equals(messages[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         protected override void OnUpdate(
@@ -696,6 +961,16 @@ public sealed class EditorConsolePanel : UiPanel
                 var line =
                     _lines[i];
 
+                if (_selectionAnchor >= 0 &&
+    _selectionCaret >= 0 &&
+    _selectionAnchor != _selectionCaret)
+                {
+                    DrawSelection(
+                        context,
+                        i,
+                        textTop);
+                }
+
                 context.DrawText(
                     line.Text,
                     new Vector2(
@@ -704,6 +979,53 @@ public sealed class EditorConsolePanel : UiPanel
                     FontSize,
                     line.Color);
             }
+        }
+
+        private void DrawSelection(
+    UiRenderContext context,
+    int lineIndex,
+    float textTop)
+        {
+            var start = Math.Min(
+                _selectionAnchor,
+                _selectionCaret);
+
+            var end = Math.Max(
+                _selectionAnchor,
+                _selectionCaret);
+
+            var line = _lines[lineIndex].Text;
+            var lineStart = _lineStartOffsets[lineIndex];
+            var lineEnd = lineStart + line.Length;
+
+            var selectedStart = Math.Max(start, lineStart);
+            var selectedEnd = Math.Min(end, lineEnd);
+
+            if (selectedStart >= selectedEnd)
+            {
+                return;
+            }
+
+            var localStart = selectedStart - lineStart;
+            var localEnd = selectedEnd - lineStart;
+
+            var prefixWidth =
+                context.MeasureText(
+                    line[..localStart],
+                    FontSize).X;
+
+            var selectedWidth =
+                context.MeasureText(
+                    line[localStart..localEnd],
+                    FontSize).X;
+
+            context.DrawRectangle(
+                new UiRect(
+                    Bounds.X + 6.0f + prefixWidth,
+                    textTop + lineIndex * LineHeight,
+                    MathF.Max(2.0f, selectedWidth),
+                    LineHeight),
+                new UiColor(55, 105, 190, 170));
         }
 
         private bool IsAtBottom()

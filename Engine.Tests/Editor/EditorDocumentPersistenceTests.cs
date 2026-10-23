@@ -4,6 +4,7 @@ using Engine.Editor;
 using Engine.Editor.Commands;
 using Engine.Editor.Documents;
 using Engine.Editor.Documents.Persistence;
+using Engine.Graphics2D.Sprites;
 using Engine.Physics.Components;
 using Engine.Physics.Materials;
 using Engine.Physics.Shapes;
@@ -16,6 +17,72 @@ namespace Engine.Tests.Editor;
 
 public sealed class EditorDocumentPersistenceTests
 {
+    [Fact]
+    public void BinaryPersistence_RoundTripsSpriteComponentInEditorWorld()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"vibe-sprite-scene-{Guid.NewGuid():N}.world");
+
+        try
+        {
+            var serializers = new EcsComponentSerializerRegistry();
+            serializers.RegisterEngineComponents();
+
+            var persistence =
+                new BinaryEditorDocumentPersistence(serializers);
+
+            using var ecsWorld = new Engine.ECS.World();
+
+            using var world = new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+            var entity = ecsWorld.CreateEntity();
+
+            ecsWorld.Add(
+                entity,
+                new WorldTransform2D(
+                    new FixedVector2(
+                        Fixed32.FromInt(4),
+                        Fixed32.FromInt(7))));
+
+            var expected = new SpriteComponent(
+                "Textures/player.png",
+                3.5f,
+                2.25f,
+                17);
+
+            ecsWorld.Add(entity, expected);
+
+            using var document = new EditorDocument(world);
+
+            // Используем реальный механизм сохранения Editor.
+            persistence.Save(path, document);
+
+            // Загружаем сохранённый мир заново.
+            using var restoredWorld = persistence.Load(path);
+
+            var restoredEcs = restoredWorld.EcsWorld;
+
+            Assert.True(restoredEcs.Exists(entity));
+            Assert.True(restoredEcs.Has<SpriteComponent>(entity));
+
+            var actual = restoredEcs.Get<SpriteComponent>(entity);
+
+            Assert.Equal(expected.TexturePath, actual.TexturePath);
+            Assert.Equal(expected.Width, actual.Width);
+            Assert.Equal(expected.Height, actual.Height);
+            Assert.Equal(expected.Layer, actual.Layer);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
 
     [Fact]
     public void BinaryPersistence_RoundTripsPhysicsComponentsAddedThroughEditorCommands()

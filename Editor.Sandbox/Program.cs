@@ -251,7 +251,7 @@ var application =
         documentPersistence,
         documentFiles,
         debugConsole: debugConsole, filePreviewTextureManager:
-    window.GraphicsDevice.Textures);
+    window.GraphicsDevice.Textures, clipboard: new WindowsClipboardService());
 
 
 window.CloseRequested +=

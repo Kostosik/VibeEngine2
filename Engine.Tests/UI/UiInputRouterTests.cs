@@ -10,6 +10,227 @@ namespace Engine.Tests.UI;
 public sealed class UiInputRouterTests
 {
     [Fact]
+    public void DragDrop_CanStartAgainAfterCancellation()
+    {
+        var root = new UiRoot();
+
+        var source = new TestDragSource
+        {
+            Width = 20.0f,
+            Height = 40.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Left,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        var target = new TestDropTarget
+        {
+            Width = 20.0f,
+            Height = 40.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Right,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        root.AddChild(source);
+        root.AddChild(target);
+
+        root.Arrange(
+            new UiRect(0.0f, 0.0f, 100.0f, 100.0f));
+
+        var pointer = new TestPointerInput
+        {
+            Position = new Vector2(10.0f, 20.0f),
+            LeftDown = true,
+            LeftPressed = true
+        };
+
+        var textInput = new TestTextInput();
+
+        var router = new UiInputRouter(
+            root,
+            pointer,
+            textInput,
+            new UiFocusManager());
+
+        // Первый drag.
+        router.Update();
+
+        pointer.LeftPressed = false;
+        pointer.Position = new Vector2(18.0f, 20.0f);
+        router.Update();
+
+        Assert.True(router.IsDragging);
+
+        pointer.Position = new Vector2(90.0f, 20.0f);
+        router.Update();
+
+        // Отмена через Escape.
+        textInput.PressedKeys.Add(TextInputKey.Escape);
+        router.Update();
+
+        Assert.False(router.IsDragging);
+        Assert.Equal(1, source.DragEndedCount);
+        Assert.Equal(
+            UiDragEndReason.Cancelled,
+            source.LastEndReason);
+
+        // Отпускаем кнопку и очищаем Escape.
+        textInput.PressedKeys.Clear();
+
+        pointer.LeftDown = false;
+        pointer.LeftReleased = true;
+        router.Update();
+
+        pointer.LeftReleased = false;
+        pointer.LeftPressed = true;
+        pointer.LeftDown = true;
+        pointer.Position = new Vector2(10.0f, 20.0f);
+
+        // Второй drag.
+        router.Update();
+
+        pointer.LeftPressed = false;
+        pointer.Position = new Vector2(18.0f, 20.0f);
+        router.Update();
+
+        Assert.True(router.IsDragging);
+
+        // Завершаем второй drag успешно.
+        pointer.Position = new Vector2(90.0f, 20.0f);
+        router.Update();
+
+        pointer.LeftDown = false;
+        pointer.LeftReleased = true;
+        router.Update();
+
+        Assert.False(router.IsDragging);
+        Assert.Equal(1, target.DropCount);
+        Assert.Equal(2, source.DragEndedCount);
+        Assert.Equal(
+            UiDragEndReason.Dropped,
+            source.LastEndReason);
+    }
+
+    [Fact]
+    public void DragDrop_RemovingSourceCancelsActiveDrag()
+    {
+        var root = new UiRoot();
+
+        var source = new TestDragSource
+        {
+            Width = 20.0f,
+            Height = 40.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Left,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        var target = new TestDropTarget
+        {
+            Width = 20.0f,
+            Height = 40.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Right,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        root.AddChild(source);
+        root.AddChild(target);
+
+        root.Arrange(
+            new UiRect(0.0f, 0.0f, 100.0f, 100.0f));
+
+        var pointer = new TestPointerInput
+        {
+            Position = new Vector2(10.0f, 20.0f),
+            LeftDown = true,
+            LeftPressed = true
+        };
+
+        var router = new UiInputRouter(
+            root,
+            pointer,
+            new TestTextInput(),
+            new UiFocusManager());
+
+        // Нажимаем на источник.
+        router.Update();
+
+        // Начинаем перетаскивание.
+        pointer.LeftPressed = false;
+        pointer.Position = new Vector2(18.0f, 20.0f);
+        router.Update();
+
+        Assert.True(router.IsDragging);
+
+        // Наводим указатель на цель.
+        pointer.Position = new Vector2(90.0f, 20.0f);
+        router.Update();
+
+        Assert.True(target.DragEnterCount > 0);
+
+        // Удаляем источник из UI-дерева.
+        Assert.True(root.RemoveChild(source));
+
+        router.Update();
+
+        Assert.False(router.IsDragging);
+        Assert.Equal(1, source.DragEndedCount);
+        Assert.Equal(
+            UiDragEndReason.Cancelled,
+            source.LastEndReason);
+
+        Assert.Equal(0, target.DropCount);
+        Assert.Equal(1, target.DragLeaveCount);
+    }
+
+    [Fact]
+    public void DragDrop_DraggingDoesNotTriggerSourceClick()
+    {
+        var root = new UiRoot();
+
+        var source = new TestClickableDragSource
+        {
+            Width = 80.0f,
+            Height = 40.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Left,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        root.AddChild(source);
+        root.Arrange(new UiRect(0.0f, 0.0f, 100.0f, 100.0f));
+
+        var pointer = new TestPointerInput
+        {
+            Position = new Vector2(10.0f, 20.0f),
+            LeftDown = true,
+            LeftPressed = true
+        };
+
+        var router = new UiInputRouter(
+            root,
+            pointer,
+            new TestTextInput(),
+            new UiFocusManager());
+
+        // Нажимаем на источник.
+        router.Update();
+
+        // Начинаем drag, оставаясь внутри источника.
+        pointer.LeftPressed = false;
+        pointer.Position = new Vector2(18.0f, 20.0f);
+        router.Update();
+
+        Assert.True(router.IsDragging);
+
+        // Отпускаем мышь там же, внутри источника.
+        pointer.LeftDown = false;
+        pointer.LeftReleased = true;
+        pointer.Position = new Vector2(20.0f, 20.0f);
+        router.Update();
+
+        Assert.False(router.IsDragging);
+        Assert.Equal(0, source.ClickCount);
+    }
+
+    [Fact]
     public void DragDrop_RejectsIncompatibleTarget()
     {
         var root = new UiRoot();
@@ -485,6 +706,60 @@ public sealed class UiInputRouterTests
             PointerUpCount++;
             LastUpButton =
                 pointer.Button;
+        }
+    }
+
+    private sealed class TestClickableDragSource :
+    UiPanel,
+    IUiDragSource
+    {
+        public int ClickCount { get; private set; }
+
+        public UiDragPayload? CreateDragPayload(
+            Vector2 startPosition)
+        {
+            return new UiDragPayload<string>("test-item");
+        }
+
+        public void OnDragStarted(UiDragContext context)
+        {
+        }
+
+        public void OnDragEnded(
+            UiDragContext context,
+            UiDragEndReason reason)
+        {
+        }
+
+        protected override void OnPointerDown(
+            UiPointerEvent pointer)
+        {
+            if (pointer.Button != InputMouseButton.Left)
+            {
+                return;
+            }
+
+            IsPressed = true;
+            pointer.Handled = true;
+        }
+
+        protected override void OnPointerUp(
+            UiPointerEvent pointer)
+        {
+            if (pointer.Button != InputMouseButton.Left ||
+                !IsPressed)
+            {
+                return;
+            }
+
+            IsPressed = false;
+
+            if (ContainsPoint(pointer.Position))
+            {
+                ClickCount++;
+            }
+
+            pointer.Handled = true;
         }
     }
 

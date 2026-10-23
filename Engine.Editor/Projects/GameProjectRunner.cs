@@ -14,7 +14,7 @@ public sealed record GameProjectOutput(
 public sealed class GameProjectRunner : IDisposable
 {
     private readonly ConcurrentQueue<GameProjectOutput> _output = new();
-
+    private int _hotReloadIdleSignal;
     private Process? _process;
     private bool _stopRequested;
     private bool _disposed;
@@ -65,11 +65,16 @@ public sealed class GameProjectRunner : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(project);
 
+
         if (IsRunning)
         {
             throw new InvalidOperationException(
                 "A game process is already running.");
         }
+
+        System.Threading.Interlocked.Exchange(
+    ref _hotReloadIdleSignal,
+    0);
 
         ReleaseExitedProcess();
 
@@ -150,6 +155,16 @@ public sealed class GameProjectRunner : IDisposable
         {
             if (args.Data is not null)
             {
+                if (mode == GameProjectRunMode.HotReload &&
+                    args.Data.Contains(
+                        "Waiting for a file to change before restarting",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    System.Threading.Interlocked.Exchange(
+                        ref _hotReloadIdleSignal,
+                        1);
+                }
+
                 _output.Enqueue(
                     new GameProjectOutput(false, args.Data));
             }
@@ -159,10 +174,18 @@ public sealed class GameProjectRunner : IDisposable
         {
             if (args.Data is not null)
             {
+                if (mode == GameProjectRunMode.HotReload &&
+                    args.Data.Contains(
+                        "Waiting for a file to change before restarting",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    System.Threading.Interlocked.Exchange(
+                        ref _hotReloadIdleSignal,
+                        1);
+                }
+
                 _output.Enqueue(
-                    new GameProjectOutput(
-                        IsErrorOutput(args.Data, mode),
-                        args.Data));
+                    new GameProjectOutput(false, args.Data));
             }
         };
 
@@ -225,6 +248,13 @@ public sealed class GameProjectRunner : IDisposable
             process.Dispose();
             throw;
         }
+    }
+
+    public bool TryConsumeHotReloadIdleSignal()
+    {
+        return System.Threading.Interlocked.Exchange(
+            ref _hotReloadIdleSignal,
+            0) != 0;
     }
 
     private static bool IsErrorOutput(

@@ -116,6 +116,22 @@ public sealed class DebugConsole : IDisposable
         }
     }
 
+    public void RegisterCommand(IDebugCommand command)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(command);
+
+        _registry.Register(command);
+    }
+
+    public bool UnregisterCommand(string name)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        return _registry.Unregister(name);
+    }
+
     public void AddSink(
         IConsoleSink sink)
     {

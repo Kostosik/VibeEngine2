@@ -27,6 +27,7 @@ public sealed class EngineRuntime :
 {
     private bool _disposed;
     private DebugExecutionController? _debugExecution;
+    private RebuildEngineDebugCommand? _rebuildEngineCommand;
     public ValidationService? Validation { get; private set; }
     public DebugVisualizationRenderer? DebugVisualizationRenderer { get; private set; }
     private SpriteRenderSystem? _spriteRenderSystem;
@@ -199,6 +200,12 @@ Services.Graphics;
     new PhysicsValidator(
         EcsWorld));
 
+        _rebuildEngineCommand =
+    new RebuildEngineDebugCommand();
+
+        DebugRegistry.Register(
+            _rebuildEngineCommand);
+
         DebugRegistry.Register(
             new ValidateDebugCommand(
                 Validation));
@@ -320,6 +327,8 @@ Services.Graphics;
         EnsureNotDisposed();
 
         Simulation.Update(context);
+
+        _rebuildEngineCommand?.DrainOutput(Console);
 
         UpdateAudio(context.Time.Delta.TotalSeconds);
     }
@@ -509,7 +518,11 @@ Services.Graphics;
             DebugRegistry?.Unregister("pause");
             DebugRegistry?.Unregister("resume");
             DebugRegistry?.Unregister("step");
+            DebugRegistry?.Unregister("rebuild-engine");
 
+            _rebuildEngineCommand?.Dispose();
+
+            _rebuildEngineCommand = null;
             _debugExecution = null;
         }
 

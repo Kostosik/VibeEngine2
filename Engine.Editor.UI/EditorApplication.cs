@@ -49,7 +49,8 @@ public sealed class EditorApplication :
 
     private readonly HashSet<EditorUiDocument>
         _subscribedUiDocuments = new();
-
+    private readonly HashSet<ParticleEffectDocument>
+    _subscribedParticleEffectDocuments = new();
     private readonly HashSet<EditorDocument> _subscribedDocuments = new();
     private bool _uiDirty = true;
     private readonly IEditorDocumentPersistence?
@@ -525,7 +526,9 @@ public sealed class EditorApplication :
             case EditorDocument worldDocument:
                 SaveWorldDocument(worldDocument);
                 return;
-
+            case ParticleEffectDocument particleEffectDocument:
+                SaveParticleEffectDocument(particleEffectDocument);
+                return;
             case null:
                 return;
 
@@ -547,6 +550,24 @@ public sealed class EditorApplication :
         {
             _errorDialog.ShowError(
                 exception.Message);
+        }
+    }
+
+    private void SaveParticleEffectDocument(
+    ParticleEffectDocument document)
+    {
+        try
+        {
+            document.Save();
+
+            _debugConsole?.WriteLine(
+                $"Saved particle effect: {document.FilePath}");
+
+            MarkUiDirty();
+        }
+        catch (Exception exception)
+        {
+            _errorDialog.ShowError(exception.Message);
         }
     }
 
@@ -935,6 +956,10 @@ public sealed class EditorApplication :
 
                 switch (document)
                 {
+                    case ParticleEffectDocument particleEffectDocument:
+                        particleEffectDocument.Save();
+                        break;
+
                     case EditorUiDocument uiDocument:
                         {
                             if (!TrySaveUiDocument(uiDocument))
@@ -1050,6 +1075,23 @@ public sealed class EditorApplication :
         if (existingDocument is not null)
         {
             Editor.Session.Activate(existingDocument);
+            MarkUiDirty();
+            return;
+        }
+
+        if (normalizedPath.EndsWith(
+        ".particle.json",
+        StringComparison.OrdinalIgnoreCase))
+        {
+            var particleEffectDocument =
+                ParticleEffectDocument.Open(normalizedPath);
+
+            SubscribeParticleEffectDocument(
+                particleEffectDocument);
+
+            Editor.Session.Open(
+                particleEffectDocument);
+
             MarkUiDirty();
             return;
         }
@@ -1258,6 +1300,14 @@ public sealed class EditorApplication :
 
         try
         {
+            if (entry.Path.EndsWith(
+        ".particle.json",
+        StringComparison.OrdinalIgnoreCase))
+            {
+                OpenDocumentPath(entry.Path);
+                return;
+            }
+
             switch (Path.GetExtension(entry.Path).ToLowerInvariant())
             {
                 case ".ui":
@@ -1586,6 +1636,16 @@ public sealed class EditorApplication :
         {
             switch (document)
             {
+                case ParticleEffectDocument particleEffectDocument:
+                    particleEffectDocument.Save();
+
+                    if (!continueApplicationClose)
+                    {
+                        Editor.Session.Close(particleEffectDocument);
+                    }
+
+                    break;
+
                 case EditorDocument worldDocument:
                     {
                         var files = _documentFiles
@@ -1846,6 +1906,18 @@ public sealed class EditorApplication :
         {
             switch (document)
             {
+                case ParticleEffectDocument particleEffectDocument:
+                    if (continueApplicationClose)
+                    {
+                        particleEffectDocument.MarkSaved();
+                    }
+                    else
+                    {
+                        Editor.Session.Discard(particleEffectDocument);
+                    }
+
+                    break;
+
                 case EditorDocument worldDocument:
                     Editor.CloseDocument(
                         worldDocument,
@@ -1942,9 +2014,32 @@ public sealed class EditorApplication :
         document.Changed += MarkUiDirty;
     }
 
+    private void SubscribeParticleEffectDocument(
+    ParticleEffectDocument document)
+    {
+        if (!_subscribedParticleEffectDocuments.Add(document))
+        {
+            return;
+        }
+
+        document.Changed += MarkUiDirty;
+    }
+
     private void UnsubscribeAnyDocument(
         IEditorDocument document)
     {
+        if (document is ParticleEffectDocument particleEffectDocument)
+        {
+            if (_subscribedParticleEffectDocuments.Remove(
+                    particleEffectDocument))
+            {
+                particleEffectDocument.Changed -= MarkUiDirty;
+            }
+
+            MarkUiDirty();
+            return;
+        }
+
         if (document is not EditorUiDocument uiDocument)
         {
             return;

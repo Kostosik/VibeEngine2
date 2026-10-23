@@ -80,6 +80,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{36D591C7-6
 	ProjectSection(SolutionItems) = preProject
 		docs\API.md = docs\API.md
 		ENGINE.md = ENGINE.md
+		docs\ROADMAP.md = docs\ROADMAP.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Engine.Scripting", "Engine.Scripting\Engine.Scripting.csproj", "{DD93B336-F073-43A7-A52C-D52B11128B7B}"

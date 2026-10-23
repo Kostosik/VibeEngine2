@@ -40,6 +40,8 @@ public sealed class EditorMainShell :
     private readonly ITextureResourceManager _assetPreviewTextures;
     private readonly ITextureManager? _filePreviewTextureManager;
     private EditorUiWorkspaceView _uiWorkspaceView;
+    private ParticleEffectEditorPanelView? _particleEffectWorkspaceView;
+    private ParticleEffectDocument? _particleEffectWorkspaceDocument;
     public event Action? NewProjectRequested;
     public event Action? OpenProjectRequested;
     public event Action? OpenProjectInIdeRequested;
@@ -396,6 +398,7 @@ public sealed class EditorMainShell :
     {
         _workspaceView.ReleaseResources();
         _uiWorkspaceView.ReleaseResources();
+        UpdateParticleEffectWorkspace(null);
     }
 
     public void Refresh()
@@ -403,11 +406,16 @@ public sealed class EditorMainShell :
         var activeDocument =
             Editor.Session.ActiveEditorDocument;
 
-        _workspaceView.Visible =
-            activeDocument is EditorDocument;
+        var worldDocument =
+            activeDocument as EditorDocument;
 
-        _uiWorkspaceView.Visible =
-            activeDocument is EditorUiDocument;
+        var uiDocument =
+            activeDocument as EditorUiDocument;
+
+        var particleEffectDocument =
+            activeDocument as ParticleEffectDocument;
+
+        UpdateParticleEffectWorkspace(particleEffectDocument);
 
         RefreshDocumentTabs();
 
@@ -416,18 +424,18 @@ public sealed class EditorMainShell :
             BindUiDocument(activeUiDocument);
         }
 
-        var worldDocument =
-            activeDocument as EditorDocument;
-
-        var uiDocument =
-            activeDocument as EditorUiDocument;
+        _workspaceView.Visible =
+            worldDocument is not null ||
+            activeDocument is null;
 
         _uiWorkspaceView.Visible =
             uiDocument is not null;
 
-        _workspaceView.Visible =
-            worldDocument is not null ||
-            activeDocument is null;
+        if (_particleEffectWorkspaceView is not null)
+        {
+            _particleEffectWorkspaceView.Visible =
+                particleEffectDocument is not null;
+        }
 
         _validateButton.Enabled =
             worldDocument is not null;
@@ -453,6 +461,14 @@ public sealed class EditorMainShell :
                     ? "Unsaved changes"
                     : "Saved");
         }
+        else if (particleEffectDocument is not null)
+        {
+            documentStatus =
+                $"Particle Effect • {particleEffectDocument.DisplayName} • " +
+                (particleEffectDocument.IsDirty
+                    ? "Unsaved changes"
+                    : "Saved");
+        }
         else
         {
             documentStatus = "No document";
@@ -465,9 +481,8 @@ public sealed class EditorMainShell :
 
         _documentLabel.Text =
             $"{projectStatus} • {documentStatus}";
+
         UpdateGameControls();
-        _workspaceView.Refresh();
-        _uiWorkspaceView.Refresh();
 
         _workspaceView.Refresh();
         _uiWorkspaceView.Refresh();

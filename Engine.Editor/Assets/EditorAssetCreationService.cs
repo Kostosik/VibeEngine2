@@ -180,51 +180,6 @@ public sealed class EditorAssetCreationService
         }
     }
 
-
-    public string CreateDirectory(string name)
-    {
-        ValidateName(name, nameof(name));
-
-        var path = ResolveTargetPath(name);
-
-        EnsureDoesNotExist(path);
-
-        Directory.CreateDirectory(path);
-
-        RefreshAndSelect(path);
-
-        return path;
-    }
-
-    private string ResolveTargetPath(string name)
-    {
-        var rootPath = Path.GetFullPath(_browser.RootPath);
-        var currentPath = Path.GetFullPath(_browser.CurrentPath);
-
-        if (!Directory.Exists(currentPath))
-        {
-            throw new DirectoryNotFoundException(
-                $"Asset directory '{currentPath}' was not found.");
-        }
-
-        if (!IsWithinRoot(rootPath, currentPath))
-        {
-            throw new UnauthorizedAccessException(
-                "The current directory is outside the asset root.");
-        }
-
-        var path = Path.GetFullPath(
-            Path.Combine(currentPath, name));
-
-        if (!IsWithinRoot(rootPath, path))
-        {
-            throw new UnauthorizedAccessException(
-                "The new asset must remain inside the asset root.");
-        }
-
-        return path;
-    }
-
     private static bool IsWithinRoot(
         string rootPath,
         string path)
@@ -292,28 +247,5 @@ public sealed class EditorAssetCreationService
             throw new IOException(
                 $"An asset already exists at '{path}'.");
         }
-    }
-
-
-    public string Create(
-    EditorAssetCreationDefinition definition,
-    string name)
-    {
-        ArgumentNullException.ThrowIfNull(definition);
-
-        return definition.Kind switch
-        {
-            EditorAssetCreationKind.Directory =>
-                CreateDirectory(name),
-
-            EditorAssetCreationKind.TextFile =>
-                CreateTextFile(
-                    name,
-                    definition.Extension,
-                    definition.CreateInitialContents(name)),
-
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(definition))
-        };
     }
 }

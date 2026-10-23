@@ -60,7 +60,7 @@ public sealed class UiDropdown : UiContainer
                 25,
                 250),
 
-        ZIndex = 100
+        ZIndex = 2000
     };
 
         _list =

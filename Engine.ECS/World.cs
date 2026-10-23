@@ -724,11 +724,7 @@ public sealed class World :
         ArgumentNullException.ThrowIfNull(
             dependencies);
 
-        if (batchSize <= 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(batchSize));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
 
         if (!TryGetStorage<T1>(
                 out var first) ||

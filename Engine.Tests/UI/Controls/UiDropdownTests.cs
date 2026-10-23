@@ -73,6 +73,83 @@ public sealed class UiDropdownTests
         Assert.Empty(overlay.Children);
     }
 
+    [Fact]
+    public void Popup_WhenDropdownIsInsideModal_CanSelectOption()
+    {
+        var root = new UiRoot();
+        var overlay = new UiOverlayLayer();
+        root.AddChild(overlay);
+
+        var focus = new UiFocusManager();
+        var modal = new UiModal(overlay, focus);
+        modal.SetSize(520.0f, 320.0f);
+
+        var dropdown = new UiDropdown
+        {
+            Width = 220.0f,
+            Height = 32.0f
+        };
+
+        dropdown.AddOption("Folder");
+        dropdown.AddOption("Particle Effect");
+
+        var content = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical
+        };
+
+        content.AddChild(dropdown);
+        modal.SetContent(content);
+
+        var pointer = new TestPointerInput();
+        var router = new UiInputRouter(
+            root,
+            pointer,
+            new EmptyTextInput(),
+            focus);
+
+        modal.Show(dropdown);
+
+        var layoutContext = new UiLayoutContext(
+            new TestFontManager(),
+            new UiTheme());
+
+        var viewportSize = new Vector2(800.0f, 600.0f);
+
+        root.Measure(layoutContext, viewportSize);
+        root.Arrange(new UiRect(
+            0.0f,
+            0.0f,
+            viewportSize.X,
+            viewportSize.Y));
+
+        Click(
+            router,
+            pointer,
+            new Vector2(
+                dropdown.Bounds.X + 20.0f,
+                dropdown.Bounds.Y + 16.0f));
+
+        Assert.True(dropdown.IsOpen);
+
+        // Пересчитываем положение появившегося popup.
+        root.Arrange(new UiRect(
+            0.0f,
+            0.0f,
+            viewportSize.X,
+            viewportSize.Y));
+
+        Click(
+            router,
+            pointer,
+            new Vector2(
+                dropdown.Bounds.X + 20.0f,
+                dropdown.Bounds.Bottom + 62.0f));
+
+        Assert.Equal("Particle Effect", dropdown.SelectedText);
+        Assert.False(dropdown.IsOpen);
+    }
+
 
     [Fact]
     public void Popup_WhenOverlappingSiblingIsPresent_ReceivesPointerInput()

@@ -31,7 +31,7 @@ public sealed class JsonParticleEffectContentLoader :
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        return Parse(
+        return ParseDefinition(
             path,
             context.ReadBytes(path));
     }
@@ -51,7 +51,7 @@ public sealed class JsonParticleEffectContentLoader :
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        return Parse(path, data);
+        return ParseDefinition(path, data);
     }
 
     object IContentLoader.Load(
@@ -61,7 +61,7 @@ public sealed class JsonParticleEffectContentLoader :
         return Load(path, context);
     }
 
-    private static ParticleEffectDefinition Parse(
+    public static ParticleEffectDefinition ParseDefinition(
         AssetPath path,
         ReadOnlyMemory<byte> data)
     {

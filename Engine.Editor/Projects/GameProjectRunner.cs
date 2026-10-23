@@ -16,7 +16,7 @@ public sealed class GameProjectRunner : IDisposable
     private readonly ConcurrentQueue<GameProjectOutput> _output = new();
     private int _hotReloadIdleSignal;
     private Process? _process;
-    private bool _stopRequested;
+    private volatile bool _stopRequested;
     private bool _disposed;
     private GameProjectRunMode? _activeRunMode;
     /// <summary>
@@ -195,9 +195,14 @@ public sealed class GameProjectRunner : IDisposable
             {
                 var exitCode = process.ExitCode;
 
+                if (_stopRequested)
+                {
+                    return;
+                }
+
                 _output.Enqueue(
                     new GameProjectOutput(
-                        exitCode != 0 && !_stopRequested,
+                        exitCode != 0,
                         $"Game process exited with code {exitCode}."));
             }
             catch (InvalidOperationException)
@@ -286,6 +291,8 @@ public sealed class GameProjectRunner : IDisposable
         {
             return;
         }
+
+        _stopRequested = true;
 
         try
         {

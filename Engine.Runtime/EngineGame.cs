@@ -147,6 +147,7 @@ public abstract class EngineGame : Application
         OnRender(interpolationAlpha);
 
         Runtime.RenderSprites();
+        Runtime.RenderParticles();
     }
 
     public sealed override void Shutdown()

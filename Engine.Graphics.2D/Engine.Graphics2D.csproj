@@ -12,6 +12,7 @@
     <ProjectReference Include="..\Engine.Camera\Engine.Camera.csproj" />
     <ProjectReference Include="..\Engine.ECS\Engine.ECS.csproj" />
     <ProjectReference Include="..\Engine.Graphics\Engine.Graphics.csproj" />
+    <ProjectReference Include="..\Engine.Particles\Engine.Particles.csproj" />
   </ItemGroup>
 
 </Project>

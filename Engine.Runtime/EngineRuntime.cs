@@ -10,6 +10,7 @@ using Engine.ECS.Components;
 using Engine.Graphics.Sprites;
 using Engine.Graphics2D.Sprites;
 using Engine.Physics;
+using Engine.Runtime.Particles;
 using Engine.Scripting;
 using Engine.Simulations;
 using Engine.Tooling.Console;
@@ -34,6 +35,7 @@ public sealed class EngineRuntime :
     public ScriptRegistry ScriptRegistry { get; }
     private AudioEcsSystem? _audioEcsSystem;
     public ScriptRuntime Scripts { get; }
+    private ParticleRuntime? _particleRuntime;
     public EngineConsole? EngineConsole { get; private set; }
     public EngineRuntime(
     EngineRuntimeOptions options)
@@ -266,6 +268,27 @@ Services.Graphics;
 
     public EngineRuntimeServices Services { get; }
 
+    public ParticleRuntime Particles
+    {
+        get
+        {
+            EnsureNotDisposed();
+
+            if (Simulation.IsShutdown)
+            {
+                throw new InvalidOperationException(
+                    "Cannot access particles after runtime shutdown.");
+            }
+
+            return _particleRuntime ??=
+                new ParticleRuntime(
+                    EcsWorld,
+                    Services.Graphics,
+                    Services.Content,
+                    Services.Camera);
+        }
+    }
+
     public CommandQueue Commands { get; }
 
     public EventBus Events { get; }
@@ -331,6 +354,8 @@ Services.Graphics;
         _rebuildEngineCommand?.DrainOutput(Console);
 
         UpdateAudio(context.Time.Delta.TotalSeconds);
+        _particleRuntime?.Update(
+    (float)context.Time.Delta.TotalSeconds);
     }
 
     public void FixedUpdate(
@@ -364,6 +389,21 @@ Services.Graphics;
                 Services.Camera);
 
         _spriteRenderSystem.Render();
+    }
+
+    internal void RenderParticles()
+    {
+        EnsureNotDisposed();
+
+        _particleRuntime?.Render();
+    }
+
+    private void DisposeParticleRuntime()
+    {
+        var particles = _particleRuntime;
+        _particleRuntime = null;
+
+        particles?.Dispose();
     }
 
     private void DisposeSpriteRenderSystem()
@@ -500,6 +540,7 @@ Services.Graphics;
             finally
             {
                 DisposeSpriteRenderSystem();
+                DisposeParticleRuntime();
             }
         }
     }

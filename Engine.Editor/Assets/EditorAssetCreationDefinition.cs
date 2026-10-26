@@ -3,7 +3,8 @@
 public enum EditorAssetCreationKind
 {
     Directory,
-    TextFile
+    TextFile,
+    GeneratedFile
 }
 
 public sealed class EditorAssetCreationDefinition
@@ -24,7 +25,8 @@ public sealed class EditorAssetCreationDefinition
         ArgumentNullException.ThrowIfNull(extension);
 
         if (kind is not EditorAssetCreationKind.Directory
-            and not EditorAssetCreationKind.TextFile)
+            and not EditorAssetCreationKind.TextFile
+            and not EditorAssetCreationKind.GeneratedFile)
         {
             throw new ArgumentOutOfRangeException(nameof(kind));
         }
@@ -41,7 +43,16 @@ public sealed class EditorAssetCreationDefinition
         {
             ValidateExtension(extension);
 
-            ArgumentNullException.ThrowIfNull(contentFactory);
+            if (kind == EditorAssetCreationKind.TextFile)
+            {
+                ArgumentNullException.ThrowIfNull(contentFactory);
+            }
+            else if (contentFactory is not null)
+            {
+                throw new ArgumentException(
+                    "Generated-file definitions must not provide a text template.",
+                    nameof(contentFactory));
+            }
         }
 
         Id = id;

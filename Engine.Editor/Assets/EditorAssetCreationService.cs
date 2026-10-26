@@ -96,7 +96,8 @@ public sealed class EditorAssetCreationService
     public string Create(
         EditorAssetCreationDefinition definition,
         string name,
-        string? targetDirectory = null)
+        string? targetDirectory = null,
+        Action<string>? generatedFileWriter = null)
     {
         ArgumentNullException.ThrowIfNull(definition);
 
@@ -110,6 +111,15 @@ public sealed class EditorAssetCreationService
                     name,
                     definition.Extension,
                     definition.CreateInitialContents(name),
+                    targetDirectory),
+
+            EditorAssetCreationKind.GeneratedFile =>
+                CreateGeneratedFile(
+                    name,
+                    definition.Extension,
+                    generatedFileWriter
+                        ?? throw new InvalidOperationException(
+                            $"No file writer was provided for asset type '{definition.Id}'."),
                     targetDirectory),
 
             _ => throw new ArgumentOutOfRangeException(
@@ -238,6 +248,55 @@ public sealed class EditorAssetCreationService
                 "letters, digits, dots, underscores or hyphens.",
                 nameof(extension));
         }
+    }
+
+    public string CreateGeneratedFile(
+    string name,
+    string extension,
+    Action<string> writer,
+    string? targetDirectory = null)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+
+        ValidateName(name, nameof(name));
+        ValidateExtension(extension);
+
+        var path = ResolveTargetPath(
+            name + extension,
+            targetDirectory);
+
+        EnsureDoesNotExist(path);
+
+        try
+        {
+            writer(path);
+
+            if (!File.Exists(path))
+            {
+                throw new IOException(
+                    $"The asset writer did not create '{path}'.");
+            }
+        }
+        catch
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch
+            {
+                // Не маскируем исходную ошибку записи.
+            }
+
+            throw;
+        }
+
+        RefreshAndSelect(path);
+
+        return path;
     }
 
     private static void EnsureDoesNotExist(string path)

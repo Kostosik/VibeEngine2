@@ -11,12 +11,22 @@ using Engine.Particles.Emission;
 using Engine.Particles.Particles;
 using Engine.UI.Controls;
 using Engine.UI.Core;
+using Engine.UI.Input;
 
 namespace Engine.Editor.UI.Workspace;
 
 public sealed class ParticleEffectPreviewView : UiPanel
 {
     private const float PixelsPerWorldUnit = 24.0f;
+    private const float MinZoom = 0.1f;
+    private const float MaxZoom = 64.0f;
+    private const float ZoomStep = 1.15f;
+
+    private float _zoom = 1.0f;
+    private Vector2 _panOffset;
+
+    private bool _isPanning;
+    private Vector2 _lastPanPosition;
 
     private readonly ParticleEffectDocument _document;
     private readonly EditorContext? _editor;
@@ -50,6 +60,53 @@ public sealed class ParticleEffectPreviewView : UiPanel
             Engine.UI.Layout.UiHorizontalAlignment.Stretch;
 
         Background = new UiColor(15, 17, 21, 255);
+    }
+
+    protected override void OnPointerWheel(
+    UiPointerEvent pointer)
+    {
+        base.OnPointerWheel(pointer);
+
+        if (MathF.Abs(pointer.ScrollDelta) < 0.0001f)
+        {
+            return;
+        }
+
+        var localPosition = new Vector2(
+            pointer.Position.X - Bounds.X,
+            pointer.Position.Y - Bounds.Y);
+
+        if (!ContainsLocalPosition(localPosition))
+        {
+            return;
+        }
+
+        var newZoom = Math.Clamp(
+            _zoom * MathF.Pow(ZoomStep, pointer.ScrollDelta),
+            MinZoom,
+            MaxZoom);
+
+        if (MathF.Abs(newZoom - _zoom) < 0.000001f)
+        {
+            return;
+        }
+
+        // Масштабируем относительно курсора, а не центра превью.
+        var originX = Bounds.Width * 0.5f + _panOffset.X;
+        var originY = Bounds.Height * 0.68f + _panOffset.Y;
+
+        var factor = newZoom / _zoom;
+
+        _panOffset = new Vector2(
+            _panOffset.X +
+            (localPosition.X - originX) * (1.0f - factor),
+
+            _panOffset.Y +
+            (localPosition.Y - originY) * (1.0f - factor));
+
+        _zoom = newZoom;
+
+        pointer.Handled = true;
     }
 
     protected override void OnUpdate(double deltaSeconds)
@@ -98,8 +155,10 @@ public sealed class ParticleEffectPreviewView : UiPanel
         try
         {
             var origin = new Vector2(
-                Bounds.X + Bounds.Width * 0.5f,
-                Bounds.Y + Bounds.Height * 0.68f);
+                Bounds.X + Bounds.Width * 0.5f + _panOffset.X,
+                Bounds.Y + Bounds.Height * 0.68f + _panOffset.Y);
+
+            var pixelsPerWorldUnit = PixelsPerWorldUnit * _zoom;
 
             var guideColor = new UiColor(55, 60, 68, 255);
 
@@ -133,15 +192,15 @@ public sealed class ParticleEffectPreviewView : UiPanel
 
                     var size = MathF.Max(
                         2.0f,
-                        particle.Size * PixelsPerWorldUnit);
+                        particle.Size * pixelsPerWorldUnit);
 
                     var centerX =
                         origin.X +
-                        particle.Position.X * PixelsPerWorldUnit;
+                        particle.Position.X * pixelsPerWorldUnit;
 
                     var centerY =
                         origin.Y -
-                        particle.Position.Y * PixelsPerWorldUnit;
+                        particle.Position.Y * pixelsPerWorldUnit;
 
                     var rect = new Engine.UI.Layout.UiRect(
                         centerX - size * 0.5f,
@@ -171,7 +230,7 @@ public sealed class ParticleEffectPreviewView : UiPanel
             var capacity = _particles?.Capacity ?? 0;
 
             context.DrawText(
-                $"Preview • Particles: {particleCount}/{capacity}",
+                $"Preview • Particles: {particleCount}/{capacity} • Zoom: {_zoom * 100.0f:0}%",
                 new Vector2(Bounds.X + 8.0f, Bounds.Y + 6.0f),
                 12.0f,
                 new UiColor(220, 225, 235, 255));
@@ -189,6 +248,69 @@ public sealed class ParticleEffectPreviewView : UiPanel
         {
             context.PopClip();
         }
+    }
+
+    protected override void OnPointerDown(
+    UiPointerEvent pointer)
+    {
+        if (pointer.Button != Engine.Input.InputMouseButton.Middle)
+        {
+            return;
+        }
+
+        var localPosition = new Vector2(
+            pointer.Position.X - Bounds.X,
+            pointer.Position.Y - Bounds.Y);
+
+        if (!ContainsLocalPosition(localPosition))
+        {
+            return;
+        }
+
+        _isPanning = true;
+        _lastPanPosition = pointer.Position;
+
+        pointer.RequestCapture();
+        pointer.Handled = true;
+    }
+
+    protected override void OnPointerMove(
+        UiPointerEvent pointer)
+    {
+        base.OnPointerMove(pointer);
+
+        if (!_isPanning ||
+            pointer.Button != Engine.Input.InputMouseButton.Middle)
+        {
+            return;
+        }
+
+        var delta = new Vector2(
+            pointer.Position.X - _lastPanPosition.X,
+            pointer.Position.Y - _lastPanPosition.Y);
+
+        _lastPanPosition = pointer.Position;
+
+        _panOffset = new Vector2(
+            _panOffset.X + delta.X,
+            _panOffset.Y + delta.Y);
+
+        pointer.Handled = true;
+    }
+
+    protected override void OnPointerUp(
+        UiPointerEvent pointer)
+    {
+        base.OnPointerUp(pointer);
+
+        if (!_isPanning ||
+            pointer.Button != Engine.Input.InputMouseButton.Middle)
+        {
+            return;
+        }
+
+        _isPanning = false;
+        pointer.Handled = true;
     }
 
     private void EnsureSimulation()
@@ -366,4 +488,13 @@ public sealed class ParticleEffectPreviewView : UiPanel
 
         _texture = default;
     }
+
+    private bool ContainsLocalPosition(Vector2 position)
+    {
+        return position.X >= 0.0f &&
+               position.Y >= 0.0f &&
+               position.X <= Bounds.Width &&
+               position.Y <= Bounds.Height;
+    }
+
 }

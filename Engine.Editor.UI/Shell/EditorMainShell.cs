@@ -26,10 +26,8 @@ public sealed class EditorMainShell :
     private readonly UiButton _restartButton;
     private readonly UiButton _hotReloadButton;
     private readonly UiButton _closeButton;
-    private readonly UiButton _worldButton;
-    private readonly UiButton _uiButton;
     private readonly UiButton _toolsButton;
-
+    private readonly EditorAssetPickerDialog? _assetPickerDialog;
     private readonly UiPanel _menuBar;
     private readonly UiPanel _toolbar;
     private bool _isGameRunning;
@@ -85,7 +83,6 @@ public sealed class EditorMainShell :
             _ => false
         };
 
-    public event Action? NewRequested;
     public event Action? OpenRequested;
     public event Action? SaveRequested;
     public event Action? SaveAllRequested;
@@ -146,8 +143,6 @@ public sealed class EditorMainShell :
         _restartButton = toolbar.RestartButton;
         _hotReloadButton = toolbar.HotReloadButton;
         _closeButton = toolbar.CloseButton;
-        _worldButton = toolbar.WorldButton;
-        _uiButton = toolbar.UiModeButton;
 
         _documentTabs = new UiScrollView
         {
@@ -182,8 +177,7 @@ public sealed class EditorMainShell :
                 VerticalAlignment =
                     UiVerticalAlignment.Stretch
             };
-
-        var assetPickerDialog =
+        _assetPickerDialog =
             focus is null
                 ? null
                 : new EditorAssetPickerDialog(
@@ -198,7 +192,7 @@ public sealed class EditorMainShell :
             console,
             propertyEditors,
             filePreviewTextureManager,
-            assetPickerDialog);
+            _assetPickerDialog);
 
         _workspaceView.AssetActivated +=
     entry => AssetActivated?.Invoke(entry);
@@ -408,7 +402,8 @@ public sealed class EditorMainShell :
             new ParticleEffectEditorPanelView(
                 document,
                 Editor,
-                _filePreviewTextureManager);
+                _filePreviewTextureManager,
+                _assetPickerDialog);
 
         _workspace.AddChild(
             _particleEffectWorkspaceView);
@@ -784,9 +779,7 @@ public sealed class EditorMainShell :
         UiButton StopButton,
         UiButton RestartButton,
         UiButton HotReloadButton,
-        UiButton CloseButton,
-        UiButton WorldButton,
-        UiButton UiModeButton) CreateToolbar()
+        UiButton CloseButton) CreateToolbar()
     {
         var panel = new UiPanel
         {
@@ -865,8 +858,6 @@ public sealed class EditorMainShell :
             80.0f,
             () => RestartRequested?.Invoke());
 
-        AddButton("New Doc", 64.0f,
-            () => NewRequested?.Invoke());
 
         AddButton("Open", 64.0f,
             () => OpenRequested?.Invoke());
@@ -885,16 +876,6 @@ public sealed class EditorMainShell :
             () => CloseRequested?.Invoke());
 
         AddSeparator();
-
-        var worldButton = AddButton(
-            "World",
-            72.0f,
-            ShowWorld);
-
-        var uiButton = AddButton(
-            "UI",
-            56.0f,
-            ShowUi);
 
         var validateButton = AddButton(
             "Validate",
@@ -970,15 +951,13 @@ public sealed class EditorMainShell :
         panel.AddChild(buttons);
 
         return (
-    panel,
-    validateButton,
-    playButton,
-    stopButton,
-    restartButton,
-    hotReloadButton,
-    closeButton,
-    worldButton,
-    uiButton);
+            panel,
+            validateButton,
+            playButton,
+            stopButton,
+            restartButton,
+            hotReloadButton,
+            closeButton);
     }
 
 

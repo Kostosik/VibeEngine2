@@ -26,6 +26,15 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
     public ParticleEffectEditorPanelView(
         ParticleEffectDocument document,
         EditorAssetPickerDialog? assetPickerDialog = null)
+        : this(document, null, null, assetPickerDialog)
+    {
+    }
+
+    public ParticleEffectEditorPanelView(
+        ParticleEffectDocument document,
+        EditorContext? editor,
+        ITextureManager? textureManager,
+        EditorAssetPickerDialog? assetPickerDialog = null)
     {
         ArgumentNullException.ThrowIfNull(document);
 
@@ -183,17 +192,53 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
             VerticalAlignment = UiVerticalAlignment.Center
         });
 
-        var textBox = new UiTextBox
+        if (key == "texturePath")
         {
-            Width = 280.0f,
-            Height = 30.0f,
-            FontSize = 13.0f,
-            MaxLength = 256,
-            Placeholder = label
-        };
+            var pickerField = new UiPickerField
+            {
+                Width = 280.0f,
+                Height = 30.0f,
+                FontSize = 13.0f,
+                Placeholder = label
+            };
 
-        _fields.Add(key, textBox);
-        row.AddChild(textBox);
+            pickerField.SelectionRequested += () =>
+            {
+                if (_assetPickerDialog is null)
+                {
+                    return;
+                }
+
+                _assetPickerDialog.Show(
+                    "Select texture",
+                    IsTextureAsset,
+                    path =>
+                    {
+                        pickerField.SelectedText = path;
+
+                        _messageLabel.Text =
+                            "Texture selected. Apply Changes to use it.";
+                    });
+            };
+
+            _texturePathPicker = pickerField;
+            row.AddChild(pickerField);
+        }
+        else
+        {
+            var textBox = new UiTextBox
+            {
+                Width = 280.0f,
+                Height = 30.0f,
+                FontSize = 13.0f,
+                MaxLength = 256,
+                Placeholder = label
+            };
+
+            _fields.Add(key, textBox);
+            row.AddChild(textBox);
+        }
+
         panel.AddChild(row);
     }
 
@@ -301,8 +346,12 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
 
         if (string.IsNullOrWhiteSpace(value))
         {
+            var fieldName = key == "texturePath"
+                ? "Texture path"
+                : _fields[key].Placeholder;
+
             throw new InvalidDataException(
-                $"'{_fields[key].Placeholder}' cannot be empty.");
+                $"'{fieldName}' cannot be empty.");
         }
 
         return value;

@@ -83,6 +83,22 @@ public sealed class EditorAssetCreationRegistry
                 extension: ".script.json",
                 contentFactory: CreateScriptDefinitionTemplate));
 
+        registry.Register(
+            new EditorAssetCreationDefinition(
+                id: "world-document",
+                displayName: "World",
+                defaultName: "New World",
+                kind: EditorAssetCreationKind.GeneratedFile,
+                extension: ".world"));
+
+        registry.Register(
+            new EditorAssetCreationDefinition(
+                id: "ui-document",
+                displayName: "UI Document",
+                defaultName: "New UI",
+                kind: EditorAssetCreationKind.GeneratedFile,
+                extension: ".ui"));
+
         return registry;
     }
 

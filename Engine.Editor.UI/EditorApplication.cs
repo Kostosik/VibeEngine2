@@ -41,7 +41,6 @@ public sealed class EditorApplication :
     private bool _redoShortcutWasDown;
     private readonly ITextInput? _textInput;
     private readonly EditorNewProjectDialog _newProjectDialog;
-    private readonly EditorNewDocumentDialog _newDocumentDialog;
 
     private readonly IClipboardService? _clipboardService;
     private readonly EditorAssetCreationDialog _assetCreationDialog;
@@ -214,11 +213,6 @@ public sealed class EditorApplication :
         ui.Overlays,
         ui.Focus);
 
-        _newDocumentDialog =
-    new EditorNewDocumentDialog(
-        ui.Overlays,
-        ui.Focus);
-
         _assetCreationDialog =
     new EditorAssetCreationDialog(
         ui.Overlays,
@@ -235,12 +229,6 @@ public sealed class EditorApplication :
         fileDialogs);
 
         _newProjectDialog.CreateRequested += CreateProject;
-
-        _newDocumentDialog.WorldRequested +=
-            RequestNewWorldDocument;
-
-        _newDocumentDialog.UiRequested +=
-            CreateNewUiDocument;
 
         _documentCloseDialog.SaveRequested +=
             SavePendingDocument;
@@ -278,8 +266,6 @@ public sealed class EditorApplication :
         MainShell.SaveRequested +=
             SaveActiveDocument;
         MainShell.AssetCreationRequested += RequestCreateAsset;
-        MainShell.NewRequested +=
-            RequestNewDocument;
 
         MainShell.NewProjectRequested +=
             RequestNewProject;
@@ -716,12 +702,9 @@ public sealed class EditorApplication :
         _assetCreationDialog.CreateRequested -=
             CreateAssetFromDialog;
 
-        _newDocumentDialog.WorldRequested -=
-    RequestNewWorldDocument;
         Editor.ActiveGameProjectChanged -=
     OnActiveGameProjectChanged;
-        _newDocumentDialog.UiRequested -=
-            CreateNewUiDocument;
+
 
         Editor.Session.AnyDocumentClosed -=
     UnsubscribeAnyDocument;
@@ -730,9 +713,6 @@ public sealed class EditorApplication :
     RequestNewProject;
 
         _newProjectDialog.Close();
-
-        MainShell.NewRequested -=
-    RequestNewDocument;
 
         MainShell.OpenRequested -=
             RequestOpenDocument;
@@ -1501,14 +1481,35 @@ public sealed class EditorApplication :
 
             var service = new EditorAssetCreationService(browser);
 
+            Action<string>? generatedFileWriter =
+                definition.Id switch
+                {
+                    "world-document" => WriteEmptyWorldAsset,
+
+                    "ui-document" => path =>
+                    {
+                        var document = new EditorUiDocument(name);
+                        EditorUiAssetFile.Save(document, path);
+                    }
+                    ,
+
+                    _ => null
+                };
+
             var path = service.Create(
                 definition,
                 name,
-                targetDirectory);
+                targetDirectory,
+                generatedFileWriter);
 
             _debugConsole?.WriteLine(
                 $"Created {definition.DisplayName}: " +
                 Path.GetRelativePath(browser.RootPath, path));
+
+            if (definition.Id is "world-document" or "ui-document")
+            {
+                OpenDocumentPath(path);
+            }
 
             MarkUiDirty();
         }
@@ -1520,6 +1521,26 @@ public sealed class EditorApplication :
 
             _errorDialog.ShowError(exception.Message);
         }
+
+
+    }
+
+    private void WriteEmptyWorldAsset(string path)
+    {
+        var persistence =
+            _documentPersistence
+            ?? throw new InvalidOperationException(
+                "World document persistence is not configured.");
+
+        using var ecsWorld = new Engine.ECS.World();
+
+        using var world = new Engine.Worlds.World(
+            new Engine.Worlds.Spatial.ChunkSize(32, 32),
+            ecsWorld);
+
+        using var document = new EditorDocument(world);
+
+        persistence.Save(path, document);
     }
 
     private void MarkUiDirty()
@@ -2057,7 +2078,8 @@ public sealed class EditorApplication :
 
     public void RequestNewDocument()
     {
-        _newDocumentDialog.ShowFor();
+        RequestCreateAsset(
+            Editor.AssetBrowser?.CurrentPath);
     }
 
     public void RequestCloseDocument()

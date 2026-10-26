@@ -67,11 +67,71 @@ jobs:
             throw "Failed to publish the engine runtime."
           }
 
+          # Engine.Serialization and Engine.Input.SilkNet are used directly
+          # by generated game projects but are not both transitive dependencies
+          # of Engine.Hosting.Desktop. Publish them and merge their DLLs.
+          $extraPublishRoot = Join-Path $env:RUNNER_TEMP "VibeEngine2RuntimeExtra"
+
+          try {
+            New-Item `
+              -ItemType Directory `
+              -Path $extraPublishRoot `
+              -Force | Out-Null
+
+            $extraProjects = @(
+              ".\Engine.Serialization\Engine.Serialization.csproj"
+              ".\Engine.Input.SilkNet\Engine.Input.SilkNet.csproj"
+            )
+
+            foreach ($projectPath in $extraProjects) {
+              $projectName = [System.IO.Path]::GetFileNameWithoutExtension($projectPath)
+              $projectOutput = Join-Path $extraPublishRoot $projectName
+
+              New-Item `
+                -ItemType Directory `
+                -Path $projectOutput `
+                -Force | Out-Null
+
+              dotnet publish `
+                $projectPath `
+                --configuration Release `
+                --runtime win-x64 `
+                --self-contained false `
+                "-p:CopyLocalLockFileAssemblies=true" `
+                --output $projectOutput
+
+              if ($LASTEXITCODE -ne 0) {
+                throw "Failed to publish $projectName."
+              }
+
+              Get-ChildItem `
+                -LiteralPath $projectOutput `
+                -Filter "*.dll" `
+                -File |
+                ForEach-Object {
+                  Copy-Item `
+                    -LiteralPath $_.FullName `
+                    -Destination $runtimeDestination `
+                    -Force
+                }
+            }
+          }
+          finally {
+            if (Test-Path -LiteralPath $extraPublishRoot) {
+              Remove-Item `
+                -LiteralPath $extraPublishRoot `
+                -Recurse `
+                -Force
+            }
+          }
+
           $requiredAssemblies = @(
             "Engine.Hosting.Desktop.dll"
             "Engine.Runtime.dll"
             "Engine.Graphics.OpenGL.dll"
             "Engine.Audio.OpenAL.dll"
+            "Engine.Serialization.dll"
+            "Engine.Graphics2D.dll"
             "Engine.Input.SilkNet.dll"
           )
 

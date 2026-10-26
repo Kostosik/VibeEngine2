@@ -96,10 +96,10 @@ public unsafe sealed class MemoryScope :
         var block =
             _blocks[_currentBlockIndex];
 
-        var alignedOffset =
-            AlignUp(
-                _currentOffset,
-                alignment);
+        var alignedOffset = AlignOffset(
+            block,
+            _currentOffset,
+            alignment);
 
         if (alignedOffset >
             (int)block.ByteLength ||
@@ -114,10 +114,10 @@ public unsafe sealed class MemoryScope :
             block =
                 _blocks[_currentBlockIndex];
 
-            alignedOffset =
-                AlignUp(
-                    _currentOffset,
-                    alignment);
+            alignedOffset = AlignOffset(
+                block,
+                _currentOffset,
+                alignment);
         }
 
         var result =
@@ -208,10 +208,10 @@ public unsafe sealed class MemoryScope :
             var existingBlock =
                 _blocks[i];
 
-            var alignedOffset =
-                AlignUp(
-                    0,
-                    alignment);
+            var alignedOffset = AlignOffset(
+                existingBlock,
+                0,
+                alignment);
 
             if (byteCount <=
                 (int)existingBlock.ByteLength -
@@ -275,23 +275,28 @@ public unsafe sealed class MemoryScope :
                     (nuint)capacity)));
     }
 
-    private static int AlignUp(
-        int value,
-        int alignment)
+    private static int AlignOffset(
+    RawMemoryBlock block,
+    int offset,
+    int alignment)
     {
-        var remainder =
-            value %
-            alignment;
+        var span = block.Span;
 
-        if (remainder == 0)
+        fixed (byte* basePointer = span)
         {
-            return value;
-        }
+            var address = (nuint)(basePointer + offset);
+            var remainder = address % (nuint)alignment;
 
-        return checked(
-            value +
-            alignment -
-            remainder);
+            if (remainder == 0)
+            {
+                return offset;
+            }
+
+            var adjustment = checked(
+                (int)((nuint)alignment - remainder));
+
+            return checked(offset + adjustment);
+        }
     }
 
     private static void ValidateAlignment(

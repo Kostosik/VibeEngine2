@@ -4,7 +4,7 @@ namespace Engine.Core.Diagnostics.Metrics;
 
 public readonly struct PerformanceTimer
 {
-    private readonly Stopwatch _stopwatch;
+    private readonly Stopwatch? _stopwatch;
 
     private PerformanceTimer(
         Stopwatch stopwatch)
@@ -19,5 +19,5 @@ public readonly struct PerformanceTimer
     }
 
     public TimeSpan Elapsed =>
-        _stopwatch.Elapsed;
+        _stopwatch?.Elapsed ?? TimeSpan.Zero;
 }

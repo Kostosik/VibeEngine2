@@ -2,12 +2,12 @@
 
 namespace Engine.Worlds.Spatial;
 
-public sealed class SpatialEntityManager
+public sealed class SpatialEntityManager : IDisposable
 {
     private readonly World _world;
     private readonly Engine.ECS.World _ecsWorld;
     private readonly SpatialIndex _index;
-
+    private bool _disposed;
     public SpatialEntityManager(
         World world,
         Engine.ECS.World ecsWorld)
@@ -24,6 +24,7 @@ public sealed class SpatialEntityManager
     public EntityId CreateEntity(
         WorldPosition position)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         var entity =
             _ecsWorld.CreateEntity();
 
@@ -45,6 +46,7 @@ public sealed class SpatialEntityManager
     public bool DestroyEntity(
         EntityId entity)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (!_ecsWorld.Exists(entity))
         {
             return false;
@@ -58,6 +60,7 @@ public sealed class SpatialEntityManager
     public bool Contains(
         EntityId entity)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         return _ecsWorld.Has<WorldPositionComponent>(
             entity);
     }
@@ -65,6 +68,7 @@ public sealed class SpatialEntityManager
     public WorldPosition GetPosition(
         EntityId entity)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureEntityExists(entity);
 
         if (!_ecsWorld.Has<WorldPositionComponent>(
@@ -83,6 +87,7 @@ public sealed class SpatialEntityManager
     EntityId entity,
     WorldPosition position)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureEntityExists(entity);
 
         var newChunk =
@@ -165,6 +170,7 @@ public sealed class SpatialEntityManager
     public bool RemovePosition(
         EntityId entity)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureEntityExists(entity);
 
         if (!_ecsWorld.Remove<WorldPositionComponent>(
@@ -192,5 +198,16 @@ public sealed class SpatialEntityManager
     EntityId entity)
     {
         _index.RemoveEntity(entity);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _ecsWorld.EntityDestroyed -= OnEntityDestroyed;
+        _disposed = true;
     }
 }

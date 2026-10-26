@@ -7,6 +7,40 @@ namespace Engine.Tests.Serialization;
 public sealed class BinaryFileSerializerTests
 {
     [Fact]
+    public void Load_RejectsFileExceedingPayloadLimitBeforeDeserialization()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"{Guid.NewGuid():N}.vbe");
+
+        try
+        {
+            // Максимум 4 байта payload + заголовок контейнера.
+            File.WriteAllBytes(path, new byte[17]);
+
+            var context = new SerializationContext(
+                maxPayloadBytes: 4);
+
+            var exception = Assert.Throws<InvalidDataException>(
+                () => BinaryFileSerializer.Load(
+                    path,
+                    new TickSerializer(),
+                    context));
+
+            Assert.Contains(
+                "maximum allowed file size",
+                exception.Message);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    [Fact]
     public void Save_OverwritesExistingFile()
     {
         var path =

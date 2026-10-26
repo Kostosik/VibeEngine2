@@ -34,7 +34,7 @@ public sealed class PooledList<T> :
         _count;
 
     public int Capacity =>
-        _buffer?.Capacity ?? 0;
+       _buffer?.Length ?? 0;
 
     public ref T this[int index]
     {
@@ -87,7 +87,7 @@ public sealed class PooledList<T> :
     }
 
     public void AddRange(
-        ReadOnlySpan<T> values)
+    ReadOnlySpan<T> values)
     {
         EnsureNotDisposed();
 
@@ -96,10 +96,19 @@ public sealed class PooledList<T> :
             return;
         }
 
-        EnsureCapacity(
-            checked(
-                _count +
-                values.Length));
+        var requiredCapacity = checked(
+            _count + values.Length);
+
+        // При расширении старый буфер будет возвращён в пул.
+        // Если источник ссылается на него, сохраняем данные заранее.
+        if (requiredCapacity > Capacity &&
+            _buffer is not null &&
+            values.Overlaps(_buffer.Span))
+        {
+            values = values.ToArray();
+        }
+
+        EnsureCapacity(requiredCapacity);
 
         values.CopyTo(
             _buffer!
@@ -108,8 +117,7 @@ public sealed class PooledList<T> :
                     _count,
                     values.Length));
 
-        _count +=
-            values.Length;
+        _count += values.Length;
     }
 
     public void RemoveAt(

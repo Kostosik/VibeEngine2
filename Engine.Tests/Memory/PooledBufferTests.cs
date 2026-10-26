@@ -6,6 +6,28 @@ namespace Engine.Tests.Memory;
 public sealed class PooledBufferTests
 {
     [Fact]
+    public void Reset_PreservesActiveRentAccounting()
+    {
+        var statistics = new MemoryStatisticsCollector();
+        var pool = new MemoryPool<int>(statistics);
+        var buffer = pool.Rent(4);
+
+        var activeBytes = statistics.Statistics.ActiveRentedBytes;
+
+        statistics.Reset();
+
+        Assert.Equal(
+            activeBytes,
+            statistics.Statistics.ActiveRentedBytes);
+
+        buffer.Dispose();
+
+        Assert.Equal(
+            0,
+            statistics.Statistics.ActiveRentedBytes);
+    }
+
+    [Fact]
     public void Rent_TracksStatistics()
     {
         var statistics =

@@ -13,6 +13,16 @@ public readonly record struct SimulationRate
                 nameof(ticksPerSecond));
         }
 
+        var simulationDelta =
+    Fixed32.FromRatio(1, ticksPerSecond);
+
+        if (simulationDelta == Fixed32.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(ticksPerSecond),
+                "Simulation rate is too high for Fixed32 time precision.");
+        }
+
         TicksPerSecond = ticksPerSecond;
     }
 

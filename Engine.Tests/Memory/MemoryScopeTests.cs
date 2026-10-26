@@ -5,6 +5,23 @@ namespace Engine.Tests.Memory;
 public sealed class MemoryScopeTests
 {
     [Fact]
+    public unsafe void AllocateBytes_RespectsLargeAlignment()
+    {
+        using var scope = new MemoryScope(64);
+
+        var memory = scope.AllocateBytes(
+            8,
+            64 * 1024);
+
+        fixed (byte* pointer = memory)
+        {
+            Assert.Equal(
+                (nuint)0,
+                (nuint)pointer % (64 * 1024));
+        }
+    }
+
+    [Fact]
     public void AllocateBytes_ReturnsRequestedLength()
     {
         using var scope =

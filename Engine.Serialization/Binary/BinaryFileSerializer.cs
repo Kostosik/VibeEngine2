@@ -91,10 +91,34 @@ public static class BinaryFileSerializer
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(serializer);
+        ArgumentNullException.ThrowIfNull(context);
 
-        var data =
-            File.ReadAllBytes(
-                path);
+        using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read);
+
+        var maxFileSize =
+            (long)context.MaxPayloadBytes +
+            BinaryContainer.HeaderSize;
+
+        if (stream.Length > maxFileSize)
+        {
+            throw new InvalidDataException(
+                $"Serialized file size '{stream.Length}' exceeds " +
+                $"the maximum allowed file size '{maxFileSize}'.");
+        }
+
+        if (stream.Length > Array.MaxLength)
+        {
+            throw new InvalidDataException(
+                "Serialized file exceeds the maximum supported in-memory size.");
+        }
+
+        var data = new byte[checked((int)stream.Length)];
+
+        stream.ReadExactly(data);
 
         return BinarySerializer.DeserializeContainer(
             data,

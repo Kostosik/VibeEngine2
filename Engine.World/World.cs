@@ -218,53 +218,57 @@ public sealed class World :
             position);
     }
 
-    public bool RemoveChunk(
-        ChunkPosition position)
+    public bool RemoveChunk(ChunkPosition position)
     {
         EnsureNotDisposed();
-        if (!_chunks.TryGet(
-                position,
-                out var record))
+
+        if (!_chunks.TryGet(position, out var record))
         {
             return false;
         }
 
-        if (record.Chunk is not null)
+        var chunk = record.Chunk;
+        var residency = record.Lifecycle.Residency;
+
+        if (chunk is not null)
         {
-            if (!record
-                    .Lifecycle
-                    .Simulation
-                    .Equals(
-                        ChunkSimulationState.Suspended))
+            if (residency != ChunkResidencyState.Loaded)
+            {
+                throw new InvalidOperationException(
+                    $"Chunk '{position}' cannot be removed while its residency state is '{residency}'.");
+            }
+
+            if (record.Lifecycle.Simulation !=
+                ChunkSimulationState.Suspended)
             {
                 throw new InvalidOperationException(
                     $"Chunk '{position}' cannot be removed while simulation is active.");
             }
 
-            if (!SpatialIndex
-                    .GetEntities(position)
-                    .IsEmpty)
+            if (!SpatialIndex.GetEntities(position).IsEmpty)
             {
                 throw new InvalidOperationException(
                     $"Chunk '{position}' cannot be removed while it contains indexed entities.");
             }
+        }
+        else if (residency != ChunkResidencyState.Unloaded)
+        {
+            throw new InvalidOperationException(
+                $"Chunk '{position}' cannot be removed while its residency state is '{residency}'.");
+        }
 
+        // Сначала удаляем сохранённые данные.
+        // Если хранилище выбросит исключение,
+        // запись и сам загруженный чанк останутся на месте.
+        _chunkPersistence.Remove(position);
+
+        if (chunk is not null)
+        {
             record.Lifecycle.BeginUnloading();
-
             record.Detach();
         }
 
-        var removed =
-            _chunks.Remove(
-                position);
-
-        if (removed)
-        {
-            _chunkPersistence.Remove(
-                position);
-        }
-
-        return removed;
+        return _chunks.Remove(position);
     }
 
     public bool UnloadChunk(
@@ -296,23 +300,14 @@ public sealed class World :
                 this,
                 record);
 
-        if (record.Lifecycle.Simulation !=
-            ChunkSimulationState.Suspended)
-        {
-            record.Lifecycle.SetSimulation(
-                ChunkSimulationState.Suspended);
-        }
-
         var simulation =
-            record.Lifecycle.Simulation;
+            ChunkSimulationState.Suspended;
 
         var presentation =
             record.Lifecycle.Presentation;
 
-        record.Lifecycle.BeginUnloading();
-
-        record.Detach();
-
+        // Сначала сохраняем данные. При исключении
+        // состояние загруженного чанка не меняется.
         _chunkPersistence.Save(
             new ChunkSaveState(
                 state.Position,
@@ -320,6 +315,17 @@ public sealed class World :
                 simulation,
                 presentation,
                 state.Tiles));
+
+        // Только после успешного сохранения начинаем выгрузку.
+        if (record.Lifecycle.Simulation !=
+            ChunkSimulationState.Suspended)
+        {
+            record.Lifecycle.SetSimulation(
+                ChunkSimulationState.Suspended);
+        }
+
+        record.Lifecycle.BeginUnloading();
+        record.Detach();
 
         return true;
     }
@@ -642,7 +648,7 @@ public sealed class World :
             // из IChunkPersistence, которые могут пережить World.
             _chunks.Remove(position);
         }
-
+        SpatialEntities.Dispose();
         _disposed = true;
     }
 

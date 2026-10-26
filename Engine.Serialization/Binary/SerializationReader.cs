@@ -161,8 +161,17 @@ public ref struct SerializationReader
             return string.Empty;
         }
 
-        return Utf8.GetString(
-            ReadSpan(length));
+        try
+        {
+            return Utf8.GetString(
+                ReadSpan(length));
+        }
+        catch (DecoderFallbackException exception)
+        {
+            throw new InvalidDataException(
+                "Serialized string contains invalid UTF-8 data.",
+                exception);
+        }
     }
 
     private int ReadLength(

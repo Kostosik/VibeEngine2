@@ -3,6 +3,17 @@ namespace Engine.Tests.Core.Determinism;
 public sealed class DeterministicRandomTests
 {
     [Fact]
+    public void DefaultInstance_DoesNotRemainInZeroState()
+    {
+        var random = default(DeterministicRandom);
+
+        var first = random.NextUInt();
+        var second = random.NextUInt();
+
+        Assert.NotEqual(first, second);
+    }
+
+    [Fact]
     public void SameSeed_ProducesSameSequence()
     {
         var first = new DeterministicRandom(12345);

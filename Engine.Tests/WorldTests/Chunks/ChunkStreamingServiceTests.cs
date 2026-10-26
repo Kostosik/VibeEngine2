@@ -9,6 +9,104 @@ namespace Engine.Tests.Worlds.Chunks;
 public sealed class ChunkStreamingServiceTests
 {
     [Fact]
+    public void FlushLoads_WhenWorldIsDisposedDuringLoad_DiscardsCompletedLoad()
+    {
+        using var ecsWorld = new Engine.ECS.World();
+
+        var world = new World(
+            new ChunkSize(4, 4),
+            ecsWorld);
+
+        using var scheduler = new JobScheduler(workerCount: 1);
+        using var started = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+
+        var service = new ChunkStreamingService(
+            world,
+            new ChunkStreamingPolicy(0, 0),
+            new BlockingChunkLoader(started, release),
+            scheduler);
+
+        var position = new ChunkPosition(1, 2);
+
+        service.Update(new ChunkStreamingInterest(position));
+
+        try
+        {
+            Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
+            world.Dispose();
+        }
+        finally
+        {
+            release.Set();
+        }
+
+        service.FlushLoads();
+
+        Assert.Equal(0, service.PendingLoadCount);
+        Assert.False(world.Chunks.TryGet(position, out _));
+    }
+
+    [Fact]
+    public void FlushLoads_WhenLoaderThrows_CleansUpFailedLoad()
+    {
+        using var ecsWorld = new Engine.ECS.World();
+        using var scheduler = new JobScheduler(workerCount: 1);
+
+        var world = new World(new ChunkSize(4, 4), ecsWorld);
+
+        var service = new ChunkStreamingService(
+            world,
+            new ChunkStreamingPolicy(0, 0),
+            new ThrowingChunkLoader(),
+            scheduler);
+
+        var position = new ChunkPosition(1, 2);
+
+        service.Update(new ChunkStreamingInterest(position));
+
+        Assert.Throws<InvalidOperationException>(
+            () => service.FlushLoads());
+
+        Assert.Equal(0, service.PendingLoadCount);
+        Assert.False(world.Chunks.TryGet(position, out _));
+    }
+
+    private sealed class ThrowingChunkLoader : IChunkLoader
+    {
+        public ChunkData Load(ChunkPosition position, ChunkSize size)
+        {
+            throw new InvalidOperationException("Simulated load failure.");
+        }
+    }
+
+    private sealed class BlockingChunkLoader : IChunkLoader
+    {
+        private readonly ManualResetEventSlim _started;
+        private readonly ManualResetEventSlim _release;
+
+        public BlockingChunkLoader(
+            ManualResetEventSlim started,
+            ManualResetEventSlim release)
+        {
+            _started = started;
+            _release = release;
+        }
+
+        public ChunkData Load(ChunkPosition position, ChunkSize size)
+        {
+            _started.Set();
+
+            if (!_release.Wait(TimeSpan.FromSeconds(10)))
+            {
+                throw new TimeoutException("Chunk load was not released.");
+            }
+
+            return new ChunkData(new TileStorage(size));
+        }
+    }
+
+    [Fact]
     public void MovingOutsidePreloadRadius_UnloadsAndRestoresChunkFromPersistence()
     {
         using var ecsWorld =

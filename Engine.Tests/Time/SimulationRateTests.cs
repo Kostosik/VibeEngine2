@@ -16,6 +16,13 @@ public sealed class SimulationRateTests
     }
 
     [Fact]
+    public void TickRateAboveFixedPointResolutionThrows()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new SimulationRate(65_537));
+    }
+
+    [Fact]
     public void ZeroTicksPerSecondThrows()
     {
         Assert.Throws<ArgumentOutOfRangeException>(

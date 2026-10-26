@@ -15,4 +15,15 @@ public sealed class AssetPathTests
             "Textures/Tiles/Grass.png",
             path.Value);
     }
+
+    [Theory]
+    [InlineData("/")]
+    [InlineData("\\")]
+    [InlineData("///")]
+    public void ConstructorRejectsPathsThatNormalizeToEmpty(
+    string value)
+    {
+        Assert.Throws<ArgumentException>(
+            () => new AssetPath(value));
+    }
 }

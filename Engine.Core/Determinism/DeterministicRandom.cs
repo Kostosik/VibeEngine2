@@ -9,6 +9,12 @@ public struct DeterministicRandom
     public uint NextUInt()
     {
         var state = _state;
+
+        if (state == 0)
+        {
+            state = 0x9E3779B97F4A7C15UL;
+        }
+
         state ^= state >> 12;
         state ^= state << 25;
         state ^= state >> 27;

@@ -60,6 +60,8 @@ public sealed class CommandDispatcher : IDisposable
 
     public void DispatchPending()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         while (_queue.TryPeek(
             out var command))
         {

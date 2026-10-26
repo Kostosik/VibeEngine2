@@ -69,10 +69,6 @@ public sealed class MemoryStatisticsCollector
             0);
 
         Interlocked.Exchange(
-            ref _activeRentedBytes,
-            0);
-
-        Interlocked.Exchange(
             ref _rentCount,
             0);
 

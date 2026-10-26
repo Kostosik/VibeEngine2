@@ -11,6 +11,60 @@ namespace Engine.Tests.Replays;
 public sealed class ReplayTests
 {
     [Fact]
+    public void ReplaySerializer_LoadRejectsNullFrame()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"vibeengine-replay-{Guid.NewGuid():N}.json");
+
+        File.WriteAllText(
+            path,
+            "{\"Version\":1,\"Frames\":[null]}");
+
+        try
+        {
+            Assert.Throws<InvalidDataException>(
+                () => ReplaySerializer.Load(
+                    path,
+                    new ReplayCommandRegistry()));
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    [Fact]
+    public void ReplaySerializer_LoadRejectsNullCommandCollection()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"vibeengine-replay-{Guid.NewGuid():N}.json");
+
+        File.WriteAllText(
+            path,
+            "{\"Version\":1,\"Frames\":[{\"Commands\":null}]}");
+
+        try
+        {
+            Assert.Throws<InvalidDataException>(
+                () => ReplaySerializer.Load(
+                    path,
+                    new ReplayCommandRegistry()));
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    [Fact]
     public void Replay_MergesCommandsForSameTick()
     {
         var replay =
@@ -43,6 +97,33 @@ public sealed class ReplayTests
         Assert.Equal(
             2,
             replay.Frames[0].Commands.Count);
+    }
+
+    [Fact]
+    public void ReplaySerializer_LoadRejectsNullFrameCollection()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"vibeengine-replay-{Guid.NewGuid():N}.json");
+
+        File.WriteAllText(
+            path,
+            "{\"Version\":1,\"Frames\":null}");
+
+        try
+        {
+            Assert.Throws<InvalidDataException>(
+                () => ReplaySerializer.Load(
+                    path,
+                    new ReplayCommandRegistry()));
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
     }
 
     private sealed class TestReplayCommand :

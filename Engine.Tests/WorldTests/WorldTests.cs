@@ -12,6 +12,117 @@ namespace Engine.Tests.WorldTests;
 public sealed class WorldTests
 {
     [Fact]
+    public void UnloadChunk_SaveFailurePreservesLoadedChunk()
+    {
+        using var ecsWorld = new Engine.ECS.World();
+
+        var persistence = new FailingChunkPersistence();
+
+        using var world = new World(
+            new ChunkSize(4, 4),
+            ecsWorld,
+            persistence);
+
+        var position = new ChunkPosition(1, 2);
+        var localPosition = new LocalPosition(1, 1);
+
+        var chunk = world.CreateChunk(position);
+
+        chunk.Tiles.Set(localPosition, new Tile(777));
+
+        Assert.Throws<InvalidOperationException>(
+            () => world.UnloadChunk(position));
+
+        var record = world.Chunks.Get(position);
+
+        Assert.Same(chunk, record.Chunk);
+
+        Assert.Equal(
+            ChunkResidencyState.Loaded,
+            record.Lifecycle.Residency);
+
+        Assert.Equal(
+            ChunkSimulationState.Simulating,
+            record.Lifecycle.Simulation);
+
+        Assert.Equal(
+            777u,
+            record.Chunk!.Tiles.Get(localPosition).Value);
+    }
+
+    private sealed class FailingChunkPersistence : IChunkPersistence
+    {
+        public void Save(ChunkSaveState state)
+        {
+            throw new InvalidOperationException(
+                "Simulated persistence failure.");
+        }
+
+        public bool TryLoad(
+            ChunkPosition position,
+            out ChunkSaveState? state)
+        {
+            state = null;
+            return false;
+        }
+
+        public void Remove(ChunkPosition position)
+        {
+        }
+    }
+
+    [Fact]
+    public void RemoveChunk_PersistenceFailurePreservesLoadedChunk()
+    {
+        using var ecsWorld = new Engine.ECS.World();
+
+        var persistence = new FailingRemoveChunkPersistence();
+
+        using var world = new World(
+            new ChunkSize(4, 4),
+            ecsWorld,
+            persistence);
+
+        var position = new ChunkPosition(1, 2);
+        var localPosition = new LocalPosition(1, 1);
+
+        var chunk = world.CreateChunk(position);
+        chunk.Tiles.Set(localPosition, new Tile(777));
+
+        world.Chunks.Get(position).Lifecycle.SetSimulation(
+            ChunkSimulationState.Suspended);
+
+        Assert.Throws<InvalidOperationException>(
+            () => world.RemoveChunk(position));
+
+        Assert.True(world.Chunks.TryGet(position, out var record));
+        Assert.Same(chunk, record!.Chunk);
+        Assert.Equal(ChunkResidencyState.Loaded, record.Lifecycle.Residency);
+        Assert.Equal(777u, record.Chunk!.Tiles.Get(localPosition).Value);
+    }
+
+    private sealed class FailingRemoveChunkPersistence : IChunkPersistence
+    {
+        public void Save(ChunkSaveState state)
+        {
+        }
+
+        public bool TryLoad(
+            ChunkPosition position,
+            out ChunkSaveState? state)
+        {
+            state = null;
+            return false;
+        }
+
+        public void Remove(ChunkPosition position)
+        {
+            throw new InvalidOperationException(
+                "Simulated persistence failure.");
+        }
+    }
+
+    [Fact]
     public void Dispose_PreservesPersistedChunkData()
     {
         using var ecsWorld =

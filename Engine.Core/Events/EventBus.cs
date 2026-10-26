@@ -51,6 +51,7 @@ public sealed class EventBus : IDisposable
         TEvent @event)
         where TEvent : IEvent
     {
+        ArgumentNullException.ThrowIfNull(@event);
         ObjectDisposedException.ThrowIf(_disposed, this);
         _events.Enqueue(
             @event);

@@ -7,6 +7,35 @@ namespace Engine.Tests.Application;
 public sealed class GameLoopTests
 {
     [Fact]
+    public void PausedTimeIsNotAccumulatedForFixedUpdatesAfterResume()
+    {
+        var application = new TestApplication();
+        var clock = new TestClock();
+
+        var loop = CreateLoop(
+            application,
+            clock);
+
+        loop.Initialize();
+        loop.Pause();
+
+        loop.Update(
+            Duration.FromMilliseconds(250));
+
+        Assert.Equal(
+            0,
+            application.FixedUpdateCount);
+
+        loop.Resume();
+
+        loop.Update(Duration.Zero);
+
+        Assert.Equal(
+            0,
+            application.FixedUpdateCount);
+    }
+
+    [Fact]
     public void Shutdown_WhenClockStopThrowsStillShutsDownApplication()
     {
         var originalException =

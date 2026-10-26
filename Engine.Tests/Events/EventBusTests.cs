@@ -19,6 +19,17 @@ public sealed class EventBusTests
     }
 
     [Fact]
+    public void PublishRejectsNullEvent()
+    {
+        var eventBus = new EventBus();
+
+        Assert.Throws<ArgumentNullException>(
+            () => eventBus.Publish<TestEvent>(null!));
+
+        Assert.Equal(0, eventBus.PendingCount);
+    }
+
+    [Fact]
     public void PublishDoesNotInvokeHandlerImmediately()
     {
         var eventBus =

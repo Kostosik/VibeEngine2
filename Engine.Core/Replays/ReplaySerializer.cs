@@ -90,19 +90,37 @@ public static class ReplaySerializer
                 $"Unsupported replay version '{file.Version}'.");
         }
 
+        if (file.Frames is null)
+        {
+            throw new InvalidDataException(
+                "Replay frame collection is missing or invalid.");
+        }
+
         var replay =
             new Replay();
 
-        foreach (var frame in file.Frames)
-        {
-            foreach (var commandData in frame.Commands)
+            foreach (var frame in file.Frames)
             {
-                replay
-                    .GetOrCreateFrame(frame.Tick)
-                    .Add(
-                        registry.Deserialize(
-                            commandData));
-            }
+                if (frame is null)
+                {
+                    throw new InvalidDataException(
+                        "Replay contains a null frame.");
+                }
+
+                if (frame.Commands is null)
+                {
+                    throw new InvalidDataException(
+                        "Replay command collection is missing or invalid.");
+                }
+
+                foreach (var commandData in frame.Commands)
+                {
+                    replay
+                        .GetOrCreateFrame(frame.Tick)
+                        .Add(
+                            registry.Deserialize(commandData));
+                }
+            
         }
 
         return replay;
@@ -112,13 +130,13 @@ public static class ReplaySerializer
     {
         public int Version { get; set; }
 
-        public List<ReplayFrameFile> Frames { get; set; } = new();
+        public List<ReplayFrameFile>? Frames { get; set; } = new();
     }
 
     private sealed class ReplayFrameFile
     {
         public Tick Tick { get; set; }
 
-        public List<ReplayCommandData> Commands { get; set; } = new();
+        public List<ReplayCommandData>? Commands { get; set; } = new();
     }
 }

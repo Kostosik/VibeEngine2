@@ -8,7 +8,13 @@ public readonly record struct AssetPath
         ArgumentException.ThrowIfNullOrWhiteSpace(
             value);
 
-        Value = Normalize(value);
+        var normalized = Normalize(value);
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(
+            normalized,
+            nameof(value));
+
+        Value = normalized;
     }
 
     public string Value { get; }

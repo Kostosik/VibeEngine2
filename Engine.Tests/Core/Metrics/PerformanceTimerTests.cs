@@ -14,4 +14,14 @@ public sealed class PerformanceTimerTests
         Assert.True(
             timer.Elapsed > TimeSpan.Zero);
     }
+
+    [Fact]
+    public void DefaultTimerHasZeroElapsedTime()
+    {
+        var timer = default(PerformanceTimer);
+
+        Assert.Equal(
+            TimeSpan.Zero,
+            timer.Elapsed);
+    }
 }

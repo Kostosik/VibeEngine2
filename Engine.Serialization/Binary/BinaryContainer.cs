@@ -6,7 +6,7 @@ public static class BinaryContainer
 {
     private const uint Magic = 0x31534256; // "VBS1"
 
-    private const int HeaderSize =
+    internal const int HeaderSize =
         sizeof(uint) +
         sizeof(int) +
         sizeof(int);
@@ -97,10 +97,9 @@ public static class BinaryContainer
         }
 
         var expectedLength =
-            checked(HeaderSize + payloadLength);
+            (long)HeaderSize + payloadLength;
 
-        if (data.Length !=
-            expectedLength)
+        if (data.Length != expectedLength)
         {
             throw new InvalidDataException(
                 $"Serialized container length '{data.Length}' does not match the declared payload length '{payloadLength}'.");

@@ -53,7 +53,7 @@ public sealed class MemoryStatisticsCollectorTests
             128);
 
         collector.RecordReturn(
-            64);
+            128);
 
         collector.Reset();
 

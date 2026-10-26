@@ -5,6 +5,59 @@ namespace Engine.Tests.Assets;
 public sealed class FileAssetSourceTests
 {
     [Fact]
+    public void LoadRejectsPathOutsideAssetRoot()
+    {
+        var parent = Path.Combine(
+            Path.GetTempPath(),
+            Guid.NewGuid().ToString());
+
+        var root = Path.Combine(parent, "Assets");
+        Directory.CreateDirectory(root);
+
+        var outsideFile = Path.Combine(parent, "outside.txt");
+        File.WriteAllText(outsideFile, "outside");
+
+        try
+        {
+            var source = new FileAssetSource(root);
+
+            Assert.Throws<InvalidOperationException>(
+                () => source.Load(new AssetPath("../outside.txt")));
+        }
+        finally
+        {
+            Directory.Delete(parent, true);
+        }
+    }
+
+    [Fact]
+    public async Task LoadAsyncRejectsPathOutsideAssetRoot()
+    {
+        var parent = Path.Combine(
+            Path.GetTempPath(),
+            Guid.NewGuid().ToString());
+
+        var root = Path.Combine(parent, "Assets");
+        Directory.CreateDirectory(root);
+
+        var outsideFile = Path.Combine(parent, "outside.txt");
+        File.WriteAllText(outsideFile, "outside");
+
+        try
+        {
+            var source = new FileAssetSource(root);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                async () => await source.LoadAsync(
+                    new AssetPath("../outside.txt")));
+        }
+        finally
+        {
+            Directory.Delete(parent, true);
+        }
+    }
+
+    [Fact]
     public void LoadReturnsFileContent()
     {
         var root =

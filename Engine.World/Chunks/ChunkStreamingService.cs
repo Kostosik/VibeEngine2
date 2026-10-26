@@ -116,14 +116,35 @@ public sealed class ChunkStreamingService
 
     public void FlushLoads()
     {
-        foreach (var pending in
-                 _pendingLoads.Values.ToArray())
+        Exception? failure = null;
+
+        foreach (var pending in _pendingLoads.Values.ToArray())
         {
-            _scheduler.Wait(
-                pending.Handle);
+            try
+            {
+                _scheduler.Wait(pending.Handle);
+            }
+            catch (Exception exception)
+            {
+                failure ??= exception;
+            }
         }
 
-        CompleteFinishedLoads();
+        try
+        {
+            CompleteFinishedLoads();
+        }
+        catch (Exception exception)
+        {
+            failure ??= exception;
+        }
+
+        if (failure is not null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo
+                .Capture(failure)
+                .Throw();
+        }
     }
 
     private void EnsureLoading(
@@ -201,28 +222,34 @@ new ChunkLoadJob(
 
     private void CompleteFinishedLoads()
     {
-        foreach (var pair
-                 in _pendingLoads.ToArray())
+        Exception? failure = null;
+        foreach (var pair in _pendingLoads.ToArray())
         {
-            var position =
-                pair.Key;
+            var position = pair.Key;
+            var pending = pair.Value;
 
-            var pending =
-                pair.Value;
-
-            if (!_scheduler.IsCompleted(
-                    pending.Handle))
+            if (!_scheduler.IsCompleted(pending.Handle))
             {
                 continue;
             }
 
-            _pendingLoads.Remove(
-                position);
+            _pendingLoads.Remove(position);
 
             try
             {
-                _scheduler.Wait(
-                    pending.Handle);
+                _scheduler.Wait(pending.Handle);
+
+                // Мир мог быть уничтожен или запись чанка
+                // могла быть удалена, пока шла загрузка.
+                if (!_world.Chunks.TryGet(position, out var currentRecord) ||
+                    !ReferenceEquals(currentRecord, pending.Record) ||
+                    pending.Record.Lifecycle.Residency !=
+                        ChunkResidencyState.Loading)
+                {
+                    pending.Result.Data?.Dispose();
+                    pending.Result.Data = null;
+                    continue;
+                }
 
                 if (pending.Result.Data is null)
                 {
@@ -230,37 +257,58 @@ new ChunkLoadJob(
                         $"Chunk loader returned no data for '{position}'.");
                 }
 
-                var chunk =
-                    new Chunk(
-                        position,
-                        pending.Result.Data);
+                var chunk = new Chunk(
+                    position,
+                    pending.Result.Data);
 
-                pending.Record.Attach(
-                    chunk);
+                pending.Record.Attach(chunk);
 
                 pending.Record.Lifecycle.SetSimulation(
-    pending.Result.Simulation);
+                    pending.Result.Simulation);
 
                 pending.Record.Lifecycle.SetPresentation(
                     pending.Result.Presentation);
 
-                pending.Result.Data =
-                    null;
+                // Владение данными теперь принадлежит чанку.
+                pending.Result.Data = null;
             }
-            catch
+            catch (Exception exception)
             {
-                pending.Record.Lifecycle.CancelLoading();
+                failure ??= exception;
 
-                if (pending.RecordCreated)
+                try
                 {
-                    _world.Chunks.Remove(
-                        position);
+                    if (pending.Record.Lifecycle.Residency ==
+                        ChunkResidencyState.Loading)
+                    {
+                        pending.Record.Lifecycle.CancelLoading();
+                    }
+
+                    if (pending.RecordCreated &&
+                        _world.Chunks.TryGet(position, out var currentRecord) &&
+                        ReferenceEquals(currentRecord, pending.Record) &&
+                        pending.Record.Lifecycle.Residency ==
+                            ChunkResidencyState.Unloaded)
+                    {
+                        _world.Chunks.Remove(position);
+                    }
                 }
-
-                pending.Result.Data?.Dispose();
-
-                throw;
+                catch (Exception cleanupException)
+                {
+                    failure ??= cleanupException;
+                }
+                finally
+                {
+                    pending.Result.Data?.Dispose();
+                    pending.Result.Data = null;
+                }
             }
+        }
+        if (failure is not null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo
+                .Capture(failure)
+                .Throw();
         }
     }
 

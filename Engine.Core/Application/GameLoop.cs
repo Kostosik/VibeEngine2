@@ -216,7 +216,11 @@ public sealed class GameLoop : IGameLoopController
         }
 
         _elapsed += delta;
-        _accumulator += delta;
+
+        if (!_paused)
+        {
+            _accumulator += delta;
+        }
 
         var frameTime =
             new TimeSnapshot(

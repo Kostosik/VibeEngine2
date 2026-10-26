@@ -23,6 +23,18 @@ public sealed class CommandDispatcherTests
     }
 
     [Fact]
+    public void DispatchPendingAfterDisposeThrowsWhenQueueIsEmpty()
+    {
+        var dispatcher = new CommandDispatcher(
+            new CommandQueue());
+
+        dispatcher.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(
+            () => dispatcher.DispatchPending());
+    }
+
+    [Fact]
     public void DispatchPendingExecutesHandler()
     {
         var queue =

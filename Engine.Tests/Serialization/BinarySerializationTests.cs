@@ -5,6 +5,56 @@ namespace Engine.Tests.Serialization;
 public sealed class BinarySerializationTests
 {
     [Fact]
+    public void Deserialize_WithInvalidUtf8String_ThrowsInvalidDataException()
+    {
+        var data = new byte[]
+        {
+        1, 0, 0, 0, // Длина строки: 1 байт
+        0xFF        // Некорректный UTF-8
+        };
+
+        var exception = Assert.Throws<InvalidDataException>(
+            () => BinarySerializer.Deserialize(
+                data,
+                new StringSerializer()));
+
+        Assert.Contains("UTF-8", exception.Message);
+    }
+
+    private sealed class StringSerializer : IBinarySerializer<string?>
+    {
+        public void Serialize(
+            ref SerializationWriter writer,
+            string? value)
+        {
+            writer.WriteString(value);
+        }
+
+        public string? Deserialize(
+            ref SerializationReader reader)
+        {
+            return reader.ReadString();
+        }
+    }
+
+    [Fact]
+    public void Unpack_WithOverflowingDeclaredPayloadLength_ThrowsInvalidDataException()
+    {
+        var data = new byte[]
+        {
+        0x56, 0x42, 0x53, 0x31, // VBS1
+        0x01, 0x00, 0x00, 0x00, // Version 1
+        0xFF, 0xFF, 0xFF, 0x7F  // int.MaxValue
+        };
+
+        var context = new SerializationContext(
+            maxPayloadBytes: int.MaxValue);
+
+        Assert.Throws<InvalidDataException>(
+            () => BinaryContainer.Unpack(data, context).Length);
+    }
+
+    [Fact]
     public void SerializationContext_EnforcesPayloadAndValueLimits()
     {
         var context =

@@ -294,6 +294,12 @@ public sealed class JobScheduler :
 
     public void Dispose()
     {
+        if (_currentWorkerScheduler == this)
+        {
+            throw new InvalidOperationException(
+                "JobScheduler cannot be disposed from one of its worker jobs.");
+        }
+
         lock (_sync)
         {
             if (_disposed)

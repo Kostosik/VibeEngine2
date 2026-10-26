@@ -24,6 +24,9 @@ public sealed class InspectorPanelView : UiPanel
     private readonly InspectorPropertyEditorRegistry _propertyEditors;
     private readonly Func<string?>? _getSelectedParticleEffectPath;
     private readonly Func<string?>? _getSelectedTexturePath;
+    private readonly Dictionary<Type, bool> _componentExpansionStates = new();
+    private bool _addComponentExpanded;
+    private bool _distanceJointExpanded;
     public InspectorPanelView(
         EditorContext editor,
         InspectorPropertyEditorRegistry? propertyEditors = null,
@@ -175,6 +178,14 @@ public sealed class InspectorPanelView : UiPanel
             new Dictionary<string, Type>(
                 StringComparer.Ordinal);
 
+        var addComponentContent = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical,
+            Spacing = 6.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
         var addComponent =
             new UiDropdown();
 
@@ -204,7 +215,7 @@ public sealed class InspectorPanelView : UiPanel
                 {
                     return;
                 }
-
+                _addComponentExpanded = true;
                 document.Execute(
                     new AddEditorComponentCommand(
                         document.World,
@@ -214,22 +225,7 @@ public sealed class InspectorPanelView : UiPanel
                         Editor.ComponentTypes));
             };
 
-        _content.AddChild(
-            new UiLabel(
-                "Add Component")
-            {
-                FontSize = 13.0f,
-
-                Color =
-                    new UiColor(
-                        170,
-                        170,
-                        170,
-                        255)
-            });
-
-        _content.AddChild(
-            addComponent);
+        addComponentContent.AddChild(addComponent);
 
         foreach (var blocked in blockedComponentTypes)
         {
@@ -239,22 +235,29 @@ public sealed class InspectorPanelView : UiPanel
                     blocked.MissingDependencies.Select(
                         static type => type.Name));
 
-            _content.AddChild(
+            addComponentContent.AddChild(
                 new UiLabel(
                     $"{blocked.ComponentType.Name} requires: {missingNames}.")
                 {
                     FontSize = 11.0f,
-
-                    HorizontalAlignment =
-                        UiHorizontalAlignment.Stretch,
-
-                    Color = new UiColor(
-                        175,
-                        165,
-                        140,
-                        255)
+                    HorizontalAlignment = UiHorizontalAlignment.Stretch,
+                    Color = new UiColor(175, 165, 140, 255)
                 });
         }
+
+        var addComponentExpander = new UiExpander("Add Component")
+        {
+            IsExpanded = _addComponentExpanded,
+            ContentPadding = new UiThickness(8, 4, 4, 4),
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        addComponentExpander.ExpandedChanged += expanded =>
+            _addComponentExpanded = expanded;
+
+        addComponentExpander.SetContent(addComponentContent);
+        _content.AddChild(addComponentExpander);
 
         // Отображаем именно существующие компоненты.
         foreach (var componentType in existingComponentTypes)
@@ -267,9 +270,9 @@ public sealed class InspectorPanelView : UiPanel
     }
 
     private void AddComponentSection(
-        Engine.Editor.Documents.EditorDocument document,
-        EntityId entity,
-        Type componentType)
+    Engine.Editor.Documents.EditorDocument document,
+    EntityId entity,
+    Type componentType)
     {
         if (!document.Inspector.TryGetComponent(
                 entity,
@@ -280,83 +283,78 @@ public sealed class InspectorPanelView : UiPanel
         }
 
         var existingComponentTypes =
-    document.Inspector
-        .GetComponentTypes(entity)
-        .ToHashSet();
+            document.Inspector
+                .GetComponentTypes(entity)
+                .ToHashSet();
 
         var dependentComponentTypes =
             Editor.ComponentDependencies.GetDependents(
                 componentType,
                 existingComponentTypes);
 
-        var header =
-            new UiStackPanel
-            {
-                Orientation =
-                    UiOrientation.Horizontal,
+        var isExpanded =
+            !_componentExpansionStates.TryGetValue(
+                componentType,
+                out var savedState) ||
+            savedState;
 
-                Spacing = 4.0f,
+        var expander = new UiExpander(componentType.Name)
+        {
+            IsExpanded = isExpanded,
+            ContentPadding = new UiThickness(8, 4, 4, 4),
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
 
-                HorizontalAlignment =
-                    UiHorizontalAlignment.Stretch,
+        expander.ExpandedChanged += expanded =>
+            _componentExpansionStates[componentType] = expanded;
 
-                VerticalAlignment =
-                    UiVerticalAlignment.Top
-            };
+        var section = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical,
+            Spacing = 6.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
 
-        var label =
-            new UiLabel(
-                componentType.Name)
-            {
-                FontSize = 14.0f,
-
-                HorizontalAlignment =
-                    UiHorizontalAlignment.Stretch,
-
-                VerticalAlignment =
-                    UiVerticalAlignment.Center,
-
-                Color =
-                    new UiColor(
-                        210,
-                        210,
-                        210,
-                        255)
-            };
-
-        header.AddChild(
-            label);
-
+        // Кнопка удаления остаётся частью секции.
+        // Компоненты, необходимые другим компонентам,
+        // удалять отсюда по-прежнему нельзя.
         if (componentType !=
                 typeof(Engine.Worlds.Spatial.WorldPositionComponent) &&
             dependentComponentTypes.Count == 0)
         {
-            var remove =
-                new UiButton("Remove")
+            var actions = new UiStackPanel
+            {
+                Orientation = UiOrientation.Horizontal,
+                Spacing = 4.0f,
+                HorizontalAlignment = UiHorizontalAlignment.Stretch,
+                VerticalAlignment = UiVerticalAlignment.Top
+            };
+
+            var remove = new UiButton("Remove")
+            {
+                Width = 80.0f,
+                Height = 28.0f
+            };
+
+            remove.Clicked += () =>
+            {
+                if (!document.World.EcsWorld.Exists(entity))
                 {
-                    Width = 80.0f,
-                    Height = 28.0f
-                };
+                    return;
+                }
 
-            remove.Clicked +=
-                () =>
-                {
-                    if (!document.World.EcsWorld.Exists(
-                            entity))
-                    {
-                        return;
-                    }
+                document.Execute(
+                    new RemoveEditorComponentCommand(
+                        document.World,
+                        document.GetEntityReference(entity),
+                        componentType,
+                        Editor.ComponentDependencies));
+            };
 
-                    document.Execute(
-                        new RemoveEditorComponentCommand(
-                            document.World,
-                            document.GetEntityReference(entity),
-                            componentType,
-                            Editor.ComponentDependencies));
-                };
-
-            header.AddChild(
-                remove);
+            actions.AddChild(remove);
+            section.AddChild(actions);
         }
 
         if (dependentComponentTypes.Count > 0)
@@ -367,23 +365,16 @@ public sealed class InspectorPanelView : UiPanel
                     dependentComponentTypes.Select(
                         static type => type.Name));
 
-            _content.AddChild(
+            section.AddChild(
                 new UiLabel(
                     $"Required by: {dependentNames}.")
                 {
                     FontSize = 11.0f,
-
-                    Color =
-                        new UiColor(
-                            175,
-                            165,
-                            140,
-                            255)
+                    Color = new UiColor(175, 165, 140, 255)
                 });
         }
 
-        _content.AddChild(
-            header);
+        var showDerivedTransformOnly = false;
 
         if (componentType == typeof(WorldTransform2D))
         {
@@ -391,19 +382,14 @@ public sealed class InspectorPanelView : UiPanel
                 document.World.EcsWorld.Has<LocalTransform2D>(
                     entity);
 
-            _content.AddChild(
+            section.AddChild(
                 new UiLabel(
                     hasLocalTransform
                         ? "Mode: Derived from LocalTransform2D / hierarchy"
                         : "Mode: Direct WorldTransform2D")
                 {
                     FontSize = 12.0f,
-
-                    Color = new UiColor(
-                        170,
-                        170,
-                        170,
-                        255)
+                    Color = new UiColor(170, 170, 170, 255)
                 });
 
             if (hasLocalTransform)
@@ -413,53 +399,62 @@ public sealed class InspectorPanelView : UiPanel
                         entity);
 
                 AddWorldTransformValue(
+                    section,
                     "World Position",
                     transform.Position.ToString());
 
                 AddWorldTransformValue(
+                    section,
                     "World Rotation",
                     $"{transform.Rotation} rad");
 
                 AddWorldTransformValue(
+                    section,
                     "World Scale",
                     transform.Scale.ToString());
 
-                return;
+                showDerivedTransformOnly = true;
             }
         }
 
-        foreach (var property in
-                 document.Inspector.GetProperties(
-                     entity,
-                     componentType))
+        if (!showDerivedTransformOnly)
         {
-            if (componentType == typeof(SpriteComponent) &&
-                property.Name == nameof(SpriteComponent.TexturePath))
+            foreach (var property in
+                     document.Inspector.GetProperties(
+                         entity,
+                         componentType))
             {
-                _content.AddChild(
-                    CreateSpriteTexturePathProperty(
+                if (componentType == typeof(SpriteComponent) &&
+                    property.Name == nameof(SpriteComponent.TexturePath))
+                {
+                    section.AddChild(
+                        CreateSpriteTexturePathProperty(
+                            document,
+                            property));
+
+                    continue;
+                }
+
+                if (componentType == typeof(ParticleEffectComponent) &&
+                    property.Name == nameof(ParticleEffectComponent.EffectPath))
+                {
+                    section.AddChild(
+                        CreateParticleEffectPathProperty(
+                            document,
+                            property));
+
+                    continue;
+                }
+
+                section.AddChild(
+                    _propertyEditors.Create(
                         document,
                         property));
-
-                continue;
             }
-
-            if (componentType == typeof(ParticleEffectComponent) &&
-    property.Name == nameof(ParticleEffectComponent.EffectPath))
-            {
-                _content.AddChild(
-                    CreateParticleEffectPathProperty(
-                        document,
-                        property));
-
-                continue;
-            }
-
-            _content.AddChild(
-                _propertyEditors.Create(
-                    document,
-                    property));
         }
+
+        expander.SetContent(section);
+        _content.AddChild(expander);
     }
 
     private UiStackPanel CreateParticleEffectPathProperty(
@@ -784,6 +779,17 @@ public sealed class InspectorPanelView : UiPanel
             .OrderBy(candidate => candidate.Index)
             .ToArray();
 
+        var expander = new UiExpander("Add Distance Joint 2D")
+        {
+            IsExpanded = _distanceJointExpanded,
+            ContentPadding = new UiThickness(8, 4, 4, 4),
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        expander.ExpandedChanged += expanded =>
+            _distanceJointExpanded = expanded;
+
         var section = new UiStackPanel
         {
             Orientation = UiOrientation.Vertical,
@@ -791,13 +797,6 @@ public sealed class InspectorPanelView : UiPanel
             HorizontalAlignment = UiHorizontalAlignment.Stretch,
             VerticalAlignment = UiVerticalAlignment.Top
         };
-
-        section.AddChild(
-            new UiLabel("Distance Joint 2D")
-            {
-                FontSize = 13.0f,
-                Color = new UiColor(170, 170, 170, 255)
-            });
 
         if (targets.Length == 0)
         {
@@ -810,7 +809,8 @@ public sealed class InspectorPanelView : UiPanel
                     Color = new UiColor(175, 165, 140, 255)
                 });
 
-            _content.AddChild(section);
+            expander.SetContent(section);
+            _content.AddChild(expander);
             return;
         }
 
@@ -919,27 +919,22 @@ public sealed class InspectorPanelView : UiPanel
         section.AddChild(addButton);
         section.AddChild(errorLabel);
 
-        _content.AddChild(section);
+        expander.SetContent(section);
+        _content.AddChild(expander);
     }
 
-    private void AddWorldTransformValue(
-    string name,
-    string value)
+    private static void AddWorldTransformValue(
+        UiStackPanel target,
+        string name,
+        string value)
     {
-        _content.AddChild(
+        target.AddChild(
             new UiLabel(
                 $"{name}: {value}")
             {
                 FontSize = 12.0f,
-
-                HorizontalAlignment =
-                    UiHorizontalAlignment.Stretch,
-
-                Color = new UiColor(
-                    200,
-                    200,
-                    200,
-                    255)
+                HorizontalAlignment = UiHorizontalAlignment.Stretch,
+                Color = new UiColor(200, 200, 200, 255)
             });
     }
 }

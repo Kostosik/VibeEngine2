@@ -28,6 +28,45 @@ public sealed class ReplicationEntityService
         ArgumentNullException.ThrowIfNull(entityMap);
         ArgumentNullException.ThrowIfNull(state);
 
+        if (entityMap.TryGetEntity(state.Id, out var existingEntity))
+        {
+            if (!world.Exists(existingEntity))
+            {
+                entityMap.Unregister(existingEntity);
+            }
+            else
+            {
+                if (world.Has<NetworkIdentity>(existingEntity))
+                {
+                    var identity = world.Get<NetworkIdentity>(existingEntity);
+
+                    if (identity.HasAssignedId && identity.Id != state.Id)
+                    {
+                        throw new InvalidOperationException(
+                            $"Network identity mismatch for entity '{existingEntity}'.");
+                    }
+
+                    if (!identity.HasAssignedId)
+                    {
+                        world.Remove<NetworkIdentity>(existingEntity);
+                        world.Add(existingEntity, new NetworkIdentity(state.Id));
+                    }
+                }
+                else
+                {
+                    world.Add(existingEntity, new NetworkIdentity(state.Id));
+                }
+
+                _stateService.Apply(
+                    world,
+                    entityMap,
+                    state,
+                    context);
+
+                return existingEntity;
+            }
+        }
+
         if (entityMap.TryGetEntity(
                 state.Id,
                 out _))
@@ -44,6 +83,10 @@ public sealed class ReplicationEntityService
             entityMap.Register(
                 entity,
                 state.Id);
+
+            world.Add(
+                entity,
+                new NetworkIdentity(state.Id));
 
             _stateService.Apply(
                 world,

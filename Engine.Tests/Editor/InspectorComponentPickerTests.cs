@@ -465,15 +465,19 @@ public sealed class InspectorComponentPickerTests
                 Descendants(inspector).OfType<UiLabel>(),
                 label => label.Text == "Required by: Collider2D.");
 
-            var bodyHeader = Descendants(inspector)
-                .OfType<UiStackPanel>()
-                .Single(panel =>
-                    panel.Children
-                        .OfType<UiLabel>()
-                        .Any(label => label.Text == "PhysicsBody2D"));
+            var bodySection = Descendants(inspector)
+                .OfType<UiExpander>()
+                .Single(expander =>
+                    expander.HeaderText == "PhysicsBody2D");
+
+            Assert.NotNull(bodySection.Content);
 
             Assert.DoesNotContain(
-                bodyHeader.Children.OfType<UiButton>(),
+                Descendants(bodySection.Content!).OfType<UiButton>(),
+                button => button.Text == "Remove");
+
+            Assert.DoesNotContain(
+                bodySection.Children.OfType<UiButton>(),
                 button => button.Text == "Remove");
 
             var command =
@@ -770,11 +774,16 @@ public sealed class InspectorComponentPickerTests
     private static UiDropdown FindComponentPicker(
         InspectorPanelView inspector)
     {
-        // Add Component расположен раньше редакторов свойств
-        // уже существующих компонентов.
-        return Descendants(inspector)
+        var addComponentSection = Descendants(inspector)
+            .OfType<UiExpander>()
+            .Single(expander =>
+                expander.HeaderText == "Add Component");
+
+        Assert.NotNull(addComponentSection.Content);
+
+        return Descendants(addComponentSection.Content!)
             .OfType<UiDropdown>()
-            .First();
+            .Single();
     }
 
     private static IEnumerable<UiWidget> Descendants(

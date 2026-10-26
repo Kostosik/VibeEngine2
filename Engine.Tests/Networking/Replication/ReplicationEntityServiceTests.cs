@@ -140,6 +140,13 @@ public sealed class ReplicationEntityServiceTests
             targetWorld.Exists(entity));
 
         Assert.True(
+    targetWorld.Has<NetworkIdentity>(entity));
+
+        Assert.Equal(
+            state.Id,
+            targetWorld.Get<NetworkIdentity>(entity).Id);
+
+        Assert.True(
             targetMap.TryGetEntity(
                 state.Id,
                 out var mappedEntity));

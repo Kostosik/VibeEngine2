@@ -19,7 +19,7 @@ public sealed class SandboxMultiplayerPlayerProbe : IDisposable
     private const int PortOffset = 20;
 
     private static readonly NetworkEntityId PlayerNetworkId = new(9301);
-
+    private NetworkIdentityMapSynchronizer? _identitySynchronizer;
     private static readonly TimeSpan UpdateInterval =
         TimeSpan.FromMilliseconds(50);
 
@@ -61,19 +61,13 @@ public sealed class SandboxMultiplayerPlayerProbe : IDisposable
     public FixedVector2? RemotePosition { get; private set; }
 
     public event Action<string>? StatusChanged;
-
-    public void Start(
-        Engine.ECS.World world,
-        Func<EntityId> playerProvider)
+public void Start(
+    Engine.ECS.World world,
+    Func<EntityId> playerProvider)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(world);
-
         ArgumentNullException.ThrowIfNull(playerProvider);
-
-        _playerProvider = playerProvider;
-
-        var localPlayer = playerProvider();
 
         if (_session is not null)
         {
@@ -88,6 +82,10 @@ public sealed class SandboxMultiplayerPlayerProbe : IDisposable
                 nameof(_options),
                 "Player replication port is out of range.");
         }
+
+        _playerProvider = playerProvider;
+
+        var localPlayer = playerProvider();
 
         var isServer =
             _options.Role == SandboxNetworkRole.Server;
@@ -140,19 +138,58 @@ public sealed class SandboxMultiplayerPlayerProbe : IDisposable
                 new ReplicationEntityService(_stateService);
 
             var authority = isServer
-                ? new FixedNetworkAuthority(serverNode.Id, serverNode.Id)
-                : new FixedNetworkAuthority(clientNode.Id, serverNode.Id);
+                ? new FixedNetworkAuthority(
+                    serverNode.Id,
+                    serverNode.Id)
+                : new FixedNetworkAuthority(
+                    clientNode.Id,
+                    serverNode.Id);
 
+            // Sandbox-пробник сохраняет фиксированный ID игрока.
             if (isServer)
             {
-                _entityMap.Register(
-                    localPlayer,
-                    PlayerNetworkId);
+                if (world.Has<NetworkIdentity>(localPlayer))
+                {
+                    var identity =
+                        world.Get<NetworkIdentity>(localPlayer);
+
+                    if (identity.HasAssignedId &&
+                        identity.Id != PlayerNetworkId)
+                    {
+                        throw new InvalidOperationException(
+                            $"Player already has network ID " +
+                            $"'{identity.Id.Value}', expected " +
+                            $"'{PlayerNetworkId.Value}'.");
+                    }
+
+                    if (!identity.HasAssignedId)
+                    {
+                        world.Remove<NetworkIdentity>(localPlayer);
+                        world.Add(
+                            localPlayer,
+                            new NetworkIdentity(PlayerNetworkId));
+                    }
+                }
+                else
+                {
+                    world.Add(
+                        localPlayer,
+                        new NetworkIdentity(PlayerNetworkId));
+                }
 
                 _lastSentPosition =
                     world.Get<WorldTransform2D>(
                         localPlayer).Position;
             }
+
+            _identitySynchronizer =
+                new NetworkIdentityMapSynchronizer(
+                    world,
+                    _entityMap,
+                    authority);
+
+            // Синхронизируем NetworkIdentity с картой до подключения.
+            _identitySynchronizer.Reconcile();
 
             _channel = new ReplicationChannel(
                 _session,
@@ -213,6 +250,8 @@ public sealed class SandboxMultiplayerPlayerProbe : IDisposable
 
         try
         {
+            _identitySynchronizer?.Reconcile();
+
             _session.Update();
 
             if (_options.Role == SandboxNetworkRole.Server)
@@ -506,9 +545,39 @@ public sealed class SandboxMultiplayerPlayerProbe : IDisposable
 
         _serverPlayer = currentPlayer;
 
-        _entityMap.Register(
-            _serverPlayer,
-            PlayerNetworkId);
+        if (_world.Has<NetworkIdentity>(_serverPlayer))
+        {
+            var identity = _world.Get<NetworkIdentity>(_serverPlayer);
+
+            if (identity.HasAssignedId && identity.Id != PlayerNetworkId)
+            {
+                throw new InvalidOperationException(
+                    $"Server player has unexpected network ID '{identity.Id.Value}'.");
+            }
+
+            if (!identity.HasAssignedId)
+            {
+                _world.Remove<NetworkIdentity>(_serverPlayer);
+                _world.Add(
+                    _serverPlayer,
+                    new NetworkIdentity(PlayerNetworkId));
+            }
+        }
+        else
+        {
+            _world.Add(
+                _serverPlayer,
+                new NetworkIdentity(PlayerNetworkId));
+        }
+
+        _identitySynchronizer?.Reconcile();
+
+        if (!_entityMap.TryGetNetworkId(_serverPlayer, out var networkId) ||
+            networkId != PlayerNetworkId)
+        {
+            throw new InvalidOperationException(
+                "Server player was not registered by the identity synchronizer.");
+        }
 
         _lastSentPosition =
             _world.Get<WorldTransform2D>(
@@ -555,7 +624,8 @@ public sealed class SandboxMultiplayerPlayerProbe : IDisposable
             session.ConnectionAccepted -= OnConnectionAccepted;
             session.ConnectionDisconnected -= OnConnectionDisconnected;
         }
-
+        _identitySynchronizer?.Dispose();
+        _identitySynchronizer = null;
         _channel?.Dispose();
         _channel = null;
 

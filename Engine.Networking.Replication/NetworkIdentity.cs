@@ -16,6 +16,13 @@ public struct NetworkIdentity
         Id = id;
     }
 
+    public bool HasAssignedId => Id.IsValid;
+
+    /// <summary>
+    /// Marks an entity for network identity assignment by the authority.
+    /// </summary>
+    public static NetworkIdentity Pending => default;
+
     public NetworkEntityId Id { get; }
 
     /// <summary>

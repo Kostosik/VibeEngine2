@@ -54,6 +54,15 @@ internal sealed class OpenGLFontManager :
         var fontData =
             data.ToArray();
 
+        using var fontInfo = StbTrueType.CreateFont(fontData, 0);
+
+        if (fontInfo is null)
+        {
+            throw new ArgumentException(
+                "Font data is not a valid TrueType/OpenType font.",
+                nameof(data));
+        }
+
         var glyphs =
             new Dictionary<int, FontGlyph>();
 
@@ -62,6 +71,7 @@ internal sealed class OpenGLFontManager :
 
         BakeRange(
             fontData,
+            fontInfo,
             description,
             LatinFirstCodepoint,
             LatinCodepointCount,
@@ -70,11 +80,27 @@ internal sealed class OpenGLFontManager :
 
         BakeRange(
             fontData,
+            fontInfo,
             description,
             CyrillicFirstCodepoint,
             CyrillicCodepointCount,
             glyphs,
             textures);
+
+        if (description.AdditionalCodepointRanges is { } additionalRanges)
+        {
+            foreach (var range in additionalRanges)
+            {
+                BakeRange(
+                    fontData,
+                    fontInfo,
+                    description,
+                    range.FirstCodepoint,
+                    range.CodepointCount,
+                    glyphs,
+                    textures);
+            }
+        }
 
         var handle =
             new FontHandle(
@@ -206,6 +232,7 @@ internal sealed class OpenGLFontManager :
 
     private void BakeRange(
         byte[] fontData,
+        stbtt_fontinfo fontInfo,
         FontDescription description,
         int firstCodepoint,
         int codepointCount,
@@ -244,6 +271,7 @@ internal sealed class OpenGLFontManager :
             if (result)
             {
                 CreateAtlas(
+                    fontInfo,
                     bitmap,
                     width,
                     height,
@@ -364,6 +392,7 @@ internal sealed class OpenGLFontManager :
     }
 
     private void CreateAtlas(
+        stbtt_fontinfo fontInfo,
         byte[] bitmap,
         int width,
         int height,
@@ -372,6 +401,24 @@ internal sealed class OpenGLFontManager :
         Dictionary<int, FontGlyph> glyphs,
         List<TextureHandle> textures)
     {
+        var hasSupportedGlyph = false;
+
+        for (var i = 0; i < bakedChars.Length; i++)
+        {
+            var codepoint = firstCodepoint + i;
+
+            if (stbtt_FindGlyphIndex(fontInfo, codepoint) != 0)
+            {
+                hasSupportedGlyph = true;
+                break;
+            }
+        }
+
+        if (!hasSupportedGlyph)
+        {
+            return;
+        }
+
         var rgba =
             ConvertToRgba(
                 bitmap);
@@ -396,6 +443,11 @@ internal sealed class OpenGLFontManager :
 
             var codepoint =
                 firstCodepoint + i;
+
+            if (stbtt_FindGlyphIndex(fontInfo, codepoint) == 0)
+            {
+                continue;
+            }
 
             var glyphWidth =
                 baked.x1 -

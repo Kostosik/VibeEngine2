@@ -103,6 +103,75 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
             HorizontalAlignment = UiHorizontalAlignment.Stretch
         };
 
+        var emitterFieldsPanel = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical,
+            Spacing = 6.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch
+        };
+
+        var spawnFieldsPanel = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical,
+            Spacing = 6.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch
+        };
+
+        var velocityFieldsPanel = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical,
+            Spacing = 6.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch
+        };
+
+        var modifierFieldsPanel = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical,
+            Spacing = 6.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch
+        };
+
+        var emitterExpander = new UiExpander("Emitter")
+        {
+            IsExpanded = true,
+            HeaderHeight = 32.0f,
+            ContentSpacing = 4.0f,
+            ContentPadding = new UiThickness(8.0f)
+        };
+        emitterExpander.SetContent(emitterFieldsPanel);
+
+        var spawnExpander = new UiExpander("Lifetime & Size")
+        {
+            IsExpanded = true,
+            HeaderHeight = 32.0f,
+            ContentSpacing = 4.0f,
+            ContentPadding = new UiThickness(8.0f)
+        };
+        spawnExpander.SetContent(spawnFieldsPanel);
+
+        var velocityExpander = new UiExpander("Initial Velocity")
+        {
+            IsExpanded = false,
+            HeaderHeight = 32.0f,
+            ContentSpacing = 4.0f,
+            ContentPadding = new UiThickness(8.0f)
+        };
+        velocityExpander.SetContent(velocityFieldsPanel);
+
+        var modifiersExpander = new UiExpander("Modifiers")
+        {
+            IsExpanded = false,
+            HeaderHeight = 32.0f,
+            ContentSpacing = 4.0f,
+            ContentPadding = new UiThickness(8.0f)
+        };
+        modifiersExpander.SetContent(modifierFieldsPanel);
+
+        fieldsPanel.AddChild(emitterExpander);
+        fieldsPanel.AddChild(spawnExpander);
+        fieldsPanel.AddChild(velocityExpander);
+        fieldsPanel.AddChild(modifiersExpander);
+
         scroll.SetContent(fieldsPanel);
 
         var contentRow = new UiStackPanel
@@ -158,38 +227,92 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
 
         AddChild(layout);
 
-        AddField(fieldsPanel, "texturePath", "Texture path");
-        AddField(fieldsPanel, "emissionRate", "Emission rate / second");
-        AddField(fieldsPanel, "maxParticles", "Maximum particles");
-        AddShapeDropdown(fieldsPanel);
+        // Emitter
+        AddField(
+            emitterFieldsPanel,
+            "texturePath",
+            "Texture path");
 
         AddField(
-            fieldsPanel,
+            emitterFieldsPanel,
+            "emissionRate",
+            "Emission rate / second");
+
+        AddField(
+            emitterFieldsPanel,
+            "maxParticles",
+            "Maximum particles");
+
+        AddShapeDropdown(emitterFieldsPanel);
+
+        AddField(
+            emitterFieldsPanel,
             "circleRadius",
             "Circle radius");
 
         AddField(
-            fieldsPanel,
+            emitterFieldsPanel,
             "rectangleWidth",
             "Rectangle width");
 
         AddField(
-            fieldsPanel,
+            emitterFieldsPanel,
             "rectangleHeight",
             "Rectangle height");
-        AddField(fieldsPanel, "layer", "Render layer");
 
-        AddField(fieldsPanel, "lifetimeMin", "Lifetime minimum (seconds)");
-        AddField(fieldsPanel, "lifetimeMax", "Lifetime maximum (seconds)");
+        AddField(
+            emitterFieldsPanel,
+            "layer",
+            "Render layer");
 
-        AddField(fieldsPanel, "sizeMin", "Size minimum");
-        AddField(fieldsPanel, "sizeMax", "Size maximum");
+        // Lifetime & Size
+        AddField(
+            spawnFieldsPanel,
+            "lifetimeMin",
+            "Lifetime minimum (seconds)");
 
-        AddField(fieldsPanel, "velocityMinX", "Velocity minimum X");
-        AddField(fieldsPanel, "velocityMinY", "Velocity minimum Y");
-        AddField(fieldsPanel, "velocityMaxX", "Velocity maximum X");
-        AddField(fieldsPanel, "velocityMaxY", "Velocity maximum Y");
-        AddModifierEditor(fieldsPanel);
+        AddField(
+            spawnFieldsPanel,
+            "lifetimeMax",
+            "Lifetime maximum (seconds)");
+
+        AddField(
+            spawnFieldsPanel,
+            "sizeMin",
+            "Size minimum");
+
+        AddField(
+            spawnFieldsPanel,
+            "sizeMax",
+            "Size maximum");
+
+        // Initial Velocity
+        AddField(
+            velocityFieldsPanel,
+            "velocityMinX",
+            "Velocity minimum X");
+
+        AddField(
+            velocityFieldsPanel,
+            "velocityMinY",
+            "Velocity minimum Y");
+
+        AddField(
+            velocityFieldsPanel,
+            "velocityMaxX",
+            "Velocity maximum X");
+
+        AddField(
+            velocityFieldsPanel,
+            "velocityMaxY",
+            "Velocity maximum Y");
+
+        // Modifiers
+        AddModifierEditor(modifierFieldsPanel);
+
+        _document.Changed += OnDocumentChanged;
+
+        RefreshFields();
         _document.Changed += OnDocumentChanged;
 
         RefreshFields();
@@ -488,12 +611,6 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
 
     private void AddModifierEditor(UiStackPanel panel)
     {
-        panel.AddChild(new UiLabel("Modifiers")
-        {
-            Height = 26.0f,
-            FontSize = 16.0f
-        });
-
         var addRow = new UiStackPanel
         {
             Orientation = UiOrientation.Horizontal,

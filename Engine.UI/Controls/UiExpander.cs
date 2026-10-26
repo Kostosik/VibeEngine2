@@ -183,11 +183,8 @@ public sealed class UiExpander : UiContainer
         IsExpanded = !IsExpanded;
     }
 
-    private string BuildHeaderText()
-    {
-        var indicator = _isExpanded ? "▼" : "▶";
-        return $"{indicator} {_headerText}";
-    }
+    private string BuildHeaderText() =>
+        $"{(_isExpanded ? "▼" : "►")} {_headerText}";
 
     private void UpdateHeaderText()
     {

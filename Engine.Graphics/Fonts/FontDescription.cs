@@ -6,6 +6,12 @@ public readonly record struct FontDescription(
     int AtlasHeight = 1024,
     int Padding = 2)
 {
+
+    public IReadOnlyList<FontCodepointRange>? AdditionalCodepointRanges
+    {
+        get;
+        init;
+    }
     public void Validate()
     {
         if (PixelHeight <= 0)
@@ -30,6 +36,13 @@ public readonly record struct FontDescription(
         {
             throw new ArgumentOutOfRangeException(
                 nameof(Padding));
+        }
+        if (AdditionalCodepointRanges is not null)
+        {
+            foreach (var range in AdditionalCodepointRanges)
+            {
+                range.Validate();
+            }
         }
     }
 }

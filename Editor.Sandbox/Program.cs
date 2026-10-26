@@ -67,8 +67,14 @@ var fontData =
 var defaultFont =
     window.GraphicsDevice.Fonts.Create(
         fontData,
-        new FontDescription(
-            32));
+        new FontDescription(32)
+        {
+            AdditionalCodepointRanges =
+                [
+                    new FontCodepointRange(0x25BA, 1), // ►
+                    new FontCodepointRange(0x25BC, 1)  // ▼
+                ]
+        });
 
 var uiTheme =
     new UiTheme

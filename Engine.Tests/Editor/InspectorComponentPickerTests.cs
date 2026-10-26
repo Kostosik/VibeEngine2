@@ -40,7 +40,10 @@ public sealed class InspectorComponentPickerTests
 
         try
         {
-            var inspector = new InspectorPanelView(editor);
+            var inspector = new InspectorPanelView(
+                editor,
+                getSelectedParticleEffectPath:
+                    () => "Particles/Smoke.particle.json");
             inspector.Refresh();
 
             // Добавляем компонент через настоящий Add Component.
@@ -74,19 +77,15 @@ public sealed class InspectorComponentPickerTests
                 focus);
 
             var effectPathEditor =
-                FindBodyTextPropertyEditor(
+                FindBodyPickerPropertyEditor(
                     inspector,
                     nameof(ParticleEffectComponent.EffectPath));
 
-            var effectPathBox = Assert.Single(
+            var effectPathPicker = Assert.Single(
                 Descendants(effectPathEditor)
-                    .OfType<UiTextBox>());
+                    .OfType<UiPickerField>());
 
-            effectPathBox.SetText(
-                "Particles/Smoke.particle.json");
-
-            focus.SetFocus(effectPathBox);
-            focus.Activate();
+            effectPathPicker.RequestSelection();
 
             Assert.Equal(
                 "Particles/Smoke.particle.json",
@@ -116,6 +115,21 @@ public sealed class InspectorComponentPickerTests
         {
             editor.Session.Discard(document);
         }
+    }
+
+    private static UiStackPanel FindBodyPickerPropertyEditor(
+    UiWidget root,
+    string propertyName)
+    {
+        return Descendants(root)
+            .OfType<UiStackPanel>()
+            .Single(panel =>
+                panel.Children
+                    .OfType<UiLabel>()
+                    .Any(label => label.Text == propertyName) &&
+                Descendants(panel)
+                    .OfType<UiPickerField>()
+                    .Any());
     }
 
     [Fact]

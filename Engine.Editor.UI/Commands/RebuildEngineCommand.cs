@@ -29,7 +29,7 @@ public sealed class RebuildEngineCommand :
         "Engine.Graphics2D.dll",
         "Engine.Input.SilkNet.dll"
     };
-
+    private readonly Func<bool>? _areGameSessionsActive;
     private readonly Func<GameProject?> _getActiveProject;
     private readonly Queue<RebuildEngineEvent> _events = new();
     private readonly object _sync = new();
@@ -39,13 +39,16 @@ public sealed class RebuildEngineCommand :
     private int _disposed;
 
     public RebuildEngineCommand(
-        Func<GameProject?> getActiveProject)
+        Func<GameProject?> getActiveProject,
+        Func<bool>? areGameSessionsActive = null)
     {
         ArgumentNullException.ThrowIfNull(getActiveProject);
 
         _getActiveProject = getActiveProject;
+        _areGameSessionsActive = areGameSessionsActive;
     }
-
+    public bool IsRunning =>
+    Volatile.Read(ref _running) != 0;
     public string Name => "rebuild-engine";
 
     public string Description =>
@@ -60,6 +63,12 @@ public sealed class RebuildEngineCommand :
         {
             return DebugCommandResult.Fail(
                 "The rebuild command has been disposed.");
+        }
+
+        if (_areGameSessionsActive?.Invoke() == true)
+        {
+            return DebugCommandResult.Fail(
+                "Stop all additional game sessions before rebuilding engine DLLs.");
         }
 
         if (arguments.Count > 2)

@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using Engine.Core.Assets;
+using Engine.Core.Math;
 using Engine.Particles;
 
 namespace Engine.Serialization.Content;
@@ -26,43 +27,112 @@ public static class JsonParticleEffectDefinitionSerializer
     {
         ArgumentNullException.ThrowIfNull(definition);
 
+        object shape = definition.Emitter.Shape switch
+        {
+            PointParticleEmissionShapeDefinition =>
+                new
+                {
+                    type = "point"
+                },
+
+            CircleParticleEmissionShapeDefinition circle =>
+                new
+                {
+                    type = "circle",
+                    radius = circle.Radius
+                },
+
+            RectangleParticleEmissionShapeDefinition rectangle =>
+                new
+                {
+                    type = "rectangle",
+                    size = new
+                    {
+                        x = rectangle.Size.X,
+                        y = rectangle.Size.Y
+                    }
+                },
+
+            _ => throw new NotSupportedException(
+                $"Unsupported particle emission shape: " +
+                definition.Emitter.Shape.GetType().FullName)
+        };
+
+        var modifiers = definition.Particle.Modifiers
+            .Select(static modifier => modifier switch
+            {
+                AccelerationModifierDefinition acceleration =>
+                    (object)new
+                    {
+                        type = "acceleration",
+                        x = acceleration.Acceleration.X,
+                        y = acceleration.Acceleration.Y
+                    },
+
+                DragModifierDefinition drag =>
+                    new
+                    {
+                        type = "drag",
+                        coefficient = drag.Coefficient
+                    },
+
+                SizeOverLifetimeModifierDefinition size =>
+                    new
+                    {
+                        type = "sizeOverLifetime",
+                        startMultiplier = size.StartMultiplier,
+                        endMultiplier = size.EndMultiplier
+                    },
+
+                _ => throw new NotSupportedException(
+                    $"Unsupported particle modifier: " +
+                    modifier.GetType().FullName)
+            })
+            .ToArray();
+
         var json = new
         {
             formatVersion = definition.FormatVersion,
             texturePath = definition.TexturePath,
-            emissionRatePerSecond =
-                definition.EmissionRatePerSecond,
-            maxParticles = definition.MaxParticles,
             layer = definition.Layer,
+
+            emitter = new
+            {
+                ratePerSecond = definition.Emitter.RatePerSecond,
+                maxParticles = definition.Emitter.MaxParticles,
+                shape
+            },
 
             particle = new
             {
                 lifetimeSeconds = new
                 {
-                    min = definition.LifetimeSeconds.Min,
-                    max = definition.LifetimeSeconds.Max
+                    min = definition.Particle.LifetimeSeconds.Min,
+                    max = definition.Particle.LifetimeSeconds.Max
                 },
 
                 size = new
                 {
-                    min = definition.Size.Min,
-                    max = definition.Size.Max
+                    min = definition.Particle.Size.Min,
+                    max = definition.Particle.Size.Max
                 },
 
                 velocity = new
                 {
                     min = new
                     {
-                        x = definition.Velocity.Min.X,
-                        y = definition.Velocity.Min.Y
+                        x = definition.Particle.Velocity.Min.X,
+                        y = definition.Particle.Velocity.Min.Y
                     },
 
                     max = new
                     {
-                        x = definition.Velocity.Max.X,
-                        y = definition.Velocity.Max.Y
+                        x = definition.Particle.Velocity.Max.X,
+                        y = definition.Particle.Velocity.Max.Y
                     }
-                }
+                },
+
+                modifiers
             }
         };
 

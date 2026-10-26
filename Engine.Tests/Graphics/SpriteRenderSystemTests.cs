@@ -1038,34 +1038,40 @@ public sealed class SpriteRenderSystemTests
         static byte[] CreateEffectJson(int layer, int size)
         {
             var json = $$"""
-        {
-          "formatVersion": 1,
-          "texturePath": "Textures/test.png",
-          "emissionRatePerSecond": 0,
-          "maxParticles": 8,
-          "layer": {{layer}},
-          "particle": {
-            "lifetimeSeconds": {
-              "min": 5,
-              "max": 5
-            },
-            "size": {
-              "min": {{size}},
-              "max": {{size}}
-            },
-            "velocity": {
-              "min": {
-                "x": 0,
-                "y": 0
-              },
-              "max": {
-                "x": 0,
-                "y": 0
-              }
-            }
-          }
+    {
+      "formatVersion": 2,
+      "texturePath": "Textures/test.png",
+      "layer": {{layer}},
+      "emitter": {
+        "ratePerSecond": 0,
+        "maxParticles": 8,
+        "shape": {
+          "type": "point"
         }
-        """;
+      },
+      "particle": {
+        "lifetimeSeconds": {
+          "min": 5,
+          "max": 5
+        },
+        "size": {
+          "min": {{size}},
+          "max": {{size}}
+        },
+        "velocity": {
+          "min": {
+            "x": 0,
+            "y": 0
+          },
+          "max": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        "modifiers": []
+      }
+    }
+    """;
 
             return Encoding.UTF8.GetBytes(json);
         }

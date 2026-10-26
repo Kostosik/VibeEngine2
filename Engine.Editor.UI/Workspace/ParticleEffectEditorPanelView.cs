@@ -17,8 +17,21 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
     private readonly ParticleEffectDocument _document;
     private readonly ParticleEffectPreviewView _previewView;
 
+    private readonly UiDropdown _modifierTypeDropdown = new();
+
+    private readonly UiStackPanel _modifierRowsPanel = new()
+    {
+        Orientation = UiOrientation.Vertical,
+        Spacing = 4.0f,
+        HorizontalAlignment = UiHorizontalAlignment.Stretch
+    };
+
+    private readonly List<ModifierEditorRow> _modifierRows = new();
+
     public ParticleEffectDocument Document => _document;
     private readonly Dictionary<string, UiTextBox> _fields = new();
+    private readonly Dictionary<string, UiWidget> _fieldRows = new();
+    private readonly UiDropdown _shapeDropdown = new();
     private readonly EditorAssetPickerDialog? _assetPickerDialog;
     private UiPickerField? _texturePathPicker;
     private readonly UiLabel _messageLabel;
@@ -148,6 +161,22 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
         AddField(fieldsPanel, "texturePath", "Texture path");
         AddField(fieldsPanel, "emissionRate", "Emission rate / second");
         AddField(fieldsPanel, "maxParticles", "Maximum particles");
+        AddShapeDropdown(fieldsPanel);
+
+        AddField(
+            fieldsPanel,
+            "circleRadius",
+            "Circle radius");
+
+        AddField(
+            fieldsPanel,
+            "rectangleWidth",
+            "Rectangle width");
+
+        AddField(
+            fieldsPanel,
+            "rectangleHeight",
+            "Rectangle height");
         AddField(fieldsPanel, "layer", "Render layer");
 
         AddField(fieldsPanel, "lifetimeMin", "Lifetime minimum (seconds)");
@@ -160,7 +189,7 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
         AddField(fieldsPanel, "velocityMinY", "Velocity minimum Y");
         AddField(fieldsPanel, "velocityMaxX", "Velocity maximum X");
         AddField(fieldsPanel, "velocityMaxY", "Velocity maximum Y");
-
+        AddModifierEditor(fieldsPanel);
         _document.Changed += OnDocumentChanged;
 
         RefreshFields();
@@ -240,6 +269,7 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
         }
 
         panel.AddChild(row);
+        _fieldRows.Add(key, row);
     }
 
     private static bool IsTextureAsset(EditorAssetEntry entry)
@@ -262,6 +292,33 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
     {
         var definition = _document.Definition;
 
+        var shapeIndex = definition.Emitter.Shape switch
+        {
+            PointParticleEmissionShapeDefinition => 0,
+            CircleParticleEmissionShapeDefinition => 1,
+            RectangleParticleEmissionShapeDefinition => 2,
+
+            var shape => throw new NotSupportedException(
+                $"Unsupported particle emission shape: " +
+                $"'{shape.GetType().Name}'.")
+        };
+
+        _shapeDropdown.SetSelectedIndex(shapeIndex);
+
+        var circleRadius =
+            definition.Emitter.Shape is CircleParticleEmissionShapeDefinition circle
+                ? circle.Radius
+                : 1.0f;
+
+        var rectangleSize =
+            definition.Emitter.Shape is RectangleParticleEmissionShapeDefinition rectangle
+                ? rectangle.Size
+                : new Engine.Core.Math.Vector2(1.0f, 1.0f);
+
+        SetField("circleRadius", Format(circleRadius));
+        SetField("rectangleWidth", Format(rectangleSize.X));
+        SetField("rectangleHeight", Format(rectangleSize.Y));
+
         SetField("texturePath", definition.TexturePath);
         SetField("emissionRate", Format(definition.EmissionRatePerSecond));
         SetField("maxParticles", Format(definition.MaxParticles));
@@ -277,6 +334,7 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
         SetField("velocityMinY", Format(definition.Velocity.Min.Y));
         SetField("velocityMaxX", Format(definition.Velocity.Max.X));
         SetField("velocityMaxY", Format(definition.Velocity.Max.Y));
+        RefreshModifierRows(definition.Particle.Modifiers);
     }
 
     private void SetField(string key, string value)
@@ -300,25 +358,49 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
         {
             var current = _document.Definition;
 
+            var shape = _shapeDropdown.SelectedText switch
+            {
+                "Point" =>
+                    (ParticleEmissionShapeDefinition)
+                    new PointParticleEmissionShapeDefinition(),
+
+                "Circle" =>
+                    new CircleParticleEmissionShapeDefinition(
+                        ReadFloat("circleRadius")),
+
+                "Rectangle" =>
+                    new RectangleParticleEmissionShapeDefinition(
+                        new Engine.Core.Math.Vector2(
+                            ReadFloat("rectangleWidth"),
+                            ReadFloat("rectangleHeight"))),
+
+                _ => throw new InvalidDataException(
+                    "Select a particle emission shape.")
+            };
+
             var updated = new ParticleEffectDefinition(
                 current.FormatVersion,
                 ReadString("texturePath"),
-                ReadFloat("emissionRate"),
-                ReadInt("maxParticles"),
                 ReadInt("layer"),
-                new ParticleFloatRange(
-                    ReadFloat("lifetimeMin"),
-                    ReadFloat("lifetimeMax")),
-                new ParticleFloatRange(
-                    ReadFloat("sizeMin"),
-                    ReadFloat("sizeMax")),
-                new ParticleVector2Range(
-                    new Engine.Core.Math.Vector2(
-                        ReadFloat("velocityMinX"),
-                        ReadFloat("velocityMinY")),
-                    new Engine.Core.Math.Vector2(
-                        ReadFloat("velocityMaxX"),
-                        ReadFloat("velocityMaxY"))));
+                new ParticleEmitterDefinition(
+                    ReadFloat("emissionRate"),
+                    ReadInt("maxParticles"),
+                    shape),
+                    new ParticleSpawnDefinition(
+                        new ParticleFloatRange(
+                            ReadFloat("lifetimeMin"),
+                            ReadFloat("lifetimeMax")),
+                        new ParticleFloatRange(
+                            ReadFloat("sizeMin"),
+                            ReadFloat("sizeMax")),
+                        new ParticleVector2Range(
+                            new Engine.Core.Math.Vector2(
+                                ReadFloat("velocityMinX"),
+                                ReadFloat("velocityMinY")),
+                            new Engine.Core.Math.Vector2(
+                                ReadFloat("velocityMaxX"),
+                                ReadFloat("velocityMaxY"))),
+                        ReadModifierDefinitions()));
 
             _document.UpdateDefinition(updated);
 
@@ -357,6 +439,339 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
         return value;
     }
 
+    private void AddShapeDropdown(UiStackPanel panel)
+    {
+        var row = new UiStackPanel
+        {
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 8.0f,
+            Height = 32.0f
+        };
+
+        row.AddChild(new UiLabel("Emission shape")
+        {
+            Width = 220.0f,
+            Height = 30.0f,
+            FontSize = 13.0f,
+            VerticalAlignment = UiVerticalAlignment.Center
+        });
+
+        _shapeDropdown.Width = 280.0f;
+        _shapeDropdown.Height = 30.0f;
+
+        _shapeDropdown.AddOption("Point");
+        _shapeDropdown.AddOption("Circle");
+        _shapeDropdown.AddOption("Rectangle");
+
+        _shapeDropdown.SelectionChanged += (_, selectedText) =>
+        {
+            UpdateShapeParameterFields(selectedText);
+        };
+
+        row.AddChild(_shapeDropdown);
+        panel.AddChild(row);
+    }
+    private void UpdateShapeParameterFields(string shape)
+    {
+        SetShapeFieldVisible(
+            "circleRadius",
+            shape == "Circle");
+
+        SetShapeFieldVisible(
+            "rectangleWidth",
+            shape == "Rectangle");
+
+        SetShapeFieldVisible(
+            "rectangleHeight",
+            shape == "Rectangle");
+    }
+
+    private void AddModifierEditor(UiStackPanel panel)
+    {
+        panel.AddChild(new UiLabel("Modifiers")
+        {
+            Height = 26.0f,
+            FontSize = 16.0f
+        });
+
+        var addRow = new UiStackPanel
+        {
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 8.0f,
+            Height = 32.0f
+        };
+
+        _modifierTypeDropdown.Width = 220.0f;
+        _modifierTypeDropdown.Height = 30.0f;
+
+        _modifierTypeDropdown.AddOption("Acceleration");
+        _modifierTypeDropdown.AddOption("Drag");
+        _modifierTypeDropdown.AddOption("Size Over Lifetime");
+        _modifierTypeDropdown.SetSelectedIndex(0);
+
+        var addButton = new UiButton("Add Modifier")
+        {
+            Width = 120.0f,
+            Height = 30.0f
+        };
+
+        addButton.Clicked += AddSelectedModifier;
+
+        addRow.AddChild(_modifierTypeDropdown);
+        addRow.AddChild(addButton);
+
+        panel.AddChild(addRow);
+        panel.AddChild(_modifierRowsPanel);
+    }
+
+    private void AddSelectedModifier()
+    {
+        switch (_modifierTypeDropdown.SelectedText)
+        {
+            case "Acceleration":
+                AddModifierRow(
+                    "Acceleration",
+                    new[] { "X", "Y" },
+                    new[] { "Acceleration X", "Acceleration Y" },
+                    0.0f,
+                    0.0f);
+                break;
+
+            case "Drag":
+                AddModifierRow(
+                    "Drag",
+                    new[] { "Coefficient" },
+                    new[] { "Drag coefficient" },
+                    1.0f);
+                break;
+
+            case "Size Over Lifetime":
+                AddModifierRow(
+                    "Size Over Lifetime",
+                    new[] { "Start", "End" },
+                    new[] { "Start multiplier", "End multiplier" },
+                    1.0f,
+                    0.0f);
+                break;
+
+            default:
+                _messageLabel.Text = "Select a modifier type.";
+                return;
+        }
+
+        _messageLabel.Text =
+            "Modifier added. Apply Changes to commit it.";
+    }
+
+    private void AddModifierRow(
+    string kind,
+    string[] parameterLabels,
+    string[] fieldNames,
+    params float[] values)
+    {
+        var row = new UiStackPanel
+        {
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 5.0f,
+            Height = 32.0f
+        };
+
+        row.AddChild(new UiLabel(kind)
+        {
+            Width = 140.0f,
+            Height = 30.0f,
+            FontSize = 12.0f,
+            VerticalAlignment = UiVerticalAlignment.Center
+        });
+
+        var fields = new List<UiTextBox>();
+
+        for (var i = 0; i < values.Length; i++)
+        {
+            row.AddChild(new UiLabel(parameterLabels[i])
+            {
+                Width = 45.0f,
+                Height = 30.0f,
+                FontSize = 12.0f,
+                VerticalAlignment = UiVerticalAlignment.Center
+            });
+
+            var field = new UiTextBox
+            {
+                Width = 75.0f,
+                Height = 30.0f,
+                FontSize = 12.0f,
+                MaxLength = 64,
+                Placeholder = fieldNames[i]
+            };
+
+            field.SetText(Format(values[i]));
+
+            fields.Add(field);
+            row.AddChild(field);
+        }
+
+        var editorRow = new ModifierEditorRow(
+            kind,
+            row,
+            fields.ToArray());
+
+        var removeButton = new UiButton("Remove")
+        {
+            Width = 70.0f,
+            Height = 30.0f,
+            FontSize = 12.0f
+        };
+
+        removeButton.Clicked += () => RemoveModifierRow(editorRow);
+
+        row.AddChild(removeButton);
+
+        _modifierRows.Add(editorRow);
+        _modifierRowsPanel.AddChild(row);
+    }
+
+    private void RemoveModifierRow(ModifierEditorRow editorRow)
+    {
+        _modifierRows.Remove(editorRow);
+        _modifierRowsPanel.RemoveChild(editorRow.Container);
+
+        _messageLabel.Text =
+            "Modifier removed. Apply Changes to commit it.";
+    }
+
+    private void RefreshModifierRows(
+        IReadOnlyList<ParticleModifierDefinition> definitions)
+    {
+        foreach (var editorRow in _modifierRows.ToArray())
+        {
+            _modifierRowsPanel.RemoveChild(editorRow.Container);
+        }
+
+        _modifierRows.Clear();
+
+        foreach (var definition in definitions)
+        {
+            switch (definition)
+            {
+                case AccelerationModifierDefinition acceleration:
+                    AddModifierRow(
+                        "Acceleration",
+                        new[] { "X", "Y" },
+                        new[] { "Acceleration X", "Acceleration Y" },
+                        acceleration.Acceleration.X,
+                        acceleration.Acceleration.Y);
+                    break;
+
+                case DragModifierDefinition drag:
+                    AddModifierRow(
+                        "Drag",
+                        new[] { "Coefficient" },
+                        new[] { "Drag coefficient" },
+                        drag.Coefficient);
+                    break;
+
+                case SizeOverLifetimeModifierDefinition size:
+                    AddModifierRow(
+                        "Size Over Lifetime",
+                        new[] { "Start", "End" },
+                        new[] { "Start multiplier", "End multiplier" },
+                        size.StartMultiplier,
+                        size.EndMultiplier);
+                    break;
+
+                default:
+                    throw new NotSupportedException(
+                        $"Unsupported particle modifier: " +
+                        $"'{definition.GetType().Name}'.");
+            }
+        }
+    }
+
+    private ParticleModifierDefinition[] ReadModifierDefinitions()
+    {
+        var definitions =
+            new ParticleModifierDefinition[_modifierRows.Count];
+
+        for (var i = 0; i < _modifierRows.Count; i++)
+        {
+            var row = _modifierRows[i];
+
+            definitions[i] = row.Kind switch
+            {
+                "Acceleration" =>
+                    new AccelerationModifierDefinition(
+                        new Engine.Core.Math.Vector2(
+                            ReadModifierFloat(row.Fields[0]),
+                            ReadModifierFloat(row.Fields[1]))),
+
+                "Drag" =>
+                    new DragModifierDefinition(
+                        ReadModifierFloat(row.Fields[0])),
+
+                "Size Over Lifetime" =>
+                    new SizeOverLifetimeModifierDefinition(
+                        ReadModifierFloat(row.Fields[0]),
+                        ReadModifierFloat(row.Fields[1])),
+
+                _ => throw new NotSupportedException(
+                    $"Unsupported particle modifier: '{row.Kind}'.")
+            };
+        }
+
+        return definitions;
+    }
+
+    private static float ReadModifierFloat(UiTextBox field)
+    {
+        if (!float.TryParse(
+                field.Text,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var value) ||
+            !float.IsFinite(value))
+        {
+            throw new InvalidDataException(
+                $"'{field.Placeholder}' must be a finite number.");
+        }
+
+        return value;
+    }
+
+    private sealed class ModifierEditorRow
+    {
+        public ModifierEditorRow(
+            string kind,
+            UiStackPanel container,
+            UiTextBox[] fields)
+        {
+            Kind = kind;
+            Container = container;
+            Fields = fields;
+        }
+
+        public string Kind { get; }
+
+        public UiStackPanel Container { get; }
+
+        public UiTextBox[] Fields { get; }
+    }
+
+    private void SetShapeFieldVisible(
+        string key,
+        bool visible)
+    {
+        if (!_fieldRows.TryGetValue(key, out var row))
+        {
+            return;
+        }
+
+        row.Visible = visible;
+
+        // UiStackPanel учитывает размер даже невидимых детей.
+        // Поэтому скрываемую строку нужно также схлопнуть.
+        row.Height = visible ? 32.0f : 0.0f;
+    }
     private float ReadFloat(string key)
     {
         if (!float.TryParse(

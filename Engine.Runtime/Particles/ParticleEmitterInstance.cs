@@ -4,6 +4,7 @@ using Engine.ECS;
 using Engine.ECS.Components;
 using Engine.ECS.Entities;
 using Engine.Graphics2D.Particles;
+using Engine.Particles;
 using Engine.Particles.Emission;
 using Engine.Particles.Initialization;
 using Engine.Particles.Particles;
@@ -13,8 +14,9 @@ namespace Engine.Runtime.Particles;
 public sealed class ParticleEmitterInstance
 {
     private readonly World _ecsWorld;
-    private readonly ParticleFactoryDelegate _factory;
-    private readonly ParticleEmitterRuntime _emitterRuntime;
+    private readonly ParticleFactoryDelegate? _factory;
+    private readonly ParticleEmitterRuntime? _emitterRuntime;
+    private readonly ParticleEffectSimulation? _effectSimulation;
 
     private DeterministicRandom _random;
     private Vector3 _sourcePosition;
@@ -33,7 +35,7 @@ public sealed class ParticleEmitterInstance
     {
         ArgumentNullException.ThrowIfNull(ecsWorld);
         ArgumentNullException.ThrowIfNull(factory);
-
+        _effectSimulation = null;
         _ecsWorld = ecsWorld;
         SourceEntity = sourceEntity;
         TexturePath = texturePath;
@@ -50,6 +52,32 @@ public sealed class ParticleEmitterInstance
         SyncSourcePositionOrThrow();
     }
 
+    internal ParticleEmitterInstance(
+    World ecsWorld,
+    EntityId sourceEntity,
+    string texturePath,
+    int layer,
+    ParticleEffectSimulation effectSimulation)
+    {
+        ArgumentNullException.ThrowIfNull(ecsWorld);
+        ArgumentException.ThrowIfNullOrWhiteSpace(texturePath);
+        ArgumentNullException.ThrowIfNull(effectSimulation);
+
+        _ecsWorld = ecsWorld;
+        SourceEntity = sourceEntity;
+        TexturePath = texturePath;
+        Layer = layer;
+
+        _factory = null;
+        _emitterRuntime = null;
+        _effectSimulation = effectSimulation;
+        _random = default;
+
+        ParticleSystem = effectSimulation.ParticleSystem;
+
+        SyncSourcePositionOrThrow();
+    }
+
     public EntityId SourceEntity { get; }
 
     public string TexturePath { get; }
@@ -57,7 +85,8 @@ public sealed class ParticleEmitterInstance
     public int Layer { get; }
 
     public ParticleEmitter Emitter =>
-        _emitterRuntime.Emitter;
+        _effectSimulation?.Emitter ??
+        _emitterRuntime!.Emitter;
 
     public ParticleSystem ParticleSystem { get; }
 
@@ -67,7 +96,16 @@ public sealed class ParticleEmitterInstance
     {
         SyncSourcePositionOrThrow();
 
-        return _emitterRuntime.Burst(
+        if (_effectSimulation is not null)
+        {
+            return _effectSimulation.Burst(
+                count,
+                new Vector2(
+                    _sourcePosition.X,
+                    _sourcePosition.Y));
+        }
+
+        return _emitterRuntime!.Burst(
             ParticleSystem,
             count,
             ref _random,
@@ -81,13 +119,24 @@ public sealed class ParticleEmitterInstance
             return false;
         }
 
-        ParticleSystem.Update(deltaSeconds);
+        if (_effectSimulation is not null)
+        {
+            _effectSimulation.Update(
+                deltaSeconds,
+                new Vector2(
+                    _sourcePosition.X,
+                    _sourcePosition.Y));
+        }
+        else
+        {
+            ParticleSystem.Update(deltaSeconds);
 
-        _emitterRuntime.Update(
-            ParticleSystem,
-            deltaSeconds,
-            ref _random,
-            CreateParticle);
+            _emitterRuntime!.Update(
+                ParticleSystem,
+                deltaSeconds,
+                ref _random,
+                CreateParticle);
+        }
 
         return true;
     }
@@ -119,7 +168,7 @@ public sealed class ParticleEmitterInstance
     private Particle CreateParticle(
         ref DeterministicRandom random)
     {
-        var particle = _factory(ref random);
+        var particle = _factory!(ref random);
 
         // Позиция фабрики трактуется как локальное
         // смещение относительно исходной сущности.

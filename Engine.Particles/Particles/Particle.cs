@@ -25,9 +25,10 @@ public struct Particle
         AgeSeconds = 0.0f;
         LifetimeSeconds = lifetimeSeconds;
         Size = size;
+        InitialSize = size;
         Rotation = rotation;
     }
-
+    public float InitialSize;
     public Vector3 Position;
     public Vector3 Velocity;
     public float AgeSeconds;

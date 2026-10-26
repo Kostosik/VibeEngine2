@@ -13,9 +13,11 @@ public sealed class EditorAssetCreationRegistryTests
         Assert.Equal(
             new[]
             {
-                "folder",
-                "particle-effect",
-                "script-definition"
+        "folder",
+        "particle-effect",
+        "script-definition",
+        "world-document",
+        "ui-document"
             },
             registry.Definitions.Select(item => item.Id));
 
@@ -58,8 +60,16 @@ public sealed class EditorAssetCreationRegistryTests
         var root = json.RootElement;
 
         Assert.Equal(
-            1,
+            2,
             root.GetProperty("formatVersion").GetInt32());
+
+        Assert.True(root.TryGetProperty("emitter", out _));
+
+        Assert.True(
+            root.GetProperty("particle")
+                .TryGetProperty("modifiers", out var modifiers));
+
+        Assert.Equal(JsonValueKind.Array, modifiers.ValueKind);
 
         Assert.Equal(
             "Textures/particle.png",
@@ -114,7 +124,7 @@ public sealed class EditorAssetCreationRegistryTests
             using var json = JsonDocument.Parse(File.ReadAllText(path));
 
             Assert.Equal(
-                1,
+                2,
                 json.RootElement.GetProperty("formatVersion").GetInt32());
         }
         finally

@@ -520,8 +520,14 @@ public sealed class ProjectCreationService
                         startupScenePath),
                     new DesktopGameHostOptions
                     {
-                        Title = "{{title}}"
-                    });
+                        Title = "{{title}}",
+
+                        ConfigureContentLoaders = loaders =>
+                        {
+                            loaders.Register(
+                                new JsonScriptDefinitionContentLoader());
+                        }
+                    }
             }
 
             private static string ResolveStartupScenePath(

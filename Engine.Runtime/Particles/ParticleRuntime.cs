@@ -259,15 +259,10 @@ public sealed class ParticleRuntime : IDisposable
 
             try
             {
-                instance = CreateEmitter(
+                instance = CreateEffectEmitter(
                     entity,
-                    definition.TexturePath,
-                    new ParticleEmitter(
-                        definition.EmissionRatePerSecond),
-                    definition.MaxParticles,
-                    CreateParticleFactory(definition),
-                    seed: CreateParticleSeed(entity),
-                    layer: definition.Layer);
+                    definition,
+                    CreateParticleSeed(entity));
 
                 if (component.InitialBurstCount > 0)
                 {
@@ -301,6 +296,45 @@ public sealed class ParticleRuntime : IDisposable
                 RemoveComponentEmitter(entity);
             }
         }
+    }
+
+    private ParticleEmitterInstance CreateEffectEmitter(
+    EntityId sourceEntity,
+    ParticleEffectDefinition definition,
+    ulong seed)
+    {
+        EnsureNotDisposed();
+
+        ArgumentNullException.ThrowIfNull(definition);
+
+        if (!_ecsWorld.Exists(sourceEntity))
+        {
+            throw new ArgumentException(
+                "Source entity does not exist.",
+                nameof(sourceEntity));
+        }
+
+        if (!_ecsWorld.Has<WorldTransform2D>(sourceEntity))
+        {
+            throw new ArgumentException(
+                "Source entity requires WorldTransform2D.",
+                nameof(sourceEntity));
+        }
+
+        var simulation = new ParticleEffectSimulation(
+            definition,
+            seed);
+
+        var instance = new ParticleEmitterInstance(
+            _ecsWorld,
+            sourceEntity,
+            definition.TexturePath,
+            definition.Layer,
+            simulation);
+
+        _emitters.Add(instance);
+
+        return instance;
     }
 
     private void RemoveComponentEmitter(EntityId entity)

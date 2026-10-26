@@ -60,7 +60,8 @@ public sealed class GameProjectRunner : IDisposable
 
     public void Start(
         GameProject project,
-        GameProjectRunMode mode = GameProjectRunMode.Standard)
+        GameProjectRunMode mode = GameProjectRunMode.Standard,
+        IReadOnlyList<string>? applicationArguments = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(project);
@@ -138,11 +139,31 @@ public sealed class GameProjectRunner : IDisposable
                 startInfo.ArgumentList.Add("--no-launch-profile");
                 break;
 
+
+
             default:
                 throw new ArgumentOutOfRangeException(
                     nameof(mode),
                     mode,
                     "Unsupported game project run mode.");
+        }
+
+        if (applicationArguments is { Count: > 0 })
+        {
+            // Отделяем аргументы приложения от параметров .NET CLI.
+            startInfo.ArgumentList.Add("--");
+
+            foreach (var argument in applicationArguments)
+            {
+                if (argument is null)
+                {
+                    throw new ArgumentException(
+                        "Application arguments cannot contain null values.",
+                        nameof(applicationArguments));
+                }
+
+                startInfo.ArgumentList.Add(argument);
+            }
         }
 
         var process = new Process

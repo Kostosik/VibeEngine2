@@ -56,23 +56,41 @@ public sealed class EditorAssetCreationRegistry
                 defaultName: "New Particle Effect",
                 kind: EditorAssetCreationKind.TextFile,
                 extension: ".particle.json",
-                contentFactory: static _ => """
-                {
-                  "formatVersion": 1,
-                  "texturePath": "Textures/particle.png",
-                  "emissionRatePerSecond": 12,
-                  "maxParticles": 128,
-                  "layer": 0,
-                  "particle": {
-                    "lifetimeSeconds": { "min": 0.8, "max": 1.4 },
-                    "size": { "min": 2, "max": 6 },
-                    "velocity": {
-                      "min": { "x": -8, "y": -24 },
-                      "max": { "x": 8, "y": -4 }
+                    contentFactory: static _ => """
+                    {
+                      "formatVersion": 2,
+                      "texturePath": "Textures/particle.png",
+                      "layer": 0,
+                      "emitter": {
+                        "ratePerSecond": 12,
+                        "maxParticles": 128,
+                        "shape": {
+                          "type": "point"
+                        }
+                      },
+                      "particle": {
+                        "lifetimeSeconds": {
+                          "min": 0.8,
+                          "max": 1.4
+                        },
+                        "size": {
+                          "min": 2,
+                          "max": 6
+                        },
+                        "velocity": {
+                          "min": {
+                            "x": -8,
+                            "y": -24
+                          },
+                          "max": {
+                            "x": 8,
+                            "y": -4
+                          }
+                        },
+                        "modifiers": []
+                      }
                     }
-                  }
-                }
-                """));
+                    """));
 
         registry.Register(
             new EditorAssetCreationDefinition(

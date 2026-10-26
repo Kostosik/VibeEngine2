@@ -61,6 +61,11 @@ public sealed class EditorApplication :
 
     private readonly ProjectCreationService _projectCreationService = new();
     private readonly GameProjectRunner _gameProjectRunner = new();
+    private readonly GameProjectSessionManager
+    _gameProjectSessionManager = new();
+
+    private readonly GameProjectSessionCommand?
+        _gameProjectSessionCommand;
     private readonly DebugConsole? _debugConsole;
     private readonly RebuildEngineCommand? _rebuildEngineCommand;
     private readonly EditorDocumentCloseDialog
@@ -197,10 +202,21 @@ public sealed class EditorApplication :
         {
             _rebuildEngineCommand =
                 new RebuildEngineCommand(
-                    () => Editor.ActiveGameProject);
+                    () => Editor.ActiveGameProject,
+                    () => _gameProjectSessionManager.Sessions.Any(
+                        session => session.IsActive));
 
             _debugConsole.RegisterCommand(
                 _rebuildEngineCommand);
+
+            _gameProjectSessionCommand =
+                new GameProjectSessionCommand(
+                    () => Editor.ActiveGameProject,
+                    _gameProjectSessionManager,
+                    () => _rebuildEngineCommand.IsRunning);
+
+            _debugConsole.RegisterCommand(
+                _gameProjectSessionCommand);
         }
 
         _errorDialog =
@@ -644,7 +660,7 @@ public sealed class EditorApplication :
 
         DrainEngineRebuildEvents();
         DrainGameOutput();
-
+        DrainGameSessionOutput();
         MainShell.SetGameRunning(
             _gameProjectRunner.IsSessionActive);
 
@@ -681,6 +697,14 @@ public sealed class EditorApplication :
 
             _rebuildEngineCommand.Dispose();
         }
+
+        if (_gameProjectSessionCommand is not null)
+        {
+            _debugConsole?.UnregisterCommand(
+                _gameProjectSessionCommand.Name);
+        }
+
+        _gameProjectSessionManager.Dispose();
 
         _gameProjectRunner.Dispose();
         MainShell.ReleaseResources();
@@ -813,6 +837,31 @@ public sealed class EditorApplication :
                 exception.Message);
         }
     }
+
+    private void DrainGameSessionOutput()
+    {
+        while (_gameProjectSessionManager.TryDequeueOutput(
+            out var output))
+        {
+            if (output is null)
+            {
+                continue;
+            }
+
+            var message =
+                $"[{output.SessionName}] {output.Message}";
+
+            if (output.IsError)
+            {
+                _debugConsole?.WriteError(message);
+            }
+            else
+            {
+                _debugConsole?.WriteLine(message);
+            }
+        }
+    }
+
     private void HandleKeyboardShortcuts()
     {
         var controlDown =

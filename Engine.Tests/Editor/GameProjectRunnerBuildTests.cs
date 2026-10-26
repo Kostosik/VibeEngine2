@@ -7,6 +7,269 @@ public sealed class GameProjectRunnerBuildTests
 {
 
     [Fact]
+    public void Start_ApplicationArguments_ArePassedToGameUnchanged()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"VibeEngineRunnerArgs-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var projectPath = Path.Combine(
+                root,
+                "RunnerArgsProbe.csproj");
+
+            var manifestPath = Path.Combine(
+                root,
+                "RunnerArgsProbe.vibeproject");
+
+            var sourcePath = Path.Combine(
+                root,
+                "Program.cs");
+
+            File.WriteAllText(
+                projectPath,
+                """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <TargetFramework>net8.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+                <NuGetAudit>false</NuGetAudit>
+                <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+              </PropertyGroup>
+            </Project>
+            """);
+
+            File.WriteAllText(
+                manifestPath,
+                """
+            {
+              "formatVersion": 1,
+              "name": "RunnerArgsProbe",
+              "startupProject": "RunnerArgsProbe.csproj",
+              "startupScene": null
+            }
+            """);
+
+            File.WriteAllText(
+                sourcePath,
+                """
+            Console.WriteLine($"ARG_COUNT={args.Length}");
+
+            for (var i = 0; i < args.Length; i++)
+            {
+                Console.WriteLine($"ARG_{i}={args[i]}");
+            }
+
+            Console.Out.Flush();
+            Thread.Sleep(TimeSpan.FromSeconds(30));
+            """);
+
+            var project = GameProject.Open(manifestPath);
+
+            using var runner = new GameProjectRunner();
+
+            string[] applicationArguments =
+            [
+                "--server",
+            "--bind",
+            "127.0.0.1",
+            "--label",
+            "server node 1"
+            ];
+
+            runner.Start(
+                project,
+                GameProjectRunMode.Standard,
+                applicationArguments);
+
+            var output = DrainUntil(
+                runner,
+                outputs =>
+                    outputs.Any(item =>
+                        item.Message == "ARG_COUNT=5")
+                    &&
+                    outputs.Any(item =>
+                        item.Message == "ARG_4=server node 1"));
+
+            Assert.Contains(
+                output,
+                item => item.Message == "ARG_COUNT=5");
+
+            Assert.Contains(
+                output,
+                item => item.Message == "ARG_0=--server");
+
+            Assert.Contains(
+                output,
+                item => item.Message == "ARG_1=--bind");
+
+            Assert.Contains(
+                output,
+                item => item.Message == "ARG_2=127.0.0.1");
+
+            Assert.Contains(
+                output,
+                item => item.Message == "ARG_3=--label");
+
+            Assert.Contains(
+                output,
+                item => item.Message == "ARG_4=server node 1");
+
+            runner.Stop();
+
+            Assert.False(runner.IsSessionActive);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Start_TwoSessions_RunsConcurrently_AndStopsIndependently()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"VibeEngineSessions-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var projectPath = Path.Combine(
+                root,
+                "SessionProbe.csproj");
+
+            var manifestPath = Path.Combine(
+                root,
+                "SessionProbe.vibeproject");
+
+            var sourcePath = Path.Combine(
+                root,
+                "Program.cs");
+
+            File.WriteAllText(
+                projectPath,
+                """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <TargetFramework>net8.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+                <NuGetAudit>false</NuGetAudit>
+                <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+              </PropertyGroup>
+            </Project>
+            """);
+
+            File.WriteAllText(
+                manifestPath,
+                """
+            {
+              "formatVersion": 1,
+              "name": "SessionProbe",
+              "startupProject": "SessionProbe.csproj",
+              "startupScene": null
+            }
+            """);
+
+            File.WriteAllText(
+                sourcePath,
+                """
+            Console.WriteLine(
+                $"SESSION_ARG={args.Single()} PID={Environment.ProcessId}");
+
+            Console.Out.Flush();
+
+            Thread.Sleep(TimeSpan.FromSeconds(30));
+            """);
+
+            var project = GameProject.Open(manifestPath);
+
+            using var manager = new GameProjectSessionManager();
+
+            var serverId = manager.Start(
+                project,
+                "Server",
+                applicationArguments: new[] { "--server" });
+
+            var serverOutput = DrainUntil(
+                manager,
+                outputs => outputs.Any(output =>
+                    output.SessionId == serverId &&
+                    output.Message.Contains(
+                        "SESSION_ARG=--server",
+                        StringComparison.Ordinal)));
+
+            Assert.Contains(
+                serverOutput,
+                output => output.SessionId == serverId &&
+                    output.Message.Contains("SESSION_ARG=--server"));
+
+            var clientId = manager.Start(
+                project,
+                "Client",
+                applicationArguments: new[] { "--client" });
+
+            var clientOutput = DrainUntil(
+                manager,
+                outputs => outputs.Any(output =>
+                    output.SessionId == clientId &&
+                    output.Message.Contains(
+                        "SESSION_ARG=--client",
+                        StringComparison.Ordinal)));
+
+            Assert.Contains(
+                clientOutput,
+                output => output.SessionId == clientId &&
+                    output.Message.Contains("SESSION_ARG=--client"));
+
+            Assert.Equal(2, manager.Sessions.Count);
+
+            Assert.True(
+                manager.Sessions.Single(session =>
+                    session.Id == serverId).IsActive);
+
+            Assert.True(
+                manager.Sessions.Single(session =>
+                    session.Id == clientId).IsActive);
+
+            // Остановка сервера не должна останавливать клиента.
+            manager.Stop(serverId);
+
+            Assert.False(
+                manager.Sessions.Single(session =>
+                    session.Id == serverId).IsActive);
+
+            Assert.True(
+                manager.Sessions.Single(session =>
+                    session.Id == clientId).IsActive);
+
+            manager.Stop(clientId);
+
+            Assert.False(
+                manager.Sessions.Single(session =>
+                    session.Id == clientId).IsActive);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void Start_HotReloadMode_AppliesSourceChanges_AndStopEndsSession()
     {
         var root = Path.Combine(
@@ -315,5 +578,40 @@ public sealed class GameProjectRunnerBuildTests
             string.Join(
                 Environment.NewLine,
                 outputs.Select(output => output.Message)));
+    }
+
+    private static List<GameProjectSessionOutput> DrainUntil(
+    GameProjectSessionManager manager,
+    Func<List<GameProjectSessionOutput>, bool> complete,
+    int timeoutSeconds = 90)
+    {
+        var outputs = new List<GameProjectSessionOutput>();
+        var stopwatch = Stopwatch.StartNew();
+
+        while (stopwatch.Elapsed < TimeSpan.FromSeconds(timeoutSeconds))
+        {
+            while (manager.TryDequeueOutput(out var output))
+            {
+                if (output is not null)
+                {
+                    outputs.Add(output);
+                }
+            }
+
+            if (complete(outputs))
+            {
+                return outputs;
+            }
+
+            Thread.Sleep(20);
+        }
+
+        throw new TimeoutException(
+            "Timed out waiting for game sessions. Output:" +
+            Environment.NewLine +
+            string.Join(
+                Environment.NewLine,
+                outputs.Select(output =>
+                    $"[{output.SessionName}] {output.Message}")));
     }
 }

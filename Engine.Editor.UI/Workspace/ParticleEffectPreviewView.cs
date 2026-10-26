@@ -34,11 +34,7 @@ public sealed class ParticleEffectPreviewView : UiPanel
     private readonly ImageTextureLoader _textureLoader = new();
 
     private ParticleEffectDefinition? _simulationDefinition;
-    private ParticleSystem? _particles;
-    private ParticleEmitterRuntime? _emitterRuntime;
-    private ParticleFactoryDelegate? _particleFactory;
-
-    private DeterministicRandom _random = new(1UL);
+    private ParticleEffectSimulation? _simulation;
 
     private TextureHandle _texture;
     private string? _textureKey;
@@ -113,28 +109,25 @@ public sealed class ParticleEffectPreviewView : UiPanel
     {
         EnsureSimulation();
 
-        if (_particles is null ||
-            _emitterRuntime is null ||
-            _particleFactory is null)
+        if (_simulation is null)
         {
             return;
         }
 
-        // Не допускаем огромного скачка симуляции после паузы окна.
-        var delta = (float)Math.Clamp(deltaSeconds, 0.0, 0.05);
+        // Не допускаем огромного скачка после паузы окна.
+        var delta = (float)Math.Clamp(
+            deltaSeconds,
+            0.0,
+            0.05);
 
         if (delta <= 0.0f)
         {
             return;
         }
 
-        _particles.Update(delta);
-
-        _emitterRuntime.Update(
-            _particles,
+        _simulation.Update(
             delta,
-            ref _random,
-            _particleFactory);
+            Vector2.Zero);
     }
 
     protected override void OnRender(UiRenderContext context)
@@ -178,9 +171,9 @@ public sealed class ParticleEffectPreviewView : UiPanel
                     Bounds.Height),
                 guideColor);
 
-            if (_particles is not null)
+            if (_simulation is not null)
             {
-                foreach (var particle in _particles.Particles)
+                foreach (var particle in _simulation.ParticleSystem.Particles)
                 {
                     if (!float.IsFinite(particle.Position.X) ||
                         !float.IsFinite(particle.Position.Y) ||
@@ -226,8 +219,11 @@ public sealed class ParticleEffectPreviewView : UiPanel
                 }
             }
 
-            var particleCount = _particles?.Count ?? 0;
-            var capacity = _particles?.Capacity ?? 0;
+            var particleCount =
+                _simulation?.ParticleSystem.Count ?? 0;
+
+            var capacity =
+                _simulation?.ParticleSystem.Capacity ?? 0;
 
             context.DrawText(
                 $"Preview • Particles: {particleCount}/{capacity} • Zoom: {_zoom * 100.0f:0}%",
@@ -326,17 +322,10 @@ public sealed class ParticleEffectPreviewView : UiPanel
 
         _simulationDefinition = definition;
 
-        _particles = new ParticleSystem(
-            definition.MaxParticles);
-
-        _emitterRuntime = new ParticleEmitterRuntime(
-            new ParticleEmitter(
-                definition.EmissionRatePerSecond));
-
-        _particleFactory = CreateParticleFactory(definition);
-
-        // Повторяемая последовательность полезна для отладки эффекта.
-        _random = new DeterministicRandom(1UL);
+        // Фиксированный seed делает превью воспроизводимым.
+        _simulation = new ParticleEffectSimulation(
+            definition,
+            seed: 1UL);
     }
 
     private static ParticleFactoryDelegate CreateParticleFactory(

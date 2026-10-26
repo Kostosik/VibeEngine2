@@ -62,8 +62,8 @@ public sealed class JsonParticleEffectContentLoader :
     }
 
     public static ParticleEffectDefinition ParseDefinition(
-        AssetPath path,
-        ReadOnlyMemory<byte> data)
+    AssetPath path,
+    ReadOnlyMemory<byte> data)
     {
         if (data.IsEmpty)
         {
@@ -102,58 +102,88 @@ public sealed class JsonParticleEffectContentLoader :
                 "texturePath",
                 path);
 
-            var emissionRate = ReadSingle(
+            var layer = ReadInt32(
                 root,
-                "emissionRatePerSecond",
-                "emissionRatePerSecond",
+                "layer",
+                "layer",
+                path);
+
+            var emitterElement = ReadObject(
+                root,
+                "emitter",
+                "emitter",
+                path);
+
+            var ratePerSecond = ReadSingle(
+                emitterElement,
+                "ratePerSecond",
+                "emitter.ratePerSecond",
                 path);
 
             var maxParticles = ReadInt32(
-                root,
+                emitterElement,
                 "maxParticles",
-                "maxParticles",
+                "emitter.maxParticles",
                 path);
 
-            var layer = ReadOptionalInt32(
-                root,
-                "layer",
-                "layer",
-                defaultValue: 0,
+            var shapeElement = ReadObject(
+                emitterElement,
+                "shape",
+                "emitter.shape",
                 path);
 
-            var particle = ReadObject(
+            var shape = ReadEmissionShape(
+                shapeElement,
+                "emitter.shape",
+                path);
+
+            var particleElement = ReadObject(
                 root,
                 "particle",
                 "particle",
                 path);
 
             var lifetime = ReadFloatRange(
-                particle,
+                particleElement,
                 "lifetimeSeconds",
                 "particle.lifetimeSeconds",
                 path);
 
             var size = ReadFloatRange(
-                particle,
+                particleElement,
                 "size",
                 "particle.size",
                 path);
 
             var velocity = ReadVector2Range(
-                particle,
+                particleElement,
                 "velocity",
                 "particle.velocity",
                 path);
 
+            var modifiers = ReadModifiers(
+                particleElement,
+                "modifiers",
+                "particle.modifiers",
+                path);
+
+            var emitter = new ParticleEmitterDefinition(
+                ratePerSecond,
+                maxParticles,
+                shape);
+
+            var particle = new ParticleSpawnDefinition(
+                lifetime,
+                size,
+                velocity,
+                modifiers);
+
             return new ParticleEffectDefinition(
                 formatVersion,
                 texturePath,
-                emissionRate,
-                maxParticles,
                 layer,
-                lifetime,
-                size,
-                velocity);
+                emitter,
+                particle);
         }
         catch (JsonException exception)
         {
@@ -169,6 +199,140 @@ public sealed class JsonParticleEffectContentLoader :
         }
     }
 
+    private static ParticleEmissionShapeDefinition ReadEmissionShape(
+    JsonElement element,
+    string fieldPath,
+    AssetPath path)
+    {
+        var type = ReadString(
+            element,
+            "type",
+            $"{fieldPath}.type",
+            path);
+
+        return type switch
+        {
+            "point" =>
+                new PointParticleEmissionShapeDefinition(),
+
+            "circle" =>
+                new CircleParticleEmissionShapeDefinition(
+                    ReadSingle(
+                        element,
+                        "radius",
+                        $"{fieldPath}.radius",
+                        path)),
+
+            "rectangle" =>
+                new RectangleParticleEmissionShapeDefinition(
+                    ReadVector2(
+                        element,
+                        "size",
+                        $"{fieldPath}.size",
+                        path)),
+
+            _ => throw new InvalidDataException(
+                $"Unknown emission shape '{type}' " +
+                $"in particle effect '{path}'.")
+        };
+    }
+
+    private static IReadOnlyList<ParticleModifierDefinition>
+        ReadModifiers(
+            JsonElement parent,
+            string propertyName,
+            string fieldPath,
+            AssetPath path)
+    {
+        var value = ReadProperty(
+            parent,
+            propertyName,
+            fieldPath,
+            path);
+
+        if (value.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidDataException(
+                $"Field '{fieldPath}' in particle effect '{path}' " +
+                "must be an array.");
+        }
+
+        var modifiers = new List<ParticleModifierDefinition>();
+        var index = 0;
+
+        foreach (var element in value.EnumerateArray())
+        {
+            var itemPath = $"{fieldPath}[{index}]";
+
+            if (element.ValueKind != JsonValueKind.Object)
+            {
+                throw new InvalidDataException(
+                    $"Modifier '{itemPath}' in particle effect '{path}' " +
+                    "must be an object.");
+            }
+
+            modifiers.Add(
+                ReadModifier(element, itemPath, path));
+
+            index++;
+        }
+
+        return modifiers;
+    }
+
+    private static ParticleModifierDefinition ReadModifier(
+        JsonElement element,
+        string fieldPath,
+        AssetPath path)
+    {
+        var type = ReadString(
+            element,
+            "type",
+            $"{fieldPath}.type",
+            path);
+
+        return type switch
+        {
+            "acceleration" =>
+                new AccelerationModifierDefinition(
+                    new Vector2(
+                        ReadSingle(
+                            element,
+                            "x",
+                            $"{fieldPath}.x",
+                            path),
+                        ReadSingle(
+                            element,
+                            "y",
+                            $"{fieldPath}.y",
+                            path))),
+
+            "drag" =>
+                new DragModifierDefinition(
+                    ReadSingle(
+                        element,
+                        "coefficient",
+                        $"{fieldPath}.coefficient",
+                        path)),
+
+            "sizeOverLifetime" =>
+                new SizeOverLifetimeModifierDefinition(
+                    ReadSingle(
+                        element,
+                        "startMultiplier",
+                        $"{fieldPath}.startMultiplier",
+                        path),
+                    ReadSingle(
+                        element,
+                        "endMultiplier",
+                        $"{fieldPath}.endMultiplier",
+                        path)),
+
+            _ => throw new InvalidDataException(
+                $"Unknown particle modifier '{type}' " +
+                $"at '{fieldPath}' in '{path}'.")
+        };
+    }
     private static JsonElement ReadProperty(
         JsonElement parent,
         string propertyName,

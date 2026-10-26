@@ -5,6 +5,7 @@ using Engine.Editor.Commands;
 using Engine.Editor.Documents;
 using Engine.Editor.Documents.Persistence;
 using Engine.Graphics2D.Sprites;
+using Engine.Networking.Replication;
 using Engine.Physics.Components;
 using Engine.Physics.Materials;
 using Engine.Physics.Shapes;
@@ -17,6 +18,54 @@ namespace Engine.Tests.Editor;
 
 public sealed class EditorDocumentPersistenceTests
 {
+    [Fact]
+    public void BinaryPersistence_RoundTripsNetworkIdentity()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"vibe-network-identity-{Guid.NewGuid():N}.world");
+
+        try
+        {
+            var serializers = new EcsComponentSerializerRegistry();
+            serializers.RegisterEngineComponents();
+            serializers.RegisterNetworkComponents();
+
+            var persistence =
+                new BinaryEditorDocumentPersistence(serializers);
+
+            using var ecsWorld = new Engine.ECS.World();
+
+            using var world = new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+            var entity = ecsWorld.CreateEntity();
+            var expected = NetworkIdentity.Create();
+
+            ecsWorld.Add(entity, expected);
+
+            using var document = new EditorDocument(world);
+
+            persistence.Save(path, document);
+
+            using var restoredWorld = persistence.Load(path);
+
+            Assert.True(restoredWorld.EcsWorld.Exists(entity));
+
+            var actual = restoredWorld.EcsWorld.Get<NetworkIdentity>(entity);
+
+            Assert.Equal(expected.Id, actual.Id);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
     [Fact]
     public void BinaryPersistence_RoundTripsSpriteComponentInEditorWorld()
     {

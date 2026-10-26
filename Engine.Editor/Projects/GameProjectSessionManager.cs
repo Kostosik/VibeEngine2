@@ -40,7 +40,7 @@ public sealed class GameProjectSessionManager : IDisposable
         }
 
         public Guid Id { get; }
-
+        public bool KeepStoppedSession { get; set; }
         public string Name { get; }
 
         public GameProject Project { get; }
@@ -58,10 +58,17 @@ public sealed class GameProjectSessionManager : IDisposable
 
     private bool _disposed;
 
-    public IReadOnlyList<GameProjectSessionStatus> Sessions =>
-        _sessions.Values
-            .Select(CreateStatus)
-            .ToArray();
+    public IReadOnlyList<GameProjectSessionStatus> Sessions
+    {
+        get
+        {
+            CleanupExitedSessions();
+
+            return _sessions.Values
+                .Select(CreateStatus)
+                .ToArray();
+        }
+    }
 
     public Guid Start(
         GameProject project,
@@ -73,7 +80,7 @@ public sealed class GameProjectSessionManager : IDisposable
 
         ArgumentNullException.ThrowIfNull(project);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-
+        CleanupExitedSessions();
         if (_sessions.Values.Any(session =>
         string.Equals(
             session.Name,
@@ -119,26 +126,70 @@ public sealed class GameProjectSessionManager : IDisposable
     {
         var session = GetSession(sessionId);
 
-        session.Runner.Stop();
+        session.KeepStoppedSession = true;
 
-        CollectOutput(session);
+        try
+        {
+            session.Runner.Stop();
+        }
+        finally
+        {
+            CollectOutput(session);
+        }
     }
 
     public void Restart(Guid sessionId)
     {
         var session = GetSession(sessionId);
 
-        if (session.Runner.IsSessionActive)
+        // Пока идёт перезапуск, сохраняем запись сессии.
+        session.KeepStoppedSession = true;
+
+        try
         {
-            session.Runner.Stop();
+            if (session.Runner.IsSessionActive)
+            {
+                session.Runner.Stop();
+            }
+
+            CollectOutput(session);
+
+            session.Runner.Start(
+                session.Project,
+                session.RunMode,
+                session.ApplicationArguments);
+
+            // Процесс запущен. Если сборка завершится ошибкой,
+            // очистка удалит сессию при обнаружении завершения.
+            session.KeepStoppedSession = false;
         }
+        catch
+        {
+            CollectOutput(session);
+            throw;
+        }
+    }
 
-        CollectOutput(session);
+    private void CleanupExitedSessions()
+    {
+        foreach (var session in _sessions.Values.ToArray())
+        {
+            if (session.KeepStoppedSession ||
+                session.Runner.IsSessionActive)
+            {
+                continue;
+            }
 
-        session.Runner.Start(
-            session.Project,
-            session.RunMode,
-            session.ApplicationArguments);
+            // Дожидаемся завершения чтения stdout/stderr.
+            session.Runner.ReleaseExitedProcess();
+
+            // Сохраняем оставшиеся сообщения, включая ошибку сборки.
+            CollectOutput(session);
+
+            session.Runner.Dispose();
+
+            _sessions.Remove(session.Id);
+        }
     }
 
     public bool Remove(Guid sessionId)
@@ -176,6 +227,7 @@ public sealed class GameProjectSessionManager : IDisposable
         out GameProjectSessionOutput? output)
     {
         CollectAllOutput();
+        CleanupExitedSessions();
 
         return _output.TryDequeue(out output);
     }

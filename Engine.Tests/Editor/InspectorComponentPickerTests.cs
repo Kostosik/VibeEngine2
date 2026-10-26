@@ -4,6 +4,7 @@ using Engine.Editor;
 using Engine.Editor.Documents;
 using Engine.Editor.UI.Workspace;
 using Engine.Input;
+using Engine.Networking.Replication;
 using Engine.Particles;
 using Engine.Physics.Components;
 using Engine.Physics.Shapes;
@@ -18,6 +19,55 @@ namespace Engine.Tests.Editor;
 
 public sealed class InspectorComponentPickerTests
 {
+    [Fact]
+    public void AddComponentPicker_AddsNetworkIdentityWithGeneratedId()
+    {
+        using var ecsWorld = new Engine.ECS.World();
+
+        using var world = new Engine.Worlds.World(
+            new Engine.Worlds.Spatial.ChunkSize(16, 16),
+            ecsWorld);
+
+        var editor = new Engine.Editor.EditorContext();
+
+        editor.ComponentTypes.Register<NetworkIdentity>(
+            () => NetworkIdentity.Create());
+
+        var entity = ecsWorld.CreateEntity();
+
+        var document = editor.OpenDocument(world);
+        document.EntitySelection.Set(entity);
+
+        try
+        {
+            var inspector = new InspectorPanelView(editor);
+            inspector.Refresh();
+
+            var addableTypes =
+                GetAddableTypes(editor, document, entity);
+
+            var index = Array.IndexOf(
+                addableTypes,
+                typeof(NetworkIdentity));
+
+            Assert.True(index >= 0);
+
+            FindComponentPicker(inspector)
+                .SetSelectedIndex(index);
+
+            Assert.True(
+                ecsWorld.Has<NetworkIdentity>(entity));
+
+            var identity = ecsWorld.Get<NetworkIdentity>(entity);
+
+            Assert.True(identity.Id.IsValid);
+        }
+        finally
+        {
+            editor.Session.Discard(document);
+        }
+    }
+
     [Fact]
     public void Inspector_AddsAndEditsParticleEffectComponent()
     {

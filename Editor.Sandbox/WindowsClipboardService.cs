@@ -14,6 +14,12 @@ internal sealed class WindowsClipboardService : IClipboardService
     private static extern bool OpenClipboard(IntPtr owner);
 
     [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr GetClipboardData(uint format);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool IsClipboardFormatAvailable(uint format);
+
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern bool EmptyClipboard();
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -111,6 +117,52 @@ internal sealed class WindowsClipboardService : IClipboardService
             {
                 GlobalFree(memory);
             }
+        }
+    }
+
+    public string? GetText()
+    {
+        if (!OpenClipboard(IntPtr.Zero))
+        {
+            throw new Win32Exception(
+                Marshal.GetLastWin32Error());
+        }
+
+        try
+        {
+            if (!IsClipboardFormatAvailable(CfUnicodeText))
+            {
+                return null;
+            }
+
+            var memory = GetClipboardData(CfUnicodeText);
+
+            if (memory == IntPtr.Zero)
+            {
+                throw new Win32Exception(
+                    Marshal.GetLastWin32Error());
+            }
+
+            var lockedMemory = GlobalLock(memory);
+
+            if (lockedMemory == IntPtr.Zero)
+            {
+                throw new Win32Exception(
+                    Marshal.GetLastWin32Error());
+            }
+
+            try
+            {
+                return Marshal.PtrToStringUni(lockedMemory);
+            }
+            finally
+            {
+                GlobalUnlock(memory);
+            }
+        }
+        finally
+        {
+            CloseClipboard();
         }
     }
 }

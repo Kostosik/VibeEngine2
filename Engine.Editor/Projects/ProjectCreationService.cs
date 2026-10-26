@@ -13,15 +13,6 @@ public sealed class ProjectCreationService
 {
     private const string EmptyTemplateId = "empty";
 
-    private static readonly string[] RequiredRuntimeAssemblies =
-    {
-        "Engine.Hosting.Desktop.dll",
-        "Engine.Runtime.dll",
-        "Engine.Graphics.OpenGL.dll",
-        "Engine.Audio.OpenAL.dll",
-        "Engine.Input.SilkNet.dll"
-    };
-
     private readonly string? _engineRuntimeDirectory;
 
     public ProjectCreationService(
@@ -259,6 +250,8 @@ public sealed class ProjectCreationService
 
     private string ResolveEngineRuntimeDirectory()
     {
+        // Явно заданный путь имеет приоритет.
+        // Если он неверный, показываем ошибку вместо скрытого fallback.
         if (_engineRuntimeDirectory is not null)
         {
             return ValidateRuntimeDirectory(
@@ -275,35 +268,31 @@ public sealed class ProjectCreationService
                 Path.GetFullPath(configuredDirectory));
         }
 
-        // Installed editor layout:
+        // Установленный редактор:
         // Editor.Sandbox.exe
         // EngineRuntime\win-x64\*.dll
-        var besideEditor =
-            Path.Combine(
-                AppContext.BaseDirectory,
-                "EngineRuntime",
-                "win-x64");
+        var besideEditor = Path.Combine(
+            AppContext.BaseDirectory,
+            "EngineRuntime",
+            "win-x64");
 
         if (ContainsRequiredAssemblies(besideEditor))
         {
             return Path.GetFullPath(besideEditor);
         }
 
-        // Development layout:
-        // repository\artifacts\engine-runtime\win-x64
-        // Search ancestors so the editor can be launched from
-        // Visual Studio without hardcoding a repository path.
+        // Разработка из клона репозитория:
+        // artifacts\engine-runtime\win-x64
         for (
             var current = new DirectoryInfo(AppContext.BaseDirectory);
             current is not null;
             current = current.Parent)
         {
-            var candidate =
-                Path.Combine(
-                    current.FullName,
-                    "artifacts",
-                    "engine-runtime",
-                    "win-x64");
+            var candidate = Path.Combine(
+                current.FullName,
+                "artifacts",
+                "engine-runtime",
+                "win-x64");
 
             if (ContainsRequiredAssemblies(candidate))
             {
@@ -311,10 +300,77 @@ public sealed class ProjectCreationService
             }
         }
 
+        // Готовой поставки нет. Ищем исходники и собираем runtime.
+        var sourceRoot = ResolveEngineSourceRoot();
+
+        var buildOutputDirectory = Path.Combine(
+            sourceRoot,
+            "artifacts",
+            "engine-runtime",
+            "win-x64");
+
+        // Повторная проверка нужна, если каталог находится
+        // в найденном исходном репозитории, но не попал в поиск выше.
+        if (!ContainsRequiredAssemblies(buildOutputDirectory))
+        {
+            EngineRuntimeBuilder.BuildAsync(
+                    sourceRoot,
+                    buildOutputDirectory,
+                    "Debug")
+                .GetAwaiter()
+                .GetResult();
+        }
+
+        return ValidateRuntimeDirectory(
+            buildOutputDirectory);
+    }
+
+    private static string ResolveEngineSourceRoot()
+    {
+        var configuredSource =
+            Environment.GetEnvironmentVariable(
+                "VIBEENGINE_SOURCE_DIR");
+
+        if (!string.IsNullOrWhiteSpace(configuredSource))
+        {
+            var root = Path.GetFullPath(configuredSource);
+
+            if (!EngineRuntimeBuilder.IsSourceRoot(root))
+            {
+                throw new DirectoryNotFoundException(
+                    $"VIBEENGINE_SOURCE_DIR does not point to a valid " +
+                    $"VibeEngine2 source repository: {root}");
+            }
+
+            return root;
+        }
+
+        // Поддерживаем запуск редактора из Visual Studio
+        // и из каталога внутри репозитория.
+        foreach (var startPath in new[]
+                 {
+                 Environment.CurrentDirectory,
+                 AppContext.BaseDirectory
+             })
+        {
+            for (
+                var current = new DirectoryInfo(
+                    Path.GetFullPath(startPath));
+                current is not null;
+                current = current.Parent)
+            {
+                if (EngineRuntimeBuilder.IsSourceRoot(
+                        current.FullName))
+                {
+                    return current.FullName;
+                }
+            }
+        }
+
         throw new DirectoryNotFoundException(
-            "The VibeEngine2 runtime distribution was not found. " +
-            "Prepare it with tools\\BuildEngineRuntime.ps1, " +
-            "or configure VIBEENGINE_RUNTIME_DIR.");
+            "The VibeEngine2 runtime distribution was not found, " +
+            "and the engine source repository could not be located. " +
+            "Set VIBEENGINE_SOURCE_DIR to the VibeEngine2 source root.");
     }
 
     private static string ValidateRuntimeDirectory(
@@ -323,11 +379,8 @@ public sealed class ProjectCreationService
         if (!ContainsRequiredAssemblies(directory))
         {
             var missing =
-                RequiredRuntimeAssemblies
-                    .Where(
-                        file => !File.Exists(
-                            Path.Combine(directory, file)))
-                    .ToArray();
+                EngineRuntimeBuilder.GetMissingAssemblies(
+                    directory);
 
             throw new DirectoryNotFoundException(
                 $"Engine runtime directory '{directory}' is incomplete. " +
@@ -340,10 +393,8 @@ public sealed class ProjectCreationService
     private static bool ContainsRequiredAssemblies(
         string directory)
     {
-        return Directory.Exists(directory) &&
-               RequiredRuntimeAssemblies.All(
-                   file => File.Exists(
-                       Path.Combine(directory, file)));
+        return EngineRuntimeBuilder.ContainsRequiredAssemblies(
+            directory);
     }
 
     private static string CreateProjectFileContents(
@@ -520,14 +571,9 @@ public sealed class ProjectCreationService
                         startupScenePath),
                     new DesktopGameHostOptions
                     {
-                        Title = "{{title}}",
+                        Title = "{{title}}"
 
-                        ConfigureContentLoaders = loaders =>
-                        {
-                            loaders.Register(
-                                new JsonScriptDefinitionContentLoader());
-                        }
-                    }
+                    });
             }
 
             private static string ResolveStartupScenePath(
@@ -661,7 +707,7 @@ public sealed class ProjectCreationService
                     new EcsComponentSerializerRegistry();
 
                 serializers.RegisterEngineComponents();
-
+                serializers.RegisterNetworkComponents();
                 var saveLoad =
                     new WorldSaveLoadService(
                         serializers);

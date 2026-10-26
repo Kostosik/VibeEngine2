@@ -10,6 +10,92 @@ namespace Engine.Tests.UI.Controls;
 public sealed class UiTextBoxTests
 {
     [Fact]
+    public void InsertText_ReplacesSelectedText()
+    {
+        var root = new UiRoot();
+        var textBox = new UiTextBox("abc");
+
+        root.AddChild(textBox);
+        root.Arrange(new UiRect(0, 0, 300, 60));
+
+        var pointer = new EmptyPointerInput
+        {
+            Position = new Vector2(1, 20),
+            LeftDown = true,
+            LeftPressed = true
+        };
+
+        var textInput = new TestTextInput();
+        var focus = new UiFocusManager();
+
+        var router = new UiInputRouter(
+            root,
+            pointer,
+            textInput,
+            focus);
+
+        router.Update();
+
+        pointer.LeftPressed = false;
+        pointer.Position = new Vector2(50, 20);
+
+        router.Update(1.0 / 60.0);
+
+        pointer.LeftDown = false;
+        pointer.LeftReleased = true;
+
+        router.Update();
+
+        Assert.Equal("abc", textBox.SelectedText);
+
+        textBox.InsertText("XY");
+
+        Assert.Equal("XY", textBox.Text);
+        Assert.Equal(2, textBox.CursorIndex);
+        Assert.False(textBox.HasSelection);
+    }
+
+    [Fact]
+    public void InsertText_UsesCursorAndRespectsMaxLength()
+    {
+        var root = new UiRoot();
+
+        var textBox = new UiTextBox("abcd")
+        {
+            MaxLength = 5
+        };
+
+        root.AddChild(textBox);
+
+        var pointer = new EmptyPointerInput();
+        var textInput = new TestTextInput();
+        var focus = new UiFocusManager();
+
+        var router = new UiInputRouter(
+            root,
+            pointer,
+            textInput,
+            focus);
+
+        focus.SetFocus(textBox);
+
+        textInput.Press(TextInputKey.Left);
+        router.Update();
+
+        textInput.Release();
+
+        textInput.Press(TextInputKey.Left);
+        router.Update();
+
+        textInput.Release();
+
+        textBox.InsertText("XYZ");
+
+        Assert.Equal("abXcd", textBox.Text);
+        Assert.Equal(3, textBox.CursorIndex);
+    }
+
+    [Fact]
     public void CursorNavigation_AllowsInsertionInMiddleOfText()
     {
         var root =

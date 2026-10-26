@@ -56,7 +56,12 @@ public sealed class UiTextBox : UiWidget
 
     public bool HasSelection =>
         SelectionLength > 0;
-
+    public string SelectedText =>
+    HasSelection
+        ? Text.Substring(
+            SelectionStartIndex,
+            SelectionLength)
+        : string.Empty;
     public UiColor SelectionBackground { get; set; } =
         new(70, 110, 170, 200);
 
@@ -131,6 +136,102 @@ public sealed class UiTextBox : UiWidget
         _selectionAnchorIndex = CursorIndex;
 
         ResetCursor();
+    }
+
+    public void InsertText(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        if (!Enabled)
+        {
+            return;
+        }
+
+        // TextBox однострочный: преобразуем переносы
+        // и табуляцию в пробелы.
+        text = text
+            .Replace("\r\n", " ")
+            .Replace('\r', ' ')
+            .Replace('\n', ' ')
+            .Replace('\t', ' ');
+
+        // Не вставляем управляющие символы.
+        text = new string(
+            text.Where(character => !char.IsControl(character))
+                .ToArray());
+
+        if (text.Length == 0)
+        {
+            return;
+        }
+
+        var insertionIndex = SelectionStartIndex;
+        var selectionLength = SelectionLength;
+
+        var availableLength = Math.Max(
+            0,
+            MaxLength - (Text.Length - selectionLength));
+
+        if (availableLength == 0)
+        {
+            return;
+        }
+
+        if (text.Length > availableLength)
+        {
+            text = TruncateAtTextElementBoundary(
+                text,
+                availableLength);
+        }
+
+        if (text.Length == 0)
+        {
+            return;
+        }
+
+        Text = Text
+            .Remove(insertionIndex, selectionLength)
+            .Insert(insertionIndex, text);
+
+        CursorIndex = insertionIndex + text.Length;
+        _selectionAnchorIndex = CursorIndex;
+
+        ResetCursor();
+
+        TextChanged?.Invoke(Text);
+    }
+
+    private static string TruncateAtTextElementBoundary(
+        string text,
+        int maxLength)
+    {
+        if (text.Length <= maxLength)
+        {
+            return text;
+        }
+
+        var starts =
+            System.Globalization.StringInfo
+                .ParseCombiningCharacters(text);
+
+        var length = 0;
+
+        for (var i = 0; i < starts.Length; i++)
+        {
+            var elementEnd =
+                i + 1 < starts.Length
+                    ? starts[i + 1]
+                    : text.Length;
+
+            if (elementEnd > maxLength)
+            {
+                break;
+            }
+
+            length = elementEnd;
+        }
+
+        return text[..length];
     }
 
     public void SetText(string text)

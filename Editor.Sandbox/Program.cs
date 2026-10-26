@@ -15,6 +15,7 @@ using Engine.Editor.UI;
 using Engine.Editor.UI.Authoring;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.OpenGL;
+using Engine.Networking.Replication;
 using Engine.Physics.Components;
 using Engine.Physics.Shapes;
 using Engine.Serialization.SaveLoad.Ecs;
@@ -162,7 +163,8 @@ catch (Exception exception)
 }
 
 editor.ComponentTypes.RegisterEngineComponents();
-
+editor.ComponentTypes.Register<NetworkIdentity>(
+    () => NetworkIdentity.Create());
 // Physics body: valid dynamic body with unit mass.
 editor.ComponentTypes.Register<PhysicsBody2D>(
     () => PhysicsBody2D.Dynamic(
@@ -215,7 +217,7 @@ var serializers =
     new EcsComponentSerializerRegistry();
 
 serializers.RegisterEngineComponents();
-
+serializers.RegisterNetworkComponents();
 var documentPersistence =
     new BinaryEditorDocumentPersistence(
         serializers);

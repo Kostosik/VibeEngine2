@@ -355,7 +355,7 @@ public sealed class GameProjectRunner : IDisposable
         return _output.TryDequeue(out output);
     }
 
-    private void ReleaseExitedProcess()
+    internal void ReleaseExitedProcess()
     {
         var process = _process;
 

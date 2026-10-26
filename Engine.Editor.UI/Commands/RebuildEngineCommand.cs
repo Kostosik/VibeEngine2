@@ -260,6 +260,22 @@ public sealed class RebuildEngineCommand :
                 buildDirectory,
                 "runtime");
 
+            await EngineRuntimeBuilder.BuildAsync(
+                sourceRoot,
+                runtimeDirectory,
+                configuration,
+                onOutput: (line, isStandardError) =>
+                    Enqueue(
+                        new RebuildEngineEvent(
+                            GetDiagnosticLevel(
+                                line,
+                                isStandardError),
+                            line)),
+                cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
             Directory.CreateDirectory(runtimeDirectory);
 
             foreach (var relativeProjectPath in ProjectsToPublish)
@@ -418,6 +434,29 @@ public sealed class RebuildEngineCommand :
         {
             TryDeleteDirectory(buildDirectory);
         }
+    }
+
+    private static DiagnosticLevel GetDiagnosticLevel(
+    string line,
+    bool isStandardError)
+    {
+        if (line.Contains(
+                ": error ",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return DiagnosticLevel.Error;
+        }
+
+        if (line.Contains(
+                ": warning ",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return DiagnosticLevel.Warning;
+        }
+
+        return isStandardError
+            ? DiagnosticLevel.Warning
+            : DiagnosticLevel.Debug;
     }
 
     private async Task RunDotnetAsync(
@@ -838,9 +877,7 @@ public sealed class RebuildEngineCommand :
 
     private static bool IsEngineRepositoryRoot(string path)
     {
-        return File.Exists(Path.Combine(path, "VibeEngine2.sln")) &&
-               ProjectsToPublish.All(
-                   project => File.Exists(Path.Combine(path, project)));
+        return EngineRuntimeBuilder.IsSourceRoot(path);
     }
 
     private static bool IsConfiguration(string value) =>

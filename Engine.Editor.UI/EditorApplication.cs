@@ -24,7 +24,8 @@ public sealed class EditorApplication :
 {
     private static readonly InputBinding CopyKey =
     new("Keyboard.C");
-
+    private static readonly InputBinding PasteKey =
+    new("Keyboard.V");
     private static readonly InputBinding UndoKey =
     new("Keyboard.Z");
 
@@ -45,7 +46,7 @@ public sealed class EditorApplication :
     private readonly IClipboardService? _clipboardService;
     private readonly EditorAssetCreationDialog _assetCreationDialog;
     private bool _copyShortcutWasDown;
-
+    private bool _pasteShortcutWasDown;
     private readonly HashSet<EditorUiDocument>
         _subscribedUiDocuments = new();
     private readonly HashSet<ParticleEffectDocument>
@@ -869,9 +870,13 @@ public sealed class EditorApplication :
             Input.GetValue(RightControlKey) > 0.5f;
 
         var copyDown =
-    controlDown &&
-    Input.GetValue(CopyKey) > 0.5f;
-        
+            controlDown &&
+            Input.GetValue(CopyKey) > 0.5f;
+
+        var pasteDown =
+            controlDown &&
+            Input.GetValue(PasteKey) > 0.5f;
+
         var undoDown =
             controlDown &&
             Input.GetValue(UndoKey) > 0.5f;
@@ -880,26 +885,35 @@ public sealed class EditorApplication :
             controlDown &&
             Input.GetValue(RedoKey) > 0.5f;
 
-        // Don't trigger document commands while a modal,
-        // context menu or text box has keyboard focus.
+        var focusedWidget = Ui.Focus.FocusedWidget;
+        var focusedTextBox = focusedWidget as UiTextBox;
+
+        // Undo/Redo не должны перехватывать сочетания
+        // внутри полей ввода и модальных окон.
         var shortcutSuppressed =
             Ui.Focus.ActiveScope is not null ||
-            Ui.Focus.FocusedWidget is UiTextBox;
+            focusedTextBox is not null;
 
         var consoleOutput = MainShell.ConsoleOutputWidget;
-        var focusedWidget = Ui.Focus.FocusedWidget;
 
         var canCopyConsoleSelection =
             Ui.Focus.ActiveScope is null &&
-            focusedWidget is not UiTextBox &&
+            focusedTextBox is null &&
             (ReferenceEquals(focusedWidget, consoleOutput) ||
              consoleOutput.IsHovered);
 
+        // Ctrl+C: сначала выделение активного TextBox,
+        // иначе — выделение логов консоли.
         if (copyDown &&
             !_copyShortcutWasDown &&
-            canCopyConsoleSelection)
+            Ui.Focus.ActiveScope is null)
         {
-            var selectedText = MainShell.ConsoleSelectedText;
+            var selectedText =
+                focusedTextBox is not null
+                    ? focusedTextBox.SelectedText
+                    : canCopyConsoleSelection
+                        ? MainShell.ConsoleSelectedText
+                        : string.Empty;
 
             if (selectedText.Length > 0)
             {
@@ -918,8 +932,40 @@ public sealed class EditorApplication :
                     {
                         _debugConsole?.WriteException(
                             exception,
-                            "Failed to copy console selection.");
+                            "Failed to copy selected text.");
                     }
+                }
+            }
+        }
+
+        // Ctrl+V: вставляем только в активное поле ввода.
+        if (pasteDown &&
+            !_pasteShortcutWasDown &&
+            Ui.Focus.ActiveScope is null &&
+            focusedTextBox is not null)
+        {
+            if (_clipboardService is null)
+            {
+                _debugConsole?.WriteError(
+                    "Clipboard service is not configured.");
+            }
+            else
+            {
+                try
+                {
+                    var clipboardText =
+                        _clipboardService.GetText();
+
+                    if (!string.IsNullOrEmpty(clipboardText))
+                    {
+                        focusedTextBox.InsertText(clipboardText);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    _debugConsole?.WriteException(
+                        exception,
+                        "Failed to paste clipboard text.");
                 }
             }
         }
@@ -935,37 +981,14 @@ public sealed class EditorApplication :
             {
                 MainShell.Redo();
             }
-
-            if (copyDown &&
-    !_copyShortcutWasDown &&
-    ReferenceEquals(
-        Ui.Focus.FocusedWidget,
-        MainShell.ConsoleOutputWidget))
-            {
-                var selectedText = MainShell.ConsoleSelectedText;
-
-                if (selectedText.Length > 0 &&
-                    _clipboardService is not null)
-                {
-                    try
-                    {
-                        _clipboardService.SetText(selectedText);
-                    }
-                    catch (Exception exception)
-                    {
-                        _debugConsole?.WriteException(
-                            exception,
-                            "Failed to copy console selection.");
-                    }
-                }
-            }
         }
 
-        // Trigger only once per key press, not every frame
-        // while the shortcut remains held.
+        // Каждое сочетание обрабатываем только один раз
+        // за одно нажатие, а не каждый кадр удержания.
         _undoShortcutWasDown = undoDown;
         _redoShortcutWasDown = redoDown;
         _copyShortcutWasDown = copyDown;
+        _pasteShortcutWasDown = pasteDown;
     }
 
     private void SaveAllDocuments()

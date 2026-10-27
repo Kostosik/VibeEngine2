@@ -1,4 +1,5 @@
-﻿using Engine.Core.Systems;
+﻿using Engine.Core.Events;
+using Engine.Core.Systems;
 using Engine.ECS;
 using Engine.ECS.Entities;
 
@@ -16,16 +17,31 @@ public sealed class ScriptRuntime : IDisposable
     private readonly List<AttachedScript> _executionSnapshot = new();
     private bool _isExecuting;
     private bool _disposed;
+    private readonly EventBus _events;
+    private readonly bool _ownsEvents;
+    public ScriptRuntime(
+    World world,
+    ScriptRegistry registry)
+    : this(
+        world,
+        registry,
+        events: null)
+    {
+    }
 
     public ScriptRuntime(
         World world,
-        ScriptRegistry registry)
+        ScriptRegistry registry,
+        EventBus? events)
     {
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(registry);
 
         _world = world;
         _registry = registry;
+
+        _events = events ?? new EventBus();
+        _ownsEvents = events is null;
 
         UpdateSystem = new ScriptUpdateSystem(this);
         FixedUpdateSystem = new ScriptFixedUpdateSystem(this);
@@ -121,18 +137,30 @@ public sealed class ScriptRuntime : IDisposable
                 "an instance that is already attached.");
         }
 
+        var eventSubscriptions =
+            new ScriptEventSubscriptions(_events);
+
         var context =
             new ScriptContext(
                 _world,
                 entity,
-                assignment.ConfigurationJson);
+                assignment.ConfigurationJson,
+                eventSubscriptions);
 
         var instance =
             new AttachedScript(
                 entity,
                 assignment.ScriptId,
                 script,
-                context);
+                context,
+                eventSubscriptions);
+
+        eventSubscriptions.SetFaultHandler(
+            exception =>
+                DisableAndReport(
+                    instance,
+                    ScriptExecutionPhase.Event,
+                    exception));
 
         if (persistAssignment)
         {
@@ -150,6 +178,8 @@ public sealed class ScriptRuntime : IDisposable
         catch
         {
             instance.IsAttached = false;
+            instance.EventSubscriptions.Dispose();
+
             _instances.Remove(instance);
 
             if (persistAssignment)
@@ -532,6 +562,8 @@ public sealed class ScriptRuntime : IDisposable
         }
 
         instance.IsAttached = false;
+        instance.EventSubscriptions.Dispose();
+
         _instances.Remove(instance);
 
         try
@@ -555,6 +587,7 @@ public sealed class ScriptRuntime : IDisposable
         Exception exception)
     {
         instance.Enabled = false;
+        instance.EventSubscriptions.Dispose();
 
         ReportFault(
             instance,
@@ -625,6 +658,11 @@ public sealed class ScriptRuntime : IDisposable
                 _instances[^1]);
         }
 
+        if (_ownsEvents)
+        {
+            _events.Dispose();
+        }
+
         _executionSnapshot.Clear();
     }
 
@@ -641,12 +679,14 @@ public sealed class ScriptRuntime : IDisposable
             EntityId entity,
             string scriptId,
             IEntityScript script,
-            ScriptContext context)
+            ScriptContext context,
+            ScriptEventSubscriptions eventSubscriptions)
         {
             Entity = entity;
             ScriptId = scriptId;
             Script = script;
             Context = context;
+            EventSubscriptions = eventSubscriptions;
         }
 
         public EntityId Entity { get; }
@@ -656,6 +696,8 @@ public sealed class ScriptRuntime : IDisposable
         public IEntityScript Script { get; }
 
         public ScriptContext Context { get; }
+
+        public ScriptEventSubscriptions EventSubscriptions { get; }
 
         public bool IsAttached { get; set; } = true;
 

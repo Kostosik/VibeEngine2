@@ -4,6 +4,7 @@ using Engine.Core.Determinism;
 using Engine.Core.Math;
 using Engine.Editor;
 using Engine.Editor.Documents;
+using Engine.Editor.UI.Assets;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Resources;
 using Engine.Particles;
@@ -328,35 +329,6 @@ public sealed class ParticleEffectPreviewView : UiPanel
             seed: 1UL);
     }
 
-    private static ParticleFactoryDelegate CreateParticleFactory(
-        ParticleEffectDefinition definition)
-    {
-        return (ref DeterministicRandom random) =>
-        {
-            var lifetime = random.NextFloat(
-                definition.LifetimeSeconds.Min,
-                definition.LifetimeSeconds.Max);
-
-            var size = random.NextFloat(
-                definition.Size.Min,
-                definition.Size.Max);
-
-            var velocityX = random.NextFloat(
-                definition.Velocity.Min.X,
-                definition.Velocity.Max.X);
-
-            var velocityY = random.NextFloat(
-                definition.Velocity.Min.Y,
-                definition.Velocity.Max.Y);
-
-            return new Particle(
-                Vector3.Zero,
-                new Vector3(velocityX, velocityY, 0.0f),
-                lifetime,
-                size);
-        };
-    }
-
     private bool EnsureTextureLoaded()
     {
         var assetsRoot =
@@ -396,9 +368,11 @@ public sealed class ParticleEffectPreviewView : UiPanel
 
         try
         {
-            var texturePath = ResolveTexturePath(
-                assetsRoot,
-                _document.Definition.TexturePath);
+            var texturePath =
+                EditorProjectAssetPathResolver.Resolve(
+                    assetsRoot,
+                    _document.Definition.TexturePath,
+                    "Particle texture");
 
             var imageData = _textureLoader.Load(
                 File.ReadAllBytes(texturePath));
@@ -422,43 +396,6 @@ public sealed class ParticleEffectPreviewView : UiPanel
             ReleaseTexture();
             return false;
         }
-    }
-
-    private static string ResolveTexturePath(
-        string assetsRoot,
-        string texturePath)
-    {
-        var fullRoot = Path.GetFullPath(assetsRoot);
-
-        if (Path.IsPathRooted(texturePath))
-        {
-            throw new InvalidDataException(
-                "Particle textures must use paths relative to Assets.");
-        }
-
-        var normalizedPath = new AssetPath(texturePath).Value;
-
-        var fullPath = Path.GetFullPath(
-            Path.Combine(fullRoot, normalizedPath));
-
-        var relativePath = Path.GetRelativePath(
-            fullRoot,
-            fullPath);
-
-        if (Path.IsPathRooted(relativePath) ||
-            relativePath.Equals("..", StringComparison.Ordinal) ||
-            relativePath.StartsWith(
-                $"..{Path.DirectorySeparatorChar}",
-                StringComparison.Ordinal) ||
-            relativePath.StartsWith(
-                $"..{Path.AltDirectorySeparatorChar}",
-                StringComparison.Ordinal))
-        {
-            throw new InvalidDataException(
-                "Particle texture path points outside the Assets directory.");
-        }
-
-        return fullPath;
     }
 
     public void ReleaseResources()

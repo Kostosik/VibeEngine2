@@ -2,6 +2,7 @@
 using Engine.Core.Math;
 using Engine.Editor;
 using Engine.Editor.Documents;
+using Engine.Editor.UI.Assets;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Resources;
 using Engine.Graphics2D.Sprites;
@@ -197,9 +198,11 @@ public sealed class SpriteAnimationPreviewView : UiPanel
                         frame.TexturePath,
                         out var texture))
                 {
-                    var texturePath = ResolveTexturePath(
-                        root,
-                        frame.TexturePath);
+                    var texturePath =
+                        EditorProjectAssetPathResolver.Resolve(
+                            root,
+                            frame.TexturePath,
+                            "Frame texture");
 
                     var imageData = _textureLoader.Load(
                         File.ReadAllBytes(texturePath));
@@ -240,51 +243,6 @@ public sealed class SpriteAnimationPreviewView : UiPanel
             _error = exception.Message;
         }
     }
-
-    private static string ResolveTexturePath(
-        string assetsRoot,
-        string relativePath)
-    {
-        if (Path.IsPathRooted(relativePath))
-        {
-            throw new InvalidDataException(
-                "Frame textures must use paths relative to Assets.");
-        }
-
-        var fullRoot = Path.GetFullPath(assetsRoot);
-
-        var fullPath = Path.GetFullPath(
-            Path.Combine(
-                fullRoot,
-                new AssetPath(relativePath).Value));
-
-        var relative = Path.GetRelativePath(
-            fullRoot,
-            fullPath);
-
-        if (Path.IsPathRooted(relative) ||
-            relative.Equals("..", StringComparison.Ordinal) ||
-            relative.StartsWith(
-                $"..{Path.DirectorySeparatorChar}",
-                StringComparison.Ordinal) ||
-            relative.StartsWith(
-                $"..{Path.AltDirectorySeparatorChar}",
-                StringComparison.Ordinal))
-        {
-            throw new InvalidDataException(
-                "Frame texture path points outside Assets.");
-        }
-
-        if (!File.Exists(fullPath))
-        {
-            throw new FileNotFoundException(
-                $"Frame texture was not found: {relativePath}",
-                fullPath);
-        }
-
-        return fullPath;
-    }
-
     public void ReleaseResources()
     {
         ReleaseTextures();

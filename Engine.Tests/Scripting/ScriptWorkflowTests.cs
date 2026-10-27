@@ -1,15 +1,177 @@
-﻿using System.Text.Json;
-
-using Engine.Core.Systems;
+﻿using Engine.Core.Systems;
 using Engine.Core.Time;
+using Engine.ECS.Components;
 using Engine.ECS.Entities;
+using Engine.Physics;
+using Engine.Physics.Collision;
+using Engine.Physics.Components;
+using Engine.Physics.Shapes;
 using Engine.Runtime;
 using Engine.Scripting;
+using System.Text.Json;
+using Engine.Core.Math;
 
 namespace Engine.Tests.Scripting;
 
 public sealed class ScriptWorkflowTests
 {
+    private struct PlayerTag
+    {
+    }
+    [Fact]
+    public void GameScript_CanReactToSeparatePhysicsTrigger()
+    {
+
+
+        var runtime = new EngineRuntime(
+            new EngineRuntimeOptions
+            {
+                ToolingEnabled = false,
+                Physics = new PhysicsSettings2D
+                {
+                    Gravity = FixedVector2.Zero,
+                    Substeps = 1,
+                    PositionIterations = 0,
+                    VelocityIterations = 0
+                }
+            });
+
+        runtime.ScriptRegistry.Register(
+            "game.door",
+            static () => new DoorTriggerScript());
+
+        runtime.Initialize();
+
+        var door = runtime.EcsWorld.CreateEntity();
+        var trigger = runtime.EcsWorld.CreateEntity();
+        var player = runtime.EcsWorld.CreateEntity();
+
+        runtime.EcsWorld.Add(
+            door,
+            new DoorState());
+
+        runtime.EcsWorld.Add(
+            trigger,
+            new WorldTransform2D(FixedVector2.Zero));
+
+        runtime.EcsWorld.Add(
+            trigger,
+            PhysicsBody2D.Static());
+
+        runtime.EcsWorld.Add(
+            trigger,
+            new Collider2D(
+                new CircleShape2D(Fixed32.FromInt(2)))
+            {
+                IsTrigger = true
+            });
+
+        runtime.EcsWorld.Add(
+            player,
+            new WorldTransform2D(FixedVector2.Zero));
+        runtime.EcsWorld.Add(
+    player,
+    new PlayerTag());
+        runtime.EcsWorld.Add(
+            player,
+            PhysicsBody2D.Dynamic(Fixed32.One));
+
+        runtime.EcsWorld.Add(
+            player,
+            new Collider2D(
+                new CircleShape2D(Fixed32.One)));
+
+        var configuration = JsonSerializer.Serialize(
+            new
+            {
+                triggerIndex = trigger.Index,
+                triggerGeneration = trigger.Generation
+            });
+
+        runtime.Scripts.Attach(
+            door,
+            "game.door",
+            configuration);
+
+        runtime.FixedUpdate(
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.FromFloat(1f / 60f),
+                    Tick.Zero)));
+
+        Assert.True(
+            runtime.EcsWorld.Get<DoorState>(door).IsOpen);
+
+        ref var triggerTransform =
+    ref runtime.EcsWorld.Get<WorldTransform2D>(trigger);
+
+        triggerTransform.Position = FixedVector2.Zero;
+        runtime.FixedUpdate(
+    new FixedSystemContext(
+        new SimulationTime(
+            Fixed32.FromFloat(1f / 60f),
+            new Tick(1))));
+
+        Assert.True(
+            runtime.EcsWorld.Get<DoorState>(door).IsOpen);
+    }
+
+    private struct DoorState
+    {
+        public bool IsOpen;
+    }
+
+    private sealed class DoorTriggerScript : IEntityScript
+    {
+        private EntityId _trigger;
+
+        public void OnAttach(ScriptContext context)
+        {
+            using var document = JsonDocument.Parse(
+                context.ConfigurationJson);
+
+            var root = document.RootElement;
+
+            _trigger = new EntityId(
+                root.GetProperty("triggerIndex").GetUInt32(),
+                root.GetProperty("triggerGeneration").GetUInt32());
+
+            context.Subscribe<PhysicsContactEvent>(
+                contact =>
+                {
+                    if (contact.Type != PhysicsContactType.Trigger ||
+                        contact.Phase != PhysicsContactPhase.Enter)
+                    {
+                        return;
+                    }
+
+
+
+                    var pair = contact.Manifold.Pair;
+
+                    if (pair.First != _trigger &&
+                        pair.Second != _trigger)
+                    {
+                        return;
+                    }
+
+                    var otherEntity =
+                        pair.First == _trigger
+                            ? pair.Second
+                            : pair.First;
+
+                    if (!context.Has<PlayerTag>(otherEntity))
+                    {
+                        return;
+                    }
+
+                    ref var state = ref context.Get<DoorState>();
+
+                    state.IsOpen = true;
+                });
+        }
+    }
+
     [Fact]
     public void GameCode_CanRegisterAssignAndExecuteScript()
     {

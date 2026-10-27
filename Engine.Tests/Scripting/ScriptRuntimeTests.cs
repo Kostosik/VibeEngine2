@@ -1,4 +1,5 @@
-﻿using Engine.Core.Systems;
+﻿using Engine.Core.Events;
+using Engine.Core.Systems;
 using Engine.ECS;
 using Engine.ECS.Entities;
 using Engine.Scripting;
@@ -7,6 +8,118 @@ namespace Engine.Tests.Scripting;
 
 public sealed class ScriptRuntimeTests
 {
+    [Fact]
+    public void EventSubscriptionIsRemovedWhenScriptIsDetached()
+    {
+        using var world = new World();
+        using var events = new EventBus();
+
+        var entity = world.CreateEntity();
+        var script = new EventListeningScript();
+
+        var registry = new ScriptRegistry();
+
+        registry.Register(
+            "test.event-listener",
+            () => script);
+
+        using var runtime = new ScriptRuntime(
+            world,
+            registry,
+            events);
+
+        runtime.Attach(
+            entity,
+            "test.event-listener");
+
+        events.Publish(new ScriptTestEvent(10));
+        events.DispatchPending();
+
+        Assert.Equal(
+            new[] { 10 },
+            script.Received);
+
+        runtime.Detach(
+            entity,
+            "test.event-listener");
+
+        events.Publish(new ScriptTestEvent(20));
+        events.DispatchPending();
+
+        Assert.Equal(
+            new[] { 10 },
+            script.Received);
+    }
+
+    [Fact]
+    public void EventHandlerFaultIsReportedAndSubscriptionIsRemoved()
+    {
+        using var world = new World();
+        using var events = new EventBus();
+
+        var entity = world.CreateEntity();
+
+        var registry = new ScriptRegistry();
+
+        registry.Register(
+            "test.event-fault",
+            () => new FaultingEventScript());
+
+        using var runtime = new ScriptRuntime(
+            world,
+            registry,
+            events);
+
+        var faults = new List<ScriptFault>();
+
+        runtime.ScriptFaulted += faults.Add;
+
+        runtime.Attach(
+            entity,
+            "test.event-fault");
+
+        events.Publish(new ScriptTestEvent(1));
+        events.Publish(new ScriptTestEvent(2));
+
+        var exception = Record.Exception(
+            events.DispatchPending);
+
+        Assert.Null(exception);
+
+        var fault = Assert.Single(faults);
+
+        Assert.Equal(
+            ScriptExecutionPhase.Event,
+            fault.Phase);
+
+        Assert.Equal(
+            "test.event-fault",
+            fault.ScriptId);
+    }
+
+    private sealed record ScriptTestEvent(int Value) : IEvent;
+
+    private sealed class EventListeningScript : IEntityScript
+    {
+        public List<int> Received { get; } = new();
+
+        public void OnAttach(ScriptContext context)
+        {
+            context.Subscribe<ScriptTestEvent>(
+                @event => Received.Add(@event.Value));
+        }
+    }
+
+    private sealed class FaultingEventScript : IEntityScript
+    {
+        public void OnAttach(ScriptContext context)
+        {
+            context.Subscribe<ScriptTestEvent>(
+                _ => throw new InvalidOperationException(
+                    "Intentional event handler failure."));
+        }
+    }
+
     [Fact]
     public void FactoryFailureRemovesAssignmentAndOtherScriptsStillRun()
     {

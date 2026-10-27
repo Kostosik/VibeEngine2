@@ -6,6 +6,7 @@ public enum ScriptExecutionPhase
 {
     Update,
     FixedUpdate,
+    Event,
     Detach,
     Attach
 }

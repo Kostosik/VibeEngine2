@@ -103,7 +103,8 @@ public sealed class EngineRuntime :
         Scripts =
             new ScriptRuntime(
                 EcsWorld,
-                ScriptRegistry);
+                ScriptRegistry,
+                Events);
 
         Scheduler.Add(
             Scripts.UpdateSystem,

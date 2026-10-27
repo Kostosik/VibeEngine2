@@ -24,24 +24,9 @@ public sealed class ViewportPanelView :
         Rotate,
         Scale
     }
-
-    private readonly ITextureManager? _projectTextureManager;
-
-    private readonly ImageTextureLoader _projectImageLoader = new();
-
-    private readonly Dictionary<string, TextureHandle> _projectTextures =
-        new(
-            OperatingSystem.IsWindows()
-                ? StringComparer.OrdinalIgnoreCase
-                : StringComparer.Ordinal);
-
-    private readonly HashSet<string> _unavailableProjectTextures =
-        new(
-            OperatingSystem.IsWindows()
-                ? StringComparer.OrdinalIgnoreCase
-                : StringComparer.Ordinal);
-
-    private string? _projectAssetsRoot;
+    private readonly ViewportProjectTextureCache
+    _projectTextureCache;
+    private readonly ViewportSpriteRenderer _projectSpriteRenderer;
 
     private TransformTool _activeTool = TransformTool.Move;
     private bool _translationUsesLocalTransform;
@@ -76,18 +61,12 @@ public sealed class ViewportPanelView :
     private WorldPosition _translationStartPosition;
     private bool _translationUsesWorldTransform;
     private WorldTransform2D _translationStartWorldTransform;
-    private const float GridMinScreenSpacing = 12.0f;
-    private const float GridMaxScreenSpacing = 48.0f;
-    private const float GridLineThickness = 1.0f;
-    private const float AxisLineThickness = 2.0f;
 
     private const float MinZoom = 0.1f;
     private const float MaxZoom = 64.0f;
     private const float ZoomStep = 1.15f;
     private bool _isPanning;
     private Vector2 _lastPanPosition;
-    private const float EntityMarkerWorldSize = 10.0f;
-    private const float SelectionOutlineWorldSize = 10.5f;
 
     public ViewportPanelView(
         EditorContext editor,
@@ -96,8 +75,12 @@ public sealed class ViewportPanelView :
         ArgumentNullException.ThrowIfNull(editor);
 
         Editor = editor;
-        _projectTextureManager = projectTextureManager;
-
+        _projectTextureCache =
+    new ViewportProjectTextureCache(
+        projectTextureManager);
+        _projectSpriteRenderer =
+    new ViewportSpriteRenderer(
+        _projectTextureCache);
         Background =
             new UiColor(
                 18,
@@ -319,10 +302,20 @@ public sealed class ViewportPanelView :
 
         try
         {
-            DrawGrid(context, document);
+            ViewportGridRenderer.Draw(
+                context,
+                document,
+                Bounds);
             DrawSprites(context, document);
-            DrawEntities(context, document);
-            DrawSelection(context, document);
+            ViewportEntityRenderer.DrawEntities(
+                context,
+                document,
+                Bounds);
+
+            ViewportEntityRenderer.DrawSelection(
+                context,
+                document,
+                Bounds);
 
             DrawActiveGizmo(context, document);
 
@@ -337,260 +330,49 @@ public sealed class ViewportPanelView :
     }
 
     private void DrawActiveGizmo(
-    UiRenderContext context,
-    Engine.Editor.Documents.EditorDocument document)
+        UiRenderContext context,
+        Engine.Editor.Documents.EditorDocument document)
     {
         switch (_activeTool)
         {
             case TransformTool.Move:
-                DrawTranslationGizmo(context, document);
+                ViewportGizmoRenderer.DrawTranslation(
+                    context,
+                    document,
+                    Bounds,
+                    _translationGizmo.ArmLength);
                 break;
 
             case TransformTool.Rotate:
-                DrawRotationGizmo(context, document);
+                ViewportGizmoRenderer.DrawRotation(
+                    context,
+                    document,
+                    Bounds);
                 break;
 
             case TransformTool.Scale:
-                DrawScaleGizmo(context, document);
+                ViewportGizmoRenderer.DrawScale(
+                    context,
+                    document,
+                    Bounds);
                 break;
         }
     }
 
     private void DrawSprites(
-    UiRenderContext context,
-    Engine.Editor.Documents.EditorDocument document)
+        UiRenderContext context,
+        Engine.Editor.Documents.EditorDocument document)
     {
-        var project = Editor.ActiveGameProject;
-
-        if (project is null || _projectTextureManager is null)
-        {
-            if (_projectAssetsRoot is not null)
-            {
-                ReleaseProjectTextures();
-                _projectAssetsRoot = null;
-            }
-
-            return;
-        }
-
-        var assetsRoot = project.AssetsDirectoryPath;
-
-        EnsureProjectAssetsRoot(assetsRoot);
-
-        var zoom = document.Viewport.State.Zoom;
-
-        var sprites = document.World.EcsWorld
-            .Query<SpriteComponent, WorldTransform2D>();
-
-        foreach (var item in sprites)
-        {
-            var sprite = item.First;
-            var transform = item.Second;
-
-            if (string.IsNullOrWhiteSpace(sprite.TexturePath))
-            {
-                continue;
-            }
-
-            if (!float.IsFinite(sprite.Width) ||
-                !float.IsFinite(sprite.Height) ||
-                sprite.Width <= 0.0f ||
-                sprite.Height <= 0.0f)
-            {
-                continue;
-            }
-
-            var scaleX = MathF.Abs(transform.Scale.X.ToFloat());
-            var scaleY = MathF.Abs(transform.Scale.Y.ToFloat());
-
-            var width = sprite.Width * scaleX;
-            var height = sprite.Height * scaleY;
-
-            if (!float.IsFinite(width) ||
-                !float.IsFinite(height) ||
-                width <= 0.0f ||
-                height <= 0.0f)
-            {
-                continue;
-            }
-
-            var screenWidth = width * zoom;
-            var screenHeight = height * zoom;
-
-            var localScreen = document.Viewport.Transform.WorldToScreen(
-                new Vector2(
-                    transform.Position.X.ToFloat(),
-                    transform.Position.Y.ToFloat()));
-
-            var center = new Vector2(
-                Bounds.X + localScreen.X,
-                Bounds.Y + localScreen.Y);
-
-            var destination = new UiRect(
-                center.X - screenWidth * 0.5f,
-                center.Y - screenHeight * 0.5f,
-                screenWidth,
-                screenHeight);
-
-            if (!TryLoadProjectTexture(
-                    sprite.TexturePath,
-                    assetsRoot,
-                    out var texture))
-            {
-                DrawSpriteTexturePlaceholder(
-                    context,
-                    destination,
-                    sprite.Layer);
-
-                continue;
-            }
-
-            context.DrawTexture(
-                texture,
-                destination,
-                new Rectangle(0.0f, 0.0f, 1.0f, 1.0f),
-                layer: sprite.Layer);
-        }
-    }
-
-    private bool TryLoadProjectTexture(
-        string texturePath,
-        string assetsRoot,
-        out TextureHandle texture)
-    {
-        texture = default;
-
-        if (_unavailableProjectTextures.Contains(texturePath))
-        {
-            return false;
-        }
-
-        string? fullPath = null;
-
-        try
-        {
-            fullPath = ResolveProjectTexturePath(
-                assetsRoot,
-                texturePath);
-
-            if (_projectTextures.TryGetValue(
-                    fullPath,
-                    out texture) &&
-                _projectTextureManager!.Exists(texture))
-            {
-                return true;
-            }
-
-            var imageData = _projectImageLoader.Load(
-                File.ReadAllBytes(fullPath));
-
-            texture = _projectTextureManager!.Create(imageData);
-
-            if (!texture.IsValid ||
-                !_projectTextureManager.Exists(texture))
-            {
-                throw new InvalidOperationException(
-                    "Graphics backend failed to create the sprite texture.");
-            }
-
-            _projectTextures[fullPath] = texture;
-
-            return true;
-        }
-        catch 
-        {
-            _unavailableProjectTextures.Add(texturePath);
-
-            texture = default;
-
-            return false;
-        }
-    }
-
-    private static string ResolveProjectTexturePath(
-        string assetsRoot,
-        string texturePath)
-    {
-        if (Path.IsPathRooted(texturePath))
-        {
-            throw new InvalidDataException(
-                "Sprite texture paths must be relative to the project's Assets directory.");
-        }
-
-        var fullRoot = Path.GetFullPath(assetsRoot);
-
-        var relativeAssetPath = new AssetPath(texturePath).Value;
-
-        if (string.IsNullOrWhiteSpace(relativeAssetPath))
-        {
-            throw new InvalidDataException(
-                "Sprite texture path is empty.");
-        }
-
-        var fullPath = Path.GetFullPath(
-            Path.Combine(fullRoot, relativeAssetPath));
-
-        var relativePath = Path.GetRelativePath(
-            fullRoot,
-            fullPath);
-
-        if (Path.IsPathRooted(relativePath) ||
-            relativePath.Equals("..", StringComparison.Ordinal) ||
-            relativePath.StartsWith(
-                $"..{Path.DirectorySeparatorChar}",
-                StringComparison.Ordinal) ||
-            relativePath.StartsWith(
-                $"..{Path.AltDirectorySeparatorChar}",
-                StringComparison.Ordinal))
-        {
-            throw new InvalidDataException(
-                "Sprite texture path cannot point outside the project's Assets directory.");
-        }
-
-        return fullPath;
-    }
-
-    private void EnsureProjectAssetsRoot(string rootPath)
-    {
-        var fullRoot = Path.GetFullPath(rootPath);
-
-        if (_projectAssetsRoot is not null &&
-            string.Equals(
-                _projectAssetsRoot,
-                fullRoot,
-                OperatingSystem.IsWindows()
-                    ? StringComparison.OrdinalIgnoreCase
-                    : StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        ReleaseProjectTextures();
-
-        _projectAssetsRoot = fullRoot;
-    }
-
-    private void ReleaseProjectTextures()
-    {
-        if (_projectTextureManager is not null)
-        {
-            foreach (var texture in _projectTextures.Values)
-            {
-                if (_projectTextureManager.Exists(texture))
-                {
-                    _projectTextureManager.Destroy(texture);
-                }
-            }
-        }
-
-        _projectTextures.Clear();
-        _unavailableProjectTextures.Clear();
+        _projectSpriteRenderer.Draw(
+            context,
+            document,
+            Editor.ActiveGameProject?.AssetsDirectoryPath,
+            Bounds);
     }
 
     public void ReleaseResources()
     {
-        ReleaseProjectTextures();
-        _projectAssetsRoot = null;
+        _projectTextureCache.ReleaseResources();
     }
 
     private static void DrawSpriteTexturePlaceholder(
@@ -646,428 +428,6 @@ public sealed class ViewportPanelView :
             Bounds.Y + localScreen.Y);
 
         return true;
-    }
-
-    private void DrawRotationGizmo(
-    UiRenderContext context,
-    Engine.Editor.Documents.EditorDocument document)
-    {
-        if (!TryGetSelectedScreenPosition(document, out var center))
-        {
-            return;
-        }
-
-        const int segments = 32;
-        const float radius = 32.0f;
-        const float segmentSize = 5.0f;
-
-        var color = new UiColor(235, 185, 75, 255);
-
-        for (var i = 0; i < segments; i++)
-        {
-            var angle = MathF.Tau * i / segments;
-
-            var x = center.X + MathF.Cos(angle) * radius;
-            var y = center.Y + MathF.Sin(angle) * radius;
-
-            context.DrawRectangle(
-                new UiRect(
-                    x - segmentSize * 0.5f,
-                    y - segmentSize * 0.5f,
-                    segmentSize,
-                    segmentSize),
-                color,
-                filled: true,
-                layer: 3);
-        }
-    }
-
-    private void DrawScaleGizmo(
-    UiRenderContext context,
-    Engine.Editor.Documents.EditorDocument document)
-    {
-        if (!TryGetSelectedScreenPosition(document, out var center))
-        {
-            return;
-        }
-
-        const float arm = 48.0f;
-        const float thickness = 3.0f;
-        const float handleSize = 10.0f;
-
-        var xColor = new UiColor(220, 80, 80, 255);
-        var yColor = new UiColor(80, 220, 120, 255);
-
-        context.DrawRectangle(
-            new UiRect(
-                center.X,
-                center.Y - thickness * 0.5f,
-                arm,
-                thickness),
-            xColor,
-            filled: true,
-            layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(
-                center.X - thickness * 0.5f,
-                center.Y - arm,
-                thickness,
-                arm),
-            yColor,
-            filled: true,
-            layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(
-                center.X + arm - handleSize * 0.5f,
-                center.Y - handleSize * 0.5f,
-                handleSize,
-                handleSize),
-            xColor,
-            filled: true,
-            layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(
-                center.X - handleSize * 0.5f,
-                center.Y - arm - handleSize * 0.5f,
-                handleSize,
-                handleSize),
-            yColor,
-            filled: true,
-            layer: 3);
-    }
-
-    private void DrawTranslationGizmo(
-    UiRenderContext context,
-    Editor.Documents.EditorDocument document)
-    {
-        if (!document.Inspector.TryGetSelectedEntity(
-                document.EntitySelection,
-                out var entity))
-        {
-            return;
-        }
-
-        if (!document.World.SpatialEntities.Contains(
-                entity))
-        {
-            return;
-        }
-
-        var position =
-            document.World.SpatialEntities.GetPosition(
-                entity);
-
-        var localScreen =
-            document.Viewport.Transform.WorldToScreen(
-                new Vector2(
-                    position.X,
-                    position.Y));
-
-        var screen =
-            new Vector2(
-                Bounds.X + localScreen.X,
-                Bounds.Y + localScreen.Y);
-
-        var arm =
-            _translationGizmo.ArmLength;
-
-        const float thickness = 3.0f;
-
-        var xColor =
-            new UiColor(
-                220,
-                80,
-                80,
-                255);
-
-        var yColor =
-            new UiColor(
-                80,
-                220,
-                120,
-                255);
-
-        context.DrawRectangle(
-            new UiRect(
-                screen.X,
-                screen.Y - thickness * 0.5f,
-                arm,
-                thickness),
-            xColor,
-            filled: true,
-            layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(
-                screen.X - thickness * 0.5f,
-                screen.Y - arm,
-                thickness,
-                arm),
-            yColor,
-            filled: true,
-            layer: 3);
-
-        var xTip = screen.X + arm;
-        var yTip = screen.Y - arm;
-
-        // X: ровный треугольный наконечник вправо.
-        context.DrawRectangle(
-            new UiRect(xTip - 8.0f, screen.Y - 7.0f, 2.0f, 2.0f),
-            xColor, filled: true, layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(xTip - 8.0f, screen.Y - 5.0f, 4.0f, 2.0f),
-            xColor, filled: true, layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(xTip - 8.0f, screen.Y - 3.0f, 6.0f, 2.0f),
-            xColor, filled: true, layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(xTip - 8.0f, screen.Y - 1.0f, 8.0f, 2.0f),
-            xColor, filled: true, layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(xTip - 8.0f, screen.Y + 1.0f, 6.0f, 2.0f),
-            xColor, filled: true, layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(xTip - 8.0f, screen.Y + 3.0f, 4.0f, 2.0f),
-            xColor, filled: true, layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(xTip - 8.0f, screen.Y + 5.0f, 2.0f, 2.0f),
-            xColor, filled: true, layer: 3);
-
-        // Y: ровный треугольный наконечник вверх.
-        context.DrawRectangle(
-            new UiRect(screen.X - 7.0f, yTip, 2.0f, 2.0f),
-            yColor, filled: true, layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(screen.X - 5.0f, yTip, 2.0f, 4.0f),
-            yColor, filled: true, layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(screen.X - 3.0f, yTip, 2.0f, 6.0f),
-            yColor, filled: true, layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(screen.X - 1.0f, yTip, 2.0f, 8.0f),
-            yColor, filled: true, layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(screen.X + 1.0f, yTip, 2.0f, 6.0f),
-            yColor, filled: true, layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(screen.X + 3.0f, yTip, 2.0f, 4.0f),
-            yColor, filled: true, layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(screen.X + 5.0f, yTip, 2.0f, 2.0f),
-            yColor, filled: true, layer: 3);
-    }
-
-    private void DrawGrid(
-    UiRenderContext context,
-    Editor.Documents.EditorDocument document)
-    {
-        var viewport =
-            document.Viewport;
-
-        var zoom =
-            viewport.State.Zoom;
-
-        if (zoom <= 0.0f)
-        {
-            return;
-        }
-
-        var spacing =
-            CalculateGridSpacing(
-                zoom);
-
-        var topLeft =
-            viewport.Transform.ScreenToWorld(
-                Vector2.Zero);
-
-        var bottomRight =
-            viewport.Transform.ScreenToWorld(
-                new Vector2(
-                    Bounds.Width,
-                    Bounds.Height));
-
-        var minX =
-            MathF.Min(
-                topLeft.X,
-                bottomRight.X);
-
-        var maxX =
-            MathF.Max(
-                topLeft.X,
-                bottomRight.X);
-
-        var minY =
-            MathF.Min(
-                topLeft.Y,
-                bottomRight.Y);
-
-        var maxY =
-            MathF.Max(
-                topLeft.Y,
-                bottomRight.Y);
-
-        var startX =
-            MathF.Floor(
-                minX / spacing) *
-            spacing;
-
-        var startY =
-            MathF.Floor(
-                minY / spacing) *
-            spacing;
-
-        var gridColor =
-            new UiColor(
-                35,
-                35,
-                35,
-                255);
-
-        var axisColor =
-            new UiColor(
-                70,
-                70,
-                70,
-                255);
-
-        for (
-            var worldX = startX;
-            worldX <= maxX;
-            worldX += spacing)
-        {
-            var localScreen =
-                viewport.Transform.WorldToScreen(
-                    new Vector2(
-                        worldX,
-                        0.0f));
-
-            var screenX =
-                Bounds.X +
-                localScreen.X;
-
-            var thickness =
-                MathF.Abs(worldX) <
-                0.0001f
-                    ? AxisLineThickness
-                    : GridLineThickness;
-
-            var color =
-                MathF.Abs(worldX) <
-                0.0001f
-                    ? axisColor
-                    : gridColor;
-
-            context.DrawRectangle(
-                new UiRect(
-                    screenX -
-                    thickness * 0.5f,
-
-                    Bounds.Y,
-
-                    thickness,
-
-                    Bounds.Height),
-
-                color,
-                filled: true,
-                layer: -10);
-        }
-
-        for (
-            var worldY = startY;
-            worldY <= maxY;
-            worldY += spacing)
-        {
-            var localScreen =
-                viewport.Transform.WorldToScreen(
-                    new Vector2(
-                        0.0f,
-                        worldY));
-
-            var screenY =
-                Bounds.Y +
-                localScreen.Y;
-
-            var thickness =
-                MathF.Abs(worldY) <
-                0.0001f
-                    ? AxisLineThickness
-                    : GridLineThickness;
-
-            var color =
-                MathF.Abs(worldY) <
-                0.0001f
-                    ? axisColor
-                    : gridColor;
-
-            context.DrawRectangle(
-                new UiRect(
-                    Bounds.X,
-
-                    screenY -
-                    thickness * 0.5f,
-
-                    Bounds.Width,
-
-                    thickness),
-
-                color,
-                filled: true,
-                layer: -10);
-        }
-    }
-
-    private static float CalculateGridSpacing(
-    float zoom)
-    {
-        var targetWorldSpacing =
-            GridMinScreenSpacing /
-            zoom;
-
-        if (targetWorldSpacing <= 0.0f)
-        {
-            return 1.0f;
-        }
-
-        var exponent =
-            MathF.Floor(
-                MathF.Log10(
-                    targetWorldSpacing));
-
-        var magnitude =
-            MathF.Pow(
-                10.0f,
-                exponent);
-
-        var normalized =
-            targetWorldSpacing /
-            magnitude;
-
-        var step =
-            normalized <= 1.0f
-                ? 1.0f
-                : normalized <= 2.0f
-                    ? 2.0f
-                    : normalized <= 5.0f
-                        ? 5.0f
-                        : 10.0f;
-
-        return step * magnitude;
     }
 
     protected override void OnPointerDown(
@@ -1726,82 +1086,6 @@ public sealed class ViewportPanelView :
         }
     }
 
-    private void DrawEntities(
-    UiRenderContext context,
-    Editor.Documents.EditorDocument document)
-    {
-        foreach (var entity in
-                 document.World
-                     .EcsWorld
-                     .Inspector
-                     .GetEntities())
-        {
-            if (!document.World.SpatialEntities.Contains(
-                    entity))
-            {
-                continue;
-            }
-
-            var position =
-                document.World.SpatialEntities.GetPosition(
-                    entity);
-
-            var localScreen =
-                document.Viewport.Transform.WorldToScreen(
-                    new Vector2(
-                        position.X,
-                        position.Y));
-
-            var screen =
-                new Vector2(
-                    Bounds.X +
-                    localScreen.X,
-
-                    Bounds.Y +
-                    localScreen.Y);
-
-            var zoom =
-                document.Viewport.State.Zoom;
-
-            var color =
-                new UiColor(
-                    90,
-                    160,
-                    230,
-                    255);
-
-            if (document.World.EcsWorld.Has<LocalTransform2D>(
-                    entity))
-            {
-                var transform =
-                    document.World.EcsWorld.Get<LocalTransform2D>(
-                        entity);
-
-                DrawTransformedMarker(
-                    context,
-                    screen,
-                    zoom,
-                    EntityMarkerWorldSize,
-                    transform,
-                    color,
-                    showDirection: true,
-                    layer: 0);
-            }
-            else
-            {
-                var rect =
-                    CreateScreenRect(
-                        screen,
-                        EntityMarkerWorldSize * zoom);
-
-                context.DrawRectangle(
-                    rect,
-                    color,
-                    filled: true);
-            }
-        }
-    }
-
     private bool IsNearRotationRing(
     Vector2 position,
     Vector2 center)
@@ -1906,283 +1190,6 @@ public sealed class ViewportPanelView :
                left.Scale == right.Scale;
     }
 
-    private void DrawSelection(
-    UiRenderContext context,
-    Editor.Documents.EditorDocument document)
-    {
-        foreach (var entity in
-                 document.EntitySelection.Items)
-        {
-            if (!document.World.EcsWorld.Exists(
-                    entity))
-            {
-                continue;
-            }
-
-            if (!document.World.SpatialEntities.Contains(
-                    entity))
-            {
-                continue;
-            }
-
-            var position =
-                document.World.SpatialEntities.GetPosition(
-                    entity);
-
-            var localScreen =
-                document.Viewport.Transform.WorldToScreen(
-                    new Vector2(
-                        position.X,
-                        position.Y));
-
-            var screen =
-                new Vector2(
-                    Bounds.X +
-                    localScreen.X,
-
-                    Bounds.Y +
-                    localScreen.Y);
-
-            var zoom =
-                document.Viewport.State.Zoom;
-
-            var selectionColor =
-                new UiColor(
-                    255,
-                    220,
-                    80,
-                    255);
-
-            if (document.World.EcsWorld.Has<LocalTransform2D>(
-                    entity))
-            {
-                var transform =
-                    document.World.EcsWorld.Get<LocalTransform2D>(
-                        entity);
-
-                DrawTransformedMarker(
-                    context,
-                    screen,
-                    zoom,
-                    SelectionOutlineWorldSize,
-                    transform,
-                    selectionColor,
-                    showDirection: false,
-                    layer: 1);
-            }
-            else
-            {
-                var rect =
-                    CreateScreenRect(
-                        screen,
-                        SelectionOutlineWorldSize * zoom);
-
-                context.DrawRectangle(
-                    rect,
-                    selectionColor,
-                    filled: false,
-                    layer: 1);
-            }
-        }
-    }
-
-    private static void DrawTransformedMarker(
-    UiRenderContext context,
-    Vector2 center,
-    float zoom,
-    float sizeWorld,
-    LocalTransform2D transform,
-    UiColor color,
-    bool showDirection,
-    int layer)
-    {
-        var halfWidth =
-            sizeWorld * 0.5f;
-
-        var halfHeight =
-            sizeWorld * 0.32f;
-
-        var corners = new[]
-        {
-        TransformLocalPoint(
-            center, zoom, transform,
-            -halfWidth, -halfHeight),
-
-        TransformLocalPoint(
-            center, zoom, transform,
-            halfWidth, -halfHeight),
-
-        TransformLocalPoint(
-            center, zoom, transform,
-            halfWidth, halfHeight),
-
-        TransformLocalPoint(
-            center, zoom, transform,
-            -halfWidth, halfHeight)
-    };
-
-        DrawClosedOutline(
-            context,
-            corners,
-            color,
-            zoom,
-            layer);
-
-        if (!showDirection)
-        {
-            return;
-        }
-
-        // Указатель локальной оси X помогает видеть
-        // направление даже после поворота на 180 градусов.
-        var directionEnd =
-            TransformLocalPoint(
-                center,
-                zoom,
-                transform,
-                halfWidth + 2.0f,
-                0.0f);
-
-        DrawScreenLine(
-            context,
-            center,
-            directionEnd,
-            new UiColor(210, 230, 255, 255),
-            zoom,
-            layer + 1);
-
-        var centerSize =
-            Math.Clamp(
-                2.5f * zoom,
-                2.0f,
-                5.0f);
-
-        context.DrawRectangle(
-            CreateScreenRect(
-                center,
-                centerSize),
-            color,
-            filled: true,
-            layer: layer + 1);
-    }
-
-    private static Vector2 TransformLocalPoint(
-        Vector2 center,
-        float zoom,
-        LocalTransform2D transform,
-        float localX,
-        float localY)
-    {
-        var scaleX =
-            transform.Scale.X.ToFloat();
-
-        var scaleY =
-            transform.Scale.Y.ToFloat();
-
-        var rotation =
-            transform.Rotation.ToFloat();
-
-        var scaledX =
-            localX * scaleX;
-
-        var scaledY =
-            localY * scaleY;
-
-        var cosine =
-            MathF.Cos(rotation);
-
-        var sine =
-            MathF.Sin(rotation);
-
-        var rotatedX =
-            scaledX * cosine -
-            scaledY * sine;
-
-        var rotatedY =
-            scaledX * sine +
-            scaledY * cosine;
-
-        // В viewport экранная ось Y направлена вниз,
-        // поэтому экранное смещение по Y инвертируется.
-        return new Vector2(
-            center.X + rotatedX * zoom,
-            center.Y - rotatedY * zoom);
-    }
-
-    private static void DrawClosedOutline(
-        UiRenderContext context,
-        IReadOnlyList<Vector2> points,
-        UiColor color,
-        float zoom,
-        int layer)
-    {
-        for (var i = 0; i < points.Count; i++)
-        {
-            var next =
-                (i + 1) % points.Count;
-
-            DrawScreenLine(
-                context,
-                points[i],
-                points[next],
-                color,
-                zoom,
-                layer);
-        }
-    }
-
-    private static void DrawScreenLine(
-        UiRenderContext context,
-        Vector2 start,
-        Vector2 end,
-        UiColor color,
-        float zoom,
-        int layer)
-    {
-        var delta =
-            end - start;
-
-        var length =
-            MathF.Sqrt(
-                delta.X * delta.X +
-                delta.Y * delta.Y);
-
-        var thickness =
-            Math.Clamp(
-                zoom * 1.25f,
-                1.25f,
-                4.0f);
-
-        var sampleSpacing =
-            MathF.Max(
-                thickness * 1.25f,
-                1.5f);
-
-        var steps =
-            Math.Clamp(
-                (int)MathF.Ceiling(
-                    length / sampleSpacing),
-                1,
-                256);
-
-        for (var i = 0; i <= steps; i++)
-        {
-            var point =
-                start +
-                delta * (i / (float)steps);
-
-            context.DrawRectangle(
-                new UiRect(
-                    point.X - thickness * 0.5f,
-                    point.Y - thickness * 0.5f,
-                    thickness,
-                    thickness),
-                color,
-                filled: true,
-                layer: layer);
-        }
-    }
-
     private void DrawInfo(
         UiRenderContext context,
         Editor.Documents.EditorDocument document)
@@ -2222,7 +1229,7 @@ public sealed class ViewportPanelView :
             float.MaxValue;
 
         var hitRadius =
-            EntityMarkerWorldSize *
+            ViewportEntityRenderer.EntityMarkerWorldSize *
             0.5f;
 
         var hitRadiusSquared =
@@ -2281,20 +1288,6 @@ public sealed class ViewportPanelView :
             : null;
     }
 
-    private static UiRect CreateScreenRect(
-        Vector2 center,
-        float size)
-    {
-        var half =
-            size * 0.5f;
-
-        return new UiRect(
-            center.X - half,
-            center.Y - half,
-            size,
-            size);
-    }
-
     private bool ContainsLocalPosition(
         Vector2 position)
     {
@@ -2302,89 +1295,5 @@ public sealed class ViewportPanelView :
                position.Y >= 0.0f &&
                position.X <= Bounds.Width &&
                position.Y <= Bounds.Height;
-    }
-
-    public void DebugDump()
-    {
-        var document =
-            Editor.ActiveDocument;
-
-        Console.WriteLine();
-        Console.WriteLine(
-            "========== VIEWPORT DEBUG ==========");
-
-        Console.WriteLine(
-            $"Viewport Bounds: " +
-            $"X={Bounds.X}, " +
-            $"Y={Bounds.Y}, " +
-            $"W={Bounds.Width}, " +
-            $"H={Bounds.Height}");
-
-        if (document is null)
-        {
-            Console.WriteLine(
-                "Document: NULL");
-
-            Console.WriteLine(
-                "====================================");
-
-            return;
-        }
-
-        Console.WriteLine(
-            $"World entities: " +
-            $"{document.World.EcsWorld.EntityCount}");
-
-        Console.WriteLine(
-            $"Spatial entities: " +
-            $"{document.World.SpatialIndex.EntityCount}");
-
-        Console.WriteLine(
-            $"Selected entities: " +
-            $"{document.EntitySelection.Count}");
-
-        Console.WriteLine(
-            $"Viewport size: " +
-            $"{document.Viewport.State.Size.X} x " +
-            $"{document.Viewport.State.Size.Y}");
-
-        Console.WriteLine(
-            $"Viewport center: " +
-            $"{document.Viewport.State.Center}");
-
-        Console.WriteLine(
-            $"Viewport zoom: " +
-            $"{document.Viewport.State.Zoom}");
-
-        foreach (var entity in
-                 document.World
-                     .EcsWorld
-                     .Inspector
-                     .GetEntities())
-        {
-            Console.WriteLine(
-                $"Entity: {entity}");
-
-            var hasPosition =
-                document.World.SpatialEntities.Contains(
-                    entity);
-
-            Console.WriteLine(
-                $"  Has WorldPosition: {hasPosition}");
-
-            if (hasPosition)
-            {
-                Console.WriteLine(
-                    $"  WorldPosition: " +
-                    $"{document.World.SpatialEntities.GetPosition(entity)}");
-            }
-
-            Console.WriteLine(
-                $"  Selected: " +
-                $"{document.EntitySelection.Contains(entity)}");
-        }
-
-        Console.WriteLine(
-            "====================================");
     }
 }

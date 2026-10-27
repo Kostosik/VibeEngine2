@@ -7,11 +7,13 @@ using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
+using System.Runtime.ExceptionServices;
 
 namespace Engine.Graphics.OpenGL;
 
 public sealed class OpenGLWindow : IDisposable
 {
+    private bool _hasFocus = true;
     private readonly IWindow _window;
     private GameLoop? _gameLoop;
     private GL? _gl;
@@ -67,7 +69,7 @@ public sealed class OpenGLWindow : IDisposable
                 new Engine.Core.Math.Vector2(
                     width,
                     height));
-
+        _window.FocusChanged += OnFocusChanged;
         _window.Load +=
             OnLoad;
 
@@ -167,8 +169,14 @@ public sealed class OpenGLWindow : IDisposable
         _inputBackend =
             new SilkNetInputBackend(
                 _window.CreateInput());
+        _inputBackend.SetFocused(_hasFocus);
     }
 
+    private void OnFocusChanged(bool focused)
+    {
+        _hasFocus = focused;
+        _inputBackend?.SetFocused(focused);
+    }
     private void OnResize(
         Vector2D<int> size)
     {
@@ -252,6 +260,8 @@ public sealed class OpenGLWindow : IDisposable
 
     private void ReleasePlatformResources()
     {
+        var errors = new List<Exception>();
+
         var inputBackend = _inputBackend;
         _inputBackend = null;
 
@@ -259,12 +269,35 @@ public sealed class OpenGLWindow : IDisposable
         {
             inputBackend?.Dispose();
         }
-        finally
+        catch (Exception exception)
         {
-            var graphicsDevice = _graphicsDevice;
-            _graphicsDevice = null;
+            errors.Add(exception);
+        }
 
+        var graphicsDevice = _graphicsDevice;
+        _graphicsDevice = null;
+
+        try
+        {
             graphicsDevice?.Dispose();
+        }
+        catch (Exception exception)
+        {
+            errors.Add(exception);
+        }
+
+        if (errors.Count == 1)
+        {
+            ExceptionDispatchInfo
+                .Capture(errors[0])
+                .Throw();
+        }
+
+        if (errors.Count > 1)
+        {
+            throw new AggregateException(
+                "One or more OpenGL window resources could not be released.",
+                errors);
         }
     }
 
@@ -283,6 +316,7 @@ public sealed class OpenGLWindow : IDisposable
         }
         finally
         {
+            _window.FocusChanged -= OnFocusChanged;
             _window.Dispose();
         }
     }

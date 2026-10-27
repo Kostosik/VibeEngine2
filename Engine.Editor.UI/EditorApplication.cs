@@ -8,6 +8,7 @@ using Engine.Editor.UI.Authoring;
 using Engine.Editor.UI.Commands;
 using Engine.Editor.UI.Dialogs;
 using Engine.Editor.UI.Inspection;
+using Engine.Editor.UI.Services;
 using Engine.Editor.UI.Shell;
 using Engine.Graphics.Resources;
 using Engine.Input;
@@ -22,32 +23,17 @@ namespace Engine.Editor.UI;
 public sealed class EditorApplication :
     IApplication
 {
-    private static readonly InputBinding LeftShiftKey =
-    new("Keyboard.ShiftLeft");
-
-    private static readonly InputBinding RightShiftKey =
-        new("Keyboard.ShiftRight");
-    private static readonly InputBinding CopyKey =
-    new("Keyboard.C");
-    private static readonly InputBinding PasteKey =
-    new("Keyboard.V");
-    private static readonly InputBinding UndoKey =
-    new("Keyboard.Z");
-
-    private static readonly InputBinding RedoKey =
-        new("Keyboard.Y");
-
-    private static readonly InputBinding LeftControlKey =
-        new("Keyboard.ControlLeft");
-
-    private static readonly InputBinding RightControlKey =
-        new("Keyboard.ControlRight");
     public InspectorPropertyEditorRegistry PropertyEditors { get; }
     private bool _undoShortcutWasDown;
     private bool _redoShortcutWasDown;
     private readonly ITextInput? _textInput;
     private readonly EditorNewProjectDialog _newProjectDialog;
-
+    private readonly EditorDocumentSaveService
+    _documentSaveService;
+    private readonly EditorAssetCreationWorkflow
+    _assetCreationWorkflow;
+    private readonly EditorDocumentOpenService
+    _documentOpenService;
     private readonly IClipboardService? _clipboardService;
     private readonly EditorAssetCreationDialog _assetCreationDialog;
     private bool _copyShortcutWasDown;
@@ -73,7 +59,8 @@ public sealed class EditorApplication :
     private readonly GameProjectRunner _gameProjectRunner = new();
     private readonly GameProjectSessionManager
     _gameProjectSessionManager = new();
-
+    private readonly EditorKeyboardShortcutHandler
+    _keyboardShortcutHandler;
     private readonly GameProjectSessionCommand?
         _gameProjectSessionCommand;
     private readonly DebugConsole? _debugConsole;
@@ -274,6 +261,11 @@ public sealed class EditorApplication :
         _documentPersistence =
     documentPersistence;
 
+        _assetCreationWorkflow =
+    new EditorAssetCreationWorkflow(
+        Editor,
+        _documentPersistence);
+
         PropertyEditors =
     propertyEditors ??
     InspectorPropertyEditorRegistry.CreateDefault();
@@ -287,6 +279,14 @@ public sealed class EditorApplication :
                 debugConsole,
                 PropertyEditors,
                 filePreviewTextureManager, ui.Focus);
+
+        _keyboardShortcutHandler =
+    new EditorKeyboardShortcutHandler(
+        Input,
+        Ui,
+        MainShell,
+        clipboard,
+        _debugConsole);
 
         MainShell.AssetActivated += OnAssetActivated;
         MainShell.SaveRequested +=
@@ -353,6 +353,14 @@ SaveAllDocuments;
         }
 
         _documentFiles = documentFiles;
+        _documentSaveService =
+            new EditorDocumentSaveService(
+                _documentFiles,
+                _fileDialogs);
+        _documentOpenService =
+            new EditorDocumentOpenService(
+                Editor,
+                _documentFiles);
     }
 
     private void OnActiveGameProjectChanged(GameProject? project)
@@ -531,30 +539,52 @@ SaveAllDocuments;
 
     private void SaveActiveDocument()
     {
-        switch (Editor.Session.ActiveEditorDocument)
-        {
-            case SpriteAnimationDocument spriteAnimationDocument:
-                SaveSpriteAnimationDocument(spriteAnimationDocument);
-                return;
-            case EditorUiDocument uiDocument:
-                SaveUiDocument(uiDocument);
-                return;
+        var document =
+            Editor.Session.ActiveEditorDocument;
 
-            case EditorDocument worldDocument:
-                SaveWorldDocument(worldDocument);
+        if (document is null)
+        {
+            return;
+        }
+
+        if (!_documentSaveService.CanSave(document))
+        {
+            _errorDialog.ShowError(
+                "Saving this document type is not supported.");
+
+            return;
+        }
+
+        try
+        {
+            if (!_documentSaveService.TrySave(document))
+            {
                 return;
-            case ParticleEffectDocument particleEffectDocument:
-                SaveParticleEffectDocument(particleEffectDocument);
-                return;
-            case null:
-                return;
-            case AnimationClipDocument animationClipDocument:
-                SaveAnimationClipDocument(animationClipDocument);
-                return;
-            default:
-                _errorDialog.ShowError(
-                    "Saving this document type is not supported.");
-                return;
+            }
+
+            switch (document)
+            {
+                case SpriteAnimationDocument spriteAnimation:
+                    _debugConsole?.WriteLine(
+                        $"Saved sprite animation: {spriteAnimation.FilePath}");
+                    break;
+
+                case AnimationClipDocument animationClip:
+                    _debugConsole?.WriteLine(
+                        $"Saved animation clip: {animationClip.FilePath}");
+                    break;
+
+                case ParticleEffectDocument particleEffect:
+                    _debugConsole?.WriteLine(
+                        $"Saved particle effect: {particleEffect.FilePath}");
+                    break;
+            }
+
+            MarkUiDirty();
+        }
+        catch (Exception exception)
+        {
+            _errorDialog.ShowError(exception.Message);
         }
     }
 
@@ -722,7 +752,7 @@ SaveAllDocuments;
             ToggleConsole();
         }
 
-        HandleKeyboardShortcuts();
+        _keyboardShortcutHandler.Update();
 
         RefreshIfNeeded();
 
@@ -814,7 +844,7 @@ SaveAllDocuments;
         Editor.Session.DocumentClosed -=
             UnsubscribeDocument;
 
-        Editor.Session.ActiveDocumentChanged -=
+        Editor.Session.ActiveEditorDocumentChanged -=
             OnActiveEditorDocumentChanged;
 
         Editor.Workspace.Changed -=
@@ -913,146 +943,6 @@ SaveAllDocuments;
         }
     }
 
-    private void HandleKeyboardShortcuts()
-    {
-        var controlDown =
-            Input.GetValue(LeftControlKey) > 0.5f ||
-            Input.GetValue(RightControlKey) > 0.5f;
-
-        var copyDown =
-            controlDown &&
-            Input.GetValue(CopyKey) > 0.5f;
-
-        var pasteDown =
-            controlDown &&
-            Input.GetValue(PasteKey) > 0.5f;
-
-        var shiftDown =
-            Input.GetValue(LeftShiftKey) > 0.5f ||
-            Input.GetValue(RightShiftKey) > 0.5f;
-
-        var undoKeyDown =
-            Input.GetValue(UndoKey) > 0.5f;
-
-        var redoKeyDown =
-            Input.GetValue(RedoKey) > 0.5f;
-
-        var undoDown =
-            controlDown &&
-            !shiftDown &&
-            undoKeyDown;
-
-        var redoDown =
-            controlDown &&
-            (redoKeyDown ||
-             (shiftDown && undoKeyDown));
-
-        var focusedWidget = Ui.Focus.FocusedWidget;
-        var focusedTextBox = focusedWidget as UiTextBox;
-
-        // Undo/Redo не должны перехватывать сочетания
-        // внутри полей ввода и модальных окон.
-        var shortcutSuppressed =
-            Ui.Focus.ActiveScope is not null ||
-            focusedTextBox is not null;
-
-        var consoleOutput = MainShell.ConsoleOutputWidget;
-
-        var canCopyConsoleSelection =
-            Ui.Focus.ActiveScope is null &&
-            focusedTextBox is null &&
-            (ReferenceEquals(focusedWidget, consoleOutput) ||
-             consoleOutput.IsHovered);
-
-        // Ctrl+C: сначала выделение активного TextBox,
-        // иначе — выделение логов консоли.
-        if (copyDown &&
-            !_copyShortcutWasDown &&
-            Ui.Focus.ActiveScope is null)
-        {
-            var selectedText =
-                focusedTextBox is not null
-                    ? focusedTextBox.SelectedText
-                    : canCopyConsoleSelection
-                        ? MainShell.ConsoleSelectedText
-                        : string.Empty;
-
-            if (selectedText.Length > 0)
-            {
-                if (_clipboardService is null)
-                {
-                    _debugConsole?.WriteError(
-                        "Clipboard service is not configured.");
-                }
-                else
-                {
-                    try
-                    {
-                        _clipboardService.SetText(selectedText);
-                    }
-                    catch (Exception exception)
-                    {
-                        _debugConsole?.WriteException(
-                            exception,
-                            "Failed to copy selected text.");
-                    }
-                }
-            }
-        }
-
-        // Ctrl+V: вставляем только в активное поле ввода.
-        if (pasteDown &&
-            !_pasteShortcutWasDown &&
-            Ui.Focus.ActiveScope is null &&
-            focusedTextBox is not null)
-        {
-            if (_clipboardService is null)
-            {
-                _debugConsole?.WriteError(
-                    "Clipboard service is not configured.");
-            }
-            else
-            {
-                try
-                {
-                    var clipboardText =
-                        _clipboardService.GetText();
-
-                    if (!string.IsNullOrEmpty(clipboardText))
-                    {
-                        focusedTextBox.InsertText(clipboardText);
-                    }
-                }
-                catch (Exception exception)
-                {
-                    _debugConsole?.WriteException(
-                        exception,
-                        "Failed to paste clipboard text.");
-                }
-            }
-        }
-
-        if (!shortcutSuppressed)
-        {
-            if (undoDown && !_undoShortcutWasDown)
-            {
-                MainShell.Undo();
-            }
-
-            if (redoDown && !_redoShortcutWasDown)
-            {
-                MainShell.Redo();
-            }
-        }
-
-        // Каждое сочетание обрабатываем только один раз
-        // за одно нажатие, а не каждый кадр удержания.
-        _undoShortcutWasDown = undoDown;
-        _redoShortcutWasDown = redoDown;
-        _copyShortcutWasDown = copyDown;
-        _pasteShortcutWasDown = pasteDown;
-    }
-
     private void SaveAllDocuments()
     {
         try
@@ -1062,71 +952,16 @@ SaveAllDocuments;
 
             foreach (var document in documents)
             {
-                // Clean documents do not need to be saved.
                 if (!document.IsDirty)
                 {
                     continue;
                 }
 
-                switch (document)
+                if (!_documentSaveService.TrySave(document))
                 {
-                    case SpriteAnimationDocument spriteAnimationDocument:
-                        spriteAnimationDocument.Save();
-                        break;
-                    case ParticleEffectDocument particleEffectDocument:
-                        particleEffectDocument.Save();
-                        break;
-
-                    case EditorUiDocument uiDocument:
-                        {
-                            if (!TrySaveUiDocument(uiDocument))
-                            {
-                                // Save As was cancelled.
-                                MarkUiDirty();
-                                return;
-                            }
-
-                            break;
-                        }
-
-                    case EditorDocument worldDocument:
-                        {
-                            var files =
-                                _documentFiles
-                                ?? throw new InvalidOperationException(
-                                    "Document file service is not configured.");
-
-                            if (worldDocument.FilePath is null)
-                            {
-                                var path =
-                                    _fileDialogs.ShowSaveFile();
-
-                                if (path is null)
-                                {
-                                    // Save As was cancelled.
-                                    MarkUiDirty();
-                                    return;
-                                }
-
-                                files.SaveAs(
-                                    worldDocument,
-                                    path);
-                            }
-                            else
-                            {
-                                files.Save(
-                                    worldDocument);
-                            }
-
-                            break;
-                        }
-                    case AnimationClipDocument animationClipDocument:
-                        animationClipDocument.Save();
-                        break;
-                    default:
-                        throw new NotSupportedException(
-                            $"Saving document type " +
-                            $"'{document.DocumentTypeId}' is not supported.");
+                    // Save As was cancelled.
+                    MarkUiDirty();
+                    return;
                 }
             }
 
@@ -1174,102 +1009,46 @@ SaveAllDocuments;
 
     private void OpenDocumentPath(string path)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var document =
+            _documentOpenService.Open(path);
 
-        var normalizedPath = Path.GetFullPath(path);
+        SubscribeDocumentForChanges(document);
 
-        var pathComparison = OperatingSystem.IsWindows()
-            ? StringComparison.OrdinalIgnoreCase
-            : StringComparison.Ordinal;
+        MarkUiDirty();
+    }
 
-        var existingDocument =
-            Editor.Session.AllDocuments.FirstOrDefault(
-                document =>
-                    document.FilePath is string documentPath &&
-                    string.Equals(
-                        Path.GetFullPath(documentPath),
-                        normalizedPath,
-                        pathComparison));
-
-        if (existingDocument is not null)
+    private void SubscribeDocumentForChanges(
+    IEditorDocument document)
+    {
+        switch (document)
         {
-            Editor.Session.Activate(existingDocument);
-            MarkUiDirty();
-            return;
-        }
+            case EditorDocument worldDocument:
+                SubscribeDocument(worldDocument);
+                break;
 
-        if (normalizedPath.EndsWith(
-        ".sprite-animation.json",
-        StringComparison.OrdinalIgnoreCase))
-        {
-            var document =
-                SpriteAnimationDocument.Open(normalizedPath);
+            case EditorUiDocument uiDocument:
+                SubscribeUiDocument(uiDocument);
+                break;
 
-            SubscribeSpriteAnimationDocument(document);
+            case ParticleEffectDocument particleEffectDocument:
+                SubscribeParticleEffectDocument(
+                    particleEffectDocument);
+                break;
 
-            Editor.Session.Open(document);
+            case SpriteAnimationDocument spriteAnimationDocument:
+                SubscribeSpriteAnimationDocument(
+                    spriteAnimationDocument);
+                break;
 
-            MarkUiDirty();
-            return;
-        }
-
-        if (normalizedPath.EndsWith(
-        ".animation.json",
-        StringComparison.OrdinalIgnoreCase))
-        {
-            var animationClipDocument =
-                AnimationClipDocument.Open(normalizedPath);
-
-            SubscribeAnimationClipDocument(
-                animationClipDocument);
-
-            Editor.Session.Open(
-                animationClipDocument);
-
-            MarkUiDirty();
-            return;
-        }
-
-        if (normalizedPath.EndsWith(
-        ".particle.json",
-        StringComparison.OrdinalIgnoreCase))
-        {
-            var particleEffectDocument =
-                ParticleEffectDocument.Open(normalizedPath);
-
-            SubscribeParticleEffectDocument(
-                particleEffectDocument);
-
-            Editor.Session.Open(
-                particleEffectDocument);
-
-            MarkUiDirty();
-            return;
-        }
-
-        switch (Path.GetExtension(normalizedPath).ToLowerInvariant())
-        {
-            case ".world":
-                OpenDocument(normalizedPath);
-                return;
-
-            case ".ui":
-                var document = EditorUiAssetFile.Load(normalizedPath);
-
-                document.SetFilePath(normalizedPath);
-
-                SubscribeUiDocument(document);
-
-                Editor.Session.Open(document);
-
-                MarkUiDirty();
-                return;
+            case AnimationClipDocument animationClipDocument:
+                SubscribeAnimationClipDocument(
+                    animationClipDocument);
+                break;
 
             default:
                 throw new NotSupportedException(
                     $"Unsupported document type: " +
-                    $"'{Path.GetExtension(normalizedPath)}'. " +
-                    "Supported extensions are .world and .ui.");
+                    $"'{document.DocumentTypeId}'.");
         }
     }
 
@@ -1451,44 +1230,19 @@ SaveAllDocuments;
 
         try
         {
-            if (entry.Path.EndsWith(
-        ".sprite-animation.json",
-        StringComparison.OrdinalIgnoreCase))
-            {
-                OpenDocumentPath(entry.Path);
-                return;
-            }
-            if (entry.Path.EndsWith(
-        ".animation.json",
-        StringComparison.OrdinalIgnoreCase))
-            {
-                OpenDocumentPath(entry.Path);
-                return;
-            }
-            if (entry.Path.EndsWith(
-        ".particle.json",
-        StringComparison.OrdinalIgnoreCase))
+            if (EditorDocumentOpenService.IsSupportedPath(
+                    entry.Path))
             {
                 OpenDocumentPath(entry.Path);
                 return;
             }
 
-            switch (Path.GetExtension(entry.Path).ToLowerInvariant())
+            if (Editor.Workspace.FindPanel("AssetPreview") is not null)
             {
-                case ".ui":
-                case ".world":
-                    OpenDocumentPath(entry.Path);
-                    return;
-
-                default:
-                    if (Editor.Workspace.FindPanel("AssetPreview") is not null)
-                    {
-                        Editor.Workspace.ActivatePanel("AssetPreview");
-                    }
-
-                    MarkUiDirty();
-                    return;
+                Editor.Workspace.ActivatePanel("AssetPreview");
             }
+
+            MarkUiDirty();
         }
         catch (Exception exception)
         {
@@ -1647,6 +1401,7 @@ SaveAllDocuments;
         _assetCreationDialog.ShowFor(targetDirectory);
     }
 
+
     private void CreateAssetFromDialog(
         EditorAssetCreationDefinition definition,
         string name,
@@ -1654,50 +1409,20 @@ SaveAllDocuments;
     {
         try
         {
-            if (Editor.ActiveGameProject is null)
-            {
-                throw new InvalidOperationException(
-                    "Open a game project before creating assets.");
-            }
-
-            var browser = Editor.AssetBrowser
-                ?? throw new InvalidOperationException(
-                    "The Asset Browser is not initialized.");
-
-            var service = new EditorAssetCreationService(browser);
-
-            Action<string>? generatedFileWriter =
-                definition.Id switch
-                {
-                    "world-document" => WriteEmptyWorldAsset,
-
-                    "ui-document" => path =>
-                    {
-                        var document = new EditorUiDocument(name);
-                        EditorUiAssetFile.Save(document, path);
-                    }
-                    ,
-
-                    _ => null
-                };
-
-            var path = service.Create(
+            var result = _assetCreationWorkflow.Create(
                 definition,
                 name,
-                targetDirectory,
-                generatedFileWriter);
+                targetDirectory);
 
             _debugConsole?.WriteLine(
                 $"Created {definition.DisplayName}: " +
-                Path.GetRelativePath(browser.RootPath, path));
+                Path.GetRelativePath(
+                    result.AssetRootPath,
+                    result.Path));
 
-            if (definition.Id is
-                "world-document" or
-                "ui-document" or
-                "animation-clip" or
-                "sprite-animation")
+            if (result.OpenDocument)
             {
-                OpenDocumentPath(path);
+                OpenDocumentPath(result.Path);
             }
 
             MarkUiDirty();
@@ -1710,26 +1435,6 @@ SaveAllDocuments;
 
             _errorDialog.ShowError(exception.Message);
         }
-
-
-    }
-
-    private void WriteEmptyWorldAsset(string path)
-    {
-        var persistence =
-            _documentPersistence
-            ?? throw new InvalidOperationException(
-                "World document persistence is not configured.");
-
-        using var ecsWorld = new Engine.ECS.World();
-
-        using var world = new Engine.Worlds.World(
-            new Engine.Worlds.Spatial.ChunkSize(32, 32),
-            ecsWorld);
-
-        using var document = new EditorDocument(world);
-
-        persistence.Save(path, document);
     }
 
     private void MarkUiDirty()
@@ -1844,81 +1549,35 @@ SaveAllDocuments;
 
         try
         {
-            switch (document)
+            if (!_documentSaveService.CanSave(document))
             {
-                case SpriteAnimationDocument spriteAnimationDocument:
-                    spriteAnimationDocument.Save();
+                throw new NotSupportedException(
+                    $"Unsupported document type: {document.GetType().FullName}");
+            }
 
-                    if (!continueApplicationClose)
-                    {
-                        Editor.Session.Close(spriteAnimationDocument);
-                    }
+            if (document is EditorDocument worldDocument)
+            {
+                if (!_documentSaveService.TrySave(worldDocument))
+                {
+                    return;
+                }
 
-                    break;
-                case ParticleEffectDocument particleEffectDocument:
-                    particleEffectDocument.Save();
+                Editor.CloseDocument(
+                    worldDocument,
+                    EditorDocumentCloseDecision.Save,
+                    _documentFiles);
+            }
+            else
+            {
+                if (!_documentSaveService.TrySave(document))
+                {
+                    return;
+                }
 
-                    if (!continueApplicationClose)
-                    {
-                        Editor.Session.Close(particleEffectDocument);
-                    }
-
-                    break;
-
-                case AnimationClipDocument animationClipDocument:
-                    animationClipDocument.Save();
-
-                    if (!continueApplicationClose)
-                    {
-                        Editor.Session.Close(animationClipDocument);
-                    }
-
-                    break;
-
-                case EditorDocument worldDocument:
-                    {
-                        var files = _documentFiles
-                            ?? throw new InvalidOperationException(
-                                "Document file service is not configured.");
-
-                        if (worldDocument.FilePath is null)
-                        {
-                            var path = _fileDialogs.ShowSaveFile();
-
-                            if (path is null)
-                            {
-                                return;
-                            }
-
-                            files.SaveAs(worldDocument, path);
-                        }
-
-                        Editor.CloseDocument(
-                            worldDocument,
-                            EditorDocumentCloseDecision.Save,
-                            files);
-
-                        break;
-                    }
-
-                case EditorUiDocument uiDocument:
-                    {
-                        if (!TrySaveUiDocument(uiDocument))
-                        {
-                            return;
-                        }
-
-                        if (!continueApplicationClose)
-                        {
-                            Editor.Session.Close(uiDocument);
-                        }
-
-                        break;
-                    }
-
-                default:
-                    throw new NotSupportedException(
-                        $"Unsupported document type: {document.GetType().FullName}");
+                if (!continueApplicationClose)
+                {
+                    Editor.Session.Close(document);
+                }
             }
 
             CloseDocumentDialogAfterDecision();
@@ -2086,6 +1745,29 @@ SaveAllDocuments;
                     _gameProjectRunner.IsSessionActive);
             }
         }
+    }
+
+    private static bool IsEditorDocumentPath(string path)
+    {
+        if (path.EndsWith(
+                ".sprite-animation.json",
+                StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(
+                ".animation.json",
+                StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(
+                ".particle.json",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".world" => true,
+            ".ui" => true,
+            _ => false
+        };
     }
 
     private static bool SameProjectRoot(
@@ -2364,34 +2046,19 @@ SaveAllDocuments;
     }
 
     private bool TrySaveUiDocument(
-    EditorUiDocument document,
-    string? destinationPath = null)
+        EditorUiDocument document,
+        string? destinationPath = null)
     {
-        ArgumentNullException.ThrowIfNull(document);
+        var saved =
+            _documentSaveService.TrySaveUiDocument(
+                document,
+                destinationPath);
 
-        var path = destinationPath ?? document.FilePath;
-
-        if (path is null)
+        if (saved)
         {
-            path = _fileDialogs.ShowSaveUiFile();
-
-            if (path is null)
-            {
-                return false;
-            }
+            MarkUiDirty();
         }
 
-        var normalizedPath = Path.GetFullPath(path);
-
-        EditorUiAssetFile.Save(
-            document,
-            normalizedPath);
-
-        document.SetFilePath(normalizedPath);
-        document.MarkSaved();
-
-        MarkUiDirty();
-
-        return true;
+        return saved;
     }
 }

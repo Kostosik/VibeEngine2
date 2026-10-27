@@ -10,6 +10,8 @@ public sealed class SilkNetInputBackend :
     ICursorService,
     IDisposable
 {
+    private bool _focused = true;
+    private bool _focusLostPendingMouseRelease;
     private readonly IInputContext _inputContext;
 
     private IKeyboard? _keyboard;
@@ -104,13 +106,12 @@ public sealed class SilkNetInputBackend :
     {
         _characters.Clear();
 
-        if (_pendingCharacters.Count > 0)
+        if (_focused && _pendingCharacters.Count > 0)
         {
-            _characters.AddRange(
-                _pendingCharacters);
-
-            _pendingCharacters.Clear();
+            _characters.AddRange(_pendingCharacters);
         }
+
+        _pendingCharacters.Clear();
 
         _previousTextKeys.Clear();
 
@@ -123,28 +124,30 @@ public sealed class SilkNetInputBackend :
 
         UpdateTextKeys();
 
-        _previousLeftButton =
-    _currentLeftButton;
+        // SetFocused(false) уже сохранил предыдущее
+        // состояние кнопок. Не перезаписываем его
+        // на первом кадре после потери фокуса.
+        if (_focusLostPendingMouseRelease)
+        {
+            _focusLostPendingMouseRelease = false;
+        }
+        else
+        {
+            _previousLeftButton = _currentLeftButton;
+            _previousRightButton = _currentRightButton;
+            _previousMiddleButton = _currentMiddleButton;
+        }
 
-        _previousRightButton =
-            _currentRightButton;
-
-        _previousMiddleButton =
-            _currentMiddleButton;
-
-        if (_mouse is not null)
+        if (_focused && _mouse is not null)
         {
             _currentLeftButton =
-                _mouse.IsButtonPressed(
-                    MouseButton.Left);
+                _mouse.IsButtonPressed(MouseButton.Left);
 
             _currentRightButton =
-                _mouse.IsButtonPressed(
-                    MouseButton.Right);
+                _mouse.IsButtonPressed(MouseButton.Right);
 
             _currentMiddleButton =
-                _mouse.IsButtonPressed(
-                    MouseButton.Middle);
+                _mouse.IsButtonPressed(MouseButton.Middle);
         }
         else
         {
@@ -154,10 +157,9 @@ public sealed class SilkNetInputBackend :
         }
 
         _mouseScroll =
-            _pendingMouseScroll;
+            _focused ? _pendingMouseScroll : 0.0f;
 
-        _pendingMouseScroll =
-            0.0f;
+        _pendingMouseScroll = 0.0f;
     }
 
     public bool IsDown(TextInputKey key)
@@ -179,7 +181,7 @@ public sealed class SilkNetInputBackend :
     public float GetValue(
         InputBinding binding)
     {
-        if (!binding.IsValid)
+        if (!_focused || !binding.IsValid)
         {
             return 0.0f;
         }
@@ -208,7 +210,7 @@ public sealed class SilkNetInputBackend :
 
     private void UpdateTextKeys()
     {
-        if (_keyboard is null)
+        if (!_focused || _keyboard is null)
         {
             return;
         }
@@ -373,6 +375,43 @@ public sealed class SilkNetInputBackend :
             : 0.0f;
     }
 
+    public void SetFocused(bool focused)
+    {
+        if (_disposed || _focused == focused)
+        {
+            return;
+        }
+
+        _focused = focused;
+
+        if (focused)
+        {
+            _focusLostPendingMouseRelease = false;
+            return;
+        }
+
+        // Сохраняем состояние до потери фокуса,
+        // чтобы корректно сообщить об отпускании кнопок.
+        _previousLeftButton = _currentLeftButton;
+        _previousRightButton = _currentRightButton;
+        _previousMiddleButton = _currentMiddleButton;
+
+        _currentLeftButton = false;
+        _currentRightButton = false;
+        _currentMiddleButton = false;
+
+        _focusLostPendingMouseRelease = true;
+
+        _characters.Clear();
+        _pendingCharacters.Clear();
+
+        _currentTextKeys.Clear();
+        _previousTextKeys.Clear();
+
+        _mouseScroll = 0.0f;
+        _pendingMouseScroll = 0.0f;
+    }
+
     private float GetMouseValue(
         string controlName)
     {
@@ -438,16 +477,20 @@ public sealed class SilkNetInputBackend :
         IKeyboard keyboard,
         char character)
     {
-        _pendingCharacters.Add(
-            character);
+        if (_focused)
+        {
+            _pendingCharacters.Add(character);
+        }
     }
 
     private void OnMouseScroll(
         IMouse mouse,
         ScrollWheel scroll)
     {
-        _pendingMouseScroll +=
-            scroll.Y;
+        if (_focused)
+        {
+            _pendingMouseScroll += scroll.Y;
+        }
     }
 
     public CursorShape Current =>

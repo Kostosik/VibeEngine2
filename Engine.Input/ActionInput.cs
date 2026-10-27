@@ -82,21 +82,11 @@ public sealed class ActionInput : IInput
     private float GetCurrentValue(
         InputAction action)
     {
-        if (_currentValues.TryGetValue(
+        return _currentValues.TryGetValue(
                 action,
-                out var value))
-        {
-            return value;
-        }
-
-        value =
-            _actionMap.GetValue(
-                action,
-                _backend);
-
-        _currentValues[action] = value;
-
-        return value;
+                out var value)
+            ? value
+            : 0.0f;
     }
 
     private float GetPreviousValue(

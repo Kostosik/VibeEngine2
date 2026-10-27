@@ -5,6 +5,34 @@ namespace Engine.Tests.Input;
 public sealed class ActionInputTests
 {
     [Fact]
+    public void NewlyBoundAction_IsVisibleAfterNextUpdate()
+    {
+        var backend = new TestInputBackend();
+        var map = new InputActionMap();
+        var input = new ActionInput(backend, map);
+
+        input.Update();
+
+        var action = new InputAction("Move");
+        var binding = new InputBinding("Keyboard.W");
+
+        backend.Set(binding, 1.0f);
+        map.Bind(action, binding);
+
+        // Привязка добавлена посреди кадра:
+        // текущее состояние ещё не изменилось.
+        Assert.False(input.IsDown(action));
+        Assert.Equal(0.0f, input.GetValue(action));
+        Assert.False(input.IsPressed(action));
+
+        input.Update();
+
+        Assert.True(input.IsDown(action));
+        Assert.True(input.IsPressed(action));
+        Assert.Equal(1.0f, input.GetValue(action));
+    }
+
+    [Fact]
     public void IsReleased_ReturnsTrue_WhenActiveActionIsUnbound()
     {
         var backend = new TestInputBackend();

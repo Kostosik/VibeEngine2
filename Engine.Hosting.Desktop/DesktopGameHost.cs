@@ -10,6 +10,7 @@ using Engine.Graphics.Resources;
 using Engine.Input;
 using Engine.Runtime;
 using Engine.Serialization.Content;
+using System.Runtime.ExceptionServices;
 
 namespace Engine.Hosting.Desktop;
 
@@ -201,13 +202,39 @@ public static class DesktopGameHost
 
             _shutdown = true;
 
+            Exception? shutdownException = null;
+
             try
             {
                 _inner.Shutdown();
             }
-            finally
+            catch (Exception exception)
+            {
+                shutdownException = exception;
+            }
+
+            try
             {
                 Dispose();
+            }
+            catch (Exception disposeException)
+            {
+                if (shutdownException is not null)
+                {
+                    throw new AggregateException(
+                        "The application failed during shutdown and disposal.",
+                        shutdownException,
+                        disposeException);
+                }
+
+                throw;
+            }
+
+            if (shutdownException is not null)
+            {
+                ExceptionDispatchInfo
+                    .Capture(shutdownException)
+                    .Throw();
             }
         }
 

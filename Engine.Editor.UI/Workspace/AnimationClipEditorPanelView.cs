@@ -18,7 +18,7 @@ public sealed class AnimationClipEditorPanelView : UiPanel
     private readonly UiTextBox _trackIdTextBox;
     private readonly UiDropdown _trackTypeDropdown;
     private readonly UiStackPanel _tracksPanel;
-
+    private readonly AnimationTimelineView _timelineView;
     public AnimationClipEditorPanelView(
         AnimationClipDocument document)
     {
@@ -147,6 +147,15 @@ public sealed class AnimationClipEditorPanelView : UiPanel
 
         layout.AddChild(_messageLabel);
 
+        _timelineView = new AnimationTimelineView(document)
+        {
+            Height = 170.0f
+        };
+
+        _timelineView.MessageChanged += OnTimelineMessageChanged;
+
+        layout.AddChild(_timelineView);
+
         var scroll = new UiScrollView
         {
             Height = 500.0f,
@@ -176,8 +185,15 @@ public sealed class AnimationClipEditorPanelView : UiPanel
 
     public AnimationClipDocument Document => _document;
 
+    private void OnTimelineMessageChanged(string message)
+    {
+        _messageLabel.Text = message;
+    }
+
     public void ReleaseResources()
     {
+        _timelineView.MessageChanged -= OnTimelineMessageChanged;
+        _timelineView.ReleaseResources();
         _document.Changed -= OnDocumentChanged;
     }
 
@@ -232,22 +248,32 @@ public sealed class AnimationClipEditorPanelView : UiPanel
             headerRow.AddChild(new UiLabel(
                 $"{trackId.Value}  •  {track.ValueType.Name}")
             {
-                Width = 360.0f,
+                Width = 280.0f,
                 Height = 28.0f,
                 FontSize = 14.0f,
                 Color = new UiColor(220, 220, 220, 255)
             });
 
-            var removeButton = new UiButton("Remove Track")
+            var addKeyButton = new UiButton("Add Key")
             {
-                Width = 120.0f,
+                Width = 90.0f,
                 Height = 28.0f,
                 FontSize = 12.0f
             };
 
-            removeButton.Clicked += () => RemoveTrack(trackId);
+            addKeyButton.Clicked += () => AddKeyframe(trackId);
+            headerRow.AddChild(addKeyButton);
 
-            headerRow.AddChild(removeButton);
+            var removeTrackButton = new UiButton("Remove Track")
+            {
+                Width = 110.0f,
+                Height = 28.0f,
+                FontSize = 12.0f
+            };
+
+            removeTrackButton.Clicked += () => RemoveTrack(trackId);
+            headerRow.AddChild(removeTrackButton);
+
             section.AddChild(headerRow);
 
             section.AddChild(new UiLabel(
@@ -261,19 +287,475 @@ public sealed class AnimationClipEditorPanelView : UiPanel
 
             for (var i = 0; i < track.KeyframeCount; i++)
             {
-                var time = track.GetKeyframeTimeSeconds(i);
-                var value = track.GetKeyframeValue(i);
+                var keyframeIndex = i;
 
-                section.AddChild(new UiLabel(
-                    $"    {i + 1}.  {FormatTime(time)} s    →    {FormatValue(value)}")
+                var timeBox = new UiTextBox(
+                    FormatTime(track.GetKeyframeTimeSeconds(i)))
                 {
-                    Height = 22.0f,
+                    Width = 100.0f,
+                    Height = 28.0f,
+                    FontSize = 12.0f,
+                    MaxLength = 32,
+                    Placeholder = "Time"
+                };
+
+                var valueBox = new UiTextBox(
+                    FormatValue(track.GetKeyframeValue(i)))
+                {
+                    Width = 240.0f,
+                    Height = 28.0f,
+                    FontSize = 12.0f,
+                    MaxLength = 128,
+                    Placeholder = "Value"
+                };
+
+                var applyButton = new UiButton("Apply")
+                {
+                    Width = 65.0f,
+                    Height = 28.0f,
                     FontSize = 12.0f
+                };
+
+                applyButton.Clicked += () =>
+                    ApplyKeyframe(
+                        trackId,
+                        keyframeIndex,
+                        timeBox.Text,
+                        valueBox.Text);
+
+                var removeButton = new UiButton("Remove")
+                {
+                    Width = 75.0f,
+                    Height = 28.0f,
+                    FontSize = 12.0f
+                };
+
+                removeButton.Clicked += () =>
+                    RemoveKeyframe(trackId, keyframeIndex);
+
+                var keyframeRow = new UiStackPanel
+                {
+                    Orientation = UiOrientation.Horizontal,
+                    Spacing = 6.0f,
+                    Height = 30.0f
+                };
+
+                keyframeRow.AddChild(new UiLabel($"{i + 1}.")
+                {
+                    Width = 24.0f,
+                    Height = 28.0f,
+                    FontSize = 12.0f,
+                    VerticalAlignment = UiVerticalAlignment.Center
                 });
+
+                keyframeRow.AddChild(timeBox);
+                keyframeRow.AddChild(valueBox);
+                keyframeRow.AddChild(applyButton);
+                keyframeRow.AddChild(removeButton);
+
+                section.AddChild(keyframeRow);
             }
 
             _tracksPanel.AddChild(section);
         }
+    }
+
+    private void ApplyKeyframe(
+    AnimationTrackId trackId,
+    int index,
+    string timeText,
+    string valueText)
+    {
+        try
+        {
+            if (!double.TryParse(
+                    timeText,
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out var time) ||
+                !double.IsFinite(time) ||
+                time < 0.0 ||
+                time > _document.Clip.DurationSeconds)
+            {
+                throw new InvalidDataException(
+                    "Keyframe time must be between zero and the clip duration.");
+            }
+
+            var clip = _document.Clip;
+            var track = clip.Tracks[trackId];
+            var frames = ReadKeyframes(track);
+
+            if (index < 0 || index >= frames.Count)
+            {
+                return;
+            }
+
+            var value = ParseValue(track.ValueType, valueText);
+
+            frames[index] = (time, value);
+
+            ReplaceTrack(clip, trackId, frames);
+
+            _messageLabel.Text = "Keyframe updated.";
+        }
+        catch (Exception exception)
+        {
+            _messageLabel.Text = exception.Message;
+        }
+    }
+
+    private void AddKeyframe(AnimationTrackId trackId)
+    {
+        try
+        {
+            var clip = _document.Clip;
+            var track = clip.Tracks[trackId];
+
+            if (track.KeyframeCount == 0)
+            {
+                throw new InvalidOperationException(
+                    "Cannot add a keyframe to an empty track.");
+            }
+
+            double left;
+            double right;
+
+            if (track.KeyframeCount == 1)
+            {
+                var existingTime = track.GetKeyframeTimeSeconds(0);
+
+                if (existingTime < clip.DurationSeconds)
+                {
+                    left = existingTime;
+                    right = clip.DurationSeconds;
+                }
+                else
+                {
+                    left = 0.0;
+                    right = existingTime;
+                }
+            }
+            else
+            {
+                left = track.GetKeyframeTimeSeconds(0);
+                right = track.GetKeyframeTimeSeconds(1);
+
+                var largestGap = right - left;
+
+                for (var i = 1; i < track.KeyframeCount - 1; i++)
+                {
+                    var candidateLeft =
+                        track.GetKeyframeTimeSeconds(i);
+
+                    var candidateRight =
+                        track.GetKeyframeTimeSeconds(i + 1);
+
+                    var gap = candidateRight - candidateLeft;
+
+                    if (gap > largestGap)
+                    {
+                        largestGap = gap;
+                        left = candidateLeft;
+                        right = candidateRight;
+                    }
+                }
+            }
+
+            var newTime = left + (right - left) / 2.0;
+
+            if (newTime <= left || newTime >= right)
+            {
+                throw new InvalidOperationException(
+                    "There is no available interval for another keyframe.");
+            }
+
+            var frames = ReadKeyframes(track);
+
+            // Берём значение из текущей анимации в выбранном времени.
+            var sampledValue = track.SampleObject(newTime);
+
+            frames.Add((newTime, sampledValue));
+
+            ReplaceTrack(clip, trackId, frames);
+
+            _messageLabel.Text =
+                $"Keyframe added at {FormatTime(newTime)} seconds.";
+        }
+        catch (Exception exception)
+        {
+            _messageLabel.Text = exception.Message;
+        }
+    }
+
+    private void RemoveKeyframe(
+        AnimationTrackId trackId,
+        int index)
+    {
+        try
+        {
+            var clip = _document.Clip;
+            var track = clip.Tracks[trackId];
+
+            if (track.KeyframeCount <= 1)
+            {
+                throw new InvalidOperationException(
+                    "A track must contain at least one keyframe. Remove the track instead.");
+            }
+
+            var frames = ReadKeyframes(track);
+
+            if (index < 0 || index >= frames.Count)
+            {
+                return;
+            }
+
+            frames.RemoveAt(index);
+
+            ReplaceTrack(clip, trackId, frames);
+
+            _messageLabel.Text = "Keyframe removed.";
+        }
+        catch (Exception exception)
+        {
+            _messageLabel.Text = exception.Message;
+        }
+    }
+
+    private static List<(double TimeSeconds, object? Value)> ReadKeyframes(
+    IAnimationTrack track)
+    {
+        var result =
+            new List<(double TimeSeconds, object? Value)>(
+                track.KeyframeCount);
+
+        for (var i = 0; i < track.KeyframeCount; i++)
+        {
+            result.Add((
+                track.GetKeyframeTimeSeconds(i),
+                track.GetKeyframeValue(i)));
+        }
+
+        return result;
+    }
+
+    private void ReplaceTrack(
+        AnimationClip source,
+        AnimationTrackId trackId,
+        List<(double TimeSeconds, object? Value)> frames)
+    {
+        frames.Sort(
+            static (left, right) =>
+                left.TimeSeconds.CompareTo(right.TimeSeconds));
+
+        for (var i = 0; i < frames.Count; i++)
+        {
+            var time = frames[i].TimeSeconds;
+
+            if (!double.IsFinite(time) ||
+                time < 0.0 ||
+                time > source.DurationSeconds)
+            {
+                throw new InvalidDataException(
+                    "Every keyframe must fit within the clip duration.");
+            }
+
+            if (i > 0 && frames[i - 1].TimeSeconds >= time)
+            {
+                throw new InvalidDataException(
+                    "Keyframe times must be unique.");
+            }
+        }
+
+        if (frames.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "A track must contain at least one keyframe.");
+        }
+
+        var updatedClip = new AnimationClip(source.DurationSeconds);
+
+        foreach (var pair in source.Tracks)
+        {
+            if (pair.Key.Equals(trackId))
+            {
+                AddEditedTrack(
+                    updatedClip,
+                    trackId,
+                    pair.Value,
+                    frames);
+            }
+            else
+            {
+                pair.Value.CreateBuilder().AddTo(
+                    updatedClip,
+                    pair.Key);
+            }
+        }
+
+        _document.UpdateClip(updatedClip);
+    }
+
+    private static void AddEditedTrack(
+        AnimationClip target,
+        AnimationTrackId id,
+        IAnimationTrack sourceTrack,
+        IReadOnlyList<(double TimeSeconds, object? Value)> frames)
+    {
+        if (sourceTrack.ValueType == typeof(float) &&
+            sourceTrack.InterpolatorType ==
+            typeof(FloatLinearAnimationInterpolator))
+        {
+            target.AddTrack(
+                id,
+                BuildTrack<float>(
+                    new FloatLinearAnimationInterpolator(),
+                    frames));
+            return;
+        }
+
+        if (sourceTrack.ValueType == typeof(Vector2) &&
+            sourceTrack.InterpolatorType ==
+            typeof(Vector2LinearAnimationInterpolator))
+        {
+            target.AddTrack(
+                id,
+                BuildTrack<Vector2>(
+                    new Vector2LinearAnimationInterpolator(),
+                    frames));
+            return;
+        }
+
+        if (sourceTrack.ValueType == typeof(Vector3) &&
+            sourceTrack.InterpolatorType ==
+            typeof(Vector3LinearAnimationInterpolator))
+        {
+            target.AddTrack(
+                id,
+                BuildTrack<Vector3>(
+                    new Vector3LinearAnimationInterpolator(),
+                    frames));
+            return;
+        }
+
+        if (sourceTrack.ValueType == typeof(int) &&
+            sourceTrack.InterpolatorType ==
+            typeof(StepAnimationInterpolator<int>))
+        {
+            target.AddTrack(
+                id,
+                BuildTrack<int>(
+                    new StepAnimationInterpolator<int>(),
+                    frames));
+            return;
+        }
+
+        throw new NotSupportedException(
+            $"Editing tracks with value type '{sourceTrack.ValueType.Name}' " +
+            $"and interpolator '{sourceTrack.InterpolatorType.Name}' " +
+            "is not supported yet.");
+    }
+
+    private static object ParseValue(
+    Type valueType,
+    string text)
+    {
+        text = text.Trim();
+
+        if (valueType == typeof(float))
+        {
+            return ParseFiniteFloat(text);
+        }
+
+        if (valueType == typeof(int))
+        {
+            if (!int.TryParse(
+                    text,
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var integer))
+            {
+                throw new InvalidDataException(
+                    "The keyframe value must be an integer.");
+            }
+
+            return integer;
+        }
+
+        if (valueType == typeof(Vector2))
+        {
+            var parts = ParseVectorParts(text, 2);
+
+            return new Vector2(
+                ParseFiniteFloat(parts[0]),
+                ParseFiniteFloat(parts[1]));
+        }
+
+        if (valueType == typeof(Vector3))
+        {
+            var parts = ParseVectorParts(text, 3);
+
+            return new Vector3(
+                ParseFiniteFloat(parts[0]),
+                ParseFiniteFloat(parts[1]),
+                ParseFiniteFloat(parts[2]));
+        }
+
+        throw new NotSupportedException(
+            $"Values of type '{valueType.Name}' cannot be edited yet.");
+    }
+
+    private static float ParseFiniteFloat(string text)
+    {
+        if (!float.TryParse(
+                text,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var value) ||
+            !float.IsFinite(value))
+        {
+            throw new InvalidDataException(
+                $"'{text}' must be a finite number.");
+        }
+
+        return value;
+    }
+
+    private static string[] ParseVectorParts(
+        string text,
+        int expectedCount)
+    {
+        text = text.Trim().Trim('(', ')');
+
+        var parts = text.Split(
+            ',',
+            StringSplitOptions.TrimEntries);
+
+        if (parts.Length != expectedCount)
+        {
+            throw new InvalidDataException(
+                $"Expected {expectedCount} comma-separated vector components.");
+        }
+
+        return parts;
+    }
+
+    private static AnimationTrack<T> BuildTrack<T>(
+        IAnimationInterpolator<T> interpolator,
+        IReadOnlyList<(double TimeSeconds, object? Value)> frames)
+    {
+        var keyframes = frames
+            .Select(frame =>
+                new AnimationKeyframe<T>(
+                    frame.TimeSeconds,
+                    frame.Value is T typedValue
+                        ? typedValue
+                        : throw new InvalidDataException(
+                            $"Invalid keyframe value for {typeof(T).Name}.")))
+            .ToArray();
+
+        return new AnimationTrackBuilder<T>(
+            interpolator,
+            keyframes).Build();
     }
 
     private void ApplyDuration()

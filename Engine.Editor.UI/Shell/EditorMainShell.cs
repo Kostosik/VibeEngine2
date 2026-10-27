@@ -21,6 +21,8 @@ public sealed class EditorMainShell :
     UiPanel
 {
     private AnimationClipEditorPanelView? _animationClipWorkspaceView;
+    private SpriteAnimationEditorPanelView?
+    _spriteAnimationWorkspaceView;
     private readonly UiButton _validateButton;
     private readonly UiButton _playButton;
     private readonly UiButton _stopButton;
@@ -375,6 +377,42 @@ public sealed class EditorMainShell :
                 documentHeight));
     }
 
+    private void BindSpriteAnimationDocument(
+    SpriteAnimationDocument? document)
+    {
+        if (ReferenceEquals(
+                _spriteAnimationWorkspaceView?.Document,
+                document))
+        {
+            return;
+        }
+
+        if (_spriteAnimationWorkspaceView is not null)
+        {
+            _spriteAnimationWorkspaceView.ReleaseResources();
+
+            _workspace.RemoveChild(
+                _spriteAnimationWorkspaceView);
+
+            _spriteAnimationWorkspaceView = null;
+        }
+
+        if (document is null)
+        {
+            return;
+        }
+
+        _spriteAnimationWorkspaceView =
+            new SpriteAnimationEditorPanelView(
+                document,
+                Editor,
+                _filePreviewTextureManager,
+                _assetPickerDialog);
+
+        _workspace.AddChild(
+            _spriteAnimationWorkspaceView);
+    }
+
     private void BindAnimationClipDocument(
     AnimationClipDocument? document)
     {
@@ -469,6 +507,7 @@ public sealed class EditorMainShell :
 
     public void ReleaseResources()
     {
+        BindSpriteAnimationDocument(null);
         BindAnimationClipDocument(null);
         _workspaceView.ReleaseResources();
         _uiWorkspaceView.ReleaseResources();
@@ -485,6 +524,11 @@ public sealed class EditorMainShell :
 
         var uiDocument =
             activeDocument as EditorUiDocument;
+
+        var spriteAnimationDocument =
+    activeDocument as SpriteAnimationDocument;
+
+        BindSpriteAnimationDocument(spriteAnimationDocument);
 
         var particleEffectDocument =
             activeDocument as ParticleEffectDocument;
@@ -518,7 +562,11 @@ public sealed class EditorMainShell :
             _animationClipWorkspaceView.Visible =
                 animationClipDocument is not null;
         }
-
+        if (_spriteAnimationWorkspaceView is not null)
+        {
+            _spriteAnimationWorkspaceView.Visible =
+                spriteAnimationDocument is not null;
+        }
         _validateButton.Enabled =
             worldDocument is not null;
 
@@ -556,6 +604,14 @@ public sealed class EditorMainShell :
             documentStatus =
                 $"Animation Clip • {animationClipDocument.DisplayName} • " +
                 (animationClipDocument.IsDirty
+                    ? "Unsaved changes"
+                    : "Saved");
+        }
+        else if (spriteAnimationDocument is not null)
+        {
+            documentStatus =
+                $"Sprite Animation • {spriteAnimationDocument.DisplayName} • " +
+                (spriteAnimationDocument.IsDirty
                     ? "Unsaved changes"
                     : "Saved");
         }

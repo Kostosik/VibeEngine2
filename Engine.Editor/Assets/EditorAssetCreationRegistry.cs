@@ -106,7 +106,21 @@ public sealed class EditorAssetCreationRegistry
           "tracks": []
         }
         """));
-
+        registry.Register(
+    new EditorAssetCreationDefinition(
+        id: "sprite-animation",
+        displayName: "Sprite Animation",
+        defaultName: "New Sprite Animation",
+        kind: EditorAssetCreationKind.TextFile,
+        extension: ".sprite-animation.json",
+        contentFactory: static _ => """
+        {
+          "formatVersion": 1,
+          "frameDurationSeconds": 0.1,
+          "loop": true,
+          "frames": []
+        }
+        """));
         registry.Register(
             new EditorAssetCreationDefinition(
                 id: "script-definition",

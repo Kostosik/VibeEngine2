@@ -1,4 +1,7 @@
 ﻿using Engine.Animation;
+using Engine.Core.Assets;
+using Engine.Graphics.Resources;
+using Engine.Core.Math;
 
 namespace Engine.Graphics2D.Sprites;
 
@@ -57,6 +60,77 @@ public sealed class SpriteAnimation
         _currentFrame = 0;
 
         _player.Play();
+    }
+
+    public SpriteAnimation(
+    SpriteAnimationDefinition definition,
+    ITextureResourceManager resources,
+    float width = 1.0f,
+    float height = 1.0f,
+    int layer = 0)
+    : this(
+        CreateSprites(
+            definition,
+            resources,
+            width,
+            height,
+            layer),
+        definition.FrameDurationSeconds,
+        definition.Loop)
+    {
+    }
+
+    private static IReadOnlyList<Sprite> CreateSprites(
+        SpriteAnimationDefinition definition,
+        ITextureResourceManager resources,
+        float width,
+        float height,
+        int layer)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentNullException.ThrowIfNull(resources);
+
+        if (!float.IsFinite(width) ||
+            !float.IsFinite(height) ||
+            width <= 0.0f ||
+            height <= 0.0f)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(width),
+                "Sprite dimensions must be finite and positive.");
+        }
+
+        if (definition.Frames.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "Sprite animation must contain at least one frame.");
+        }
+
+        var sprites = new Sprite[definition.Frames.Count];
+
+        for (var i = 0; i < sprites.Length; i++)
+        {
+            var assetPath = new AssetPath(
+                definition.Frames[i].TexturePath);
+
+            var texture = resources.Load(assetPath);
+
+            if (!resources.TryGetDescription(
+                    assetPath,
+                    out _))
+            {
+                throw new InvalidOperationException(
+                    $"Could not read texture description for '{assetPath}'.");
+            }
+
+            sprites[i] = new Sprite(
+                texture,
+                new Rectangle(0.0f, 0.0f, 1.0f, 1.0f),
+                new Vector2(width, height),
+                layer);
+        }
+
+        return sprites;
     }
 
     public Sprite Current => _frames[_currentFrame];

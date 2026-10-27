@@ -282,18 +282,44 @@ internal sealed class OpenGLRenderTargetManager :
     {
         ThrowIfDisposed();
 
-        if (!_targets.Remove(
+        if (!_targets.TryGetValue(
                 target,
                 out var entry))
         {
             return;
         }
 
-        _gl.DeleteFramebuffer(
-            entry.Framebuffer);
+        var errors = new List<Exception>();
 
-        _textures.Destroy(
-            entry.ColorTexture);
+        try
+        {
+            _gl.DeleteFramebuffer(
+                entry.Framebuffer);
+        }
+        catch (Exception exception)
+        {
+            errors.Add(exception);
+        }
+
+        try
+        {
+            _textures.Destroy(
+                entry.ColorTexture);
+        }
+        catch (Exception exception)
+        {
+            errors.Add(exception);
+        }
+
+        if (errors.Count > 0)
+        {
+            throw new AggregateException(
+                $"Render target '{target.Value}' could not be fully released.",
+                errors);
+        }
+
+        _targets.Remove(
+            target);
     }
 
     internal uint GetFramebuffer(
@@ -313,18 +339,40 @@ internal sealed class OpenGLRenderTargetManager :
             return;
         }
 
+        var errors = new List<Exception>();
+
         foreach (var entry in _targets.Values)
         {
-            _gl.DeleteFramebuffer(
-                entry.Framebuffer);
+            try
+            {
+                _gl.DeleteFramebuffer(
+                    entry.Framebuffer);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
 
-            _textures.Destroy(
-                entry.ColorTexture);
+            try
+            {
+                _textures.Destroy(
+                    entry.ColorTexture);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
         }
 
         _targets.Clear();
-
         _disposed = true;
+
+        if (errors.Count > 0)
+        {
+            throw new AggregateException(
+                "One or more OpenGL render target resources could not be released.",
+                errors);
+        }
     }
 
     private RenderTargetHandle CreateHandle()

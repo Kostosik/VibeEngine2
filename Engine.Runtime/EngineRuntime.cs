@@ -21,6 +21,7 @@ using Engine.Tooling.Inspection;
 using Engine.Tooling.Profiling;
 using Engine.Tooling.Validation;
 using Engine.Worlds.Spatial;
+using System.Runtime.ExceptionServices;
 
 namespace Engine.Runtime;
 
@@ -562,27 +563,37 @@ Services.Graphics;
     {
         EnsureNotDisposed();
 
-        try
-        {
-            Simulation.Shutdown();
-        }
-        finally
+        var errors = new List<Exception>();
+
+        void TryCleanup(Action cleanup)
         {
             try
             {
-                DisposeAudioEcsSystem();
+                cleanup();
             }
-            finally
+            catch (Exception exception)
             {
-                try
-                {
-                    DisposeSpriteRenderSystem();
-                }
-                finally
-                {
-                    DisposeParticleRuntime();
-                }
+                errors.Add(exception);
             }
+        }
+
+        TryCleanup(Simulation.Shutdown);
+        TryCleanup(DisposeAudioEcsSystem);
+        TryCleanup(DisposeSpriteRenderSystem);
+        TryCleanup(DisposeParticleRuntime);
+
+        if (errors.Count == 1)
+        {
+            ExceptionDispatchInfo
+                .Capture(errors[0])
+                .Throw();
+        }
+
+        if (errors.Count > 1)
+        {
+            throw new AggregateException(
+                "One or more engine runtime systems failed during shutdown.",
+                errors);
         }
     }
 
@@ -594,71 +605,71 @@ Services.Graphics;
             return;
         }
 
-        // Освобождаем ссылки на игровой цикл и его команды.
-        if (_debugExecution is not null)
-        {
-            DebugRegistry?.Unregister("pause");
-            DebugRegistry?.Unregister("resume");
-            DebugRegistry?.Unregister("step");
-            DebugRegistry?.Unregister("rebuild-engine");
+        _disposed = true;
 
-            _rebuildEngineCommand?.Dispose();
+        var errors = new List<Exception>();
 
-            _rebuildEngineCommand = null;
-            _debugExecution = null;
-        }
-
-        if (Simulation.IsInitialized &&
-            !Simulation.IsShutdown)
+        void TryCleanup(Action cleanup)
         {
             try
             {
-                if (Simulation.IsInitialized &&
-                    !Simulation.IsShutdown)
-                {
-                    Simulation.Shutdown();
-                }
+                cleanup();
             }
-            finally
+            catch (Exception exception)
             {
-                try
-                {
-                    DisposeAudioEcsSystem();
-                }
-                finally
-                {
-                    try
-                    {
-                        DisposeSpriteRenderSystem();
-                    }
-                    finally
-                    {
-                        DisposeParticleRuntime();
-                    }
-                }
+                errors.Add(exception);
             }
         }
-        else
+
+        // Освобождаем ссылки на игровой цикл и его команды.
+        if (_debugExecution is not null)
         {
-            // Runtime мог создать частицы ещё до инициализации
-            // Simulation либо после её остановки.
-            DisposeParticleRuntime();
+            TryCleanup(() => DebugRegistry?.Unregister("pause"));
+            TryCleanup(() => DebugRegistry?.Unregister("resume"));
+            TryCleanup(() => DebugRegistry?.Unregister("step"));
+            TryCleanup(() => DebugRegistry?.Unregister("rebuild-engine"));
+
+            var rebuildCommand = _rebuildEngineCommand;
+            _rebuildEngineCommand = null;
+            _debugExecution = null;
+
+            TryCleanup(() => rebuildCommand?.Dispose());
         }
-        EngineConsole?.Dispose();
-        Console?.Dispose();
-        SchedulerProfiler?.Dispose();
 
-        Scripts.ScriptFaulted -= OnScriptFaulted;
-        Scripts.Dispose();
+        // Завершаем Simulation, если она была запущена.
+        if (Simulation.IsInitialized &&
+            !Simulation.IsShutdown)
+        {
+            TryCleanup(Simulation.Shutdown);
+        }
 
-        Commands.Clear();
+        // Каждая подсистема очищается независимо от остальных.
+        TryCleanup(DisposeAudioEcsSystem);
+        TryCleanup(DisposeSpriteRenderSystem);
+        TryCleanup(DisposeParticleRuntime);
 
-        Events.Dispose();
-        Simulation.Dispose();
-        World.Dispose();
-        EcsWorld.Dispose();
+        TryCleanup(() => EngineConsole?.Dispose());
+        TryCleanup(() => Console?.Dispose());
+        TryCleanup(() => SchedulerProfiler?.Dispose());
 
-        _disposed = true;
+        TryCleanup(() =>
+        {
+            Scripts.ScriptFaulted -= OnScriptFaulted;
+        });
+
+        TryCleanup(Scripts.Dispose);
+        TryCleanup(Commands.Clear);
+        TryCleanup(Events.Dispose);
+        TryCleanup(Simulation.Dispose);
+        TryCleanup(World.Dispose);
+        TryCleanup(EcsWorld.Dispose);
+
+        if (errors.Count > 0)
+        {
+            throw new AggregateException(
+                "One or more engine runtime resources could not be released.",
+                errors);
+        }
     }
 
 

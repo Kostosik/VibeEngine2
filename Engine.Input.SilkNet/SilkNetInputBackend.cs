@@ -483,9 +483,24 @@ public sealed class SilkNetInputBackend :
 
         _disposed = true;
 
+        var errors = new List<Exception>();
+
         try
         {
             UnsubscribeFromEvents();
+        }
+        catch (Exception exception)
+        {
+            errors.Add(exception);
+        }
+
+        try
+        {
+            _inputContext.Dispose();
+        }
+        catch (Exception exception)
+        {
+            errors.Add(exception);
         }
         finally
         {
@@ -500,15 +515,20 @@ public sealed class SilkNetInputBackend :
 
             _currentLeftButton = false;
             _previousLeftButton = false;
-
             _currentRightButton = false;
             _previousRightButton = false;
-
             _currentMiddleButton = false;
             _previousMiddleButton = false;
 
             _mouseScroll = 0.0f;
             _pendingMouseScroll = 0.0f;
+        }
+
+        if (errors.Count > 0)
+        {
+            throw new AggregateException(
+                "One or more input resources could not be released.",
+                errors);
         }
     }
 }

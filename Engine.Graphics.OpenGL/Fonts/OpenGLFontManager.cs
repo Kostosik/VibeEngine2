@@ -212,21 +212,44 @@ internal sealed class OpenGLFontManager :
         FontHandle font)
     {
         ThrowIfDisposed();
-        if (!Exists(font))
+
+        if (!_fonts.TryGetValue(
+                font,
+                out var resource))
         {
             return;
         }
 
-        var resource =
-            _fonts[font];
+        var errors = new List<Exception>();
 
         foreach (var texture in resource.Textures)
         {
-            _textures.Destroy(
-                texture);
+            try
+            {
+                _textures.Destroy(
+                    texture);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
         }
 
-        resource.Dispose();
+        try
+        {
+            resource.Dispose();
+        }
+        catch (Exception exception)
+        {
+            errors.Add(exception);
+        }
+
+        if (errors.Count > 0)
+        {
+            throw new AggregateException(
+                $"Font '{font.Id}' could not be fully released.",
+                errors);
+        }
 
         _fonts.Remove(
             font);
@@ -239,18 +262,41 @@ internal sealed class OpenGLFontManager :
             return;
         }
 
+        var errors = new List<Exception>();
+
         foreach (var font in _fonts.Values)
         {
             foreach (var texture in font.Textures)
             {
-                _textures.Destroy(texture);
+                try
+                {
+                    _textures.Destroy(texture);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
             }
 
-            font.Dispose();
+            try
+            {
+                font.Dispose();
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
         }
 
         _fonts.Clear();
         _disposed = true;
+
+        if (errors.Count > 0)
+        {
+            throw new AggregateException(
+                "One or more OpenGL font resources could not be released.",
+                errors);
+        }
     }
 
     private void ThrowIfDisposed()

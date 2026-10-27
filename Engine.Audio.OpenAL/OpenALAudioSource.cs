@@ -66,12 +66,25 @@ public sealed class OpenALAudioSource : IAudioSource
                 SourceInteger.Buffer,
                 openALBuffer.Handle);
         }
-        catch
+        catch (Exception initializationException)
         {
-            _device.AL.DeleteSource(
-                _handle);
-
-            _handle = 0;
+            try
+            {
+                _device.AL.DeleteSource(
+                    _handle);
+            }
+            catch (Exception cleanupException)
+            {
+                throw new AggregateException(
+                    "Failed to initialize the OpenAL audio source " +
+                    "and clean up its resources.",
+                    initializationException,
+                    cleanupException);
+            }
+            finally
+            {
+                _handle = 0;
+            }
 
             throw;
         }

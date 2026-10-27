@@ -101,7 +101,7 @@ internal sealed class OpenGLShaderManager :
     {
         ThrowIfDisposed();
 
-        if (!_shaders.Remove(
+        if (!_shaders.TryGetValue(
                 shader,
                 out var entry))
         {
@@ -109,6 +109,9 @@ internal sealed class OpenGLShaderManager :
         }
 
         entry.Program.Dispose();
+
+        _shaders.Remove(
+            shader);
     }
 
     internal OpenGLShaderProgram GetProgram(
@@ -128,14 +131,29 @@ internal sealed class OpenGLShaderManager :
             return;
         }
 
+        var errors = new List<Exception>();
+
         foreach (var entry in _shaders.Values)
         {
-            entry.Program.Dispose();
+            try
+            {
+                entry.Program.Dispose();
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
         }
 
         _shaders.Clear();
-
         _disposed = true;
+
+        if (errors.Count > 0)
+        {
+            throw new AggregateException(
+                "One or more OpenGL shader programs could not be released.",
+                errors);
+        }
     }
 
     private ShaderHandle CreateHandle()

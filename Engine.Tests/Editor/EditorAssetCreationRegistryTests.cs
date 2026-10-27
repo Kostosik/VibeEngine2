@@ -1,11 +1,30 @@
 ﻿using Engine.Animation;
 using Engine.Editor.Assets;
+using Engine.Graphics2D.Sprites;
 using System.Text.Json;
 
 namespace Engine.Tests.Editor;
 
 public sealed class EditorAssetCreationRegistryTests
 {
+    [Fact]
+    public void SpriteAnimationTemplate_CreatesValidResource()
+    {
+        var definition =
+            EditorAssetCreationRegistry.CreateDefault()
+                .GetRequired("sprite-animation");
+
+        var contents = definition.CreateInitialContents(
+            "New Sprite Animation");
+
+        var serializer = new SpriteAnimationDefinitionJsonSerializer();
+        var animation = serializer.Deserialize(contents);
+
+        Assert.Equal(".sprite-animation.json", definition.Extension);
+        Assert.Empty(animation.Frames);
+        Assert.Equal(0.1f, animation.FrameDurationSeconds);
+        Assert.True(animation.Loop);
+    }
     [Fact]
     public void AnimationClipTemplate_CreatesValidAnimationResource()
     {
@@ -35,8 +54,9 @@ public sealed class EditorAssetCreationRegistryTests
                 "folder",
                 "particle-effect",
                 "animation-clip",
+                "sprite-animation",
                 "script-definition",
-                "world-document",
+                "world-document", 
                 "ui-document"
             },
             registry.Definitions.Select(item => item.Id));

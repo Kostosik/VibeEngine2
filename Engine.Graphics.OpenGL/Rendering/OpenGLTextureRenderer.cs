@@ -659,38 +659,43 @@ internal sealed class OpenGLTextureRenderer : IDisposable
 
     private void Flush()
     {
-        if (_vertexCount == 0)
+        if (_vertexCount == 0 ||
+            _currentTexture == 0)
         {
             return;
         }
 
-        if (_currentTexture == 0)
+        try
         {
-            return;
-        }
+            _gl.BindTexture(
+                TextureTarget.Texture2D,
+                _currentTexture);
 
-        _gl.BindTexture(
-            TextureTarget.Texture2D,
-            _currentTexture);
+            _gl.BindBuffer(
+                BufferTargetARB.ArrayBuffer,
+                _vbo);
 
-        _gl.BindBuffer(
-            BufferTargetARB.ArrayBuffer,
-            _vbo);
+            var vertexData =
+                _vertices.AsSpan(
+                    0,
+                    _vertexCount * 4);
 
-        var vertexData =
-            _vertices.AsSpan(
+            _gl.BufferData<float>(
+                BufferTargetARB.ArrayBuffer,
+                vertexData,
+                BufferUsageARB.DynamicDraw);
+
+            _gl.DrawArrays(
+                PrimitiveType.Triangles,
                 0,
-                _vertexCount * 4);
-
-        _gl.BufferData<float>(
-            BufferTargetARB.ArrayBuffer,
-            vertexData,
-            BufferUsageARB.DynamicDraw);
-
-        _gl.DrawArrays(
-            PrimitiveType.Triangles,
-            0,
-            (uint)_vertexCount);
+                (uint)_vertexCount);
+        }
+        finally
+        {
+            _gl.BindBuffer(
+                BufferTargetARB.ArrayBuffer,
+                0);
+        }
 
         _vertexCount = 0;
         _currentTexture = 0;

@@ -203,15 +203,31 @@ public sealed class OpenGLTextureManager
             return;
         }
 
+        var errors = new List<Exception>();
+
         foreach (var texture in _textures)
         {
-            _gl.DeleteTexture(texture);
+            try
+            {
+                _gl.DeleteTexture(
+                    texture);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
         }
 
         _textures.Clear();
         _descriptions.Clear();
-
         _disposed = true;
+
+        if (errors.Count > 0)
+        {
+            throw new AggregateException(
+                "One or more OpenGL textures could not be released.",
+                errors);
+        }
     }
 
     private void ConfigureTexture()

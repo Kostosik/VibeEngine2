@@ -57,10 +57,25 @@ public sealed class OpenALAudioBuffer : IAudioBuffer
                         data.SampleRate);
                 }
             }
-            catch
+            catch (Exception initializationException)
             {
-                _device.AL.DeleteBuffer(_handle);
-                _handle = 0;
+                try
+                {
+                    _device.AL.DeleteBuffer(
+                        _handle);
+                }
+                catch (Exception cleanupException)
+                {
+                    throw new AggregateException(
+                        "Failed to initialize the OpenAL audio buffer " +
+                        "and clean up its resources.",
+                        initializationException,
+                        cleanupException);
+                }
+                finally
+                {
+                    _handle = 0;
+                }
 
                 throw;
             }

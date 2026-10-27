@@ -58,6 +58,8 @@ public sealed class EditorApplication :
     _subscribedParticleEffectDocuments = new();
     private readonly HashSet<AnimationClipDocument>
     _subscribedAnimationClipDocuments = new();
+    private readonly HashSet<SpriteAnimationDocument>
+    _subscribedSpriteAnimationDocuments = new();
     private readonly HashSet<EditorDocument> _subscribedDocuments = new();
     private bool _uiDirty = true;
     private readonly IEditorDocumentPersistence?
@@ -531,6 +533,9 @@ SaveAllDocuments;
     {
         switch (Editor.Session.ActiveEditorDocument)
         {
+            case SpriteAnimationDocument spriteAnimationDocument:
+                SaveSpriteAnimationDocument(spriteAnimationDocument);
+                return;
             case EditorUiDocument uiDocument:
                 SaveUiDocument(uiDocument);
                 return;
@@ -550,6 +555,24 @@ SaveAllDocuments;
                 _errorDialog.ShowError(
                     "Saving this document type is not supported.");
                 return;
+        }
+    }
+
+    private void SaveSpriteAnimationDocument(
+    SpriteAnimationDocument document)
+    {
+        try
+        {
+            document.Save();
+
+            _debugConsole?.WriteLine(
+                $"Saved sprite animation: {document.FilePath}");
+
+            MarkUiDirty();
+        }
+        catch (Exception exception)
+        {
+            _errorDialog.ShowError(exception.Message);
         }
     }
 
@@ -1047,6 +1070,9 @@ SaveAllDocuments;
 
                 switch (document)
                 {
+                    case SpriteAnimationDocument spriteAnimationDocument:
+                        spriteAnimationDocument.Save();
+                        break;
                     case ParticleEffectDocument particleEffectDocument:
                         particleEffectDocument.Save();
                         break;
@@ -1168,6 +1194,21 @@ SaveAllDocuments;
         if (existingDocument is not null)
         {
             Editor.Session.Activate(existingDocument);
+            MarkUiDirty();
+            return;
+        }
+
+        if (normalizedPath.EndsWith(
+        ".sprite-animation.json",
+        StringComparison.OrdinalIgnoreCase))
+        {
+            var document =
+                SpriteAnimationDocument.Open(normalizedPath);
+
+            SubscribeSpriteAnimationDocument(document);
+
+            Editor.Session.Open(document);
+
             MarkUiDirty();
             return;
         }
@@ -1411,6 +1452,13 @@ SaveAllDocuments;
         try
         {
             if (entry.Path.EndsWith(
+        ".sprite-animation.json",
+        StringComparison.OrdinalIgnoreCase))
+            {
+                OpenDocumentPath(entry.Path);
+                return;
+            }
+            if (entry.Path.EndsWith(
         ".animation.json",
         StringComparison.OrdinalIgnoreCase))
             {
@@ -1646,7 +1694,8 @@ SaveAllDocuments;
             if (definition.Id is
                 "world-document" or
                 "ui-document" or
-                "animation-clip")
+                "animation-clip" or
+                "sprite-animation")
             {
                 OpenDocumentPath(path);
             }
@@ -1797,6 +1846,15 @@ SaveAllDocuments;
         {
             switch (document)
             {
+                case SpriteAnimationDocument spriteAnimationDocument:
+                    spriteAnimationDocument.Save();
+
+                    if (!continueApplicationClose)
+                    {
+                        Editor.Session.Close(spriteAnimationDocument);
+                    }
+
+                    break;
                 case ParticleEffectDocument particleEffectDocument:
                     particleEffectDocument.Save();
 
@@ -2077,6 +2135,17 @@ SaveAllDocuments;
         {
             switch (document)
             {
+                case SpriteAnimationDocument spriteAnimationDocument:
+                    if (continueApplicationClose)
+                    {
+                        spriteAnimationDocument.MarkSaved();
+                    }
+                    else
+                    {
+                        Editor.Session.Discard(spriteAnimationDocument);
+                    }
+
+                    break;
                 case ParticleEffectDocument particleEffectDocument:
                     if (continueApplicationClose)
                     {
@@ -2208,6 +2277,17 @@ SaveAllDocuments;
         document.Changed += MarkUiDirty;
     }
 
+    private void SubscribeSpriteAnimationDocument(
+    SpriteAnimationDocument document)
+    {
+        if (!_subscribedSpriteAnimationDocuments.Add(document))
+        {
+            return;
+        }
+
+        document.Changed += MarkUiDirty;
+    }
+
     private void SubscribeAnimationClipDocument(
     AnimationClipDocument document)
     {
@@ -2222,6 +2302,17 @@ SaveAllDocuments;
     private void UnsubscribeAnyDocument(
         IEditorDocument document)
     {
+        if (document is SpriteAnimationDocument spriteAnimationDocument)
+        {
+            if (_subscribedSpriteAnimationDocuments.Remove(
+                    spriteAnimationDocument))
+            {
+                spriteAnimationDocument.Changed -= MarkUiDirty;
+            }
+
+            MarkUiDirty();
+            return;
+        }
         if (document is AnimationClipDocument animationClipDocument)
         {
             if (_subscribedAnimationClipDocuments.Remove(

@@ -157,25 +157,30 @@ internal sealed class OpenGLGraphicsBufferManager :
         var target =
             BufferTargetARB.ArrayBuffer;
 
-        _gl.BindBuffer(
-            target,
-            entry.Handle);
-
-        unsafe
+        try
         {
-            fixed (byte* pointer = data)
+            _gl.BindBuffer(
+                target,
+                entry.Handle);
+
+            unsafe
             {
-                _gl.BufferSubData(
-                    target,
-                    (nint)offsetInBytes,
-                    (nuint)data.Length,
-                    pointer);
+                fixed (byte* pointer = data)
+                {
+                    _gl.BufferSubData(
+                        target,
+                        (nint)offsetInBytes,
+                        (nuint)data.Length,
+                        pointer);
+                }
             }
         }
-
-        _gl.BindBuffer(
-            target,
-            0);
+        finally
+        {
+            _gl.BindBuffer(
+                target,
+                0);
+        }
     }
 
     public bool Exists(
@@ -203,7 +208,7 @@ internal sealed class OpenGLGraphicsBufferManager :
     {
         ThrowIfDisposed();
 
-        if (!_buffers.Remove(
+        if (!_buffers.TryGetValue(
                 buffer,
                 out var entry))
         {
@@ -212,6 +217,9 @@ internal sealed class OpenGLGraphicsBufferManager :
 
         _gl.DeleteBuffer(
             entry.Handle);
+
+        _buffers.Remove(
+            buffer);
     }
 
     public void Dispose()
@@ -221,15 +229,30 @@ internal sealed class OpenGLGraphicsBufferManager :
             return;
         }
 
+        var errors = new List<Exception>();
+
         foreach (var entry in _buffers.Values)
         {
-            _gl.DeleteBuffer(
-                entry.Handle);
+            try
+            {
+                _gl.DeleteBuffer(
+                    entry.Handle);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
         }
 
         _buffers.Clear();
-
         _disposed = true;
+
+        if (errors.Count > 0)
+        {
+            throw new AggregateException(
+                "One or more OpenGL graphics buffers could not be released.",
+                errors);
+        }
     }
 
     internal uint GetNativeHandle(

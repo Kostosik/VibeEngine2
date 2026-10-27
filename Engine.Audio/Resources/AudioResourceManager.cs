@@ -89,7 +89,7 @@ public sealed class AudioResourceManager
     {
         EnsureNotDisposed();
 
-        if (!_loaded.Remove(
+        if (!_loaded.TryGetValue(
                 path,
                 out var buffer))
         {
@@ -97,6 +97,9 @@ public sealed class AudioResourceManager
         }
 
         buffer.Dispose();
+
+        _loaded.Remove(
+            path);
 
         return true;
     }

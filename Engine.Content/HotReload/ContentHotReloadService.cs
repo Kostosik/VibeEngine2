@@ -46,6 +46,9 @@ public sealed class ContentHotReloadService
                 _knownAssets[asset.Path] =
                     asset;
 
+                // Новый или повторно созданный ресурс тоже требует обработки.
+                changed.Add(asset.Path);
+
                 continue;
             }
 

@@ -7,9 +7,7 @@ public sealed class FileContentCatalog :
 {
     private readonly string _rootDirectory;
 
-    private readonly Dictionary<
-        AssetPath,
-        ContentAsset> _assets =
+    private volatile Dictionary<AssetPath, ContentAsset> _assets =
         new();
 
     public FileContentCatalog(
@@ -60,7 +58,8 @@ public sealed class FileContentCatalog :
 
     public void Refresh()
     {
-        _assets.Clear();
+        var refreshedAssets =
+            new Dictionary<AssetPath, ContentAsset>();
 
         foreach (var file in
                  Directory.EnumerateFiles(
@@ -74,14 +73,12 @@ public sealed class FileContentCatalog :
                     file);
 
             var assetPath =
-                new AssetPath(
-                    relativePath);
+                new AssetPath(relativePath);
 
             var fileInfo =
-                new FileInfo(
-                    file);
+                new FileInfo(file);
 
-            _assets.Add(
+            refreshedAssets.Add(
                 assetPath,
                 new ContentAsset(
                     assetPath,
@@ -89,5 +86,8 @@ public sealed class FileContentCatalog :
                     fileInfo.Length,
                     fileInfo.LastWriteTimeUtc));
         }
+
+        // Публикуем новый снимок только после успешного сканирования.
+        _assets = refreshedAssets;
     }
 }

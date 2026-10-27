@@ -9,6 +9,44 @@ namespace Engine.Tests.Graphics;
 public sealed class TextureResourceManagerTests
 {
     [Fact]
+    public void Load_WhenTextureCreationFails_ReleasesContentData()
+    {
+        using var content = (ContentManager)CreateContent();
+
+        var textures = new ThrowingTextureManager();
+
+        using var resources = new TextureResourceManager(
+            content,
+            textures);
+
+        var path = new AssetPath("Textures/test.png");
+
+        Assert.Throws<InvalidOperationException>(
+            () => resources.Load(path));
+
+        Assert.False(content.IsLoaded<TextureData>(path));
+    }
+
+    [Fact]
+    public void LoadAtlas_InvalidTileDimensions_DoesNotCreateTexture()
+    {
+        var content = CreateContent();
+        var textures = new FakeTextureManager();
+
+        using var resources = new TextureResourceManager(
+            content,
+            textures);
+
+        var path = new AssetPath("Textures/test.png");
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => resources.LoadAtlas(path, 0, 1));
+
+        Assert.Equal(0, textures.CreateCount);
+        Assert.False(resources.IsLoaded(path));
+    }
+
+    [Fact]
     public void Load_SameAssetTwice_ReturnsSameTexture()
     {
         var content =
@@ -39,6 +77,26 @@ public sealed class TextureResourceManagerTests
         Assert.Equal(
             1,
             textures.CreateCount);
+    }
+
+    [Fact]
+    public void LoadAtlas_WhenTextureDimensionsAreNotDivisible_ReleasesTexture()
+    {
+        var content = (ContentManager)CreateContent();
+        var textures = new FakeTextureManager();
+
+        using var resources = new TextureResourceManager(
+            content,
+            textures);
+
+        var path = new AssetPath("Textures/test.png");
+
+        Assert.Throws<ArgumentException>(
+            () => resources.LoadAtlas(path, 2, 1));
+
+        Assert.False(content.IsLoaded<TextureData>(path));
+        Assert.False(resources.IsLoaded(path));
+        Assert.Equal(0, textures.LiveTextureCount);
     }
 
     [Fact]
@@ -198,6 +256,8 @@ public sealed class TextureResourceManagerTests
     private sealed class FakeTextureManager :
         ITextureManager
     {
+        public int LiveTextureCount => _textures.Count;
+        public bool ReturnInvalidHandle { get; set; }
         private readonly Dictionary<
             TextureHandle,
             TextureDescription> _textures =
@@ -214,6 +274,12 @@ public sealed class TextureResourceManagerTests
         public TextureHandle Create(
             TextureDescription description)
         {
+            CreateCount++;
+
+            if (ReturnInvalidHandle)
+            {
+                return TextureHandle.Invalid;
+            }
             var handle =
                 new TextureHandle(
                     _nextId++);
@@ -222,7 +288,6 @@ public sealed class TextureResourceManagerTests
                 handle,
                 description);
 
-            CreateCount++;
 
             return handle;
         }
@@ -252,6 +317,55 @@ public sealed class TextureResourceManagerTests
         {
             _textures.Remove(
                 texture);
+        }
+    }
+
+    [Fact]
+    public void Load_WhenTextureCreationReturnsInvalidHandle_ReleasesContentData()
+    {
+        var content = (ContentManager)CreateContent();
+
+        var textures = new FakeTextureManager
+        {
+            ReturnInvalidHandle = true
+        };
+
+        using var resources = new TextureResourceManager(
+            content,
+            textures);
+
+        var path = new AssetPath("Textures/test.png");
+
+        Assert.Throws<InvalidOperationException>(
+            () => resources.Load(path));
+
+        Assert.False(content.IsLoaded<TextureData>(path));
+        Assert.False(resources.IsLoaded(path));
+    }
+
+    private sealed class ThrowingTextureManager : ITextureManager
+    {
+        public TextureHandle Create(TextureDescription description)
+        {
+            throw new InvalidOperationException(
+                "Simulated texture creation failure.");
+        }
+
+        public TextureHandle Create(TextureData data)
+        {
+            throw new InvalidOperationException(
+                "Simulated texture creation failure.");
+        }
+
+        public bool Exists(TextureHandle texture) => false;
+
+        public TextureDescription GetDescription(TextureHandle texture)
+        {
+            throw new KeyNotFoundException();
+        }
+
+        public void Destroy(TextureHandle texture)
+        {
         }
     }
 }

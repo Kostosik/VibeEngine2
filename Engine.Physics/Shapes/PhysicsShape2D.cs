@@ -47,6 +47,35 @@ public readonly struct PhysicsShape2D :
 
     public PhysicsShapeType Type { get; }
 
+    internal bool IsValid =>
+    Type switch
+    {
+        PhysicsShapeType.Aabb =>
+            _aabb.Size.X > Fixed32.Zero &&
+            _aabb.Size.Y > Fixed32.Zero,
+
+        PhysicsShapeType.Circle =>
+            _circle.Radius > Fixed32.Zero,
+
+        PhysicsShapeType.Polygon =>
+            _polygon.VertexCount >= 3,
+
+        _ => false
+    };
+
+    private static PhysicsShape2D ValidateShape(
+    PhysicsShape2D shape)
+    {
+        if (!shape.IsValid)
+        {
+            throw new ArgumentException(
+                "Physics shape must be initialized and valid.",
+                nameof(shape));
+        }
+
+        return shape;
+    }
+
     public FixedVector2 Size =>
         Type switch
         {
@@ -78,22 +107,22 @@ public readonly struct PhysicsShape2D :
     public static PhysicsShape2D FromAabb(
         AabbShape2D shape)
     {
-        return new PhysicsShape2D(
-            shape);
+        return ValidateShape(
+            new PhysicsShape2D(shape));
     }
 
     public static PhysicsShape2D FromCircle(
         CircleShape2D shape)
     {
-        return new PhysicsShape2D(
-            shape);
+        return ValidateShape(
+            new PhysicsShape2D(shape));
     }
 
     public static PhysicsShape2D FromPolygon(
         PolygonShape2D shape)
     {
-        return new PhysicsShape2D(
-            shape);
+        return ValidateShape(
+            new PhysicsShape2D(shape));
     }
 
     public AabbShape2D Aabb

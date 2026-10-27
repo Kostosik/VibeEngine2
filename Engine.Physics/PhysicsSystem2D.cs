@@ -430,6 +430,12 @@ public sealed class PhysicsSystem2D :
                 continue;
             }
 
+            if (!first.Value.Collider.CanCollideWith(
+        second.Value.Collider))
+            {
+                continue;
+            }
+
             if (!_detector.TryDetect(
                     first.Value,
                     second.Value,
@@ -645,7 +651,7 @@ public sealed class PhysicsSystem2D :
 
             if (!collider.Enabled)
                 continue;
-
+            collider.Validate();
             ref var transform =
                 ref _world.Get<WorldTransform2D>(
                     entity);

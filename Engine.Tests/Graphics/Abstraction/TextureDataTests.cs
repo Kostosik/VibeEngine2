@@ -5,6 +5,17 @@ namespace Engine.Tests.Graphics.Abstraction;
 public sealed class TextureDataTests
 {
     [Fact]
+    public void Constructor_RejectsIncorrectPixelDataSize()
+    {
+        Assert.Throws<ArgumentException>(
+            () => new TextureData(
+                2,
+                2,
+                TextureFormat.Rgba8,
+                new byte[15]));
+    }
+
+    [Fact]
     public void Constructor_CreatesData()
     {
         var pixels =

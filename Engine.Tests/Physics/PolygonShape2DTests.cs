@@ -6,6 +6,36 @@ namespace Engine.Tests.Physics;
 public sealed class PolygonShape2DTests
 {
     [Fact]
+    public void Constructor_RejectsSelfIntersectingPolygon()
+    {
+        var vertices = new[]
+        {
+        new FixedVector2(
+            Fixed32.Zero,
+            Fixed32.FromInt(3)),
+
+        new FixedVector2(
+            Fixed32.FromInt(-2),
+            Fixed32.FromInt(-2)),
+
+        new FixedVector2(
+            Fixed32.FromInt(3),
+            Fixed32.One),
+
+        new FixedVector2(
+            Fixed32.FromInt(-3),
+            Fixed32.One),
+
+        new FixedVector2(
+            Fixed32.FromInt(2),
+            Fixed32.FromInt(-2))
+    };
+
+        Assert.Throws<ArgumentException>(
+            () => new PolygonShape2D(vertices));
+    }
+
+    [Fact]
     public void Constructor_RequiresAtLeastThreeVertices()
     {
         Assert.Throws<ArgumentException>(

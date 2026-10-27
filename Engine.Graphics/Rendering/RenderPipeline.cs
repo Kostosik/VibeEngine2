@@ -22,8 +22,8 @@ public sealed class RenderPipeline
     }
 
     public void Execute(
-     RenderQueue queue,
-     IRenderPassExecutor executor)
+    RenderQueue queue,
+    IRenderPassExecutor executor)
     {
         ArgumentNullException.ThrowIfNull(queue);
         ArgumentNullException.ThrowIfNull(executor);
@@ -43,19 +43,22 @@ public sealed class RenderPipeline
                     pass.State,
                     pass.ClearColor));
 
-            foreach (var item in queue.Items)
+            try
             {
-                if (!pass.Layers.Contains(
-                        item.Layer))
+                foreach (var item in queue.Items)
                 {
-                    continue;
+                    if (!pass.Layers.Contains(item.Layer))
+                    {
+                        continue;
+                    }
+
+                    executor.Execute(item.Command);
                 }
-
-                executor.Execute(
-                    item.Command);
             }
-
-            executor.End();
+            finally
+            {
+                executor.End();
+            }
         }
     }
 }

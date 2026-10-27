@@ -13,6 +13,22 @@ public readonly record struct GraphicsBufferDescription
                 nameof(sizeInBytes));
         }
 
+        if (!Enum.IsDefined(type))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(type),
+                type,
+                "Unsupported graphics buffer type.");
+        }
+
+        if (!Enum.IsDefined(usage))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(usage),
+                usage,
+                "Unsupported graphics buffer usage.");
+        }
+
         Type = type;
         SizeInBytes = sizeInBytes;
         Usage = usage;

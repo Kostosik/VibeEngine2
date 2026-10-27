@@ -13,7 +13,7 @@ public enum PhysicsBodyType
 public struct PhysicsBody2D :
     IDeterministicState
 {
-
+    private PhysicsBodyType _bodyType;
     private bool _isSleeping;
     private Fixed32 _sleepTimer;
     private Fixed32 _mass;
@@ -62,7 +62,25 @@ public struct PhysicsBody2D :
         set => _sleepTimer = value;
     }
 
-    public PhysicsBodyType BodyType { get; set; }
+    public PhysicsBodyType BodyType
+    {
+        get => _bodyType;
+
+        set
+        {
+            if (!Enum.IsDefined(
+                    typeof(PhysicsBodyType),
+                    value))
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    value,
+                    "Invalid physics body type.");
+            }
+
+            _bodyType = value;
+        }
+    }
 
     public FixedVector2 Velocity { get; set; }
 

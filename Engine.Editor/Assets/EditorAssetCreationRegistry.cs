@@ -93,6 +93,21 @@ public sealed class EditorAssetCreationRegistry
                     """));
 
         registry.Register(
+    new EditorAssetCreationDefinition(
+        id: "animation-clip",
+        displayName: "Animation Clip",
+        defaultName: "New Animation",
+        kind: EditorAssetCreationKind.TextFile,
+        extension: ".animation.json",
+        contentFactory: static _ => """
+        {
+          "formatVersion": 1,
+          "durationSeconds": 1.0,
+          "tracks": []
+        }
+        """));
+
+        registry.Register(
             new EditorAssetCreationDefinition(
                 id: "script-definition",
                 displayName: "Script Definition",

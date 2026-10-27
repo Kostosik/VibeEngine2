@@ -28,5 +28,13 @@ public readonly record struct RenderTargetDescription(
             throw new ArgumentOutOfRangeException(
                 nameof(Height));
         }
+
+        if (!Enum.IsDefined(Format))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(Format),
+                Format,
+                "Unsupported render target texture format.");
+        }
     }
 }

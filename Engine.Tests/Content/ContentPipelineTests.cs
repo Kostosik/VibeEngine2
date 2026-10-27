@@ -1,5 +1,6 @@
 ﻿using Engine.Content;
 using Engine.Content.Assets;
+using Engine.Content.HotReload;
 using Engine.Content.Loading;
 using Engine.Core.Assets;
 using Engine.Serialization.Binary;
@@ -9,6 +10,95 @@ namespace Engine.Tests.Content;
 
 public sealed class ContentPipelineTests
 {
+    [Fact]
+    public void HotReload_Update_ReportsAssetThatReappearsAfterRemoval()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            Guid.NewGuid().ToString());
+
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var filePath = Path.Combine(root, "test.asset");
+            var path = new AssetPath("test.asset");
+
+            File.WriteAllBytes(filePath, new byte[] { 1, 2, 3 });
+
+            var source = new FileAssetSource(root);
+            var catalog = new FileContentCatalog(root);
+            var loaders = new ContentLoaderRegistry();
+
+            using var content = new ContentManager(source, catalog, loaders);
+            content.Register(new TestAssetLoader());
+
+            var original = content.Load<TestAsset>(path);
+            var hotReload = new ContentHotReloadService(catalog, content);
+
+            File.Delete(filePath);
+
+            Assert.Empty(hotReload.Update());
+
+            File.WriteAllBytes(filePath, new byte[] { 4, 5, 6 });
+
+            var changed = hotReload.Update();
+
+            Assert.Contains(path, changed);
+
+            Assert.True(hotReload.Reload<TestAsset>(path));
+
+            var reloaded = content.Load<TestAsset>(path);
+
+            Assert.NotSame(original, reloaded);
+            Assert.Equal(new byte[] { 4, 5, 6 }, reloaded.Data);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Refresh_WhenRootDisappears_PreservesPreviousSnapshot()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            Guid.NewGuid().ToString());
+
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(root, "test.asset"),
+                "test");
+
+            var catalog = new FileContentCatalog(root);
+
+            Assert.Single(catalog.GetAssets());
+
+            Directory.Delete(root, recursive: true);
+
+            Assert.Throws<DirectoryNotFoundException>(
+                () => catalog.Refresh());
+
+            // Неудачное обновление не должно уничтожать
+            // последний успешно полученный снимок.
+            Assert.Single(catalog.GetAssets());
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
     [Fact]
     public void Load_ReadsAssetThroughCatalogSourceAndLoader()
     {

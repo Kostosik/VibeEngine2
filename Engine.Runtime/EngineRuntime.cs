@@ -38,12 +38,27 @@ public sealed class EngineRuntime :
     public ScriptRuntime Scripts { get; }
     private ParticleRuntime? _particleRuntime;
     public EngineConsole? EngineConsole { get; private set; }
-    public EngineRuntime(
-    EngineRuntimeOptions options)
-    : this(
-        options,
-        new EngineRuntimeServices())
+    public EngineRuntime(EngineRuntimeOptions options)
+        : this(
+            ValidateHeadlessOptions(options),
+            new EngineRuntimeServices())
     {
+    }
+
+    private static EngineRuntimeOptions ValidateHeadlessOptions(
+        EngineRuntimeOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        if (options.ToolingEnabled)
+        {
+            throw new ArgumentException(
+                "Tooling requires configured runtime services. " +
+                "Use the constructor that accepts EngineRuntimeServices.",
+                nameof(options));
+        }
+
+        return options;
     }
 
     public EngineRuntime(
@@ -559,8 +574,14 @@ Services.Graphics;
             }
             finally
             {
-                DisposeSpriteRenderSystem();
-                DisposeParticleRuntime();
+                try
+                {
+                    DisposeSpriteRenderSystem();
+                }
+                finally
+                {
+                    DisposeParticleRuntime();
+                }
             }
         }
     }

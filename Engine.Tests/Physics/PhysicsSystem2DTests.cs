@@ -15,6 +15,113 @@ namespace Engine.Tests.Physics;
 public sealed class PhysicsSystem2DTests
 {
     [Fact]
+    public void CollisionMask_PreventsContactsAndCollisionResponse()
+    {
+        using var world = new World();
+
+        var wall = world.CreateEntity();
+        var body = world.CreateEntity();
+
+        world.Add(
+            wall,
+            new WorldTransform2D(FixedVector2.Zero));
+
+        world.Add(wall, PhysicsBody2D.Static());
+
+        var wallCollider =
+            new Collider2D(
+                new CircleShape2D(Fixed32.One))
+            {
+                CollisionLayer = 1u,
+                CollisionMask = 1u
+            };
+
+        world.Add(wall, wallCollider);
+
+        world.Add(
+            body,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.One,
+                    Fixed32.Zero)));
+
+        var physicsBody =
+            PhysicsBody2D.Dynamic(Fixed32.One);
+
+        physicsBody.Velocity =
+            new FixedVector2(
+                Fixed32.FromInt(-1),
+                Fixed32.Zero);
+
+        world.Add(body, physicsBody);
+
+        world.Add(
+            body,
+            new Collider2D(
+                new CircleShape2D(Fixed32.One))
+            {
+                CollisionLayer = 2u
+            });
+
+        var physics = new PhysicsSystem2D(
+            world,
+            new PhysicsSettings2D
+            {
+                Gravity = FixedVector2.Zero,
+                Substeps = 1,
+                PositionIterations = 0,
+                VelocityIterations = 1
+            },
+            new EventBus());
+
+        physics.FixedUpdate(
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.Zero,
+                    Tick.Zero)));
+
+        Assert.Empty(physics.Contacts);
+        Assert.Empty(physics.ContactEvents);
+
+        Assert.Equal(
+            Fixed32.FromInt(-1),
+            world.Get<PhysicsBody2D>(body).Velocity.X);
+    }
+
+    [Fact]
+    public void EnabledColliderWithDefaultShape_ThrowsOnPhysicsStep()
+    {
+        using var world = new World();
+
+        var entity = world.CreateEntity();
+
+        world.Add(
+            entity,
+            new WorldTransform2D(FixedVector2.Zero));
+
+        world.Add(
+            entity,
+            PhysicsBody2D.Static());
+
+        var collider = default(Collider2D);
+        collider.Enabled = true;
+
+        world.Add(entity, collider);
+
+        var physics = new PhysicsSystem2D(
+            world,
+            new PhysicsSettings2D(),
+            new EventBus());
+
+        Assert.Throws<InvalidOperationException>(
+            () => physics.FixedUpdate(
+                new FixedSystemContext(
+                    new SimulationTime(
+                        Fixed32.Zero,
+                        Tick.Zero))));
+    }
+
+    [Fact]
     public void CircleRestingOnFloorCancelsGravity()
     {
         using var world =

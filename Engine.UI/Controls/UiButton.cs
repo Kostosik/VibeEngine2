@@ -47,7 +47,7 @@ public sealed class UiButton : UiWidget
             UiTextVerticalAlignment.Center;
 
     public string Text { get; set; }
-
+    private bool _rightPressed;
     public float FontSize { get; set; } = 16.0f;
 
     public UiThickness Padding { get; set; } =
@@ -86,6 +86,7 @@ public sealed class UiButton : UiWidget
     }
 
     public event Action? Clicked;
+    public event Action<UiPointerEvent>? RightClicked;
     public bool HandleRightClick { get; set; } = true;
     public void Click()
     {
@@ -162,16 +163,29 @@ public sealed class UiButton : UiWidget
     }
 
     protected override void OnPointerDown(
-        UiPointerEvent pointer)
+    UiPointerEvent pointer)
     {
-        if (!Enabled ||
-            pointer.Button != InputMouseButton.Left)
+        if (!Enabled)
         {
             return;
         }
 
-        if (pointer.Button == InputMouseButton.Right &&
-    !HandleRightClick)
+        if (pointer.Button == InputMouseButton.Right)
+        {
+            // Если событие не подписано, позволяем
+            // обработать ПКМ родительскому виджету.
+            if (!HandleRightClick ||
+                RightClicked is null)
+            {
+                return;
+            }
+
+            _rightPressed = true;
+            pointer.Handled = true;
+            return;
+        }
+
+        if (pointer.Button != InputMouseButton.Left)
         {
             return;
         }
@@ -183,9 +197,22 @@ public sealed class UiButton : UiWidget
     protected override void OnPointerUp(
         UiPointerEvent pointer)
     {
-        if (pointer.Button == InputMouseButton.Right &&
-    !HandleRightClick)
+        if (pointer.Button == InputMouseButton.Right)
         {
+            if (!HandleRightClick ||
+                !_rightPressed)
+            {
+                return;
+            }
+
+            _rightPressed = false;
+
+            if (ContainsPoint(pointer.Position))
+            {
+                RightClicked?.Invoke(pointer);
+            }
+
+            pointer.Handled = true;
             return;
         }
 
@@ -194,8 +221,6 @@ public sealed class UiButton : UiWidget
         {
             return;
         }
-
-
 
         IsPressed = false;
 

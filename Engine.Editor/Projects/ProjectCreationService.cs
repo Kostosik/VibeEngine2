@@ -15,13 +15,20 @@ public sealed class ProjectCreationService
 
     private readonly string? _engineRuntimeDirectory;
 
+
+    private readonly Func<string, bool> _rootDirectoryExists;
+
     public ProjectCreationService(
-        string? engineRuntimeDirectory = null)
+        string? engineRuntimeDirectory = null,
+        Func<string, bool>? rootDirectoryExists = null)
     {
         _engineRuntimeDirectory =
             string.IsNullOrWhiteSpace(engineRuntimeDirectory)
                 ? null
                 : Path.GetFullPath(engineRuntimeDirectory);
+
+        _rootDirectoryExists =
+            rootDirectoryExists ?? Directory.Exists;
     }
 
     public string Create(ProjectCreationRequest request)
@@ -57,10 +64,20 @@ public sealed class ProjectCreationService
         var parentDirectory =
             Path.GetFullPath(request.ParentDirectory);
 
-        if (!Directory.Exists(parentDirectory))
+        var parentRoot =
+            Path.GetPathRoot(parentDirectory);
+
+        if (string.IsNullOrWhiteSpace(parentRoot) ||
+            !_rootDirectoryExists(parentRoot))
         {
             throw new DirectoryNotFoundException(
-                $"Parent directory does not exist: {parentDirectory}");
+                $"Drive or root directory does not exist: '{parentRoot}'.");
+        }
+
+        if (File.Exists(parentDirectory))
+        {
+            throw new IOException(
+                $"A file exists at the parent directory path: '{parentDirectory}'.");
         }
 
         var projectDirectory =
@@ -105,6 +122,10 @@ public sealed class ProjectCreationService
             throw new InvalidOperationException(
                 $"No runtime assemblies were found in '{runtimeDirectory}'.");
         }
+
+        // Create missing parent directories only after the
+        // engine runtime has been validated.
+        Directory.CreateDirectory(parentDirectory);
 
         var stagingDirectory =
             Path.Combine(

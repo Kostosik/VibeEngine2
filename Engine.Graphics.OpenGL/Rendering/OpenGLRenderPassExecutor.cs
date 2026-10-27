@@ -30,15 +30,12 @@ internal sealed class OpenGLRenderPassExecutor :
     }
 
     public void Begin(
-        RenderPassContext context)
+    RenderPassContext context)
     {
         var framebuffer = 0;
 
-        var width =
-            _backBufferWidth;
-
-        var height =
-            _backBufferHeight;
+        var width = _backBufferWidth;
+        var height = _backBufferHeight;
 
         if (context.Target.IsValid)
         {
@@ -50,37 +47,67 @@ internal sealed class OpenGLRenderPassExecutor :
                 _renderTargets.GetDescription(
                     context.Target);
 
-            width =
-                description.Width;
-
-            height =
-                description.Height;
-
-
+            width = description.Width;
+            height = description.Height;
         }
 
-        _gl.BindFramebuffer(
-            FramebufferTarget.Framebuffer,
-            (uint)framebuffer);
+        var frameStarted = false;
 
-        _gl.Viewport(
-            0,
-            0,
-            (uint)width,
-            (uint)height);
-
-        _dispatcher.SetRenderSize(width, height);
-
-        if (context.ClearColor)
+        try
         {
-            _gl.Clear(
-                ClearBufferMask.ColorBufferBit);
+            _gl.BindFramebuffer(
+                FramebufferTarget.Framebuffer,
+                (uint)framebuffer);
+
+            _gl.Viewport(
+                0,
+                0,
+                (uint)width,
+                (uint)height);
+
+            _dispatcher.SetRenderSize(
+                width,
+                height);
+
+            if (context.ClearColor)
+            {
+                _gl.Clear(
+                    ClearBufferMask.ColorBufferBit);
+            }
+
+            _dispatcher.BeginFrame();
+            frameStarted = true;
+
+            _dispatcher.ApplyState(
+                context.State);
         }
+        catch
+        {
+            if (frameStarted)
+            {
+                try
+                {
+                    _dispatcher.EndFrame();
+                }
+                catch
+                {
+                    // Сохраняем исходную ошибку Begin().
+                }
+            }
 
-        _dispatcher.BeginFrame();
+            try
+            {
+                _gl.BindFramebuffer(
+                    FramebufferTarget.Framebuffer,
+                    0);
+            }
+            catch
+            {
+                // Сохраняем исходную ошибку Begin().
+            }
 
-        _dispatcher.ApplyState(
-            context.State);
+            throw;
+        }
     }
 
     public void Execute(
@@ -92,11 +119,16 @@ internal sealed class OpenGLRenderPassExecutor :
 
     public void End()
     {
-        _dispatcher.EndFrame();
-
-        _gl.BindFramebuffer(
-            FramebufferTarget.Framebuffer,
-            0);
+        try
+        {
+            _dispatcher.EndFrame();
+        }
+        finally
+        {
+            _gl.BindFramebuffer(
+                FramebufferTarget.Framebuffer,
+                0);
+        }
     }
 
     public void Resize(

@@ -13,6 +13,30 @@ public sealed class AnimationTrackTests
                     (float)amount);
 
     [Fact]
+    public void Interface_ExposesKeyframeData()
+    {
+        var track = new AnimationTrack<float>(
+            new[]
+            {
+            new AnimationKeyframe<float>(0.0, 0.0f),
+            new AnimationKeyframe<float>(1.0, 10.0f)
+            },
+            new FloatLinearAnimationInterpolator());
+
+        IAnimationTrack data = track;
+
+        Assert.Equal(2, data.KeyframeCount);
+        Assert.Equal(typeof(float), data.ValueType);
+
+        Assert.Equal(
+            typeof(FloatLinearAnimationInterpolator),
+            data.InterpolatorType);
+
+        Assert.Equal(1.0, data.GetKeyframeTimeSeconds(1));
+        Assert.Equal(10.0f, data.GetKeyframeValue(1));
+    }
+
+    [Fact]
     public void Sample_BeforeFirstKeyframe_ReturnsFirstValue()
     {
         var track =

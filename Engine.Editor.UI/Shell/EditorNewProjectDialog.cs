@@ -291,9 +291,19 @@ public sealed class EditorNewProjectDialog : UiModal
             return false;
         }
 
-        if (!Directory.Exists(parentDirectory))
+        var parentRoot =
+            Path.GetPathRoot(parentDirectory);
+
+        if (string.IsNullOrWhiteSpace(parentRoot) ||
+            !Directory.Exists(parentRoot))
         {
-            error = "The parent folder does not exist. Choose an existing folder.";
+            error = "The selected drive or root directory does not exist.";
+            return false;
+        }
+
+        if (File.Exists(parentDirectory))
+        {
+            error = "A file exists at the selected parent folder path.";
             return false;
         }
 

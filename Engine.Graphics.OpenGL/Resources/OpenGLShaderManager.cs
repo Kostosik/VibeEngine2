@@ -44,7 +44,7 @@ internal sealed class OpenGLShaderManager :
     }
 
     public ShaderHandle Create(
-        ShaderDescription description)
+    ShaderDescription description)
     {
         ThrowIfDisposed();
 
@@ -54,21 +54,26 @@ internal sealed class OpenGLShaderManager :
                 description.VertexSource,
                 description.FragmentSource);
 
-        var handle =
-            CreateHandle();
+        try
+        {
+            var handle =
+                CreateHandle();
 
-        _shaders.Add(
-            handle,
-            new Entry
-            {
-                Program =
-                    program,
+            _shaders.Add(
+                handle,
+                new Entry
+                {
+                    Program = program,
+                    Description = description
+                });
 
-                Description =
-                    description
-            });
-
-        return handle;
+            return handle;
+        }
+        catch
+        {
+            program.Dispose();
+            throw;
+        }
     }
 
     public bool Exists(

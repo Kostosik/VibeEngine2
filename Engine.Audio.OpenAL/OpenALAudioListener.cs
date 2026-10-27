@@ -19,7 +19,7 @@ public sealed class OpenALAudioListener : IAudioListener
     public void SetPosition(Engine.Core.Math.Vector3 position)
     {
         ThrowIfDisposed();
-
+        ValidateVector(position,nameof(position));
         var value = new System.Numerics.Vector3(
     position.X,
     position.Y,
@@ -34,6 +34,8 @@ public sealed class OpenALAudioListener : IAudioListener
     {
         ThrowIfDisposed();
 
+        ValidateVector(velocity,nameof(velocity));
+
         var value = new System.Numerics.Vector3(
         velocity.X,
         velocity.Y,
@@ -44,15 +46,29 @@ public sealed class OpenALAudioListener : IAudioListener
             value);
     }
 
+    private static void ValidateVector(
+    Engine.Core.Math.Vector3 value,
+    string parameterName)
+    {
+        if (!float.IsFinite(value.X) ||
+            !float.IsFinite(value.Y) ||
+            !float.IsFinite(value.Z))
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                "Vector components must be finite.");
+        }
+    }
+
     public void SetGain(float gain)
     {
         ThrowIfDisposed();
 
-        if (gain < 0.0f)
+        if (!float.IsFinite(gain) || gain < 0.0f)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(gain),
-                "Gain cannot be negative.");
+                "Gain must be finite and non-negative.");
         }
 
         _device.AL.SetListenerProperty(
@@ -63,6 +79,14 @@ public sealed class OpenALAudioListener : IAudioListener
     public void SetOrientation(Engine.Core.Math.Vector3 forward, Engine.Core.Math.Vector3 up)
     {
         ThrowIfDisposed();
+
+        ValidateVector(
+    forward,
+    nameof(forward));
+
+        ValidateVector(
+            up,
+            nameof(up));
 
         _device.ThrowIfDisposed();
 

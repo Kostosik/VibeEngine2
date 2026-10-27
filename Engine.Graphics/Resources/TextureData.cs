@@ -22,6 +22,26 @@ public sealed class TextureData
         if (height <= 0)
             throw new ArgumentOutOfRangeException(nameof(height));
 
+        var bytesPerPixel = format switch
+        {
+            TextureFormat.Rgba8 => 4,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(format),
+                format,
+                "Unsupported texture format.")
+        };
+
+        var expectedSize =
+            (long)width * height * bytesPerPixel;
+
+        if (pixels.Length != expectedSize)
+        {
+            throw new ArgumentException(
+                $"Invalid pixel data size. Expected {expectedSize} bytes, " +
+                $"but received {pixels.Length} bytes.",
+                nameof(pixels));
+        }
+
         Width = width;
         Height = height;
         Format = format;

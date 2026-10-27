@@ -244,6 +244,7 @@ public readonly struct PolygonShape2D :
                     nameof(vertices));
             }
         }
+        ValidateNoSelfIntersections(vertices);
     }
 
     private static Fixed32 Cross(
@@ -253,5 +254,85 @@ public readonly struct PolygonShape2D :
         return
             left.X * right.Y -
             left.Y * right.X;
+    }
+
+    private static void ValidateNoSelfIntersections(
+    FixedVector2[] vertices)
+    {
+        for (var i = 0; i < vertices.Length; i++)
+        {
+            var a = vertices[i];
+            var b = vertices[(i + 1) % vertices.Length];
+
+            for (var j = i + 1; j < vertices.Length; j++)
+            {
+                // Соседние рёбра закономерно имеют общую вершину.
+                if ((i + 1) % vertices.Length == j ||
+                    (j + 1) % vertices.Length == i)
+                {
+                    continue;
+                }
+
+                var c = vertices[j];
+                var d = vertices[(j + 1) % vertices.Length];
+
+                if (SegmentsIntersect(a, b, c, d))
+                {
+                    throw new ArgumentException(
+                        "Polygon edges cannot intersect.",
+                        nameof(vertices));
+                }
+            }
+        }
+    }
+
+    private static bool SegmentsIntersect(
+        FixedVector2 a,
+        FixedVector2 b,
+        FixedVector2 c,
+        FixedVector2 d)
+    {
+        var ab = b - a;
+        var cd = d - c;
+
+        var o1 = Cross(ab, c - a);
+        var o2 = Cross(ab, d - a);
+        var o3 = Cross(cd, a - c);
+        var o4 = Cross(cd, b - c);
+
+        // Обычное пересечение с обеих сторон от каждого ребра.
+        if (HaveOppositeSigns(o1, o2) &&
+            HaveOppositeSigns(o3, o4))
+        {
+            return true;
+        }
+
+        // Касание или наложение коллинеарных рёбер.
+        return
+            (o1 == Fixed32.Zero && IsOnSegment(a, b, c)) ||
+            (o2 == Fixed32.Zero && IsOnSegment(a, b, d)) ||
+            (o3 == Fixed32.Zero && IsOnSegment(c, d, a)) ||
+            (o4 == Fixed32.Zero && IsOnSegment(c, d, b));
+    }
+
+    private static bool HaveOppositeSigns(
+        Fixed32 a,
+        Fixed32 b)
+    {
+        return
+            (a < Fixed32.Zero && b > Fixed32.Zero) ||
+            (a > Fixed32.Zero && b < Fixed32.Zero);
+    }
+
+    private static bool IsOnSegment(
+        FixedVector2 a,
+        FixedVector2 b,
+        FixedVector2 point)
+    {
+        return
+            point.X >= Fixed32.Min(a.X, b.X) &&
+            point.X <= Fixed32.Max(a.X, b.X) &&
+            point.Y >= Fixed32.Min(a.Y, b.Y) &&
+            point.Y <= Fixed32.Max(a.Y, b.Y);
     }
 }

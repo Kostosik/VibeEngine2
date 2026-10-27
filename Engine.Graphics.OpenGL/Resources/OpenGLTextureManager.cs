@@ -7,7 +7,7 @@ public sealed class OpenGLTextureManager
     : ITextureManager, IDisposable
 {
     private readonly GL _gl;
-
+    private bool _disposed;
     private readonly HashSet<uint> _textures = new();
     private readonly Dictionary<uint, TextureDescription> _descriptions = new();
 
@@ -18,41 +18,66 @@ public sealed class OpenGLTextureManager
 
     public TextureHandle Create(TextureDescription description)
     {
+        ThrowIfDisposed();
         Validate(description);
 
         var handle = _gl.GenTexture();
 
-        _gl.BindTexture(
-            TextureTarget.Texture2D,
-            handle);
-
-        ConfigureTexture();
-
-        unsafe
+        if (handle == 0)
         {
-            _gl.TexImage2D(
-                TextureTarget.Texture2D,
-                0,
-                InternalFormat.Rgba8,
-                (uint)description.Width,
-                (uint)description.Height,
-                0,
-                PixelFormat.Rgba,
-                PixelType.UnsignedByte,
-                null);
+            throw new InvalidOperationException(
+                "OpenGL failed to create a texture.");
         }
-        _gl.BindTexture(
-            TextureTarget.Texture2D,
-            0);
 
-        _textures.Add(handle);
-        _descriptions.Add(handle, description);
+        try
+        {
+            _gl.BindTexture(
+                TextureTarget.Texture2D,
+                handle);
 
-        return new TextureHandle(handle);
+            ConfigureTexture();
+
+            unsafe
+            {
+                _gl.TexImage2D(
+                    TextureTarget.Texture2D,
+                    0,
+                    InternalFormat.Rgba8,
+                    (uint)description.Width,
+                    (uint)description.Height,
+                    0,
+                    PixelFormat.Rgba,
+                    PixelType.UnsignedByte,
+                    null);
+            }
+
+            _textures.Add(handle);
+            _descriptions.Add(handle, description);
+
+            return new TextureHandle(handle);
+        }
+        catch
+        {
+            _textures.Remove(handle);
+            _descriptions.Remove(handle);
+
+            _gl.DeleteTexture(handle);
+
+            throw;
+        }
+        finally
+        {
+            _gl.BindTexture(
+                TextureTarget.Texture2D,
+                0);
+        }
     }
 
     public TextureHandle Create(TextureData data)
     {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(data);
+
         Validate(data.Description);
 
         if (data.Format != TextureFormat.Rgba8)
@@ -62,9 +87,7 @@ public sealed class OpenGLTextureManager
         }
 
         var expectedSize =
-            data.Width *
-            data.Height *
-            4;
+            (long)data.Width * data.Height * 4;
 
         if (data.Pixels.Length != expectedSize)
         {
@@ -77,43 +100,64 @@ public sealed class OpenGLTextureManager
 
         var handle = _gl.GenTexture();
 
-        _gl.BindTexture(
-            TextureTarget.Texture2D,
-            handle);
-
-        ConfigureTexture();
-
-        var pixels = data.Pixels.Span;
-
-        unsafe
+        if (handle == 0)
         {
-            fixed (byte* ptr = pixels)
-            {
-                _gl.TexImage2D(
-                    TextureTarget.Texture2D,
-                    0,
-                    InternalFormat.Rgba8,
-                    (uint)data.Width,
-                    (uint)data.Height,
-                    0,
-                    PixelFormat.Rgba,
-                    PixelType.UnsignedByte,
-                    ptr);
-            }
+            throw new InvalidOperationException(
+                "OpenGL failed to create a texture.");
         }
 
-        _gl.BindTexture(
-            TextureTarget.Texture2D,
-            0);
+        try
+        {
+            _gl.BindTexture(
+                TextureTarget.Texture2D,
+                handle);
 
-        _textures.Add(handle);
-        _descriptions.Add(handle, data.Description);
+            ConfigureTexture();
 
-        return new TextureHandle(handle);
+            var pixels = data.Pixels.Span;
+
+            unsafe
+            {
+                fixed (byte* ptr = pixels)
+                {
+                    _gl.TexImage2D(
+                        TextureTarget.Texture2D,
+                        0,
+                        InternalFormat.Rgba8,
+                        (uint)data.Width,
+                        (uint)data.Height,
+                        0,
+                        PixelFormat.Rgba,
+                        PixelType.UnsignedByte,
+                        ptr);
+                }
+            }
+
+            _textures.Add(handle);
+            _descriptions.Add(handle, data.Description);
+
+            return new TextureHandle(handle);
+        }
+        catch
+        {
+            _textures.Remove(handle);
+            _descriptions.Remove(handle);
+
+            _gl.DeleteTexture(handle);
+
+            throw;
+        }
+        finally
+        {
+            _gl.BindTexture(
+                TextureTarget.Texture2D,
+                0);
+        }
     }
 
     public bool Exists(TextureHandle texture)
     {
+        ThrowIfDisposed();
         return texture.IsValid &&
                _textures.Contains(texture.Value);
     }
@@ -121,6 +165,7 @@ public sealed class OpenGLTextureManager
     public TextureDescription GetDescription(
         TextureHandle texture)
     {
+        ThrowIfDisposed();
         if (!Exists(texture))
         {
             throw new KeyNotFoundException(
@@ -132,6 +177,7 @@ public sealed class OpenGLTextureManager
 
     public void Destroy(TextureHandle texture)
     {
+        ThrowIfDisposed();
         if (!Exists(texture))
             return;
 
@@ -141,8 +187,22 @@ public sealed class OpenGLTextureManager
         _descriptions.Remove(texture.Value);
     }
 
+    private void ThrowIfDisposed()
+    {
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(
+                nameof(OpenGLTextureManager));
+        }
+    }
+
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         foreach (var texture in _textures)
         {
             _gl.DeleteTexture(texture);
@@ -150,6 +210,8 @@ public sealed class OpenGLTextureManager
 
         _textures.Clear();
         _descriptions.Clear();
+
+        _disposed = true;
     }
 
     private void ConfigureTexture()
@@ -188,6 +250,13 @@ public sealed class OpenGLTextureManager
         {
             throw new ArgumentOutOfRangeException(
                 nameof(description.Height));
+        }
+        if (!Enum.IsDefined(description.Format))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(description.Format),
+                description.Format,
+                "Unsupported texture format.");
         }
     }
 }

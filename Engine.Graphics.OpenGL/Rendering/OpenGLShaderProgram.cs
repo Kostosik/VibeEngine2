@@ -30,69 +30,69 @@ internal sealed class OpenGLShaderProgram : IDisposable
 
         _gl = gl;
 
-        var vertexShader =
-            CompileShader(
+        uint vertexShader = 0;
+        uint fragmentShader = 0;
+        uint program = 0;
+
+        try
+        {
+            vertexShader = CompileShader(
                 ShaderType.VertexShader,
                 vertexSource);
 
-        var fragmentShader =
-            CompileShader(
+            fragmentShader = CompileShader(
                 ShaderType.FragmentShader,
                 fragmentSource);
 
-        _handle =
-            _gl.CreateProgram();
+            program = _gl.CreateProgram();
 
-        _gl.AttachShader(
-            _handle,
-            vertexShader);
+            if (program == 0)
+            {
+                throw new InvalidOperationException(
+                    "OpenGL failed to create a shader program.");
+            }
 
-        _gl.AttachShader(
-            _handle,
-            fragmentShader);
+            _gl.AttachShader(program, vertexShader);
+            _gl.AttachShader(program, fragmentShader);
 
-        _gl.LinkProgram(
-            _handle);
+            _gl.LinkProgram(program);
 
-        _gl.GetProgram(
-            _handle,
-            ProgramPropertyARB.LinkStatus,
-            out var linkStatus);
+            _gl.GetProgram(
+                program,
+                ProgramPropertyARB.LinkStatus,
+                out var linkStatus);
 
-        if (linkStatus == 0)
-        {
-            var log =
-                _gl.GetProgramInfoLog(
-                    _handle);
+            if (linkStatus == 0)
+            {
+                var log = _gl.GetProgramInfoLog(program);
 
-            _gl.DeleteShader(
-                vertexShader);
+                throw new InvalidOperationException(
+                    $"OpenGL shader program linking failed: {log}");
+            }
 
-            _gl.DeleteShader(
-                fragmentShader);
+            _gl.DetachShader(program, vertexShader);
+            _gl.DetachShader(program, fragmentShader);
 
-            _gl.DeleteProgram(
-                _handle);
-
-            _handle = 0;
-
-            throw new InvalidOperationException(
-                $"OpenGL shader program linking failed: {log}");
+            _handle = program;
+            program = 0;
         }
+        finally
+        {
+            if (program != 0)
+            {
+                _gl.DeleteProgram(program);
+            }
 
-        _gl.DetachShader(
-            _handle,
-            vertexShader);
+            if (vertexShader != 0)
+            {
+                _gl.DeleteShader(vertexShader);
+            }
 
-        _gl.DetachShader(
-            _handle,
-            fragmentShader);
-
-        _gl.DeleteShader(
-            vertexShader);
-
-        _gl.DeleteShader(
-            fragmentShader);
+            if (fragmentShader != 0)
+            {
+                _gl.DeleteShader(fragmentShader);
+            }
+        }
     }
 
     public int GetUniformLocation(

@@ -1,19 +1,7 @@
-﻿using Engine.Content.Loading;
-using Engine.Core.Application;
-using Engine.Core.Assets;
-using Engine.Graphics.Fonts;
-using Engine.Graphics.Resources;
-using Engine.Hosting.Desktop;
-using Engine.Input;
-using Engine.Scripting;
+﻿using Engine.Hosting.Desktop;
 using Engine.Serialization.Content;
-using Engine.Serialization.SaveLoad.Ecs;
-using Engine.Serialization.SaveLoad.Game;
 using Engine.Serialization.UI;
-using Engine.Tooling.Debugging;
 using Engine.UI.Assets;
-using Engine.UI.Core;
-using Engine.UI.Styling;
 using Game.Sandbox;
 
 if (args.Any(

@@ -56,10 +56,9 @@ internal sealed class OpenGLRenderTargetManager :
     }
 
     public RenderTargetHandle Create(
-        RenderTargetDescription description)
+    RenderTargetDescription description)
     {
         ThrowIfDisposed();
-
         description.Validate();
 
         var colorTexture =
@@ -69,68 +68,74 @@ internal sealed class OpenGLRenderTargetManager :
                     description.Height,
                     description.Format));
 
-        var framebuffer =
-            _gl.GenFramebuffer();
+        uint framebuffer = 0;
 
-        if (framebuffer == 0)
+        try
         {
-            _textures.Destroy(
-                colorTexture);
+            framebuffer = _gl.GenFramebuffer();
 
-            throw new InvalidOperationException(
-                "OpenGL failed to create a framebuffer.");
-        }
-
-        _gl.BindFramebuffer(
-            FramebufferTarget.Framebuffer,
-            framebuffer);
-
-        _gl.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment0,
-            TextureTarget.Texture2D,
-            colorTexture.Value,
-            0);
-
-        var status =
-            _gl.CheckFramebufferStatus(
-                FramebufferTarget.Framebuffer);
-
-        _gl.BindFramebuffer(
-            FramebufferTarget.Framebuffer,
-            0);
-
-        if (status !=
-            GLEnum.FramebufferComplete)
-        {
-            _gl.DeleteFramebuffer(
-                framebuffer);
-
-            _textures.Destroy(
-                colorTexture);
-
-            throw new InvalidOperationException(
-                $"OpenGL framebuffer is incomplete: {status}.");
-        }
-
-        var handle =
-            CreateHandle();
-
-        _targets.Add(
-            handle,
-            new Entry
+            if (framebuffer == 0)
             {
-                Framebuffer =
-                    framebuffer,
+                throw new InvalidOperationException(
+                    "OpenGL failed to create a framebuffer.");
+            }
 
-                ColorTexture =
-                    colorTexture,
+            GLEnum status;
 
-                Description =
-                    description
-            });
+            try
+            {
+                _gl.BindFramebuffer(
+                    FramebufferTarget.Framebuffer,
+                    framebuffer);
 
-        return handle;
+                _gl.FramebufferTexture2D(
+                    FramebufferTarget.Framebuffer,
+                    FramebufferAttachment.ColorAttachment0,
+                    TextureTarget.Texture2D,
+                    colorTexture.Value,
+                    0);
+
+                status =
+                    _gl.CheckFramebufferStatus(
+                        FramebufferTarget.Framebuffer);
+            }
+            finally
+            {
+                _gl.BindFramebuffer(
+                    FramebufferTarget.Framebuffer,
+                    0);
+            }
+
+            if (status != GLEnum.FramebufferComplete)
+            {
+                throw new InvalidOperationException(
+                    $"OpenGL framebuffer is incomplete: {status}.");
+            }
+
+            var handle = CreateHandle();
+
+            _targets.Add(
+                handle,
+                new Entry
+                {
+                    Framebuffer = framebuffer,
+                    ColorTexture = colorTexture,
+                    Description = description
+                });
+
+            return handle;
+        }
+        catch
+        {
+            if (framebuffer != 0)
+            {
+                _gl.DeleteFramebuffer(framebuffer);
+            }
+
+            _textures.Destroy(colorTexture);
+
+            throw;
+        }
     }
 
     public bool Exists(
@@ -182,8 +187,7 @@ internal sealed class OpenGLRenderTargetManager :
                 nameof(height));
         }
 
-        var entry =
-            GetEntry(target);
+        var entry = GetEntry(target);
 
         if (entry.Description.Width == width &&
             entry.Description.Height == height)
@@ -191,81 +195,87 @@ internal sealed class OpenGLRenderTargetManager :
             return;
         }
 
-        var description =
-            new RenderTargetDescription(
-                width,
-                height,
-                entry.Description.Format);
+        var description = new RenderTargetDescription(
+            width,
+            height,
+            entry.Description.Format);
 
-        var newColorTexture =
-            _textures.Create(
-                new TextureDescription(
-                    description.Width,
-                    description.Height,
-                    description.Format));
+        description.Validate();
 
-        var newFramebuffer =
-            _gl.GenFramebuffer();
+        var newColorTexture = _textures.Create(
+            new TextureDescription(
+                description.Width,
+                description.Height,
+                description.Format));
 
-        if (newFramebuffer == 0)
+        uint newFramebuffer = 0;
+
+        try
         {
-            _textures.Destroy(
-                newColorTexture);
+            newFramebuffer = _gl.GenFramebuffer();
 
-            throw new InvalidOperationException(
-                "OpenGL failed to create a framebuffer.");
-        }
-
-        _gl.BindFramebuffer(
-            FramebufferTarget.Framebuffer,
-            newFramebuffer);
-
-        _gl.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment0,
-            TextureTarget.Texture2D,
-            newColorTexture.Value,
-            0);
-
-        var status =
-            _gl.CheckFramebufferStatus(
-                FramebufferTarget.Framebuffer);
-
-        _gl.BindFramebuffer(
-            FramebufferTarget.Framebuffer,
-            0);
-
-        if (status !=
-            GLEnum.FramebufferComplete)
-        {
-            _gl.DeleteFramebuffer(
-                newFramebuffer);
-
-            _textures.Destroy(
-                newColorTexture);
-
-            throw new InvalidOperationException(
-                $"OpenGL framebuffer is incomplete: {status}.");
-        }
-
-        _targets[target] =
-            new Entry
+            if (newFramebuffer == 0)
             {
-                Framebuffer =
-                    newFramebuffer,
+                throw new InvalidOperationException(
+                    "OpenGL failed to create a framebuffer.");
+            }
 
-                ColorTexture =
-                    newColorTexture,
+            GLEnum status;
 
-                Description =
-                    description
+            try
+            {
+                _gl.BindFramebuffer(
+                    FramebufferTarget.Framebuffer,
+                    newFramebuffer);
+
+                _gl.FramebufferTexture2D(
+                    FramebufferTarget.Framebuffer,
+                    FramebufferAttachment.ColorAttachment0,
+                    TextureTarget.Texture2D,
+                    newColorTexture.Value,
+                    0);
+
+                status = _gl.CheckFramebufferStatus(
+                    FramebufferTarget.Framebuffer);
+            }
+            finally
+            {
+                _gl.BindFramebuffer(
+                    FramebufferTarget.Framebuffer,
+                    0);
+            }
+
+            if (status != GLEnum.FramebufferComplete)
+            {
+                throw new InvalidOperationException(
+                    $"OpenGL framebuffer is incomplete: {status}.");
+            }
+
+            _targets[target] = new Entry
+            {
+                Framebuffer = newFramebuffer,
+                ColorTexture = newColorTexture,
+                Description = description
             };
 
-        _gl.DeleteFramebuffer(
-            entry.Framebuffer);
+            // Новые ресурсы теперь принадлежат менеджеру.
+            newFramebuffer = 0;
+        }
+        catch
+        {
+            if (newFramebuffer != 0)
+            {
+                _gl.DeleteFramebuffer(newFramebuffer);
+            }
 
-        _textures.Destroy(
-            entry.ColorTexture);
+            _textures.Destroy(newColorTexture);
+
+            throw;
+        }
+
+        // Новый target готов. Теперь освобождаем старые ресурсы.
+        _gl.DeleteFramebuffer(entry.Framebuffer);
+        _textures.Destroy(entry.ColorTexture);
     }
     public void Destroy(
         RenderTargetHandle target)

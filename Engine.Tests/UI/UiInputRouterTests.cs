@@ -10,6 +10,58 @@ namespace Engine.Tests.UI;
 public sealed class UiInputRouterTests
 {
     [Fact]
+    public void Button_RightClickInvokesRightClicked()
+    {
+        var root = new UiRoot();
+
+        var button = new UiButton("Entity")
+        {
+            Width = 80.0f,
+            Height = 40.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Left,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        root.AddChild(button);
+
+        root.Arrange(
+            new UiRect(0.0f, 0.0f, 100.0f, 100.0f));
+
+        var pointer = new TestPointerInput
+        {
+            Position = new Vector2(20.0f, 20.0f),
+            RightPressed = true
+        };
+
+        var router = new UiInputRouter(
+            root,
+            pointer,
+            new TestTextInput(),
+            new UiFocusManager());
+
+        UiPointerEvent? receivedEvent = null;
+
+        button.RightClicked +=
+            pointerEvent => receivedEvent = pointerEvent;
+
+        router.Update();
+
+        pointer.RightPressed = false;
+        pointer.RightReleased = true;
+
+        router.Update();
+
+        Assert.NotNull(receivedEvent);
+        Assert.Equal(
+            InputMouseButton.Right,
+            receivedEvent!.Button);
+
+        Assert.Equal(
+            new Vector2(20.0f, 20.0f),
+            receivedEvent.Position);
+    }
+
+    [Fact]
     public void DragDrop_CanStartAgainAfterCancellation()
     {
         var root = new UiRoot();

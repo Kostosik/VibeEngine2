@@ -6,6 +6,20 @@ namespace Engine.Tests.Graphics;
 public sealed class TextureAtlasTests
 {
     [Fact]
+    public void Atlas_RejectsZeroTextureWidth()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new TextureAtlas(
+                new TextureHandle(1),
+                new TextureDescription(
+                    0,
+                    64,
+                    TextureFormat.Rgba8),
+                32,
+                32));
+    }
+
+    [Fact]
     public void AtlasCalculatesGrid()
     {
         var atlas =

@@ -6,6 +6,34 @@ namespace Engine.Tests.Graphics.Rendering;
 public sealed class ClipRegionTests
 {
     [Fact]
+    public void FromVertices_RejectsConcavePolygon()
+    {
+        var vertices = new[]
+        {
+        new Vector2(0.0f, 0.0f),
+        new Vector2(4.0f, 0.0f),
+        new Vector2(2.0f, 1.0f),
+        new Vector2(4.0f, 4.0f),
+        new Vector2(0.0f, 4.0f)
+    };
+
+        Assert.Throws<ArgumentException>(
+            () => ClipRegion.FromVertices(vertices));
+    }
+
+    [Fact]
+    public void FromRectangle_RejectsOverflowingBounds()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => ClipRegion.FromRectangle(
+                new Rectangle(
+                    float.MaxValue,
+                    0.0f,
+                    float.MaxValue,
+                    1.0f)));
+    }
+
+    [Fact]
     public void Intersect_RotatedRegion_ProducesClippedPolygon()
     {
         var diamond =

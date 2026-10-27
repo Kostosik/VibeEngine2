@@ -27,6 +27,20 @@ public sealed class TextureAtlas
                 nameof(tileHeight));
         }
 
+        if (textureDescription.Width <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(textureDescription),
+                "Texture width must be greater than zero.");
+        }
+
+        if (textureDescription.Height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(textureDescription),
+                "Texture height must be greater than zero.");
+        }
+
         if (textureDescription.Width % tileWidth != 0)
         {
             throw new ArgumentException(

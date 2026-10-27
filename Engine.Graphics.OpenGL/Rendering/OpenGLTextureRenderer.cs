@@ -70,22 +70,62 @@ internal sealed class OpenGLTextureRenderer : IDisposable
                 VertexShaderSource,
                 FragmentShaderSource);
 
-        _resolutionLocation =
-            _shader.GetUniformLocation(
-                "uResolution");
+        try
+        {
+            _resolutionLocation =
+                _shader.GetUniformLocation(
+                    "uResolution");
 
-        _textureLocation =
-            _shader.GetUniformLocation(
-                "uTexture");
+            _textureLocation =
+                _shader.GetUniformLocation(
+                    "uTexture");
 
-        ValidateUniforms();
+            ValidateUniforms();
 
-        (_vao, _vbo) =
-            CreateBatchBuffer();
+            (_vao, _vbo) =
+                CreateBatchBuffer();
 
-        Resize(
-            width,
-            height);
+            Resize(
+                width,
+                height);
+        }
+        catch
+        {
+            if (_vbo != 0)
+            {
+                try
+                {
+                    _gl.DeleteBuffer(_vbo);
+                }
+                catch
+                {
+                    // Сохраняем исходное исключение.
+                }
+            }
+
+            if (_vao != 0)
+            {
+                try
+                {
+                    _gl.DeleteVertexArray(_vao);
+                }
+                catch
+                {
+                    // Сохраняем исходное исключение.
+                }
+            }
+
+            try
+            {
+                _shader.Dispose();
+            }
+            catch
+            {
+                // Сохраняем исходное исключение.
+            }
+
+            throw;
+        }
     }
 
     private bool PrepareTextureBatch(
@@ -658,59 +698,119 @@ internal sealed class OpenGLTextureRenderer : IDisposable
 
     private (uint Vao, uint Vbo) CreateBatchBuffer()
     {
-        var vao =
-            _gl.GenVertexArray();
+        uint vao = 0;
+        uint vbo = 0;
 
-        var vbo =
-            _gl.GenBuffer();
+        try
+        {
+            vao = _gl.GenVertexArray();
 
-        _gl.BindVertexArray(
-            vao);
+            if (vao == 0)
+            {
+                throw new InvalidOperationException(
+                    "OpenGL failed to create a vertex array.");
+            }
 
-        _gl.BindBuffer(
-            BufferTargetARB.ArrayBuffer,
-            vbo);
+            vbo = _gl.GenBuffer();
 
-        _gl.BufferData<float>(
-            BufferTargetARB.ArrayBuffer,
-            _vertices,
-            BufferUsageARB.DynamicDraw);
+            if (vbo == 0)
+            {
+                throw new InvalidOperationException(
+                    "OpenGL failed to create a vertex buffer.");
+            }
 
-        const uint stride =
-            4 * sizeof(float);
+            _gl.BindVertexArray(vao);
 
-        _gl.VertexAttribPointer(
-            0,
-            2,
-            VertexAttribPointerType.Float,
-            false,
-            stride,
-            0);
+            _gl.BindBuffer(
+                BufferTargetARB.ArrayBuffer,
+                vbo);
 
-        _gl.EnableVertexAttribArray(
-            0);
+            try
+            {
+                _gl.BufferData<float>(
+                    BufferTargetARB.ArrayBuffer,
+                    _vertices,
+                    BufferUsageARB.DynamicDraw);
 
-        _gl.VertexAttribPointer(
-            1,
-            2,
-            VertexAttribPointerType.Float,
-            false,
-            stride,
-            2 * sizeof(float));
+                const uint stride =
+                    4 * sizeof(float);
 
-        _gl.EnableVertexAttribArray(
-            1);
+                _gl.VertexAttribPointer(
+                    0,
+                    2,
+                    VertexAttribPointerType.Float,
+                    false,
+                    stride,
+                    0);
 
-        _gl.BindBuffer(
-            BufferTargetARB.ArrayBuffer,
-            0);
+                _gl.EnableVertexAttribArray(0);
 
-        _gl.BindVertexArray(
-            0);
+                _gl.VertexAttribPointer(
+                    1,
+                    2,
+                    VertexAttribPointerType.Float,
+                    false,
+                    stride,
+                    2 * sizeof(float));
 
-        return (
-            vao,
-            vbo);
+                _gl.EnableVertexAttribArray(1);
+            }
+            finally
+            {
+                _gl.BindBuffer(
+                    BufferTargetARB.ArrayBuffer,
+                    0);
+
+                _gl.BindVertexArray(0);
+            }
+
+            return (vao, vbo);
+        }
+        catch
+        {
+            // Очистка не должна подменять исходную ошибку.
+            try
+            {
+                _gl.BindBuffer(
+                    BufferTargetARB.ArrayBuffer,
+                    0);
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                _gl.BindVertexArray(0);
+            }
+            catch
+            {
+            }
+
+            if (vbo != 0)
+            {
+                try
+                {
+                    _gl.DeleteBuffer(vbo);
+                }
+                catch
+                {
+                }
+            }
+
+            if (vao != 0)
+            {
+                try
+                {
+                    _gl.DeleteVertexArray(vao);
+                }
+                catch
+                {
+                }
+            }
+
+            throw;
+        }
     }
 
     private void ValidateUniforms()

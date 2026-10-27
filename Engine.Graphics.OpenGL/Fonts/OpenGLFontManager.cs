@@ -12,7 +12,7 @@ internal sealed class OpenGLFontManager :
 {
     private const int LatinFirstCodepoint = 32;
     private const int LatinCodepointCount = 224;
-
+    private bool _disposed;
     private const int CyrillicFirstCodepoint = 0x0400;
     private const int CyrillicCodepointCount = 256;
 
@@ -42,6 +42,7 @@ internal sealed class OpenGLFontManager :
         ReadOnlyMemory<byte> data,
         FontDescription description)
     {
+        ThrowIfDisposed();
         if (data.Length == 0)
         {
             throw new ArgumentException(
@@ -69,37 +70,49 @@ internal sealed class OpenGLFontManager :
         var textures =
             new List<TextureHandle>();
 
-        BakeRange(
-            fontData,
-            fontInfo,
-            description,
-            LatinFirstCodepoint,
-            LatinCodepointCount,
-            glyphs,
-            textures);
-
-        BakeRange(
-            fontData,
-            fontInfo,
-            description,
-            CyrillicFirstCodepoint,
-            CyrillicCodepointCount,
-            glyphs,
-            textures);
-
-        if (description.AdditionalCodepointRanges is { } additionalRanges)
+        try
         {
-            foreach (var range in additionalRanges)
+            BakeRange(
+                fontData,
+                fontInfo,
+                description,
+                LatinFirstCodepoint,
+                LatinCodepointCount,
+                glyphs,
+                textures);
+
+            BakeRange(
+                fontData,
+                fontInfo,
+                description,
+                CyrillicFirstCodepoint,
+                CyrillicCodepointCount,
+                glyphs,
+                textures);
+
+            if (description.AdditionalCodepointRanges is { } additionalRanges)
             {
-                BakeRange(
-                    fontData,
-                    fontInfo,
-                    description,
-                    range.FirstCodepoint,
-                    range.CodepointCount,
-                    glyphs,
-                    textures);
+                foreach (var range in additionalRanges)
+                {
+                    BakeRange(
+                        fontData,
+                        fontInfo,
+                        description,
+                        range.FirstCodepoint,
+                        range.CodepointCount,
+                        glyphs,
+                        textures);
+                }
             }
+        }
+        catch
+        {
+            foreach (var texture in textures)
+            {
+                _textures.Destroy(texture);
+            }
+
+            throw;
         }
 
         var handle =
@@ -131,6 +144,7 @@ internal sealed class OpenGLFontManager :
     public bool Exists(
         FontHandle font)
     {
+        ThrowIfDisposed();
         return font.IsValid &&
                _fonts.ContainsKey(font);
     }
@@ -139,6 +153,7 @@ internal sealed class OpenGLFontManager :
         FontHandle font,
         int codepoint)
     {
+        ThrowIfDisposed();
         if (!Exists(font))
         {
             throw new KeyNotFoundException(
@@ -170,6 +185,7 @@ internal sealed class OpenGLFontManager :
         int leftCodepoint,
         int rightCodepoint)
     {
+        ThrowIfDisposed();
         if (!Exists(font))
         {
             throw new KeyNotFoundException(
@@ -182,6 +198,7 @@ internal sealed class OpenGLFontManager :
     public FontMetrics GetMetrics(
         FontHandle font)
     {
+        ThrowIfDisposed();
         if (!Exists(font))
         {
             throw new KeyNotFoundException(
@@ -194,6 +211,7 @@ internal sealed class OpenGLFontManager :
     public void Destroy(
         FontHandle font)
     {
+        ThrowIfDisposed();
         if (!Exists(font))
         {
             return;
@@ -216,18 +234,30 @@ internal sealed class OpenGLFontManager :
 
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         foreach (var font in _fonts.Values)
         {
             foreach (var texture in font.Textures)
             {
-                _textures.Destroy(
-                    texture);
+                _textures.Destroy(texture);
             }
 
             font.Dispose();
         }
 
         _fonts.Clear();
+        _disposed = true;
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(
+            _disposed,
+            this);
     }
 
     private void BakeRange(

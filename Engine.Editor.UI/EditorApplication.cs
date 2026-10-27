@@ -22,6 +22,11 @@ namespace Engine.Editor.UI;
 public sealed class EditorApplication :
     IApplication
 {
+    private static readonly InputBinding LeftShiftKey =
+    new("Keyboard.ShiftLeft");
+
+    private static readonly InputBinding RightShiftKey =
+        new("Keyboard.ShiftRight");
     private static readonly InputBinding CopyKey =
     new("Keyboard.C");
     private static readonly InputBinding PasteKey =
@@ -51,6 +56,8 @@ public sealed class EditorApplication :
         _subscribedUiDocuments = new();
     private readonly HashSet<ParticleEffectDocument>
     _subscribedParticleEffectDocuments = new();
+    private readonly HashSet<AnimationClipDocument>
+    _subscribedAnimationClipDocuments = new();
     private readonly HashSet<EditorDocument> _subscribedDocuments = new();
     private bool _uiDirty = true;
     private readonly IEditorDocumentPersistence?
@@ -282,6 +289,8 @@ public sealed class EditorApplication :
         MainShell.AssetActivated += OnAssetActivated;
         MainShell.SaveRequested +=
             SaveActiveDocument;
+        MainShell.SaveAllRequested +=
+SaveAllDocuments;
         MainShell.AssetCreationRequested += RequestCreateAsset;
 
         MainShell.NewProjectRequested +=
@@ -534,11 +543,31 @@ public sealed class EditorApplication :
                 return;
             case null:
                 return;
-
+            case AnimationClipDocument animationClipDocument:
+                SaveAnimationClipDocument(animationClipDocument);
+                return;
             default:
                 _errorDialog.ShowError(
                     "Saving this document type is not supported.");
                 return;
+        }
+    }
+
+    private void SaveAnimationClipDocument(
+    AnimationClipDocument document)
+    {
+        try
+        {
+            document.Save();
+
+            _debugConsole?.WriteLine(
+                $"Saved animation clip: {document.FilePath}");
+
+            MarkUiDirty();
+        }
+        catch (Exception exception)
+        {
+            _errorDialog.ShowError(exception.Message);
         }
     }
 
@@ -745,9 +774,6 @@ public sealed class EditorApplication :
         MainShell.SaveAsRequested -=
             RequestSaveDocumentAs;
 
-        MainShell.SaveAllRequested +=
-            SaveAllDocuments;
-
         MainShell.CloseRequested -=
             RequestCloseDocument;
 
@@ -787,6 +813,7 @@ public sealed class EditorApplication :
 
         MainShell.SaveRequested -=
             SaveActiveDocument;
+        AssetPreviewTextures.Dispose();
     }
 
     private void RequestOpenProjectInIde()
@@ -877,13 +904,25 @@ public sealed class EditorApplication :
             controlDown &&
             Input.GetValue(PasteKey) > 0.5f;
 
+        var shiftDown =
+            Input.GetValue(LeftShiftKey) > 0.5f ||
+            Input.GetValue(RightShiftKey) > 0.5f;
+
+        var undoKeyDown =
+            Input.GetValue(UndoKey) > 0.5f;
+
+        var redoKeyDown =
+            Input.GetValue(RedoKey) > 0.5f;
+
         var undoDown =
             controlDown &&
-            Input.GetValue(UndoKey) > 0.5f;
+            !shiftDown &&
+            undoKeyDown;
 
         var redoDown =
             controlDown &&
-            Input.GetValue(RedoKey) > 0.5f;
+            (redoKeyDown ||
+             (shiftDown && undoKeyDown));
 
         var focusedWidget = Ui.Focus.FocusedWidget;
         var focusedTextBox = focusedWidget as UiTextBox;
@@ -1055,7 +1094,9 @@ public sealed class EditorApplication :
 
                             break;
                         }
-
+                    case AnimationClipDocument animationClipDocument:
+                        animationClipDocument.Save();
+                        break;
                     default:
                         throw new NotSupportedException(
                             $"Saving document type " +
@@ -1127,6 +1168,23 @@ public sealed class EditorApplication :
         if (existingDocument is not null)
         {
             Editor.Session.Activate(existingDocument);
+            MarkUiDirty();
+            return;
+        }
+
+        if (normalizedPath.EndsWith(
+        ".animation.json",
+        StringComparison.OrdinalIgnoreCase))
+        {
+            var animationClipDocument =
+                AnimationClipDocument.Open(normalizedPath);
+
+            SubscribeAnimationClipDocument(
+                animationClipDocument);
+
+            Editor.Session.Open(
+                animationClipDocument);
+
             MarkUiDirty();
             return;
         }
@@ -1353,6 +1411,13 @@ public sealed class EditorApplication :
         try
         {
             if (entry.Path.EndsWith(
+        ".animation.json",
+        StringComparison.OrdinalIgnoreCase))
+            {
+                OpenDocumentPath(entry.Path);
+                return;
+            }
+            if (entry.Path.EndsWith(
         ".particle.json",
         StringComparison.OrdinalIgnoreCase))
             {
@@ -1578,7 +1643,10 @@ public sealed class EditorApplication :
                 $"Created {definition.DisplayName}: " +
                 Path.GetRelativePath(browser.RootPath, path));
 
-            if (definition.Id is "world-document" or "ui-document")
+            if (definition.Id is
+                "world-document" or
+                "ui-document" or
+                "animation-clip")
             {
                 OpenDocumentPath(path);
             }
@@ -1735,6 +1803,16 @@ public sealed class EditorApplication :
                     if (!continueApplicationClose)
                     {
                         Editor.Session.Close(particleEffectDocument);
+                    }
+
+                    break;
+
+                case AnimationClipDocument animationClipDocument:
+                    animationClipDocument.Save();
+
+                    if (!continueApplicationClose)
+                    {
+                        Editor.Session.Close(animationClipDocument);
                     }
 
                     break;
@@ -2011,6 +2089,18 @@ public sealed class EditorApplication :
 
                     break;
 
+                case AnimationClipDocument animationClipDocument:
+                    if (continueApplicationClose)
+                    {
+                        animationClipDocument.MarkSaved();
+                    }
+                    else
+                    {
+                        Editor.Session.Discard(animationClipDocument);
+                    }
+
+                    break;
+
                 case EditorDocument worldDocument:
                     Editor.CloseDocument(
                         worldDocument,
@@ -2118,9 +2208,32 @@ public sealed class EditorApplication :
         document.Changed += MarkUiDirty;
     }
 
+    private void SubscribeAnimationClipDocument(
+    AnimationClipDocument document)
+    {
+        if (!_subscribedAnimationClipDocuments.Add(document))
+        {
+            return;
+        }
+
+        document.Changed += MarkUiDirty;
+    }
+
     private void UnsubscribeAnyDocument(
         IEditorDocument document)
     {
+        if (document is AnimationClipDocument animationClipDocument)
+        {
+            if (_subscribedAnimationClipDocuments.Remove(
+                    animationClipDocument))
+            {
+                animationClipDocument.Changed -= MarkUiDirty;
+            }
+
+            MarkUiDirty();
+            return;
+        }
+
         if (document is ParticleEffectDocument particleEffectDocument)
         {
             if (_subscribedParticleEffectDocuments.Remove(

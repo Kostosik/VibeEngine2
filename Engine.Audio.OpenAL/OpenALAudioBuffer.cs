@@ -15,6 +15,8 @@ public sealed class OpenALAudioBuffer : IAudioBuffer
         get
         {
             ThrowIfDisposed();
+            _device.ThrowIfDisposed();
+
             return _handle;
         }
     }
@@ -70,15 +72,22 @@ public sealed class OpenALAudioBuffer : IAudioBuffer
     public void Dispose()
     {
         if (_disposed)
-            return;
-
-        if (_handle != 0 && !_device.IsDisposed)
         {
-            _device.AL.DeleteBuffer(_handle);
-            _handle = 0;
+            return;
         }
 
-        _disposed = true;
+        try
+        {
+            if (_handle != 0 && !_device.IsDisposed)
+            {
+                _device.AL.DeleteBuffer(_handle);
+            }
+        }
+        finally
+        {
+            _handle = 0;
+            _disposed = true;
+        }
     }
 
     private static BufferFormat ConvertFormat(AudioFormat format)

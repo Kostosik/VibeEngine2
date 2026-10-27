@@ -5,6 +5,49 @@ namespace Engine.Tests.Animation;
 public sealed class AnimationPlayerTests
 {
     [Fact]
+    public void Update_AppliesBindingsAtCurrentTime()
+    {
+        var clip = new AnimationClip(2.0);
+
+        var trackId =
+            new AnimationTrackId("opacity");
+
+        clip.AddTrack(
+            trackId,
+            new AnimationTrack<float>(
+                new[]
+                {
+                new AnimationKeyframe<float>(
+                    0.0,
+                    0.0f),
+
+                new AnimationKeyframe<float>(
+                    2.0,
+                    1.0f)
+                },
+                new FloatLinearAnimationInterpolator()));
+
+        var value = -1.0f;
+
+        var bindings = new AnimationBindingSet();
+
+        bindings.Add<float>(
+            trackId,
+            result => value = result);
+
+        var player = new AnimationPlayer(clip);
+
+        player.SetBindings(bindings);
+        player.Play();
+        player.Update(1.0);
+
+        Assert.Equal(
+            0.5f,
+            value,
+            precision: 5);
+    }
+
+    [Fact]
     public void Update_AdvancesTime()
     {
         var clip =

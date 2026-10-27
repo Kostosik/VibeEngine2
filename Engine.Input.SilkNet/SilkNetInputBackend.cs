@@ -38,16 +38,16 @@ public sealed class SilkNetInputBackend :
     private static readonly TextInputKey[] TextKeys =
     [
         TextInputKey.F1,
-    TextInputKey.Enter,
-    TextInputKey.Backspace,
-    TextInputKey.Delete,
-    TextInputKey.Up,
-    TextInputKey.Down,
-    TextInputKey.Left,
-    TextInputKey.Right,
-    TextInputKey.Home,
-    TextInputKey.End,
-    TextInputKey.Escape
+        TextInputKey.Enter,
+        TextInputKey.Backspace,
+        TextInputKey.Delete,
+        TextInputKey.Up,
+        TextInputKey.Down,
+        TextInputKey.Left,
+        TextInputKey.Right,
+        TextInputKey.Home,
+        TextInputKey.End,
+        TextInputKey.Escape
     ];
     public float ScrollDelta =>
     _mouseScroll;
@@ -360,7 +360,10 @@ public sealed class SilkNetInputBackend :
         if (!Enum.TryParse<Key>(
                 keyName,
                 true,
-                out var key))
+                out var key) ||
+            !Enum.IsDefined(
+                typeof(Key),
+                key))
         {
             return 0.0f;
         }
@@ -388,7 +391,10 @@ public sealed class SilkNetInputBackend :
         if (!Enum.TryParse<MouseButton>(
                 controlName,
                 true,
-                out var button))
+                out var button) ||
+            !Enum.IsDefined(
+                typeof(MouseButton),
+                button))
         {
             return 0.0f;
         }
@@ -483,21 +489,26 @@ public sealed class SilkNetInputBackend :
         }
         finally
         {
-            try
-            {
-                _inputContext.Dispose();
-            }
-            finally
-            {
-                _keyboard = null;
-                _mouse = null;
-                _cursorService = null;
+            _keyboard = null;
+            _mouse = null;
+            _cursorService = null;
 
-                _characters.Clear();
-                _pendingCharacters.Clear();
-                _currentTextKeys.Clear();
-                _previousTextKeys.Clear();
-            }
+            _characters.Clear();
+            _pendingCharacters.Clear();
+            _currentTextKeys.Clear();
+            _previousTextKeys.Clear();
+
+            _currentLeftButton = false;
+            _previousLeftButton = false;
+
+            _currentRightButton = false;
+            _previousRightButton = false;
+
+            _currentMiddleButton = false;
+            _previousMiddleButton = false;
+
+            _mouseScroll = 0.0f;
+            _pendingMouseScroll = 0.0f;
         }
     }
 }

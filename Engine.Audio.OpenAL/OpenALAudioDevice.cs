@@ -69,7 +69,15 @@ public sealed class OpenALAudioDevice : IAudioDevice
         }
         catch
         {
-            Dispose();
+            try
+            {
+                Dispose();
+            }
+            catch
+            {
+                // Сохраняем первоначальную ошибку инициализации.
+            }
+
             throw;
         }
     }
@@ -96,29 +104,80 @@ public sealed class OpenALAudioDevice : IAudioDevice
     public void Dispose()
     {
         if (_disposed)
+        {
             return;
+        }
+
+        _disposed = true;
+
+        var errors = new List<Exception>();
 
         unsafe
         {
-            _alc.MakeContextCurrent(null);
+            try
+            {
+                _alc.MakeContextCurrent(null);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
 
             if (_context != null)
             {
-                _alc.DestroyContext(_context);
+                var context = _context;
                 _context = null;
+
+                try
+                {
+                    _alc.DestroyContext(context);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
             }
 
             if (_device != null)
             {
-                _alc.CloseDevice(_device);
+                var device = _device;
                 _device = null;
+
+                try
+                {
+                    _alc.CloseDevice(device);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
             }
         }
 
-        _alc.Dispose();
-        _al.Dispose();
+        try
+        {
+            _alc.Dispose();
+        }
+        catch (Exception exception)
+        {
+            errors.Add(exception);
+        }
 
-        _disposed = true;
+        try
+        {
+            _al.Dispose();
+        }
+        catch (Exception exception)
+        {
+            errors.Add(exception);
+        }
+
+        if (errors.Count > 0)
+        {
+            throw new AggregateException(
+                "One or more OpenAL resources failed to dispose.",
+                errors);
+        }
     }
 
     internal void ThrowIfDisposed()

@@ -8,12 +8,12 @@ namespace Engine.Physics.Components;
 public struct Collider2D :
     IDeterministicState
 {
+    private PhysicsShape2D _shape;
     public Collider2D(
         AabbShape2D shape)
     {
-        Shape =
-            PhysicsShape2D.FromAabb(
-                shape);
+        _shape = ValidateShape(
+            PhysicsShape2D.FromAabb(shape));
 
         Offset = FixedVector2.Zero;
         Material = PhysicsMaterial2D.Default;
@@ -26,9 +26,8 @@ public struct Collider2D :
     public Collider2D(
     PolygonShape2D shape)
     {
-        Shape =
-            PhysicsShape2D.FromPolygon(
-                shape);
+        _shape = ValidateShape(
+    PhysicsShape2D.FromPolygon(shape));
 
         Offset = FixedVector2.Zero;
         Material = PhysicsMaterial2D.Default;
@@ -41,10 +40,8 @@ public struct Collider2D :
     public Collider2D(
         CircleShape2D shape)
     {
-        Shape =
-            PhysicsShape2D.FromCircle(
-                shape);
-
+        _shape = ValidateShape(
+    PhysicsShape2D.FromCircle(shape));
         Offset = FixedVector2.Zero;
         Material = PhysicsMaterial2D.Default;
         IsTrigger = false;
@@ -53,7 +50,33 @@ public struct Collider2D :
         CollisionMask = uint.MaxValue;
     }
 
-    public PhysicsShape2D Shape { get; set; }
+    public PhysicsShape2D Shape
+    {
+        get => _shape;
+        set => _shape = ValidateShape(value);
+    }
+
+    private static PhysicsShape2D ValidateShape(
+        PhysicsShape2D shape)
+    {
+        if (!shape.IsValid)
+        {
+            throw new ArgumentException(
+                "Collider shape must be initialized and valid.",
+                nameof(shape));
+        }
+
+        return shape;
+    }
+
+    internal void Validate()
+    {
+        if (!_shape.IsValid)
+        {
+            throw new InvalidOperationException(
+                "Collider2D has an uninitialized or invalid shape.");
+        }
+    }
 
     public FixedVector2 Offset { get; set; }
 

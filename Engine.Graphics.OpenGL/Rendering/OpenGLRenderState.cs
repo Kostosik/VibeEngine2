@@ -23,6 +23,26 @@ internal sealed class OpenGLRenderState
     public void Apply(
         RenderState state)
     {
+        if (!Enum.IsDefined(
+        typeof(RenderBlendMode),
+        state.BlendMode))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(state),
+                state.BlendMode,
+                "Unsupported blend mode.");
+        }
+
+        if (!Enum.IsDefined(
+                typeof(RenderCullMode),
+                state.CullMode))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(state),
+                state.CullMode,
+                "Unsupported cull mode.");
+        }
+
         ApplyBlendMode(
             state.BlendMode);
 

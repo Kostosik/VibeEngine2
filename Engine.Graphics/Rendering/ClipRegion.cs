@@ -79,6 +79,17 @@ public sealed class ClipRegion
             return EmptyRegion;
         }
 
+        var right = rectangle.X + rectangle.Width;
+        var bottom = rectangle.Y + rectangle.Height;
+
+        if (!float.IsFinite(right) ||
+            !float.IsFinite(bottom))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(rectangle),
+                "Clip rectangle bounds must be finite.");
+        }
+
         return new ClipRegion(
         [
             new Vector2(
@@ -86,16 +97,16 @@ public sealed class ClipRegion
                 rectangle.Y),
 
             new Vector2(
-                rectangle.X + rectangle.Width,
+                right,
                 rectangle.Y),
 
             new Vector2(
-                rectangle.X + rectangle.Width,
-                rectangle.Y + rectangle.Height),
+                right,
+                bottom),
 
             new Vector2(
                 rectangle.X,
-                rectangle.Y + rectangle.Height)
+                bottom)
         ]);
     }
 
@@ -127,7 +138,47 @@ public sealed class ClipRegion
             return EmptyRegion;
         }
 
+        if (!IsConvex(points))
+        {
+            throw new ArgumentException(
+                "Clip vertices must form a convex polygon.",
+                nameof(vertices));
+        }
+
         return new ClipRegion(points);
+    }
+
+    private static bool IsConvex(Vector2[] vertices)
+    {
+        var orientation = 0;
+
+        for (var i = 0; i < vertices.Length; i++)
+        {
+            var a = vertices[i];
+            var b = vertices[(i + 1) % vertices.Length];
+            var c = vertices[(i + 2) % vertices.Length];
+
+            var cross =
+                ((double)b.X - a.X) * ((double)c.Y - b.Y) -
+                ((double)b.Y - a.Y) * ((double)c.X - b.X);
+
+            if (Math.Abs(cross) < Epsilon)
+            {
+                continue;
+            }
+
+            var currentOrientation = Math.Sign(cross);
+
+            if (orientation != 0 &&
+                currentOrientation != orientation)
+            {
+                return false;
+            }
+
+            orientation = currentOrientation;
+        }
+
+        return orientation != 0;
     }
 
     /// <summary>

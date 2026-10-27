@@ -6,6 +6,19 @@ public sealed class AnimationTrack<T> :
     private readonly AnimationKeyframe<T>[] _keyframes;
     private readonly IAnimationInterpolator<T> _interpolator;
 
+    public Type InterpolatorType =>
+    _interpolator.GetType();
+
+    public double GetKeyframeTimeSeconds(int index)
+    {
+        return GetKeyframe(index).TimeSeconds;
+    }
+
+    public object? GetKeyframeValue(int index)
+    {
+        return GetKeyframe(index).Value;
+    }
+
     public AnimationTrack(
         IReadOnlyList<AnimationKeyframe<T>> keyframes,
         IAnimationInterpolator<T> interpolator)
@@ -113,6 +126,13 @@ public sealed class AnimationTrack<T> :
             previous.Value,
             next.Value,
             amount);
+    }
+
+    IAnimationTrackBuilder IAnimationTrack.CreateBuilder()
+    {
+        return new AnimationTrackBuilder<T>(
+            _interpolator,
+            _keyframes);
     }
 
     private int FindNextKeyframe(

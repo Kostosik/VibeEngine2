@@ -38,9 +38,29 @@ internal sealed class OpenGLGraphicsBufferManager :
     }
 
     public GraphicsBufferHandle Create(
-        GraphicsBufferDescription description)
+    GraphicsBufferDescription description)
     {
         ThrowIfDisposed();
+
+        if (description.SizeInBytes <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(description),
+                "Graphics buffer size must be greater than zero.");
+        }
+
+        // Проверяем описание до выделения GPU-ресурса.
+        // Проверяем поддерживаемый тип буфера.
+        _ = GetTarget(description.Type);
+
+        // Выделяем память через ArrayBuffer, чтобы не менять
+        // привязку индексного буфера текущего VAO.
+        var target =
+            BufferTargetARB.ArrayBuffer;
+
+        var usage =
+            GetUsage(
+                description.Usage);
 
         var handle =
             _gl.GenBuffer();
@@ -51,43 +71,54 @@ internal sealed class OpenGLGraphicsBufferManager :
                 "OpenGL failed to create a graphics buffer.");
         }
 
-        var target =
-            GetTarget(
-                description.Type);
-
-        var usage =
-            GetUsage(
-                description.Usage);
-
-        _gl.BindBuffer(
-            target,
-            handle);
-
-        unsafe
+        try
         {
-            _gl.BufferData(
-                target,
-                (nuint)description.SizeInBytes,
-                null,
-                usage);
-        }
-
-        _gl.BindBuffer(
-            target,
-            0);
-
-        var resourceHandle =
-            CreateHandle();
-
-        _buffers.Add(
-            resourceHandle,
-            new Entry
+            try
             {
-                Handle = handle,
-                Description = description
-            });
+                _gl.BindBuffer(
+                    target,
+                    handle);
 
-        return resourceHandle;
+                unsafe
+                {
+                    _gl.BufferData(
+                        target,
+                        (nuint)description.SizeInBytes,
+                        null,
+                        usage);
+                }
+            }
+            finally
+            {
+                // Снимаем привязку даже при ошибке выделения памяти.
+                _gl.BindBuffer(
+                    target,
+                    0);
+            }
+
+            // Регистрируем ресурс только после успешного создания.
+            var resourceHandle =
+                CreateHandle();
+
+            _buffers.Add(
+                resourceHandle,
+                new Entry
+                {
+                    Handle = handle,
+                    Description = description
+                });
+
+            return resourceHandle;
+        }
+        catch
+        {
+            // Если создание или регистрация не удались,
+            // освобождаем нативный буфер.
+            _gl.DeleteBuffer(
+                handle);
+
+            throw;
+        }
     }
 
     public void Update(
@@ -121,9 +152,10 @@ internal sealed class OpenGLGraphicsBufferManager :
                 nameof(data));
         }
 
+        _ = GetTarget(entry.Description.Type);
+
         var target =
-            GetTarget(
-                entry.Description.Type);
+            BufferTargetARB.ArrayBuffer;
 
         _gl.BindBuffer(
             target,

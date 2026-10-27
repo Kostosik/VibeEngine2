@@ -20,6 +20,7 @@ namespace Engine.Editor.UI.Shell;
 public sealed class EditorMainShell :
     UiPanel
 {
+    private AnimationClipEditorPanelView? _animationClipWorkspaceView;
     private readonly UiButton _validateButton;
     private readonly UiButton _playButton;
     private readonly UiButton _stopButton;
@@ -192,7 +193,8 @@ public sealed class EditorMainShell :
             console,
             propertyEditors,
             filePreviewTextureManager,
-            _assetPickerDialog);
+            _assetPickerDialog,
+            focus);
 
         _workspaceView.AssetActivated +=
     entry => AssetActivated?.Invoke(entry);
@@ -373,6 +375,38 @@ public sealed class EditorMainShell :
                 documentHeight));
     }
 
+    private void BindAnimationClipDocument(
+    AnimationClipDocument? document)
+    {
+        if (ReferenceEquals(
+                _animationClipWorkspaceView?.Document,
+                document))
+        {
+            return;
+        }
+
+        if (_animationClipWorkspaceView is not null)
+        {
+            _animationClipWorkspaceView.ReleaseResources();
+
+            _workspace.RemoveChild(
+                _animationClipWorkspaceView);
+
+            _animationClipWorkspaceView = null;
+        }
+
+        if (document is null)
+        {
+            return;
+        }
+
+        _animationClipWorkspaceView =
+            new AnimationClipEditorPanelView(document);
+
+        _workspace.AddChild(
+            _animationClipWorkspaceView);
+    }
+
     private void BindParticleEffectDocument(
     ParticleEffectDocument? document)
     {
@@ -435,6 +469,7 @@ public sealed class EditorMainShell :
 
     public void ReleaseResources()
     {
+        BindAnimationClipDocument(null);
         _workspaceView.ReleaseResources();
         _uiWorkspaceView.ReleaseResources();
         BindParticleEffectDocument(null);
@@ -453,9 +488,11 @@ public sealed class EditorMainShell :
 
         var particleEffectDocument =
             activeDocument as ParticleEffectDocument;
-
+        var animationClipDocument =
+    activeDocument as AnimationClipDocument;
         BindParticleEffectDocument(particleEffectDocument);
-
+        BindAnimationClipDocument(
+    animationClipDocument);
         RefreshDocumentTabs();
 
         if (activeDocument is EditorUiDocument activeUiDocument)
@@ -474,6 +511,12 @@ public sealed class EditorMainShell :
         {
             _particleEffectWorkspaceView.Visible =
                 particleEffectDocument is not null;
+        }
+
+        if (_animationClipWorkspaceView is not null)
+        {
+            _animationClipWorkspaceView.Visible =
+                animationClipDocument is not null;
         }
 
         _validateButton.Enabled =
@@ -505,6 +548,14 @@ public sealed class EditorMainShell :
             documentStatus =
                 $"Particle Effect • {particleEffectDocument.DisplayName} • " +
                 (particleEffectDocument.IsDirty
+                    ? "Unsaved changes"
+                    : "Saved");
+        }
+        else if (animationClipDocument is not null)
+        {
+            documentStatus =
+                $"Animation Clip • {animationClipDocument.DisplayName} • " +
+                (animationClipDocument.IsDirty
                     ? "Unsaved changes"
                     : "Saved");
         }

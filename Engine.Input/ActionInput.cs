@@ -23,14 +23,9 @@ public sealed class ActionInput : IInput
     {
         _previousValues.Clear();
 
-        foreach (var action in _actionMap.Actions)
+        foreach (var pair in _currentValues)
         {
-            if (_currentValues.TryGetValue(
-                    action,
-                    out var value))
-            {
-                _previousValues[action] = value;
-            }
+            _previousValues[pair.Key] = pair.Value;
         }
 
         _backend.Update();

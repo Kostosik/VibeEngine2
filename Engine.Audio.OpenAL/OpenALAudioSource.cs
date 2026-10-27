@@ -15,6 +15,8 @@ public sealed class OpenALAudioSource : IAudioSource
         get
         {
             ThrowIfDisposed();
+            _device.ThrowIfDisposed();
+
             return _handle;
         }
     }
@@ -144,11 +146,11 @@ public sealed class OpenALAudioSource : IAudioSource
     {
         ThrowIfDisposed();
 
-        if (gain < 0.0f)
+        if (!float.IsFinite(gain) || gain < 0.0f)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(gain),
-                "Gain cannot be negative.");
+                "Gain must be finite and non-negative.");
         }
 
         _device.AL.SetSourceProperty(
@@ -161,11 +163,11 @@ public sealed class OpenALAudioSource : IAudioSource
     {
         ThrowIfDisposed();
 
-        if (pitch <= 0.0f)
+        if (!float.IsFinite(pitch) || pitch <= 0.0f)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(pitch),
-                "Pitch must be greater than zero.");
+                "Pitch must be finite and greater than zero.");
         }
 
         _device.AL.SetSourceProperty(
@@ -184,9 +186,27 @@ public sealed class OpenALAudioSource : IAudioSource
             looping);
     }
 
+    private static void ValidateVector(
+    Vector3 value,
+    string parameterName)
+    {
+        if (!float.IsFinite(value.X) ||
+            !float.IsFinite(value.Y) ||
+            !float.IsFinite(value.Z))
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                "Vector components must be finite.");
+        }
+    }
+
     public void SetPosition(Vector3 position)
     {
         ThrowIfDisposed();
+
+        ValidateVector(
+            position,
+            nameof(position));
 
         _device.AL.SetSourceProperty(
             _handle,
@@ -200,6 +220,10 @@ public sealed class OpenALAudioSource : IAudioSource
     {
         ThrowIfDisposed();
 
+        ValidateVector(
+    velocity,
+    nameof(velocity));
+
         _device.AL.SetSourceProperty(
             _handle,
             SourceVector3.Velocity,
@@ -211,15 +235,22 @@ public sealed class OpenALAudioSource : IAudioSource
     public void Dispose()
     {
         if (_disposed)
-            return;
-
-        if (_handle != 0 && !_device.IsDisposed)
         {
-            _device.AL.DeleteSource(_handle);
-            _handle = 0;
+            return;
         }
 
-        _disposed = true;
+        try
+        {
+            if (_handle != 0 && !_device.IsDisposed)
+            {
+                _device.AL.DeleteSource(_handle);
+            }
+        }
+        finally
+        {
+            _handle = 0;
+            _disposed = true;
+        }
     }
 
     private void ThrowIfDisposed()

@@ -5,6 +5,36 @@ namespace Engine.Tests.Input;
 public sealed class ActionInputTests
 {
     [Fact]
+    public void IsReleased_ReturnsTrue_WhenActiveActionIsUnbound()
+    {
+        var backend = new TestInputBackend();
+
+        var action = new InputAction("Build");
+        var binding = new InputBinding("Mouse.Left");
+
+        var map = new InputActionMap();
+        map.Bind(action, binding);
+
+        backend.Set(binding, 1.0f);
+
+        var input = new ActionInput(backend, map);
+
+        input.Update();
+
+        Assert.True(input.IsDown(action));
+
+        map.Unbind(action);
+        input.Update();
+
+        Assert.True(input.IsReleased(action));
+        Assert.False(input.IsDown(action));
+
+        input.Update();
+
+        Assert.False(input.IsReleased(action));
+    }
+
+    [Fact]
     public void IsDown_ReturnsTrue_WhenBindingIsActive()
     {
         var backend = new TestInputBackend();

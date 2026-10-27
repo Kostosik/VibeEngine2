@@ -44,11 +44,27 @@ public sealed class AudioResourceManager
         var buffer =
             _audio.CreateBuffer(data);
 
-        _loaded.Add(
-            path,
-            buffer);
+        try
+        {
+            _loaded.Add(
+                path,
+                buffer);
 
-        return buffer;
+            return buffer;
+        }
+        catch
+        {
+            try
+            {
+                buffer.Dispose();
+            }
+            catch
+            {
+                // Не подменяем исходную ошибку регистрации.
+            }
+
+            throw;
+        }
     }
 
     public bool IsLoaded(AssetPath path)

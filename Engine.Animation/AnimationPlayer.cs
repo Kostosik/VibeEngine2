@@ -11,6 +11,7 @@ public sealed class AnimationPlayer
     {
         _bindings =
             bindings;
+        ApplyCurrentPose();
     }
 
     public AnimationPlayer(
@@ -61,6 +62,7 @@ public sealed class AnimationPlayer
 
         IsPlaying =
             play;
+        ApplyCurrentPose();
     }
 
     public void Play()
@@ -78,6 +80,7 @@ public sealed class AnimationPlayer
 
         IsPlaying =
             true;
+        ApplyCurrentPose();
     }
 
     public void Pause()
@@ -96,6 +99,7 @@ public sealed class AnimationPlayer
 
         TimeSeconds =
             0.0;
+        ApplyCurrentPose();
     }
 
     public void Reset()
@@ -128,6 +132,7 @@ public sealed class AnimationPlayer
             IsPlaying =
                 false;
         }
+        ApplyCurrentPose();
     }
 
     public void Update(
@@ -173,10 +178,15 @@ public sealed class AnimationPlayer
                     LoopMode,
                     null);
         }
-
+        ApplyCurrentPose();
     }
 
-
+    private void ApplyCurrentPose()
+    {
+        _bindings?.Apply(
+            _clip,
+            TimeSeconds);
+    }
 
     private void UpdateOnce(
         double nextTime)

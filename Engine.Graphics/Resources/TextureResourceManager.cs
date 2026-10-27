@@ -58,9 +58,24 @@ public sealed class TextureResourceManager :
             _content.Load<TextureData>(
                 path);
 
-        var texture =
-            _textures.Create(
-                data);
+        TextureHandle texture;
+
+        try
+        {
+            texture = _textures.Create(data);
+
+            if (!texture.IsValid || !_textures.Exists(texture))
+            {
+                throw new InvalidOperationException(
+                    $"Texture manager returned an invalid texture handle " +
+                    $"for asset '{path}'.");
+            }
+        }
+        catch
+        {
+            _content.Unload<TextureData>(path);
+            throw;
+        }
 
         _loaded.Add(
             path,
@@ -142,6 +157,18 @@ public sealed class TextureResourceManager :
         EnsureNotDisposed();
         EnsurePathValid(path);
 
+        if (tileWidth <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(tileWidth));
+        }
+
+        if (tileHeight <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(tileHeight));
+        }
+
         var key =
             new TextureAtlasKey(
                 path,
@@ -155,25 +182,39 @@ public sealed class TextureResourceManager :
             return existing;
         }
 
+        var wasLoaded =
+            TryGet(path, out _);
+
         var texture =
             Load(path);
 
-        var description =
-            _textures.GetDescription(
-                texture);
+        try
+        {
+            var description =
+                _textures.GetDescription(texture);
 
-        var atlas =
-            new TextureAtlas(
-                texture,
-                description,
-                tileWidth,
-                tileHeight);
+            var atlas =
+                new TextureAtlas(
+                    texture,
+                    description,
+                    tileWidth,
+                    tileHeight);
 
-        _atlases.Add(
-            key,
-            atlas);
+            _atlases.Add(
+                key,
+                atlas);
 
-        return atlas;
+            return atlas;
+        }
+        catch
+        {
+            if (!wasLoaded)
+            {
+                Unload(path);
+            }
+
+            throw;
+        }
     }
 
     public bool Unload(

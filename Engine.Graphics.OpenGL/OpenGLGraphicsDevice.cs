@@ -15,7 +15,7 @@ public sealed class OpenGLGraphicsDevice
     : IGraphicsDevice, IDisposable
 {
     private readonly GL _gl;
-
+    private bool _disposed;
     private readonly OpenGLDebugRenderer _debugRenderer;
     private readonly OpenGLTextureManager _textureManager;
     private readonly OpenGLTextureRenderer _textureRenderer;
@@ -62,92 +62,121 @@ public sealed class OpenGLGraphicsDevice
 
         _gl = gl;
 
-        _renderState =
-            new OpenGLRenderState(
-                gl);
+        try
+        {
+            _renderState =
+                new OpenGLRenderState(gl);
 
-        _textureManager =
-            new OpenGLTextureManager(
-                gl);
+            _textureManager =
+                new OpenGLTextureManager(gl);
 
-        _bufferManager =
-            new OpenGLGraphicsBufferManager(
-                gl);
+            _bufferManager =
+                new OpenGLGraphicsBufferManager(gl);
 
-        _shaderManager =
-            new OpenGLShaderManager(
-                gl);
+            _shaderManager =
+                new OpenGLShaderManager(gl);
 
-        _textureRenderer =
-            new OpenGLTextureRenderer(
-                gl,
-                width,
-                height,
-                camera);
+            _textureRenderer =
+                new OpenGLTextureRenderer(
+                    gl,
+                    width,
+                    height,
+                    camera);
 
-        _debugRenderer =
-            new OpenGLDebugRenderer(
-                gl,
-                width,
-                height,
-                camera);
+            _debugRenderer =
+                new OpenGLDebugRenderer(
+                    gl,
+                    width,
+                    height,
+                    camera);
 
-        _fontManager =
-            new OpenGLFontManager(
-                _textureManager);
+            _fontManager =
+                new OpenGLFontManager(
+                    _textureManager);
 
-        _fontRenderer =
-            new OpenGLFontRenderer(
-                gl,
-                width,
-                height,
-                _fontManager);
+            _fontRenderer =
+                new OpenGLFontRenderer(
+                    gl,
+                    width,
+                    height,
+                    _fontManager);
 
-        _renderTargetManager =
-            new OpenGLRenderTargetManager(
-                gl,
-                _textureManager);
+            _renderTargetManager =
+                new OpenGLRenderTargetManager(
+                    gl,
+                    _textureManager);
 
-        _dispatcher =
-            new OpenGLRenderCommandDispatcher(
-                _textureManager,
-                _textureRenderer,
-                _debugRenderer,
-                _fontRenderer,
-                _renderState,
-                _renderTargetManager);
+            _dispatcher =
+                new OpenGLRenderCommandDispatcher(
+                    _textureManager,
+                    _textureRenderer,
+                    _debugRenderer,
+                    _fontRenderer,
+                    _renderState,
+                    _renderTargetManager);
 
-        _passExecutor =
-            new OpenGLRenderPassExecutor(
-                gl,
-                _renderTargetManager,
-                _dispatcher,
-                width,
-                height);
+            _passExecutor =
+                new OpenGLRenderPassExecutor(
+                    gl,
+                    _renderTargetManager,
+                    _dispatcher,
+                    width,
+                    height);
 
-        _renderPipeline =
-            new RenderPipeline();
+            _renderPipeline =
+                new RenderPipeline();
 
-        _renderPipeline.AddPass(
-    RenderPass2D.World);
+            _renderPipeline.AddPass(
+                RenderPass2D.World);
 
-        _renderPipeline.AddPass(
-            RenderPass2D.Ui);
+            _renderPipeline.AddPass(
+                RenderPass2D.Ui);
 
-        _renderPipeline.AddPass(
-            RenderPass2D.Debug);
+            _renderPipeline.AddPass(
+                RenderPass2D.Debug);
 
-        Configure();
+            Configure();
+        }
+        catch
+        {
+            TryDispose(_fontRenderer);
+            TryDispose(_textureRenderer);
+            TryDispose(_debugRenderer);
+
+            TryDispose(_fontManager);
+            TryDispose(_renderTargetManager);
+            TryDispose(_textureManager);
+
+            TryDispose(_bufferManager);
+            TryDispose(_shaderManager);
+
+            throw;
+        }
+    }
+
+    private static void TryDispose(
+    IDisposable? resource)
+    {
+        try
+        {
+            resource?.Dispose();
+        }
+        catch
+        {
+            // Не подменяем исходную ошибку конструктора.
+        }
     }
 
     public void BeginFrame()
     {
+        ThrowIfDisposed();
         _renderQueue.Clear();
     }
 
     public void Submit(
         IRenderCommand command)
     {
+        ThrowIfDisposed();
         _renderQueue.Submit(
             command);
     }
@@ -156,6 +185,7 @@ public sealed class OpenGLGraphicsDevice
 
     public void EndFrame()
     {
+        ThrowIfDisposed();
         _renderPipeline.Execute(
             _renderQueue,
             _passExecutor);
@@ -165,20 +195,63 @@ public sealed class OpenGLGraphicsDevice
         int width,
         int height)
     {
+        ThrowIfDisposed();
         _passExecutor.Resize(
             width,
             height);
     }
 
+    private void ThrowIfDisposed()
+    {
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(
+                nameof(OpenGLGraphicsDevice));
+        }
+    }
+
     public void Dispose()
     {
-        _debugRenderer.Dispose();
-        _textureRenderer.Dispose();
-        _fontManager.Dispose();
-        _renderTargetManager.Dispose();
-        _textureManager.Dispose();
-        _bufferManager.Dispose();
-        _shaderManager.Dispose();
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
+        var errors = new List<Exception>();
+
+        DisposeResource(_debugRenderer, errors);
+        DisposeResource(_textureRenderer, errors);
+        DisposeResource(_fontRenderer, errors);
+
+        DisposeResource(_fontManager, errors);
+        DisposeResource(_renderTargetManager, errors);
+        DisposeResource(_textureManager, errors);
+
+        DisposeResource(_bufferManager, errors);
+        DisposeResource(_shaderManager, errors);
+
+        if (errors.Count > 0)
+        {
+            throw new AggregateException(
+                "One or more graphics resources failed to dispose.",
+                errors);
+        }
+    }
+
+    private static void DisposeResource(
+    IDisposable resource,
+    List<Exception> errors)
+    {
+        try
+        {
+            resource.Dispose();
+        }
+        catch (Exception exception)
+        {
+            errors.Add(exception);
+        }
     }
 
     private void Configure()

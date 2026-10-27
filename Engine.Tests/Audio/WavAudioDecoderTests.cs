@@ -8,6 +8,31 @@ namespace Engine.Tests.Audio;
 public sealed class WavAudioDecoderTests
 {
     [Fact]
+    public void Load_RejectsDataChunkOutsideDeclaredRiffSize()
+    {
+        var wav =
+            CreateWav(
+                blockAlign: 2,
+                byteRate: 44100 * 2,
+                data: new byte[] { 0, 0 });
+
+        // RIFF заканчивается сразу после заголовка data-чанка,
+        // хотя сам чанк объявляет ещё два байта данных.
+        BinaryPrimitives.WriteUInt32LittleEndian(
+            wav.AsSpan(4),
+            36);
+
+        var loader =
+            new AudioLoader();
+
+        Assert.Throws<InvalidDataException>(
+            () =>
+                loader.Load(
+                    new InMemoryAssetSource(wav),
+                    new AssetPath("test.wav")));
+    }
+
+    [Fact]
     public void Load_AcceptsValidPcmWav()
     {
         var wav =

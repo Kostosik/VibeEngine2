@@ -76,10 +76,10 @@ internal sealed class OpenGLRenderCommandDispatcher
 
     public void BeginFrame()
     {
+        _textureRenderer.Begin();
+
         _activeRenderer =
             RendererKind.Texture;
-
-        _textureRenderer.Begin();
     }
 
     public void Execute(

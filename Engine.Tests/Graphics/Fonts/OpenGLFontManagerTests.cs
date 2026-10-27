@@ -10,6 +10,27 @@ public sealed class OpenGLFontManagerTests
     private const int LatinExtendedFirst = 0x0100;
     private const int LatinExtendedCount = 0x0100;
 
+
+
+    [Fact]
+    public void Create_WhenAtlasCreationFails_ReleasesPreviousTextures()
+    {
+        var fontData = LoadTestFont();
+        var textures = new TestTextureManager
+        {
+            ThrowOnCreateCall = 2
+        };
+
+        using var fonts = new OpenGLFontManager(textures);
+
+        Assert.Throws<InvalidOperationException>(
+            () => fonts.Create(
+                fontData,
+                new FontDescription(18)));
+
+        Assert.Equal(0, textures.TextureCount);
+    }
+
     [Fact]
     public void Create_AdditionalCodepointRange_LoadsSupportedGlyph()
     {
@@ -171,6 +192,12 @@ public sealed class OpenGLFontManagerTests
     {
         private uint _nextHandle = 1;
 
+        private int _createCallCount;
+
+        public int ThrowOnCreateCall { get; set; }
+
+        public int TextureCount => _textures.Count;
+
         private readonly Dictionary<
             TextureHandle,
             TextureDescription> _textures = new();
@@ -178,6 +205,14 @@ public sealed class OpenGLFontManagerTests
         public TextureHandle Create(
             TextureDescription description)
         {
+            _createCallCount++;
+
+            if (_createCallCount == ThrowOnCreateCall)
+            {
+                throw new InvalidOperationException(
+                    "Simulated texture creation failure.");
+            }
+
             var handle = new TextureHandle(
                 _nextHandle++);
 

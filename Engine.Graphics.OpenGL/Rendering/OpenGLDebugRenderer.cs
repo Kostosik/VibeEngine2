@@ -42,27 +42,67 @@ internal sealed class OpenGLDebugRenderer :
         _camera = camera;
 
         _shader =
-            new OpenGLShaderProgram(
-                _gl,
-                VertexShaderSource,
-                FragmentShaderSource);
+    new OpenGLShaderProgram(
+        _gl,
+        VertexShaderSource,
+        FragmentShaderSource);
 
-        _resolutionLocation =
-            _shader.GetUniformLocation(
-                "uResolution");
-
-        if (_resolutionLocation < 0)
+        try
         {
-            throw new InvalidOperationException(
-                "Uniform 'uResolution' was not found.");
+            _resolutionLocation =
+                _shader.GetUniformLocation(
+                    "uResolution");
+
+            if (_resolutionLocation < 0)
+            {
+                throw new InvalidOperationException(
+                    "Uniform 'uResolution' was not found.");
+            }
+
+            (_vao, _vbo) =
+                CreateBuffer();
+
+            Resize(
+                width,
+                height);
         }
+        catch
+        {
+            if (_vbo != 0)
+            {
+                try
+                {
+                    _gl.DeleteBuffer(_vbo);
+                }
+                catch
+                {
+                    // Сохраняем исходное исключение.
+                }
+            }
 
-        (_vao, _vbo) =
-            CreateBuffer();
+            if (_vao != 0)
+            {
+                try
+                {
+                    _gl.DeleteVertexArray(_vao);
+                }
+                catch
+                {
+                    // Сохраняем исходное исключение.
+                }
+            }
 
-        Resize(
-            width,
-            height);
+            try
+            {
+                _shader.Dispose();
+            }
+            catch
+            {
+                // Сохраняем исходное исключение.
+            }
+
+            throw;
+        }
     }
 
     public void Begin()
@@ -1060,52 +1100,112 @@ internal sealed class OpenGLDebugRenderer :
 
     private (uint Vao, uint Vbo) CreateBuffer()
     {
-        var vao =
-            _gl.GenVertexArray();
+        uint vao = 0;
+        uint vbo = 0;
 
-        var vbo =
-            _gl.GenBuffer();
+        try
+        {
+            vao = _gl.GenVertexArray();
 
-        _gl.BindVertexArray(
-            vao);
+            if (vao == 0)
+            {
+                throw new InvalidOperationException(
+                    "OpenGL failed to create a vertex array.");
+            }
 
-        _gl.BindBuffer(
-            BufferTargetARB.ArrayBuffer,
-            vbo);
+            vbo = _gl.GenBuffer();
 
-        const uint stride =
-            6 * sizeof(float);
+            if (vbo == 0)
+            {
+                throw new InvalidOperationException(
+                    "OpenGL failed to create a vertex buffer.");
+            }
 
-        _gl.VertexAttribPointer(
-            0,
-            2,
-            VertexAttribPointerType.Float,
-            false,
-            stride,
-            0);
+            _gl.BindVertexArray(vao);
 
-        _gl.EnableVertexAttribArray(0);
+            _gl.BindBuffer(
+                BufferTargetARB.ArrayBuffer,
+                vbo);
 
-        _gl.VertexAttribPointer(
-            1,
-            4,
-            VertexAttribPointerType.Float,
-            false,
-            stride,
-            2 * sizeof(float));
+            const uint stride =
+                6 * sizeof(float);
 
-        _gl.EnableVertexAttribArray(1);
+            _gl.VertexAttribPointer(
+                0,
+                2,
+                VertexAttribPointerType.Float,
+                false,
+                stride,
+                0);
 
-        _gl.BindBuffer(
-            BufferTargetARB.ArrayBuffer,
-            0);
+            _gl.EnableVertexAttribArray(0);
 
-        _gl.BindVertexArray(
-            0);
+            _gl.VertexAttribPointer(
+                1,
+                4,
+                VertexAttribPointerType.Float,
+                false,
+                stride,
+                2 * sizeof(float));
 
-        return (
-            vao,
-            vbo);
+            _gl.EnableVertexAttribArray(1);
+
+            _gl.BindBuffer(
+                BufferTargetARB.ArrayBuffer,
+                0);
+
+            _gl.BindVertexArray(0);
+
+            return (vao, vbo);
+        }
+        catch
+        {
+            try
+            {
+                _gl.BindBuffer(
+                    BufferTargetARB.ArrayBuffer,
+                    0);
+            }
+            catch
+            {
+                // Сохраняем исходное исключение.
+            }
+
+            try
+            {
+                _gl.BindVertexArray(0);
+            }
+            catch
+            {
+                // Сохраняем исходное исключение.
+            }
+
+            if (vbo != 0)
+            {
+                try
+                {
+                    _gl.DeleteBuffer(vbo);
+                }
+                catch
+                {
+                    // Сохраняем исходное исключение.
+                }
+            }
+
+            if (vao != 0)
+            {
+                try
+                {
+                    _gl.DeleteVertexArray(vao);
+                }
+                catch
+                {
+                    // Сохраняем исходное исключение.
+                }
+            }
+
+            throw;
+        }
     }
 
     private static float ToFloat(

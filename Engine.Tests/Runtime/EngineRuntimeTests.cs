@@ -28,6 +28,18 @@ namespace Engine.Tests.Runtime;
 public sealed class EngineRuntimeTests
 {
     [Fact]
+    public void Constructor_WithoutServices_RejectsEnabledTooling()
+    {
+        var options = new EngineRuntimeOptions
+        {
+            ToolingEnabled = true
+        };
+
+        Assert.Throws<ArgumentException>(
+            () => new EngineRuntime(options));
+    }
+
+    [Fact]
     public void ScriptFault_IsReportedAndDoesNotStopHealthyScripts()
     {
         using var runtime = CreateRuntime(

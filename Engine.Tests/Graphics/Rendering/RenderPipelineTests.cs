@@ -8,6 +8,26 @@ namespace Engine.Tests.Graphics.Rendering;
 
 public sealed class RenderPipelineTests
 {
+    [Fact]
+    public void Execute_EndsPassWhenCommandThrows()
+    {
+        var queue = new RenderQueue();
+        queue.Submit(new TestCommand(0));
+
+        var pipeline = new RenderPipeline();
+        pipeline.AddPass(RenderPass2D.Default);
+
+        var executor = new TestExecutor
+        {
+            ThrowOnExecute = true
+        };
+
+        Assert.Throws<InvalidOperationException>(
+            () => pipeline.Execute(queue, executor));
+
+        Assert.Equal(1, executor.BeginCount);
+        Assert.Equal(1, executor.EndCount);
+    }
 
     [Fact]
     public void Execute_DoesNotExecuteCommandsOutsidePassRange()
@@ -242,6 +262,13 @@ public sealed class RenderPipelineTests
     }
 
     [Fact]
+    public void RenderPassLayerRange_RejectsInvalidBounds()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new RenderPassLayerRange(10, 0));
+    }
+
+    [Fact]
     public void Execute_ExecutesCommandsInQueueOrder()
     {
         var queue = new RenderQueue();
@@ -276,6 +303,7 @@ public sealed class RenderPipelineTests
     private sealed class TestExecutor
         : IRenderPassExecutor
     {
+        public bool ThrowOnExecute { get; set; }
         public List<RenderPassContext> BegunPasses
         {
             get;
@@ -307,11 +335,15 @@ public sealed class RenderPipelineTests
                 pass);
         }
 
-        public void Execute(
-            IRenderCommand command)
+        public void Execute(IRenderCommand command)
         {
-            ExecutedCommands.Add(
-                command);
+            if (ThrowOnExecute)
+            {
+                throw new InvalidOperationException(
+                    "Test render command failed.");
+            }
+
+            ExecutedCommands.Add(command);
         }
 
         public void End()

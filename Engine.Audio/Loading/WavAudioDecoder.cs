@@ -23,6 +23,20 @@ internal static class WavAudioDecoder
                 $"Audio asset '{path}' is not a valid RIFF/WAVE file.");
         }
 
+        var riffSize =
+    BinaryPrimitives.ReadUInt32LittleEndian(
+        data.Slice(4, 4));
+
+        if (riffSize < 4 ||
+            riffSize > (uint)(data.Length - 8))
+        {
+            throw new InvalidDataException(
+                $"Audio asset '{path}' has an invalid RIFF size.");
+        }
+
+        var riffEnd =
+            8 + (int)riffSize;
+
         var position = 12;
 
         ushort channels = 0;
@@ -35,7 +49,7 @@ internal static class WavAudioDecoder
         bool formatFound = false;
         bool dataFound = false;
 
-        while (position + 8 <= data.Length)
+        while (position <= riffEnd - 8)
         {
             var chunkId = data.Slice(position, 4);
             var chunkSize = BinaryPrimitives.ReadUInt32LittleEndian(
@@ -51,7 +65,7 @@ internal static class WavAudioDecoder
 
             var size = (int)chunkSize;
 
-            if (size > data.Length - position)
+            if (size > riffEnd - position)
             {
                 throw new InvalidDataException(
                     $"WAV chunk in '{path}' extends beyond the file.");
@@ -89,7 +103,11 @@ internal static class WavAudioDecoder
                 position++;
             }
         }
-
+        if (position != riffEnd)
+        {
+            throw new InvalidDataException(
+                $"WAV file '{path}' ends with an incomplete chunk header.");
+        }
         if (!formatFound)
         {
             throw new InvalidDataException(

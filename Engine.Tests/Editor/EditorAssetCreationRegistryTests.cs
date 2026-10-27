@@ -1,10 +1,29 @@
-﻿using System.Text.Json;
+﻿using Engine.Animation;
 using Engine.Editor.Assets;
+using System.Text.Json;
 
 namespace Engine.Tests.Editor;
 
 public sealed class EditorAssetCreationRegistryTests
 {
+    [Fact]
+    public void AnimationClipTemplate_CreatesValidAnimationResource()
+    {
+        var definition =
+            EditorAssetCreationRegistry.CreateDefault()
+                .GetRequired("animation-clip");
+
+        var contents =
+            definition.CreateInitialContents("Idle");
+
+        var serializer = new AnimationClipJsonSerializer();
+        var clip = serializer.Deserialize(contents);
+
+        Assert.Equal(".animation.json", definition.Extension);
+        Assert.Equal(1.0, clip.DurationSeconds);
+        Assert.Equal(0, clip.TrackCount);
+    }
+
     [Fact]
     public void CreateDefault_RegistersInitialCreationTypes()
     {
@@ -13,11 +32,12 @@ public sealed class EditorAssetCreationRegistryTests
         Assert.Equal(
             new[]
             {
-        "folder",
-        "particle-effect",
-        "script-definition",
-        "world-document",
-        "ui-document"
+                "folder",
+                "particle-effect",
+                "animation-clip",
+                "script-definition",
+                "world-document",
+                "ui-document"
             },
             registry.Definitions.Select(item => item.Id));
 

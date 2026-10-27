@@ -11,6 +11,7 @@ using Engine.Graphics.Resources;
 using Engine.Tooling.Debugging;
 using Engine.UI.Controls;
 using Engine.UI.Core;
+using Engine.UI.Input;
 using Engine.UI.Layout;
 
 namespace Engine.Editor.UI.Workspace;
@@ -39,7 +40,7 @@ public sealed class EditorWorkspaceView :
     public EditorWorkspaceView(
         EditorContext editor, UiOverlayLayer overlays,
         ITextureResourceManager assetPreviewTextures,
-        DebugConsole? console = null, InspectorPropertyEditorRegistry? propertyEditors = null, ITextureManager? filePreviewTextureManager = null, EditorAssetPickerDialog? assetPickerDialog = null)
+        DebugConsole? console = null, InspectorPropertyEditorRegistry? propertyEditors = null, ITextureManager? filePreviewTextureManager = null, EditorAssetPickerDialog? assetPickerDialog = null, UiFocusManager? focus = null)
     {
         ArgumentNullException.ThrowIfNull(
             editor);
@@ -78,9 +79,10 @@ public sealed class EditorWorkspaceView :
         AddChild(
             _inspectorHost);
 
-        Hierarchy =
-            new HierarchyPanelView(
-                editor);
+        Hierarchy = new HierarchyPanelView(
+            editor,
+            overlays,
+            focus);
 
         Viewport = new ViewportPanelView(
             editor,

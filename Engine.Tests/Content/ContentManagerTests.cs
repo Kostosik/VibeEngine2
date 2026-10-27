@@ -8,6 +8,34 @@ namespace Engine.Tests.Content;
 public sealed class ContentManagerTests
 {
     [Fact]
+    public async Task Dispose_DuringAsyncLoad_DisposesCompletedAsset()
+    {
+        var path = new AssetPath("test.asset");
+
+        var content = new ContentManager(
+            new TestAssetSource(),
+            new TestCatalog(path),
+            new ContentLoaderRegistry());
+
+        var loader = new BlockingDisposableTestLoader();
+        content.Register(loader);
+
+        var loadTask =
+            content.LoadAsync<DisposableTestAsset>(path).AsTask();
+
+        await loader.Started.Task;
+
+        content.Dispose();
+        loader.Release();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(
+            async () => await loadTask);
+
+        Assert.NotNull(loader.CreatedAsset);
+        Assert.True(loader.CreatedAsset!.Disposed);
+    }
+
+    [Fact]
     public async Task Load_ConcurrentSyncRequestsDoNotShareLoadingState()
     {
         var dependencyPath =
@@ -530,6 +558,187 @@ public sealed class ContentManagerTests
     }
 
     [Fact]
+    public async Task LoadAsync_CancelledRequest_DoesNotLeakExternalReference()
+    {
+        var path = new AssetPath("test.asset");
+
+        using var content = new ContentManager(
+            new TestAssetSource(),
+            new TestCatalog(path),
+            new ContentLoaderRegistry());
+
+        var loader = new BlockingDisposableAsyncTestLoader();
+        content.Register(loader);
+
+        using var cts = new CancellationTokenSource();
+
+        var cancelledTask =
+            content.LoadAsync<DisposableTestAsset>(
+                path,
+                cts.Token).AsTask();
+
+        await loader.Started.Task;
+
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            async () => await cancelledTask);
+
+        loader.Release();
+        await loader.Completed.Task;
+
+        // Получаем ресурс уже отдельным успешным запросом.
+        var asset = await content.LoadAsync<DisposableTestAsset>(path);
+
+        Assert.Same(loader.CreatedAsset, asset);
+
+        // Одной ссылки достаточно: отменённый запрос её не получил.
+        Assert.True(content.Unload<DisposableTestAsset>(path));
+        Assert.True(asset.Disposed);
+    }
+
+    [Fact]
+    public async Task LoadAsync_AllRequestsCancelled_DisposesUnreferencedResult()
+    {
+        var path = new AssetPath("test.asset");
+
+        using var content = new ContentManager(
+            new TestAssetSource(),
+            new TestCatalog(path),
+            new ContentLoaderRegistry());
+
+        var loader = new BlockingDisposableAsyncTestLoader();
+        content.Register(loader);
+
+        using var cts = new CancellationTokenSource();
+
+        var loadTask =
+            content.LoadAsync<DisposableTestAsset>(
+                path,
+                cts.Token).AsTask();
+
+        await loader.Started.Task;
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            async () => await loadTask);
+
+        loader.Release();
+        await loader.Completed.Task;
+
+        var asset = Assert.IsType<DisposableTestAsset>(
+            loader.CreatedAsset);
+
+        await asset.DisposedTask.WaitAsync(
+            TimeSpan.FromSeconds(5));
+
+        Assert.False(content.IsLoaded<DisposableTestAsset>(path));
+    }
+
+    private sealed class DisposableTestAsset : IDisposable
+    {
+        private readonly TaskCompletionSource<bool> _disposed =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool Disposed { get; private set; }
+
+        public Task DisposedTask => _disposed.Task;
+
+        public void Dispose()
+        {
+            Disposed = true;
+            _disposed.TrySetResult(true);
+        }
+    }
+
+    private sealed class BlockingDisposableAsyncTestLoader :
+    IContentLoader<DisposableTestAsset>
+    {
+        private readonly TaskCompletionSource<bool> _release =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> Started { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> Completed { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public DisposableTestAsset? CreatedAsset { get; private set; }
+
+        public Type AssetType => typeof(DisposableTestAsset);
+
+        public DisposableTestAsset Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            throw new InvalidOperationException(
+                "This test expects asynchronous loading.");
+        }
+
+        public async ValueTask<DisposableTestAsset> LoadAsync(
+            AssetPath path,
+            IContentLoadContext context,
+            CancellationToken cancellationToken = default)
+        {
+            Started.TrySetResult(true);
+
+            await _release.Task.WaitAsync(cancellationToken);
+
+            CreatedAsset = new DisposableTestAsset();
+            Completed.TrySetResult(true);
+
+            return CreatedAsset;
+        }
+
+        public void Release()
+        {
+            _release.TrySetResult(true);
+        }
+
+        object IContentLoader.Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            return Load(path, context);
+        }
+
+        public bool CanLoad(ContentAsset asset)
+        {
+            ArgumentNullException.ThrowIfNull(asset);
+            return true;
+        }
+    }
+
+    [Fact]
+    public void Reload_WhenReplacementFails_PreservesExistingAsset()
+    {
+        var path = new AssetPath("test.asset");
+
+        using var content = new ContentManager(
+            new TestAssetSource(),
+            new TestCatalog(path),
+            new ContentLoaderRegistry());
+
+        var loader = new FailOnSecondLoadDisposableTestLoader();
+        content.Register(loader);
+
+        var original = content.Load<DisposableTestAsset>(path);
+
+        Assert.Throws<InvalidOperationException>(
+            () => content.Reload<DisposableTestAsset>(path));
+
+        Assert.False(original.Disposed);
+        Assert.True(content.IsLoaded<DisposableTestAsset>(path));
+
+        Assert.Same(
+            original,
+            content.Load<DisposableTestAsset>(path));
+
+        Assert.True(content.Unload<DisposableTestAsset>(path));
+        Assert.True(content.Unload<DisposableTestAsset>(path));
+    }
+
+    [Fact]
     public void Unload_DisposesLoadedAsset()
     {
         var source =
@@ -641,20 +850,6 @@ public sealed class ContentManagerTests
                 asset);
 
             return true;
-        }
-    }
-    private sealed class DisposableTestAsset :
-        IDisposable
-    {
-        public bool Disposed
-        {
-            get;
-            private set;
-        }
-
-        public void Dispose()
-        {
-            Disposed = true;
         }
     }
 
@@ -866,6 +1061,58 @@ public sealed class ContentManagerTests
         }
     }
 
+    private sealed class BlockingDisposableTestLoader :
+    IContentLoader<DisposableTestAsset>
+    {
+        private readonly TaskCompletionSource<bool> _release =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> Started { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public DisposableTestAsset? CreatedAsset { get; private set; }
+
+        public Type AssetType => typeof(DisposableTestAsset);
+
+        public DisposableTestAsset Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            return new DisposableTestAsset();
+        }
+
+        public async ValueTask<DisposableTestAsset> LoadAsync(
+            AssetPath path,
+            IContentLoadContext context,
+            CancellationToken cancellationToken = default)
+        {
+            Started.TrySetResult(true);
+
+            await _release.Task.WaitAsync(cancellationToken);
+
+            CreatedAsset = new DisposableTestAsset();
+            return CreatedAsset;
+        }
+
+        public void Release()
+        {
+            _release.TrySetResult(true);
+        }
+
+        object IContentLoader.Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            return Load(path, context);
+        }
+
+        public bool CanLoad(ContentAsset asset)
+        {
+            ArgumentNullException.ThrowIfNull(asset);
+            return true;
+        }
+    }
+
     private sealed class BlockingSyncLoader :
     IContentLoader<TestAsset>
     {
@@ -944,6 +1191,40 @@ public sealed class ContentManagerTests
         public TestAsset Value
         {
             get;
+        }
+    }
+
+    private sealed class FailOnSecondLoadDisposableTestLoader :
+    IContentLoader<DisposableTestAsset>
+    {
+        private int _loadCount;
+
+        public Type AssetType => typeof(DisposableTestAsset);
+
+        public DisposableTestAsset Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            if (Interlocked.Increment(ref _loadCount) > 1)
+            {
+                throw new InvalidOperationException(
+                    "Simulated replacement load failure.");
+            }
+
+            return new DisposableTestAsset();
+        }
+
+        object IContentLoader.Load(
+            AssetPath path,
+            IContentLoadContext context)
+        {
+            return Load(path, context);
+        }
+
+        public bool CanLoad(ContentAsset asset)
+        {
+            ArgumentNullException.ThrowIfNull(asset);
+            return true;
         }
     }
 

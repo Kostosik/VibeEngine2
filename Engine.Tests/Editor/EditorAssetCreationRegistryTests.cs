@@ -71,6 +71,28 @@ public sealed class EditorAssetCreationRegistryTests
     }
 
     [Fact]
+    public void TilemapTemplate_CreatesValidResource()
+    {
+        var definition =
+            EditorAssetCreationRegistry.CreateDefault()
+                .GetRequired("tilemap");
+
+        var contents =
+            definition.CreateInitialContents("New Tilemap");
+
+        var map =
+            JsonTilemapDefinitionSerializer.Deserialize(
+                new AssetPath("New Tilemap.tilemap.json"),
+                System.Text.Encoding.UTF8.GetBytes(contents));
+
+        Assert.Equal(".tilemap.json", definition.Extension);
+        Assert.Equal(16, map.Width);
+        Assert.Equal(16, map.Height);
+        Assert.Equal(256, map.Tiles.Count);
+        Assert.All(map.Tiles, tile => Assert.Equal(0u, tile));
+    }
+
+    [Fact]
     public void CreateDefault_RegistersInitialCreationTypes()
     {
         var registry = EditorAssetCreationRegistry.CreateDefault();
@@ -79,6 +101,7 @@ public sealed class EditorAssetCreationRegistryTests
             new[]
             {
                 "tile-set",
+                "tilemap",
                 "folder",
                 "particle-effect",
                 "animation-clip",

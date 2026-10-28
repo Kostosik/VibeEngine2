@@ -1,4 +1,6 @@
-﻿namespace Engine.Editor.Assets;
+﻿using System.Text.Json;
+
+namespace Engine.Editor.Assets;
 
 public sealed class EditorAssetCreationRegistry
 {
@@ -61,7 +63,14 @@ public sealed class EditorAssetCreationRegistry
                 defaultName: "New Folder",
                 kind: EditorAssetCreationKind.Directory,
                 extension: string.Empty));
-
+        registry.Register(
+    new EditorAssetCreationDefinition(
+        id: "tilemap",
+        displayName: "Tilemap",
+        defaultName: "New Tilemap",
+        kind: EditorAssetCreationKind.TextFile,
+        extension: ".tilemap.json",
+        contentFactory: static _ => CreateTilemapTemplate()));
         registry.Register(
             new EditorAssetCreationDefinition(
                 id: "particle-effect",
@@ -162,6 +171,22 @@ public sealed class EditorAssetCreationRegistry
         return registry;
     }
 
+    private static string CreateTilemapTemplate()
+    {
+        return JsonSerializer.Serialize(
+            new
+            {
+                formatVersion = 1,
+                tileSetPath = "TileSets/Terrain.tileset.json",
+                width = 16,
+                height = 16,
+                tiles = new uint[16 * 16]
+            },
+            new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+    }
     private static string CreateScriptDefinitionTemplate(string name)
     {
         var slug = new string(

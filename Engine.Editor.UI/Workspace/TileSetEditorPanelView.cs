@@ -2,11 +2,13 @@
 using Engine.Editor.Documents;
 using Engine.Editor.UI.Dialogs;
 using Engine.Graphics.Commands;
+using Engine.Graphics.Resources;
 using Engine.Graphics.Tilemaps;
 using Engine.UI.Controls;
 using Engine.UI.Core;
 using Engine.UI.Layout;
 using System.Globalization;
+using Engine.Core.Math;
 
 namespace Engine.Editor.UI.Workspace;
 
@@ -20,6 +22,10 @@ public sealed class TileSetEditorPanelView : UiPanel
 
     private readonly UiStackPanel _atlasRows;
     private readonly UiStackPanel _tileRows;
+
+    private readonly TileSetAtlasPreviewView _previewView;
+    private readonly UiStackPanel _contentRow;
+    private readonly UiStackPanel _editorColumn;
 
     private readonly UiTextBox _newAtlasId;
     private readonly UiPickerField _newAtlasTexture;
@@ -37,8 +43,22 @@ public sealed class TileSetEditorPanelView : UiPanel
     public TileSetEditorPanelView(
         TileSetDocument document,
         EditorAssetPickerDialog? assetPickerDialog = null)
+        : this(
+            document,
+            null,
+            null,
+            assetPickerDialog)
     {
-        ArgumentNullException.ThrowIfNull(document);
+    }
+
+    public TileSetEditorPanelView(
+        TileSetDocument document,
+        EditorContext? editor,
+        ITextureManager? textureManager,
+        EditorAssetPickerDialog? assetPickerDialog = null)
+    {
+    
+    ArgumentNullException.ThrowIfNull(document);
 
         _document = document;
         _assetPickerDialog = assetPickerDialog;
@@ -125,10 +145,41 @@ public sealed class TileSetEditorPanelView : UiPanel
         };
 
         _addTileButton.Clicked += AddTile;
-        layout.AddChild(_summaryLabel);
+        _editorColumn = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical,
+            Spacing = 8.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
 
-        layout.AddChild(CreateAtlasSection());
-        layout.AddChild(CreateTileSection());
+        _editorColumn.AddChild(_summaryLabel);
+        _editorColumn.AddChild(CreateAtlasSection());
+        _editorColumn.AddChild(CreateTileSection());
+
+        _previewView = new TileSetAtlasPreviewView(
+            document,
+            editor,
+            textureManager,
+            () => _newTileAtlas.SelectedText)
+        {
+            Width = 420.0f,
+            Height = 430.0f,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+        _previewView.AtlasCellSelected += OnAtlasCellSelected;
+        _contentRow = new UiStackPanel
+        {
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 12.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        _contentRow.AddChild(_editorColumn);
+        _contentRow.AddChild(_previewView);
+
+        layout.AddChild(_contentRow);
         layout.AddChild(_messageLabel);
 
         var pageScroll = new UiScrollView
@@ -143,9 +194,6 @@ public sealed class TileSetEditorPanelView : UiPanel
 
         pageScroll.SetContent(layout);
         AddChild(pageScroll);
-
-
-
         // Сначала создаём секции и их элементы, затем
         // подписываемся на изменения документа.
         _document.Changed += OnDocumentChanged;
@@ -156,6 +204,8 @@ public sealed class TileSetEditorPanelView : UiPanel
     public void ReleaseResources()
     {
         _document.Changed -= OnDocumentChanged;
+        _previewView.AtlasCellSelected -= OnAtlasCellSelected;
+        _previewView.ReleaseResources();
     }
 
     public void Refresh()
@@ -171,7 +221,25 @@ public sealed class TileSetEditorPanelView : UiPanel
         RefreshTiles(definition);
         RefreshNewTileAtlas(definition);
     }
+    private void OnAtlasCellSelected(
+    string atlasId,
+    int atlasIndex)
+    {
+        if (!string.Equals(
+                _newTileAtlas.SelectedText,
+                atlasId,
+                StringComparison.Ordinal))
+        {
+            SelectNewTileAtlas(atlasId);
+        }
 
+        _newTileAtlasIndex.SetText(
+            atlasIndex.ToString(CultureInfo.InvariantCulture));
+
+        ShowMessage(
+            $"Atlas '{atlasId}', cell {atlasIndex} selected.",
+            success: true);
+    }
     private UiWidget CreateAtlasSection()
     {
         var content = new UiStackPanel
@@ -596,6 +664,35 @@ public sealed class TileSetEditorPanelView : UiPanel
         }
     }
 
+    protected override Vector2 MeasureCore(
+    UiLayoutContext context,
+    Vector2 availableSize)
+    {
+        var contentWidth = MathF.Max(
+            0.0f,
+            availableSize.X - Padding.Left - Padding.Right);
+
+        var compact = contentWidth < 1050.0f;
+
+        _contentRow.Orientation = compact
+            ? UiOrientation.Vertical
+            : UiOrientation.Horizontal;
+
+        var previewWidth = compact
+            ? contentWidth
+            : Math.Clamp(contentWidth * 0.38f, 300.0f, 500.0f);
+
+        var editorWidth = compact
+            ? contentWidth
+            : MathF.Max(360.0f, contentWidth - previewWidth - 12.0f);
+
+        _editorColumn.Width = editorWidth;
+        _previewView.Width = previewWidth;
+        _previewView.Height = 430.0f;
+
+        return base.MeasureCore(context, availableSize);
+    }
+
     private void RefreshTiles(TileSetDefinition definition)
     {
         _tileRows.ClearChildren();
@@ -643,6 +740,20 @@ public sealed class TileSetEditorPanelView : UiPanel
             indexBox.SetText(
                 tile.AtlasIndex.ToString(CultureInfo.InvariantCulture));
 
+            var previewButton = new UiButton("Preview")
+            {
+                Width = 75.0f,
+                Height = 30.0f
+            };
+
+            var previewAtlasId = tile.AtlasId;
+            var previewAtlasIndex = tile.AtlasIndex;
+
+            previewButton.Clicked += () =>
+                PreviewTile(
+                    previewAtlasId,
+                    previewAtlasIndex);
+
             var applyButton = new UiButton("Apply")
             {
                 Width = 65.0f,
@@ -668,11 +779,30 @@ public sealed class TileSetEditorPanelView : UiPanel
             row.AddChild(nameBox);
             row.AddChild(atlasDropdown);
             row.AddChild(indexBox);
+            row.AddChild(previewButton);
             row.AddChild(applyButton);
             row.AddChild(removeButton);
 
             _tileRows.AddChild(row);
         }
+    }
+
+    private void PreviewTile(
+    string atlasId,
+    int atlasIndex)
+    {
+        SelectNewTileAtlas(atlasId);
+
+        _newTileAtlasIndex.SetText(
+            atlasIndex.ToString(CultureInfo.InvariantCulture));
+
+        _previewView.SelectCell(
+            atlasId,
+            atlasIndex);
+
+        ShowMessage(
+            $"Previewing atlas '{atlasId}', cell {atlasIndex}.",
+            success: true);
     }
 
     private void RefreshNewTileAtlas(TileSetDefinition definition)

@@ -39,6 +39,9 @@ internal sealed class EditorDocumentOpenService
             path.EndsWith(
                 ".particle.json",
                 StringComparison.OrdinalIgnoreCase) ||
+                path.EndsWith(
+    ".tilemap.json",
+    StringComparison.OrdinalIgnoreCase) ||
             path.EndsWith(
                 ".script.json",
                 StringComparison.OrdinalIgnoreCase))
@@ -82,8 +85,14 @@ internal sealed class EditorDocumentOpenService
         IEditorDocument document;
 
         if (normalizedPath.EndsWith(
-                ".tileset.json",
+                ".tilemap.json",
                 StringComparison.OrdinalIgnoreCase))
+        {
+            document = TilemapDocument.Open(normalizedPath);
+        }
+        else if (normalizedPath.EndsWith(
+                      ".tileset.json",
+                      StringComparison.OrdinalIgnoreCase))
         {
             document = TileSetDocument.Open(normalizedPath);
         }

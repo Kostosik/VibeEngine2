@@ -46,6 +46,9 @@ public sealed class EditorApplication :
     _subscribedScriptDefinitionDocuments = new();
     private readonly HashSet<TileSetDocument>
     _subscribedTileSetDocuments = new();
+
+    private readonly HashSet<TilemapDocument>
+    _subscribedTilemapDocuments = new();
     private readonly HashSet<EditorDocument> _subscribedDocuments = new();
     private bool _uiDirty = true;
     private readonly IEditorDocumentPersistence?
@@ -1029,6 +1032,9 @@ SaveAllDocuments;
     {
         switch (document)
         {
+            case TilemapDocument tilemapDocument:
+                SubscribeTilemapDocument(tilemapDocument);
+                break;
             case TileSetDocument tileSetDocument:
                 SubscribeTileSetDocument(tileSetDocument);
                 break;
@@ -1064,7 +1070,16 @@ SaveAllDocuments;
                     $"'{document.DocumentTypeId}'.");
         }
     }
+    private void SubscribeTilemapDocument(
+    TilemapDocument document)
+    {
+        if (!_subscribedTilemapDocuments.Add(document))
+        {
+            return;
+        }
 
+        document.Changed += MarkUiDirty;
+    }
     private void SubscribeTileSetDocument(
     TileSetDocument document)
     {
@@ -1827,6 +1842,17 @@ SaveAllDocuments;
         {
             switch (document)
             {
+                case TilemapDocument tilemapDocument:
+                    if (continueApplicationClose)
+                    {
+                        tilemapDocument.MarkSaved();
+                    }
+                    else
+                    {
+                        Editor.Session.Discard(tilemapDocument);
+                    }
+
+                    break;
                 case TileSetDocument tileSetDocument:
                     if (continueApplicationClose)
                     {
@@ -2017,6 +2043,16 @@ SaveAllDocuments;
     private void UnsubscribeAnyDocument(
         IEditorDocument document)
     {
+        if (document is TilemapDocument tilemapDocument)
+        {
+            if (_subscribedTilemapDocuments.Remove(tilemapDocument))
+            {
+                tilemapDocument.Changed -= MarkUiDirty;
+            }
+
+            MarkUiDirty();
+            return;
+        }
         if (document is TileSetDocument tileSetDocument)
         {
             if (_subscribedTileSetDocuments.Remove(tileSetDocument))

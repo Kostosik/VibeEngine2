@@ -33,6 +33,7 @@ public sealed class EditorMainShell :
     private readonly UiButton _toolsButton;
     private readonly EditorAssetPickerDialog? _assetPickerDialog;
     private readonly EditorUiActionPickerDialog? _actionPickerDialog;
+    private TilemapEditorPanelView? _tilemapWorkspaceView;
     private readonly UiPanel _menuBar;
     private readonly UiPanel _toolbar;
     private bool _isGameRunning;
@@ -75,7 +76,8 @@ public sealed class EditorMainShell :
 
         EditorDocument document =>
             document.CommandHistory.CanUndo,
-
+        TilemapDocument document =>
+    document.CanUndo,
         _ => false
     };
 
@@ -87,7 +89,8 @@ public sealed class EditorMainShell :
 
             EditorDocument document =>
                 document.CommandHistory.CanRedo,
-
+            TilemapDocument document =>
+    document.CanRedo,
             _ => false
         };
 
@@ -492,6 +495,34 @@ public sealed class EditorMainShell :
                 Editor,
                 _debugConsole);
     }
+    private void BindTilemapDocument(TilemapDocument? document)
+    {
+        if (ReferenceEquals(
+                _tilemapWorkspaceView?.Document,
+                document))
+        {
+            return;
+        }
+
+        if (_tilemapWorkspaceView is not null)
+        {
+            RestoreViewportIfCurrent(_tilemapWorkspaceView);
+            _tilemapWorkspaceView.ReleaseResources();
+            _tilemapWorkspaceView = null;
+        }
+
+        if (document is null)
+        {
+            return;
+        }
+
+        _tilemapWorkspaceView =
+            new TilemapEditorPanelView(
+                document,
+                Editor,
+                _assetPickerDialog,
+                _filePreviewTextureManager);
+    }
 
     private void BindTileSetDocument(TileSetDocument? document)
     {
@@ -517,6 +548,8 @@ public sealed class EditorMainShell :
         _tileSetWorkspaceView =
             new TileSetEditorPanelView(
                 document,
+                Editor,
+                _filePreviewTextureManager,
                 _assetPickerDialog);
     }
 
@@ -578,6 +611,7 @@ public sealed class EditorMainShell :
 
     public void ReleaseResources()
     {
+        BindTilemapDocument(null);
         BindTileSetDocument(null);
         BindScriptDefinitionDocument(null);
         BindSpriteAnimationDocument(null);
@@ -593,8 +627,11 @@ public sealed class EditorMainShell :
             Editor.Session.ActiveEditorDocument;
         var tileSetDocument =
     activeDocument as TileSetDocument;
-
         BindTileSetDocument(tileSetDocument);
+        var tilemapDocument =
+    activeDocument as TilemapDocument;
+
+        BindTilemapDocument(tilemapDocument);
         var worldDocument =
             activeDocument as EditorDocument;
         _workspaceView.SetWorldEditorContext(
@@ -647,7 +684,9 @@ public sealed class EditorMainShell :
             SpriteAnimationDocument
                 when _spriteAnimationWorkspaceView is { } view =>
                 view,
-
+            TilemapDocument
+when _tilemapWorkspaceView is { } view =>
+view,
             _ =>
                 _workspaceView.Viewport
         };
@@ -663,6 +702,11 @@ public sealed class EditorMainShell :
         {
             _tileSetWorkspaceView.Visible =
                 tileSetDocument is not null;
+        }
+        if (_tilemapWorkspaceView is not null)
+        {
+            _tilemapWorkspaceView.Visible =
+                tilemapDocument is not null;
         }
         if (_particleEffectWorkspaceView is not null)
         {
@@ -713,6 +757,14 @@ public sealed class EditorMainShell :
             documentStatus =
                 $"UI • {uiDocument.DisplayName} • " +
                 (uiDocument.IsDirty
+                    ? "Unsaved changes"
+                    : "Saved");
+        }
+        else if (tilemapDocument is not null)
+        {
+            documentStatus =
+                $"Tilemap • {tilemapDocument.DisplayName} • " +
+                (tilemapDocument.IsDirty
                     ? "Unsaved changes"
                     : "Saved");
         }
@@ -920,6 +972,9 @@ public sealed class EditorMainShell :
                     "edit.undo",
                     Editor.ActionContext);
                 break;
+            case TilemapDocument tilemapDocument:
+                tilemapDocument.Undo();
+                break;
         }
 
         Refresh();
@@ -937,6 +992,9 @@ public sealed class EditorMainShell :
                 Editor.Actions.Execute(
                     "edit.redo",
                     Editor.ActionContext);
+                break;
+            case TilemapDocument tilemapDocument:
+                tilemapDocument.Redo();
                 break;
         }
 

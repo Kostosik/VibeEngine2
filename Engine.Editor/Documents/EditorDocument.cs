@@ -6,6 +6,7 @@ using Engine.Editor.Inspection;
 using Engine.Editor.Projects;
 using Engine.Editor.Selection;
 using Engine.Editor.Viewport;
+using Engine.Tooling.Debugging;
 using Engine.Tooling.Validation;
 using Engine.Worlds;
 using Engine.Worlds.Spatial;
@@ -56,7 +57,9 @@ public sealed class EditorDocument : IDisposable, IEditorDocument
     public string? FilePath { get; private set; }
     public EditorPropertyProviderRegistry PropertyProviders { get; }
     public EditorDocument(
-        World world, string? filePath = null)
+        World world,
+        string? filePath = null,
+        DebugConsole? debugConsole = null)
     {
         ArgumentNullException.ThrowIfNull(
             world);
@@ -104,7 +107,7 @@ OnEntityDestroyed;
     new EditorViewport();
 
         PropertyProviders.Register(
-            new EcsComponentPropertyProvider());
+            new EcsComponentPropertyProvider(debugConsole));
 
         Inspector =
             new EditorInspector(
@@ -122,7 +125,15 @@ OnEntityDestroyed;
 
     public bool IsDirty =>
         CommandHistory.IsDirty;
-
+    internal void SetDiagnosticConsole(
+    DebugConsole? console)
+    {
+        foreach (var provider in PropertyProviders.Providers
+                     .OfType<EcsComponentPropertyProvider>())
+        {
+            provider.SetConsole(console);
+        }
+    }
     public void RefreshTransforms()
     {
         _transformHierarchySystem.FixedUpdate(

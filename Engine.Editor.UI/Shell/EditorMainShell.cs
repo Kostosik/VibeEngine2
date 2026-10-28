@@ -43,6 +43,8 @@ public sealed class EditorMainShell :
     private readonly ITextureResourceManager _assetPreviewTextures;
     private readonly ITextureManager? _filePreviewTextureManager;
     private EditorUiWorkspaceView _uiWorkspaceView;
+    private ScriptDefinitionEditorPanelView?
+    _scriptDefinitionWorkspaceView;
     private ParticleEffectEditorPanelView? _particleEffectWorkspaceView;
     public event Action? NewProjectRequested;
     public event Action? OpenProjectRequested;
@@ -211,11 +213,6 @@ public sealed class EditorMainShell :
         _workspace.AddChild(
             _workspaceView);
 
-        _workspace.AddChild(
-            _uiWorkspaceView);
-
-        _uiWorkspaceView.Visible = false;
-
         _documentLabel =
             new UiLabel(
                 "No document")
@@ -377,6 +374,18 @@ public sealed class EditorMainShell :
                 documentHeight));
     }
 
+    private void RestoreViewportIfCurrent(
+    UiWidget content)
+    {
+        if (ReferenceEquals(
+                _workspaceView.CenterContent,
+                content))
+        {
+            _workspaceView.SetCenterContent(
+                _workspaceView.Viewport);
+        }
+    }
+
     private void BindSpriteAnimationDocument(
     SpriteAnimationDocument? document)
     {
@@ -389,10 +398,10 @@ public sealed class EditorMainShell :
 
         if (_spriteAnimationWorkspaceView is not null)
         {
-            _spriteAnimationWorkspaceView.ReleaseResources();
-
-            _workspace.RemoveChild(
+            RestoreViewportIfCurrent(
                 _spriteAnimationWorkspaceView);
+
+            _spriteAnimationWorkspaceView.ReleaseResources();
 
             _spriteAnimationWorkspaceView = null;
         }
@@ -408,29 +417,54 @@ public sealed class EditorMainShell :
                 Editor,
                 _filePreviewTextureManager,
                 _assetPickerDialog);
-
-        _workspace.AddChild(
-            _spriteAnimationWorkspaceView);
     }
 
     private void BindAnimationClipDocument(
     AnimationClipDocument? document)
+{
+    if (ReferenceEquals(
+            _animationClipWorkspaceView?.Document,
+            document))
+    {
+        return;
+    }
+
+    if (_animationClipWorkspaceView is not null)
+    {
+        RestoreViewportIfCurrent(
+            _animationClipWorkspaceView);
+
+        _animationClipWorkspaceView.ReleaseResources();
+
+        _animationClipWorkspaceView = null;
+    }
+
+    if (document is null)
+    {
+        return;
+    }
+
+    _animationClipWorkspaceView =
+        new AnimationClipEditorPanelView(
+            document);
+}
+
+    private void BindScriptDefinitionDocument(
+    ScriptDefinitionDocument? document)
     {
         if (ReferenceEquals(
-                _animationClipWorkspaceView?.Document,
+                _scriptDefinitionWorkspaceView?.Document,
                 document))
         {
             return;
         }
 
-        if (_animationClipWorkspaceView is not null)
+        if (_scriptDefinitionWorkspaceView is not null)
         {
-            _animationClipWorkspaceView.ReleaseResources();
-
             _workspace.RemoveChild(
-                _animationClipWorkspaceView);
+                _scriptDefinitionWorkspaceView);
 
-            _animationClipWorkspaceView = null;
+            _scriptDefinitionWorkspaceView = null;
         }
 
         if (document is null)
@@ -438,11 +472,14 @@ public sealed class EditorMainShell :
             return;
         }
 
-        _animationClipWorkspaceView =
-            new AnimationClipEditorPanelView(document);
+        _scriptDefinitionWorkspaceView =
+            new ScriptDefinitionEditorPanelView(
+                document,
+                Editor,
+                _debugConsole);
 
         _workspace.AddChild(
-            _animationClipWorkspaceView);
+            _scriptDefinitionWorkspaceView);
     }
 
     private void BindParticleEffectDocument(
@@ -457,10 +494,10 @@ public sealed class EditorMainShell :
 
         if (_particleEffectWorkspaceView is not null)
         {
-            _particleEffectWorkspaceView.ReleaseResources();
-
-            _workspace.RemoveChild(
+            RestoreViewportIfCurrent(
                 _particleEffectWorkspaceView);
+
+            _particleEffectWorkspaceView.ReleaseResources();
 
             _particleEffectWorkspaceView = null;
         }
@@ -476,15 +513,13 @@ public sealed class EditorMainShell :
                 Editor,
                 _filePreviewTextureManager,
                 _assetPickerDialog);
-
-        _workspace.AddChild(
-            _particleEffectWorkspaceView);
     }
 
     private void BindUiDocument(
     EditorUiDocument document)
     {
-        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(
+            document);
 
         if (ReferenceEquals(
                 _uiWorkspaceView.Document,
@@ -493,20 +528,19 @@ public sealed class EditorMainShell :
             return;
         }
 
+        RestoreViewportIfCurrent(
+            _uiWorkspaceView);
+
         _uiWorkspaceView.ReleaseResources();
 
-        _workspace.RemoveChild(
-            _uiWorkspaceView);
-
         _uiWorkspaceView =
-            CreateUiWorkspaceView(document);
-
-        _workspace.AddChild(
-            _uiWorkspaceView);
+            CreateUiWorkspaceView(
+                document);
     }
 
     public void ReleaseResources()
     {
+        BindScriptDefinitionDocument(null);
         BindSpriteAnimationDocument(null);
         BindAnimationClipDocument(null);
         _workspaceView.ReleaseResources();
@@ -521,7 +555,10 @@ public sealed class EditorMainShell :
 
         var worldDocument =
             activeDocument as EditorDocument;
-
+        _workspaceView.SetWorldEditorContext(
+    worldDocument is not null);
+        var scriptDefinitionDocument =
+    activeDocument as ScriptDefinitionDocument;
         var uiDocument =
             activeDocument as EditorUiDocument;
 
@@ -537,6 +574,8 @@ public sealed class EditorMainShell :
         BindParticleEffectDocument(particleEffectDocument);
         BindAnimationClipDocument(
     animationClipDocument);
+        BindScriptDefinitionDocument(
+    scriptDefinitionDocument);
         RefreshDocumentTabs();
 
         if (activeDocument is EditorUiDocument activeUiDocument)
@@ -544,9 +583,31 @@ public sealed class EditorMainShell :
             BindUiDocument(activeUiDocument);
         }
 
-        _workspaceView.Visible =
-            worldDocument is not null ||
-            activeDocument is null;
+        UiWidget centerContent = activeDocument switch
+        {
+            EditorUiDocument =>
+                _uiWorkspaceView,
+
+            ParticleEffectDocument
+                when _particleEffectWorkspaceView is { } view =>
+                view,
+
+            AnimationClipDocument
+                when _animationClipWorkspaceView is { } view =>
+                view,
+
+            SpriteAnimationDocument
+                when _spriteAnimationWorkspaceView is { } view =>
+                view,
+
+            _ =>
+                _workspaceView.Viewport
+        };
+
+        _workspaceView.SetCenterContent(
+            centerContent);
+
+        _workspaceView.Visible = true;
 
         _uiWorkspaceView.Visible =
             uiDocument is not null;
@@ -556,7 +617,11 @@ public sealed class EditorMainShell :
             _particleEffectWorkspaceView.Visible =
                 particleEffectDocument is not null;
         }
-
+        if (_scriptDefinitionWorkspaceView is not null)
+        {
+            _scriptDefinitionWorkspaceView.Visible =
+                scriptDefinitionDocument is not null;
+        }
         if (_animationClipWorkspaceView is not null)
         {
             _animationClipWorkspaceView.Visible =
@@ -612,6 +677,15 @@ public sealed class EditorMainShell :
             documentStatus =
                 $"Sprite Animation • {spriteAnimationDocument.DisplayName} • " +
                 (spriteAnimationDocument.IsDirty
+                    ? "Unsaved changes"
+                    : "Saved");
+        }
+        else if (scriptDefinitionDocument is not null)
+        {
+            documentStatus =
+                $"Script Definition • " +
+                $"{scriptDefinitionDocument.DisplayName} • " +
+                (scriptDefinitionDocument.IsDirty
                     ? "Unsaved changes"
                     : "Saved");
         }

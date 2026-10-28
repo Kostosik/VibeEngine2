@@ -1,5 +1,4 @@
-﻿
-using Engine.Editor.Documents;
+﻿using Engine.Editor.Documents;
 using Engine.Editor.Documents.Persistence;
 using Engine.Editor.UI.Authoring;
 using Engine.Editor.UI.Dialogs;
@@ -25,11 +24,13 @@ internal sealed class EditorDocumentSaveService
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        return document is SpriteAnimationDocument
-            or ParticleEffectDocument
-            or AnimationClipDocument
-            or EditorUiDocument
-            or EditorDocument;
+        return document is
+            SpriteAnimationDocument or
+            ParticleEffectDocument or
+            AnimationClipDocument or
+            ScriptDefinitionDocument or
+            EditorUiDocument or
+            EditorDocument;
     }
 
     public bool TrySave(IEditorDocument document)
@@ -48,6 +49,10 @@ internal sealed class EditorDocumentSaveService
 
             case AnimationClipDocument animationClip:
                 animationClip.Save();
+                return true;
+
+            case ScriptDefinitionDocument scriptDefinition:
+                scriptDefinition.Save();
                 return true;
 
             case EditorUiDocument uiDocument:

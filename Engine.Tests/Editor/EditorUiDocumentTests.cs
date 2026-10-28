@@ -1,11 +1,59 @@
-﻿using Engine.Editor.Documents;
+﻿using Engine.Core.Math;
+using Engine.Editor.Commands;
+using Engine.Editor.Documents;
 using Engine.Editor.UI.Authoring;
-using Engine.Core.Math;
 
 namespace Engine.Tests.Editor.Authoring;
 
 public sealed class EditorUiDocumentTests
 {
+    [Fact]
+    public void ActionProperty_ExecuteUndoRedo_RestoresAction()
+    {
+        var document =
+            new EditorUiDocument();
+
+        var button =
+            document.AddElement(
+                EditorUiElementType.Button,
+                document.Root.Id,
+                "PlayButton");
+
+        document.MarkSaved();
+
+        var inspector =
+            new EditorUiInspector(document);
+
+        var actionProperty =
+            inspector.GetProperties(button)
+                .Single(property =>
+                    property.Name == "Action");
+
+        document.Execute(
+            new SetEditorPropertyCommand(
+                actionProperty,
+                "StartGameRequested"));
+
+        Assert.Equal(
+            "StartGameRequested",
+            button.Action);
+
+        Assert.True(document.IsDirty);
+
+        document.Undo();
+
+        Assert.Null(button.Action);
+        Assert.False(document.IsDirty);
+
+        document.Redo();
+
+        Assert.Equal(
+            "StartGameRequested",
+            button.Action);
+
+        Assert.True(document.IsDirty);
+    }
+
     [Fact]
     public void SetLayoutCommand_ExecuteUndoRedo_RestoresLayout()
     {

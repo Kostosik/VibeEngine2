@@ -15,13 +15,16 @@ public sealed class EditorUiInspectorPanelView :
     private readonly EditorUiInspector _inspector;
     private readonly UiStackPanel _content;
     private readonly Func<string?>? _getSelectedTexturePath;
+    private readonly Func<IReadOnlyList<string>>?
+    _getAvailableActions;
     public EditorUiInspectorPanelView(
         EditorUiDocument document,
-        Func<string?>? getSelectedTexturePath = null)
+        Func<string?>? getSelectedTexturePath = null, Func<IReadOnlyList<string>>? getAvailableActions = null)
     {
         ArgumentNullException.ThrowIfNull(
             document);
         _getSelectedTexturePath = getSelectedTexturePath;
+        _getAvailableActions = getAvailableActions;
         _document = document;
         _inspector =
             new EditorUiInspector(
@@ -150,6 +153,14 @@ public sealed class EditorUiInspectorPanelView :
             return;
         }
 
+        if (property.Name == "Action")
+        {
+            _content.AddChild(
+                CreateActionProperty(property));
+
+            return;
+        }
+
         if (property.PropertyType == typeof(int))
         {
             _content.AddChild(
@@ -203,6 +214,161 @@ public sealed class EditorUiInspectorPanelView :
             });
     }
 
+    private UiWidget CreateActionProperty(
+    EditorProperty property)
+    {
+        var container =
+            new UiStackPanel
+            {
+                Orientation =
+                    UiOrientation.Vertical,
+
+                Spacing = 4.0f,
+
+                HorizontalAlignment =
+                    UiHorizontalAlignment.Stretch,
+
+                VerticalAlignment =
+                    UiVerticalAlignment.Top
+            };
+
+        container.AddChild(
+            new UiLabel(
+                property.DisplayName)
+            {
+                FontSize = 12.0f
+            });
+
+        var availableActions =
+    (_getAvailableActions?.Invoke()
+        ?? Array.Empty<string>())
+    .Where(
+        static action =>
+            !string.IsNullOrWhiteSpace(action))
+    .Distinct(StringComparer.Ordinal)
+    .OrderBy(
+        static action => action,
+        StringComparer.OrdinalIgnoreCase)
+    .ToArray();
+
+        if (availableActions.Length > 0)
+        {
+            container.AddChild(
+                new UiLabel("Existing Actions")
+                {
+                    FontSize = 12.0f
+                });
+
+            var dropdown =
+                new UiDropdown
+                {
+                    Width = 220.0f,
+                    Height = 32.0f
+                };
+
+            foreach (var action in availableActions)
+            {
+                dropdown.AddOption(action);
+            }
+
+            var currentAction =
+                property.GetValue()?.ToString();
+
+            var selectedIndex =
+                Array.FindIndex(
+                    availableActions,
+                    action => string.Equals(
+                        action,
+                        currentAction,
+                        StringComparison.Ordinal));
+
+            if (selectedIndex >= 0)
+            {
+                dropdown.SetSelectedIndex(selectedIndex);
+            }
+
+            dropdown.SelectionChanged +=
+                (_, action) =>
+                {
+                    _document.Execute(
+                        new SetEditorPropertyCommand(
+                            property,
+                            action));
+
+                    Refresh();
+                };
+
+            container.AddChild(dropdown);
+
+            container.AddChild(
+                new UiLabel("Or enter a new Action ID")
+                {
+                    FontSize = 11.0f
+                });
+        }
+
+        var row =
+            new UiStackPanel
+            {
+                Orientation =
+                    UiOrientation.Horizontal,
+
+                Spacing = 4.0f,
+
+                HorizontalAlignment =
+                    UiHorizontalAlignment.Stretch,
+
+                VerticalAlignment =
+                    UiVerticalAlignment.Top
+            };
+
+        var textBox =
+            new UiTextBox(
+                property.GetValue()?.ToString()
+                ?? string.Empty)
+            {
+                Width = 130.0f,
+                Height = 32.0f,
+                FontSize = 12.0f
+            };
+
+        textBox.Submitted +=
+            value =>
+            {
+                _document.Execute(
+                    new SetEditorPropertyCommand(
+                        property,
+                        value));
+
+                Refresh();
+            };
+
+        row.AddChild(textBox);
+
+        var clearButton =
+            new UiButton("Clear")
+            {
+                Width = 48.0f,
+                Height = 32.0f,
+                FontSize = 11.0f
+            };
+
+        clearButton.Clicked +=
+            () =>
+            {
+                _document.Execute(
+                    new SetEditorPropertyCommand(
+                        property,
+                        string.Empty));
+
+                Refresh();
+            };
+
+        row.AddChild(clearButton);
+        container.AddChild(row);
+
+        return container;
+    }
     private UiWidget CreateTextureProperty(
     EditorProperty property)
     {

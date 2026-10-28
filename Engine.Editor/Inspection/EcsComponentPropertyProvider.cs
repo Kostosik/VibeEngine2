@@ -1,4 +1,6 @@
-﻿using System.Reflection;
+﻿using Engine.Core.Diagnostics;
+using Engine.Tooling.Debugging;
+using System.Reflection;
 
 namespace Engine.Editor.Inspection;
 
@@ -19,6 +21,22 @@ public sealed class EcsComponentPropertyProvider :
                !type.IsEnum;
     }
 
+    private DebugConsole? _console;
+
+    private readonly HashSet<(Type ComponentType, string PropertyName)>
+        _reportedUnsupportedProperties = new();
+
+    public EcsComponentPropertyProvider(
+        DebugConsole? console = null)
+    {
+        _console = console;
+    }
+
+    internal void SetConsole(DebugConsole? console)
+    {
+        _console = console;
+    }
+
     public IReadOnlyList<EditorProperty> GetProperties(
         object target)
     {
@@ -33,9 +51,40 @@ public sealed class EcsComponentPropertyProvider :
             .GetProperties(
                 BindingFlags.Instance |
                 BindingFlags.Public)
-            .Where(property =>
-                property.GetMethod is not null &&
-                property.GetIndexParameters().Length == 0)
+                .Where(property =>
+                {
+                    var getter = property.GetMethod;
+
+                    if (getter is null ||
+                        property.GetIndexParameters().Length != 0)
+                    {
+                        return false;
+                    }
+
+                    var returnType = getter.ReturnType;
+
+                    var supported =
+                        !returnType.IsByRef &&
+                        !returnType.IsByRefLike &&
+                        !property.PropertyType.IsByRefLike;
+
+                    if (supported ||
+                        _console is null ||
+                        !_reportedUnsupportedProperties.Add(
+                            (component.ComponentType, property.Name)))
+                    {
+                        return supported;
+                    }
+
+                    _console.Write(
+                        DiagnosticLevel.Debug,
+                        $"Inspector skipped property " +
+                        $"'{component.ComponentType.FullName}.{property.Name}'. " +
+                        $"Return type: '{returnType}'.",
+                        "INSPECTOR_UNSUPPORTED_PROPERTY");
+
+                    return false;
+                })
             .OrderBy(
                 property =>
                     property

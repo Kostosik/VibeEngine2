@@ -26,12 +26,12 @@ public sealed class EditorWorkspaceView :
     private readonly EditorConsolePanel _console;
     private readonly UiPanel _bottomTabBar;
     private readonly UiStackPanel _bottomTabButtons;
-
+    private readonly UiPanel _centerContentHost;
+    private UiWidget _centerContent;
     private readonly UiPanel _hierarchyHost;
-    private readonly UiPanel _viewportHost;
     private readonly UiPanel _inspectorHost;
     private readonly AssetBrowserPanelView _assetBrowser;
-
+    private bool _worldEditorContext = true;
     private readonly EditorDockSplitter _leftSplitter;
     private readonly EditorDockSplitter _rightSplitter;
     private readonly EditorDockSplitter _topSplitter;
@@ -62,10 +62,21 @@ public sealed class EditorWorkspaceView :
             CreateHost(
                 "Hierarchy");
 
-        _viewportHost =
-            CreateHost(
-                "Viewport");
+        _centerContentHost =
+            new UiPanel
+            {
+                Background =
+                    new UiColor(28, 28, 28, 255),
 
+                Padding =
+                    new UiThickness(6.0f),
+
+                HorizontalAlignment =
+                    UiHorizontalAlignment.Stretch,
+
+                VerticalAlignment =
+                    UiVerticalAlignment.Stretch
+            };
         _inspectorHost =
             CreateHost(
                 "Inspector");
@@ -74,7 +85,7 @@ public sealed class EditorWorkspaceView :
             _hierarchyHost);
 
         AddChild(
-            _viewportHost);
+            _centerContentHost);
 
         AddChild(
             _inspectorHost);
@@ -98,8 +109,11 @@ public sealed class EditorWorkspaceView :
         _hierarchyHost.AddChild(
             Hierarchy);
 
-        _viewportHost.AddChild(
+        _centerContentHost.AddChild(
             Viewport);
+
+        _centerContent =
+            Viewport;
 
         _inspectorHost.AddChild(
             Inspector);
@@ -218,7 +232,41 @@ public sealed class EditorWorkspaceView :
 
     public AssetBrowserPanelView AssetBrowser =>
         _assetBrowser;
+    public UiWidget CenterContent =>
+    _centerContent;
 
+    public void SetCenterContent(
+        UiWidget content)
+    {
+        ArgumentNullException.ThrowIfNull(
+            content);
+
+        if (ReferenceEquals(
+                _centerContent,
+                content))
+        {
+            return;
+        }
+
+        if (content.Parent is not null)
+        {
+            throw new InvalidOperationException(
+                "The new center content must be detached from its current parent.");
+        }
+
+        if (!_centerContentHost.RemoveChild(
+                _centerContent))
+        {
+            throw new InvalidOperationException(
+                "The current center content is not attached to the center host.");
+        }
+
+        _centerContentHost.AddChild(
+            content);
+
+        _centerContent =
+            content;
+    }
     public void Refresh()
     {
         ApplyPanelState();
@@ -262,8 +310,9 @@ public sealed class EditorWorkspaceView :
         {
             panel.View.Visible =
                 panel.Panel.IsOpen &&
+                IsPanelAvailable(panel.Panel.Id) &&
                 panel.Layout.Area !=
-                EditorDockArea.Floating;
+                    EditorDockArea.Floating;
         }
 
         var centerPanels =
@@ -356,6 +405,7 @@ public sealed class EditorWorkspaceView :
             .Where(
                 panel =>
                     panel.Panel.IsOpen &&
+                    IsPanelAvailable(panel.Panel.Id) &&
                     panel.Layout.Area == area)
             .OrderBy(
                 panel =>
@@ -375,7 +425,7 @@ public sealed class EditorWorkspaceView :
 
         yield return GetPanelBinding(
             "Viewport",
-            _viewportHost);
+            _centerContentHost);
 
         yield return GetPanelBinding(
             "Inspector",
@@ -673,7 +723,7 @@ public sealed class EditorWorkspaceView :
             context,
             availableSize);
 
-        _viewportHost.Measure(
+        _centerContentHost.Measure(
             context,
             availableSize);
 
@@ -893,6 +943,31 @@ public sealed class EditorWorkspaceView :
                 DockSplitterThickness * 0.5f,
                 finalRect.Width,
                 DockSplitterThickness));
+    }
+
+    public void SetWorldEditorContext(
+    bool isActive)
+    {
+        if (_worldEditorContext == isActive)
+        {
+            return;
+        }
+
+        _worldEditorContext = isActive;
+
+        ApplyPanelState();
+    }
+
+    private bool IsPanelAvailable(
+        string panelId)
+    {
+        if (_worldEditorContext)
+        {
+            return true;
+        }
+
+        return panelId is not "Hierarchy"
+            and not "Inspector";
     }
 
     private string? GetSelectedParticleEffectPath()

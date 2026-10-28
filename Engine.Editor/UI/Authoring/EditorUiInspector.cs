@@ -66,6 +66,30 @@ public sealed class EditorUiInspector
                     order: 20));
         }
 
+        if (element.Type is
+            EditorUiElementType.Button or
+            EditorUiElementType.Toggle or
+            EditorUiElementType.Dropdown or
+            EditorUiElementType.TextBox)
+        {
+            properties.Add(
+                new EditorProperty(
+                    "Action",
+                    typeof(string),
+                    () => element.Action ?? string.Empty,
+                    value =>
+                    {
+                        var action = value as string;
+
+                        element.Action =
+                            string.IsNullOrWhiteSpace(action)
+                                ? null
+                                : action.Trim();
+                    },
+                    displayName: "Action",
+                    order: 21));
+        }
+
         if (element.Type ==
             EditorUiElementType.Image)
         {

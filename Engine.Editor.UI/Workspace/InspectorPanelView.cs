@@ -11,6 +11,7 @@ using Engine.Graphics2D.Sprites;
 using Engine.Particles;
 using Engine.Physics.Components;
 using Engine.Physics.Joints;
+using Engine.Scripting;
 using Engine.UI.Controls;
 using Engine.UI.Layout;
 
@@ -27,6 +28,7 @@ public sealed class InspectorPanelView : UiPanel
     private readonly Dictionary<Type, bool> _componentExpansionStates = new();
     private bool _addComponentExpanded;
     private bool _distanceJointExpanded;
+    private bool _scriptsExpanded = true;
     public InspectorPanelView(
         EditorContext editor,
         InspectorPropertyEditorRegistry? propertyEditors = null,
@@ -95,7 +97,9 @@ public sealed class InspectorPanelView : UiPanel
             {
                 FontSize = 16.0f
             });
-
+        AddScriptsSection(
+    document,
+    entity);
         // Компоненты, которые уже присутствуют у сущности.
         var existingComponentTypes =
             document.Inspector
@@ -191,6 +195,10 @@ public sealed class InspectorPanelView : UiPanel
 
         foreach (var componentType in addableComponentTypes)
         {
+            if (componentType == typeof(ScriptAssignmentsComponent))
+            {
+                continue;
+            }
             var optionText =
                 duplicateNames.Contains(
                     componentType.Name)
@@ -268,7 +276,202 @@ public sealed class InspectorPanelView : UiPanel
                 componentType);
         }
     }
+    private void AddScriptsSection(
+    Engine.Editor.Documents.EditorDocument document,
+    EntityId entity)
+    {
+        var content = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical,
+            Spacing = 6.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
 
+        var world = document.World.EcsWorld;
+
+        if (world.Has<ScriptAssignmentsComponent>(entity))
+        {
+            var assignments =
+                world.Get<ScriptAssignmentsComponent>(entity);
+
+            foreach (var assignment in assignments.Assignments)
+            {
+                content.AddChild(
+                    new UiLabel(assignment.ScriptId)
+                    {
+                        FontSize = 12.0f
+                    });
+            }
+        }
+        else
+        {
+            content.AddChild(
+                new UiLabel("No scripts assigned")
+                {
+                    FontSize = 12.0f,
+                    Color = new UiColor(150, 150, 150, 255)
+                });
+        }
+
+        var errorLabel = new UiLabel(string.Empty)
+        {
+            FontSize = 11.0f,
+            Color = new UiColor(230, 130, 130, 255)
+        };
+
+        if (_assetPickerDialog is not null &&
+            Editor.AssetBrowser is not null)
+        {
+            var assignButton = new UiButton("Assign Script")
+            {
+                Width = 130.0f,
+                Height = 30.0f
+            };
+
+            assignButton.Clicked += () =>
+            {
+                _assetPickerDialog.Show(
+                    "Select Script Definition",
+                    IsScriptDefinitionAsset,
+                    relativePath =>
+                    {
+                        try
+                        {
+                            var rootPath =
+                                Editor.AssetBrowser?.RootPath
+                                ?? throw new InvalidOperationException(
+                                    "Asset Browser is unavailable.");
+
+                            var fullPath = Path.GetFullPath(
+                                Path.Combine(
+                                    rootPath,
+                                    relativePath.Replace(
+                                        '/',
+                                        Path.DirectorySeparatorChar)));
+
+                            var definition =
+                                ReadScriptDefinition(fullPath);
+
+                            document.Execute(
+                                new AssignEditorScriptCommand(
+                                    document.World,
+                                    document.GetEntityReference(entity),
+                                    definition));
+
+                            Refresh();
+                        }
+                        catch (Exception exception)
+                        {
+                            errorLabel.Text = exception.Message;
+                        }
+                    });
+            };
+
+            content.AddChild(assignButton);
+        }
+        else
+        {
+            content.AddChild(
+                new UiLabel(
+                    "Open a game project to select script assets.")
+                {
+                    FontSize = 11.0f,
+                    Color = new UiColor(150, 150, 150, 255)
+                });
+        }
+
+        content.AddChild(errorLabel);
+
+        var expander = new UiExpander("Scripts")
+        {
+            IsExpanded = _scriptsExpanded,
+            ContentPadding = new UiThickness(8, 4, 4, 4),
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        expander.ExpandedChanged += expanded =>
+            _scriptsExpanded = expanded;
+
+        expander.SetContent(content);
+
+        _content.AddChild(expander);
+    }
+
+    private static bool IsScriptDefinitionAsset(
+    EditorAssetEntry entry)
+    {
+        return !entry.IsDirectory &&
+               entry.Name.EndsWith(
+                   ".script.json",
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static ScriptDefinition ReadScriptDefinition(
+        string path)
+    {
+        var json = File.ReadAllText(path);
+
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+
+        var root = document.RootElement;
+
+        if (root.ValueKind != System.Text.Json.JsonValueKind.Object)
+        {
+            throw new InvalidDataException(
+                "Script definition must be a JSON object.");
+        }
+
+        if (!root.TryGetProperty(
+                "formatVersion",
+                out var versionElement) ||
+            !versionElement.TryGetInt32(out var version))
+        {
+            throw new InvalidDataException(
+                "Script definition has no valid formatVersion.");
+        }
+
+        if (!root.TryGetProperty(
+                "scriptId",
+                out var idElement) ||
+            idElement.ValueKind != System.Text.Json.JsonValueKind.String)
+        {
+            throw new InvalidDataException(
+                "Script definition has no valid scriptId.");
+        }
+
+        var scriptId = idElement.GetString();
+
+        if (string.IsNullOrWhiteSpace(scriptId))
+        {
+            throw new InvalidDataException(
+                "Script definition has an empty scriptId.");
+        }
+
+        var configurationJson = "{}";
+
+        if (root.TryGetProperty(
+                "defaultConfiguration",
+                out var configurationElement))
+        {
+            if (configurationElement.ValueKind !=
+                System.Text.Json.JsonValueKind.Object)
+            {
+                throw new InvalidDataException(
+                    "defaultConfiguration must be a JSON object.");
+            }
+
+            configurationJson =
+                System.Text.Json.JsonSerializer.Serialize(
+                    configurationElement);
+        }
+
+        return new ScriptDefinition(
+            version,
+            scriptId,
+            configurationJson);
+    }
     private void AddComponentSection(
     Engine.Editor.Documents.EditorDocument document,
     EntityId entity,

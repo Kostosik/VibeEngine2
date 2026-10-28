@@ -21,8 +21,6 @@ public sealed class ScriptWorkflowTests
     [Fact]
     public void GameScript_CanReactToSeparatePhysicsTrigger()
     {
-
-
         var runtime = new EngineRuntime(
             new EngineRuntimeOptions
             {
@@ -81,12 +79,9 @@ public sealed class ScriptWorkflowTests
             new Collider2D(
                 new CircleShape2D(Fixed32.One)));
 
-        var configuration = JsonSerializer.Serialize(
-            new
-            {
-                triggerIndex = trigger.Index,
-                triggerGeneration = trigger.Generation
-            });
+        var configuration =
+            JsonSerializer.Serialize(
+                new DoorTriggerConfiguration(trigger));
 
         runtime.Scripts.Attach(
             door,
@@ -127,14 +122,10 @@ public sealed class ScriptWorkflowTests
 
         public void OnAttach(ScriptContext context)
         {
-            using var document = JsonDocument.Parse(
-                context.ConfigurationJson);
+            var configuration =
+                context.DeserializeConfiguration<DoorTriggerConfiguration>();
 
-            var root = document.RootElement;
-
-            _trigger = new EntityId(
-                root.GetProperty("triggerIndex").GetUInt32(),
-                root.GetProperty("triggerGeneration").GetUInt32());
+            _trigger = configuration.Trigger;
 
             context.Subscribe<PhysicsContactEvent>(
                 contact =>
@@ -144,8 +135,6 @@ public sealed class ScriptWorkflowTests
                     {
                         return;
                     }
-
-
 
                     var pair = contact.Manifold.Pair;
 
@@ -175,7 +164,7 @@ public sealed class ScriptWorkflowTests
     [Fact]
     public void GameCode_CanRegisterAssignAndExecuteScript()
     {
-        using var runtime = new EngineRuntime(
+        var runtime = new EngineRuntime(
             new EngineRuntimeOptions
             {
                 ToolingEnabled = false
@@ -217,6 +206,9 @@ public sealed class ScriptWorkflowTests
 
         game.Shutdown();
     }
+
+    private sealed record DoorTriggerConfiguration(
+    EntityId Trigger);
 
     private sealed class ScriptWorkflowGame : EngineGame
     {

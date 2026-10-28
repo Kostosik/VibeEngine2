@@ -28,16 +28,10 @@ internal static class EditorProjectAssetPathResolver
                 $"{assetDescription} path is empty.");
         }
 
-        var fullRoot = Path.GetFullPath(assetsRoot);
-
         var fullPath = Path.GetFullPath(
-            Path.Combine(fullRoot, normalizedPath));
+            Path.Combine(assetsRoot, normalizedPath));
 
-        var relativePath = Path.GetRelativePath(
-            fullRoot,
-            fullPath);
-
-        if (IsOutsideRoot(relativePath))
+        if (!IsWithinRoot(fullPath, assetsRoot))
         {
             throw new InvalidDataException(
                 $"{assetDescription} path cannot point outside Assets.");
@@ -58,5 +52,22 @@ internal static class EditorProjectAssetPathResolver
                relativePath.StartsWith(
                    $"..{Path.AltDirectorySeparatorChar}",
                    StringComparison.Ordinal);
+    }
+
+    public static bool IsWithinRoot(
+    string path,
+    string root)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentException.ThrowIfNullOrWhiteSpace(root);
+
+        var fullRoot = Path.GetFullPath(root);
+        var fullPath = Path.GetFullPath(path);
+
+        var relativePath = Path.GetRelativePath(
+            fullRoot,
+            fullPath);
+
+        return !IsOutsideRoot(relativePath);
     }
 }

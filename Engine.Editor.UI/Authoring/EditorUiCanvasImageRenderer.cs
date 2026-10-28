@@ -1,6 +1,7 @@
 ﻿using Engine.Core.Assets;
 using Engine.Core.Math;
 using Engine.Editor;
+using Engine.Editor.UI.Assets;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Resources;
 using Engine.UI.Core;
@@ -162,9 +163,11 @@ internal sealed class EditorUiCanvasImageRenderer
         {
             EnsureProjectAssetsRoot(assetsRoot);
 
-            fullPath = ResolveProjectTexturePath(
-                assetsRoot,
-                assetPath);
+            fullPath =
+                EditorProjectAssetPathResolver.Resolve(
+                    assetsRoot,
+                    assetPath.Value,
+                    "UI texture");
 
             if (_unavailableProjectTextures.Contains(fullPath))
             {
@@ -246,42 +249,6 @@ internal sealed class EditorUiCanvasImageRenderer
 
         _projectAssetsRoot = fullRoot;
     }
-
-    private static string ResolveProjectTexturePath(
-        string assetsRoot,
-        AssetPath assetPath)
-    {
-        if (Path.IsPathRooted(assetPath.Value))
-        {
-            throw new InvalidDataException(
-                "UI texture paths must be relative to the project's Assets directory.");
-        }
-
-        var fullRoot = Path.GetFullPath(assetsRoot);
-
-        var fullPath = Path.GetFullPath(
-            Path.Combine(fullRoot, assetPath.Value));
-
-        var relativePath = Path.GetRelativePath(
-            fullRoot,
-            fullPath);
-
-        if (Path.IsPathRooted(relativePath) ||
-            relativePath.Equals("..", StringComparison.Ordinal) ||
-            relativePath.StartsWith(
-                $"..{Path.DirectorySeparatorChar}",
-                StringComparison.Ordinal) ||
-            relativePath.StartsWith(
-                $"..{Path.AltDirectorySeparatorChar}",
-                StringComparison.Ordinal))
-        {
-            throw new InvalidDataException(
-                "UI texture path cannot point outside the project's Assets directory.");
-        }
-
-        return fullPath;
-    }
-
     private static bool PathsEqual(string left, string right)
     {
         return string.Equals(

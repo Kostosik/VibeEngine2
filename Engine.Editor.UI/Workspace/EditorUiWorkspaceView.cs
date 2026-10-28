@@ -19,7 +19,7 @@ public sealed class EditorUiWorkspaceView :
 
     private float _hierarchyRatio = 0.24f;
     private float _inspectorRatio = 0.24f;
-
+    private readonly EditorContext? _editor;
     private readonly EditorDockSplitter _leftSplitter;
     private readonly EditorDockSplitter _rightSplitter;
 
@@ -104,7 +104,8 @@ public sealed class EditorUiWorkspaceView :
         Inspector =
             new EditorUiInspectorPanelView(
                 document,
-                GetSelectedTexturePath);
+                GetSelectedTexturePath,
+                GetAvailableActionIds);
 
         _hierarchyHost.AddChild(
             Hierarchy);
@@ -240,6 +241,86 @@ public sealed class EditorUiWorkspaceView :
         }
 
         return availableSize;
+    }
+
+    private IReadOnlyList<string> GetAvailableActionIds()
+    {
+        var actionIds =
+            new HashSet<string>(
+                StringComparer.Ordinal);
+
+        void Collect(EditorUiDocument document)
+        {
+            foreach (var element in document.EnumerateDepthFirst())
+            {
+                if (!string.IsNullOrWhiteSpace(element.Action))
+                {
+                    actionIds.Add(element.Action);
+                }
+            }
+        }
+
+        Collect(Document);
+
+        if (_editor is not null)
+        {
+            foreach (var document in
+                     _editor.Session.AllDocuments
+                         .OfType<EditorUiDocument>())
+            {
+                Collect(document);
+            }
+
+            var assetsRoot =
+                _editor.ActiveGameProject?.AssetsDirectoryPath;
+
+            if (!string.IsNullOrWhiteSpace(assetsRoot) &&
+                Directory.Exists(assetsRoot))
+            {
+                string[] paths;
+
+                try
+                {
+                    paths =
+                        Directory.GetFiles(
+                            assetsRoot,
+                            "*.ui",
+                            SearchOption.AllDirectories);
+                }
+                catch (Exception exception) when (
+                    exception is IOException or
+                    UnauthorizedAccessException)
+                {
+                    paths = Array.Empty<string>();
+                }
+
+                foreach (var path in paths)
+                {
+                    try
+                    {
+                        Collect(
+                            EditorUiAssetFile.Load(path));
+                    }
+                    catch (Exception exception) when (
+                        exception is IOException or
+                        InvalidDataException or
+                        UnauthorizedAccessException or
+                        ArgumentException or
+                        FormatException or
+                        OverflowException)
+                    {
+                        // Неисправный или недоступный файл
+                        // не должен ломать Inspector.
+                    }
+                }
+            }
+        }
+
+        return actionIds
+            .OrderBy(
+                static id => id,
+                StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     protected override void ArrangeCore(

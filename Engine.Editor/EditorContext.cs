@@ -8,6 +8,7 @@ using Engine.Editor.Panels;
 using Engine.Editor.Persistence;
 using Engine.Editor.Projects;
 using Engine.Editor.Workspace;
+using Engine.Tooling.Debugging;
 using Engine.Worlds;
 
 namespace Engine.Editor;
@@ -15,7 +16,7 @@ namespace Engine.Editor;
 public sealed class EditorContext
 {
     private string? _defaultAssetBrowserRootPath;
-
+    private DebugConsole? _diagnosticConsole;
     public EditorContext()
     {
         Session =
@@ -97,7 +98,17 @@ public sealed class EditorContext
 
         ActiveGameProjectChanged?.Invoke(project);
     }
+    public void SetDiagnosticConsole(
+    DebugConsole? console)
+    {
+        _diagnosticConsole = console;
 
+        foreach (var document in Session.Documents
+                     .OfType<EditorDocument>())
+        {
+            document.SetDiagnosticConsole(console);
+        }
+    }
     public EditorDocument? ActiveDocument =>
         Session.ActiveDocument;
 
@@ -109,7 +120,8 @@ public sealed class EditorContext
 
         var document = new EditorDocument(
             world,
-            filePath);
+            filePath,
+            _diagnosticConsole);
 
         try
         {

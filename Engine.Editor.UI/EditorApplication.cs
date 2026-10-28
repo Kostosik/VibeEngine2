@@ -46,6 +46,8 @@ public sealed class EditorApplication :
     _subscribedAnimationClipDocuments = new();
     private readonly HashSet<SpriteAnimationDocument>
     _subscribedSpriteAnimationDocuments = new();
+    private readonly HashSet<ScriptDefinitionDocument>
+    _subscribedScriptDefinitionDocuments = new();
     private readonly HashSet<EditorDocument> _subscribedDocuments = new();
     private bool _uiDirty = true;
     private readonly IEditorDocumentPersistence?
@@ -176,8 +178,6 @@ public sealed class EditorApplication :
                 uiAssetPath);
         }
 
-
-
         Editor = editor;
         Ui = ui;
         Input = input;
@@ -185,11 +185,12 @@ public sealed class EditorApplication :
         UiDocument = uiDocument;
 
         _textInput =
-    input as ITextInput;
+            input as ITextInput;
 
         _fileDialogs =
     fileDialogs;
         _debugConsole = debugConsole;
+        Editor.SetDiagnosticConsole(debugConsole);
         UiHost =
             new EditorUiHost(
                 editor,
@@ -577,6 +578,10 @@ SaveAllDocuments;
                 case ParticleEffectDocument particleEffect:
                     _debugConsole?.WriteLine(
                         $"Saved particle effect: {particleEffect.FilePath}");
+                    break;
+                case ScriptDefinitionDocument scriptDefinition:
+                    _debugConsole?.WriteLine(
+                        $"Saved script definition: {scriptDefinition.FilePath}");
                     break;
             }
 
@@ -1034,7 +1039,10 @@ SaveAllDocuments;
                 SubscribeParticleEffectDocument(
                     particleEffectDocument);
                 break;
-
+            case ScriptDefinitionDocument scriptDefinitionDocument:
+                SubscribeScriptDefinitionDocument(
+                    scriptDefinitionDocument);
+                break;
             case SpriteAnimationDocument spriteAnimationDocument:
                 SubscribeSpriteAnimationDocument(
                     spriteAnimationDocument);
@@ -1051,7 +1059,16 @@ SaveAllDocuments;
                     $"'{document.DocumentTypeId}'.");
         }
     }
+    private void SubscribeScriptDefinitionDocument(
+    ScriptDefinitionDocument document)
+    {
+        if (!_subscribedScriptDefinitionDocuments.Add(document))
+        {
+            return;
+        }
 
+        document.Changed += MarkUiDirty;
+    }
     public void SetActiveWorldAsStartupScene()
     {
         if (Editor.Session.ActiveEditorDocument
@@ -1747,29 +1764,6 @@ SaveAllDocuments;
         }
     }
 
-    private static bool IsEditorDocumentPath(string path)
-    {
-        if (path.EndsWith(
-                ".sprite-animation.json",
-                StringComparison.OrdinalIgnoreCase) ||
-            path.EndsWith(
-                ".animation.json",
-                StringComparison.OrdinalIgnoreCase) ||
-            path.EndsWith(
-                ".particle.json",
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return Path.GetExtension(path).ToLowerInvariant() switch
-        {
-            ".world" => true,
-            ".ui" => true,
-            _ => false
-        };
-    }
-
     private static bool SameProjectRoot(
         string? left,
         string? right)
@@ -1817,6 +1811,18 @@ SaveAllDocuments;
         {
             switch (document)
             {
+                case ScriptDefinitionDocument scriptDefinitionDocument:
+                    if (continueApplicationClose)
+                    {
+                        scriptDefinitionDocument.MarkSaved();
+                    }
+                    else
+                    {
+                        Editor.Session.Discard(
+                            scriptDefinitionDocument);
+                    }
+
+                    break;
                 case SpriteAnimationDocument spriteAnimationDocument:
                     if (continueApplicationClose)
                     {
@@ -2006,7 +2012,17 @@ SaveAllDocuments;
             MarkUiDirty();
             return;
         }
+        if (document is ScriptDefinitionDocument scriptDefinitionDocument)
+        {
+            if (_subscribedScriptDefinitionDocuments.Remove(
+                    scriptDefinitionDocument))
+            {
+                scriptDefinitionDocument.Changed -= MarkUiDirty;
+            }
 
+            MarkUiDirty();
+            return;
+        }
         if (document is ParticleEffectDocument particleEffectDocument)
         {
             if (_subscribedParticleEffectDocuments.Remove(

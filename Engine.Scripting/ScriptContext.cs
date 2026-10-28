@@ -1,6 +1,7 @@
 ﻿using Engine.Core.Events;
 using Engine.ECS;
 using Engine.ECS.Entities;
+using System.Text.Json;
 
 namespace Engine.Scripting;
 
@@ -68,6 +69,21 @@ public readonly struct ScriptContext
         where T : struct
     {
         return ref _world.Get<T>(entity);
+    }
+
+    public T DeserializeConfiguration<T>()
+    {
+        var configuration =
+            JsonSerializer.Deserialize<T>(ConfigurationJson);
+
+        if (configuration is null)
+        {
+            throw new InvalidOperationException(
+                $"Script configuration for entity '{Entity}' " +
+                $"could not be deserialized as '{typeof(T).Name}'.");
+        }
+
+        return configuration;
     }
 
     public EventSubscription Subscribe<TEvent>(

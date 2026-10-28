@@ -1,5 +1,4 @@
-﻿
-using Engine.Editor;
+﻿using Engine.Editor;
 using Engine.Editor.Documents;
 using Engine.Editor.Documents.Persistence;
 using Engine.Editor.UI.Authoring;
@@ -36,6 +35,9 @@ internal sealed class EditorDocumentOpenService
                 StringComparison.OrdinalIgnoreCase) ||
             path.EndsWith(
                 ".particle.json",
+                StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(
+                ".script.json",
                 StringComparison.OrdinalIgnoreCase))
         {
             return true;
@@ -94,6 +96,12 @@ internal sealed class EditorDocumentOpenService
         {
             document = ParticleEffectDocument.Open(normalizedPath);
         }
+        else if (normalizedPath.EndsWith(
+                     ".script.json",
+                     StringComparison.OrdinalIgnoreCase))
+        {
+            document = ScriptDefinitionDocument.Open(normalizedPath);
+        }
         else
         {
             switch (Path.GetExtension(normalizedPath).ToLowerInvariant())
@@ -104,8 +112,9 @@ internal sealed class EditorDocumentOpenService
                             ?? throw new InvalidOperationException(
                                 "Document file service is not configured.");
 
-                        // EditorContext сам открывает документ в сессии.
-                        return _editor.OpenDocument(files, normalizedPath);
+                        return _editor.OpenDocument(
+                            files,
+                            normalizedPath);
                     }
 
                 case ".ui":
@@ -121,8 +130,7 @@ internal sealed class EditorDocumentOpenService
                 default:
                     throw new NotSupportedException(
                         $"Unsupported document type: " +
-                        $"'{Path.GetExtension(normalizedPath)}'. " +
-                        "Supported extensions are .world and .ui.");
+                        $"'{Path.GetExtension(normalizedPath)}'.");
             }
         }
 

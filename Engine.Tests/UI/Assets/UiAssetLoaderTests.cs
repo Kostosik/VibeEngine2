@@ -1,4 +1,5 @@
-﻿using Engine.Core.Math;
+﻿using Engine.Core.Events;
+using Engine.Core.Math;
 using Engine.UI.Actions;
 using Engine.UI.Assets;
 using Engine.UI.Controls;
@@ -8,6 +9,76 @@ namespace Engine.Tests.UI.Assets;
 
 public sealed class UiAssetLoaderTests
 {
+    [Fact]
+    public void Load_ButtonAction_PublishesEventThroughEventBus()
+    {
+        var rootId = Guid.NewGuid();
+        var buttonId = Guid.NewGuid();
+
+        using var events = new EventBus();
+
+        var receivedCount = 0;
+
+        using var subscription =
+            events.Subscribe<StartGameRequestedEvent>(
+                _ => receivedCount++);
+
+        var actions = new UiActionRegistry();
+
+        actions.Register(
+            "StartGameRequested",
+            () => events.Publish(
+                new StartGameRequestedEvent()));
+
+        var asset = new UiAsset(
+            "MainMenu",
+            new Vector2(1280.0f, 720.0f),
+            new[]
+            {
+            new UiAssetElement(
+                rootId,
+                Guid.Empty,
+                UiAssetElementType.Root,
+                "Root",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(1280.0f, 720.0f))),
+
+            new UiAssetElement(
+                buttonId,
+                rootId,
+                UiAssetElementType.Button,
+                "StartButton",
+                new UiAssetLayout(
+                    UiAnchor.Center,
+                    Vector2.Zero,
+                    new Vector2(240.0f, 60.0f)),
+                text: "Start",
+                action: "StartGameRequested")
+            });
+
+        var instance = new UiAssetLoader(
+            actions: actions).Load(asset);
+
+        var button = Assert.IsType<UiButton>(
+            instance.Get(buttonId));
+
+        button.Click();
+
+        // Событие поставлено в очередь,
+        // но подписчик ещё не вызван.
+        Assert.Equal(0, receivedCount);
+        Assert.Equal(1, events.PendingCount);
+
+        events.DispatchPending();
+
+        Assert.Equal(1, receivedCount);
+        Assert.Equal(0, events.PendingCount);
+    }
+
+    private sealed record StartGameRequestedEvent : IEvent;
+
 
     [Fact]
     public void Load_RestoresRuntimeControlSettings()

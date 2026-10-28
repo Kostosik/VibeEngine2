@@ -90,10 +90,6 @@ public sealed class UiAssetLoader
                 widget,
                 element);
 
-            BindAction(
-    widget,
-    element);
-
             AddChild(
                 parent,
                 widget);
@@ -305,11 +301,10 @@ public sealed class UiAssetLoader
     }
 
     private void BindAction(
-    UiWidget widget,
-    UiAssetElement element)
+     UiWidget widget,
+     UiAssetElement element)
     {
-        if (string.IsNullOrWhiteSpace(
-                element.Action))
+        if (string.IsNullOrWhiteSpace(element.Action))
         {
             return;
         }
@@ -317,21 +312,73 @@ public sealed class UiAssetLoader
         if (_actions is null)
         {
             throw new InvalidOperationException(
-                $"UI element '{element.Id}' requires action registry for action '{element.Action}'.");
+                $"UI element '{element.Id}' requires action registry " +
+                $"for action '{element.Action}'.");
         }
 
-        if (widget is UiButton button)
+        var action = element.Action;
+
+        switch (widget)
         {
-            var action =
-                element.Action;
+            case UiButton button:
+                button.Clicked +=
+                    () => InvokeAction(
+                        action,
+                        element,
+                        UiActionTrigger.Click);
 
-            button.Clicked +=
-                () => _actions.Invoke(action);
+                return;
 
-            return;
+            case UiToggle toggle:
+                toggle.ValueChanged +=
+                    value => InvokeAction(
+                        action,
+                        element,
+                        UiActionTrigger.ValueChanged,
+                        value);
+
+                return;
+
+            case UiDropdown dropdown:
+                dropdown.SelectionChanged +=
+                    (index, text) => InvokeAction(
+                        action,
+                        element,
+                        UiActionTrigger.SelectionChanged,
+                        new UiDropdownSelection(index, text));
+
+                return;
+
+            case UiTextBox textBox:
+                textBox.Submitted +=
+                    value => InvokeAction(
+                        action,
+                        element,
+                        UiActionTrigger.Submit,
+                        value);
+
+                return;
+
+            default:
+                throw new InvalidDataException(
+                    $"UI action '{action}' is not supported by " +
+                    $"element type '{element.Type}'.");
         }
+    }
 
-        throw new InvalidDataException(
-            $"UI action '{element.Action}' is not supported by element type '{element.Type}'.");
+    private void InvokeAction(
+        string action,
+        UiAssetElement element,
+        UiActionTrigger trigger,
+        object? value = null)
+    {
+        _actions!.Invoke(
+            action,
+            new UiActionContext(
+                element.Id,
+                element.Name,
+                element.Type,
+                trigger,
+                value));
     }
 }

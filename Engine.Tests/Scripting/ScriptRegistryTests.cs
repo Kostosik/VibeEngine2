@@ -5,6 +5,26 @@ namespace Engine.Tests.Scripting;
 public sealed class ScriptRegistryTests
 {
     [Fact]
+    public void RegisterDefinition_CreatesConfiguredImplementation()
+    {
+        var type = typeof(TestScript);
+
+        var definition = new ScriptDefinition(
+            ScriptDefinition.CurrentFormatVersion,
+            "game.test",
+            "{}",
+            type.Assembly.GetName().Name!,
+            type.FullName!);
+
+        var registry = new ScriptRegistry();
+
+        registry.Register(definition);
+
+        Assert.True(registry.Contains("game.test"));
+        Assert.IsType<TestScript>(registry.Create("game.test"));
+    }
+
+    [Fact]
     public void RegisterAllowsCreatingScript()
     {
         var registry = new ScriptRegistry();

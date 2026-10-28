@@ -1,5 +1,6 @@
 ﻿using Engine.Editor;
 using Engine.Editor.Assets;
+using Engine.Editor.UI.Assets;
 using Engine.Graphics.Commands;
 using Engine.UI.Controls;
 using Engine.UI.Core;
@@ -182,7 +183,9 @@ public sealed class EditorAssetPickerDialog
         _currentPath = browser.CurrentPath;
 
         if (!Directory.Exists(_currentPath) ||
-            !IsWithinRoot(_currentPath, _rootPath))
+            !EditorProjectAssetPathResolver.IsWithinRoot(
+    _currentPath,
+    _rootPath))
         {
             _currentPath = _rootPath;
         }
@@ -281,7 +284,9 @@ public sealed class EditorAssetPickerDialog
         var parent = Directory.GetParent(_currentPath);
 
         if (parent is null ||
-            !IsWithinRoot(parent.FullName, _rootPath))
+            !EditorProjectAssetPathResolver.IsWithinRoot(
+    parent.FullName,
+    _rootPath))
         {
             return;
         }
@@ -316,31 +321,5 @@ public sealed class EditorAssetPickerDialog
     {
         _canSelect = null;
         _selected = null;
-    }
-
-    private static bool IsWithinRoot(
-        string path,
-        string root)
-    {
-        var fullPath = Path.GetFullPath(path);
-        var fullRoot = Path.TrimEndingDirectorySeparator(
-            Path.GetFullPath(root));
-
-        if (string.Equals(
-                fullPath,
-                fullRoot,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        var rootPrefix =
-            fullRoot.EndsWith(Path.DirectorySeparatorChar)
-                ? fullRoot
-                : fullRoot + Path.DirectorySeparatorChar;
-
-        return fullPath.StartsWith(
-            rootPrefix,
-            StringComparison.OrdinalIgnoreCase);
     }
 }

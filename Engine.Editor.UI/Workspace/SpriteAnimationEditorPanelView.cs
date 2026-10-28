@@ -5,7 +5,7 @@ using Engine.Graphics.Commands;
 using Engine.Graphics.Resources;
 using Engine.Graphics2D.Sprites;
 using Engine.UI.Controls;
-using Engine.UI.Core;
+using Engine.Core.Math;
 using Engine.UI.Layout;
 using System.Globalization;
 
@@ -21,7 +21,14 @@ public sealed class SpriteAnimationEditorPanelView : UiPanel
     private readonly UiTextBox _durationTextBox;
     private readonly UiDropdown _loopDropdown;
     private readonly UiStackPanel _framesPanel;
+    private readonly UiLabel _documentNameLabel;
+    private readonly UiStackPanel _settingsRow;
+    private readonly UiStackPanel _frameToolbar;
+    private readonly UiScrollView _framesScroll;
+    private readonly UiStackPanel _editorBody;
 
+    private bool _bodyLayoutInitialized;
+    private bool _bodyLayoutCompact;
     public SpriteAnimationEditorPanelView(
         SpriteAnimationDocument document,
         EditorAssetPickerDialog? assetPickerDialog = null)
@@ -68,12 +75,14 @@ public sealed class SpriteAnimationEditorPanelView : UiPanel
             FontSize = 20.0f
         });
 
-        layout.AddChild(new UiLabel(document.DisplayName)
+        _documentNameLabel = new UiLabel(document.DisplayName)
         {
             Height = 24.0f,
             FontSize = 13.0f,
             Color = new UiColor(170, 170, 170, 255)
-        });
+        };
+
+        layout.AddChild(_documentNameLabel);
 
         _summaryLabel = new UiLabel
         {
@@ -83,14 +92,14 @@ public sealed class SpriteAnimationEditorPanelView : UiPanel
 
         layout.AddChild(_summaryLabel);
 
-        var settingsRow = new UiStackPanel
+        _settingsRow = new UiStackPanel
         {
             Orientation = UiOrientation.Horizontal,
             Spacing = 8.0f,
             Height = 34.0f
         };
 
-        settingsRow.AddChild(new UiLabel("Frame duration (seconds)")
+        _settingsRow.AddChild(new UiLabel("Frame duration (seconds)")
         {
             Width = 175.0f,
             Height = 30.0f,
@@ -107,9 +116,9 @@ public sealed class SpriteAnimationEditorPanelView : UiPanel
             Placeholder = "0.1"
         };
 
-        settingsRow.AddChild(_durationTextBox);
+        _settingsRow.AddChild(_durationTextBox);
 
-        settingsRow.AddChild(new UiLabel("Playback")
+        _settingsRow.AddChild(new UiLabel("Playback")
         {
             Width = 65.0f,
             Height = 30.0f,
@@ -126,7 +135,7 @@ public sealed class SpriteAnimationEditorPanelView : UiPanel
         _loopDropdown.AddOption("Loop");
         _loopDropdown.AddOption("Once");
 
-        settingsRow.AddChild(_loopDropdown);
+        _settingsRow.AddChild(_loopDropdown);
 
         var applySettingsButton = new UiButton("Apply")
         {
@@ -135,11 +144,11 @@ public sealed class SpriteAnimationEditorPanelView : UiPanel
         };
 
         applySettingsButton.Clicked += ApplySettings;
-        settingsRow.AddChild(applySettingsButton);
+        _settingsRow.AddChild(applySettingsButton);
 
-        layout.AddChild(settingsRow);
+        layout.AddChild(_settingsRow);
 
-        var frameToolbar = new UiStackPanel
+        _frameToolbar = new UiStackPanel
         {
             Orientation = UiOrientation.Horizontal,
             Spacing = 8.0f,
@@ -153,9 +162,9 @@ public sealed class SpriteAnimationEditorPanelView : UiPanel
         };
 
         addFrameButton.Clicked += AddFrame;
-        frameToolbar.AddChild(addFrameButton);
+        _frameToolbar.AddChild(addFrameButton);
 
-        frameToolbar.AddChild(new UiLabel(
+        _frameToolbar.AddChild(new UiLabel(
             "Frame order determines playback order.")
         {
             Height = 30.0f,
@@ -164,7 +173,7 @@ public sealed class SpriteAnimationEditorPanelView : UiPanel
             VerticalAlignment = UiVerticalAlignment.Center
         });
 
-        layout.AddChild(frameToolbar);
+        layout.AddChild(_frameToolbar);
 
         _messageLabel = new UiLabel
         {
@@ -175,14 +184,21 @@ public sealed class SpriteAnimationEditorPanelView : UiPanel
 
         layout.AddChild(_messageLabel);
 
-        var scroll = new UiScrollView
+        _framesScroll = new UiScrollView
         {
             Height = 500.0f,
-            HorizontalScrolling = false,
+
+            HorizontalScrolling = true,
             VerticalScrolling = true,
+
+            ShowHorizontalScrollBar = true,
             ShowVerticalScrollBar = true,
-            HorizontalAlignment = UiHorizontalAlignment.Stretch,
-            VerticalAlignment = UiVerticalAlignment.Stretch
+
+            HorizontalAlignment =
+                UiHorizontalAlignment.Stretch,
+
+            VerticalAlignment =
+                UiVerticalAlignment.Stretch
         };
 
         _framesPanel = new UiStackPanel
@@ -192,34 +208,55 @@ public sealed class SpriteAnimationEditorPanelView : UiPanel
             HorizontalAlignment = UiHorizontalAlignment.Stretch
         };
 
-        scroll.SetContent(_framesPanel);
+        _framesScroll.SetContent(_framesPanel);
 
-        scroll.Width = 620.0f;
-
-        var editorBody = new UiStackPanel
+        _editorBody = new UiStackPanel
         {
             Orientation = UiOrientation.Horizontal,
             Spacing = 12.0f,
             Height = 500.0f,
-            HorizontalAlignment = UiHorizontalAlignment.Stretch,
-            VerticalAlignment = UiVerticalAlignment.Stretch
+
+            HorizontalAlignment =
+                UiHorizontalAlignment.Stretch,
+
+            VerticalAlignment =
+                UiVerticalAlignment.Stretch
         };
 
-        editorBody.AddChild(scroll);
+        _editorBody.AddChild(_framesScroll);
 
         if (_previewView is not null)
         {
-            _previewView.Width = 380.0f;
             _previewView.Height = 320.0f;
+
             _previewView.VerticalAlignment =
                 UiVerticalAlignment.Top;
 
-            editorBody.AddChild(_previewView);
+            _editorBody.AddChild(_previewView);
         }
 
-        layout.AddChild(editorBody);
+        layout.AddChild(_editorBody);
 
-        AddChild(layout);
+        // Прокручивается вся страница редактора,
+        // а не только список кадров.
+        var pageScroll = new UiScrollView
+        {
+            HorizontalScrolling = false,
+            VerticalScrolling = true,
+
+            ShowHorizontalScrollBar = false,
+            ShowVerticalScrollBar = true,
+
+            HorizontalAlignment =
+                UiHorizontalAlignment.Stretch,
+
+            VerticalAlignment =
+                UiVerticalAlignment.Stretch
+        };
+
+        pageScroll.SetContent(layout);
+
+        AddChild(pageScroll);
 
         _document.Changed += OnDocumentChanged;
 
@@ -472,6 +509,143 @@ public sealed class SpriteAnimationEditorPanelView : UiPanel
         UpdateFrames(frames);
 
         _messageLabel.Text = "Frame order updated.";
+    }
+
+    protected override Vector2 MeasureCore(
+    UiLayoutContext context,
+    Vector2 availableSize)
+    {
+        var contentWidth = MathF.Max(
+            0.0f,
+            availableSize.X -
+            Padding.Left -
+            Padding.Right);
+
+        var compactBody =
+            _previewView is not null &&
+            contentWidth < 760.0f;
+
+        var compactSettings =
+            contentWidth < 580.0f;
+
+        var compactToolbar =
+            contentWidth < 440.0f;
+
+        // На узком экране настройки располагаются
+        // вертикально, чтобы не выходить за границы.
+        _settingsRow.Orientation =
+            compactSettings
+                ? UiOrientation.Vertical
+                : UiOrientation.Horizontal;
+
+        _settingsRow.Height =
+            compactSettings
+                ? null
+                : 34.0f;
+
+        // Панель добавления кадров тоже адаптируется.
+        _frameToolbar.Orientation =
+            compactToolbar
+                ? UiOrientation.Vertical
+                : UiOrientation.Horizontal;
+
+        _frameToolbar.Height =
+            compactToolbar
+                ? null
+                : 34.0f;
+
+        // Ограничиваем ширину текстовых заголовков.
+        _documentNameLabel.Width = contentWidth;
+        _summaryLabel.Width = contentWidth;
+        _messageLabel.Width = contentWidth;
+
+        // Когда превью становится узким, оно переносится
+        // над списком кадров.
+        SetBodyLayoutOrder(compactBody);
+
+        _framesScroll.HorizontalScrolling = true;
+        _framesScroll.ShowHorizontalScrollBar = true;
+
+        if (compactBody)
+        {
+            _editorBody.Orientation =
+                UiOrientation.Vertical;
+
+            _editorBody.Height = null;
+
+            _framesScroll.Width = contentWidth;
+            _framesScroll.Height = 280.0f;
+
+            _previewView!.Width = contentWidth;
+            _previewView.Height = 320.0f;
+        }
+        else
+        {
+            _editorBody.Orientation =
+                UiOrientation.Horizontal;
+
+            _editorBody.Height = 500.0f;
+            _framesScroll.Height = 500.0f;
+
+            if (_previewView is null)
+            {
+                _framesScroll.Width = contentWidth;
+            }
+            else
+            {
+                var framesWidth = Math.Clamp(
+                    contentWidth * 0.62f,
+                    360.0f,
+                    620.0f);
+
+                var previewWidth = Math.Clamp(
+                    contentWidth - framesWidth - 12.0f,
+                    220.0f,
+                    380.0f);
+
+                _framesScroll.Width = framesWidth;
+
+                _previewView.Width = previewWidth;
+                _previewView.Height = 320.0f;
+            }
+        }
+
+        return base.MeasureCore(
+            context,
+            availableSize);
+    }
+
+    private void SetBodyLayoutOrder(bool compact)
+    {
+        if (_bodyLayoutInitialized &&
+            _bodyLayoutCompact == compact)
+        {
+            return;
+        }
+
+        if (_previewView is not null)
+        {
+            _editorBody.RemoveChild(_framesScroll);
+            _editorBody.RemoveChild(_previewView);
+
+            if (compact)
+            {
+                // На узком экране превью должно быть первым,
+                // чтобы оно оставалось доступным.
+                _editorBody.AddChild(_previewView);
+                _editorBody.AddChild(_framesScroll);
+            }
+            else
+            {
+                // На широком экране список слева,
+                // превью справа.
+                _editorBody.AddChild(_framesScroll);
+                _editorBody.AddChild(_previewView);
+            }
+        }
+
+        _bodyLayoutCompact = compact;
+        _bodyLayoutInitialized = true;
     }
 
     private void UpdateFrames(

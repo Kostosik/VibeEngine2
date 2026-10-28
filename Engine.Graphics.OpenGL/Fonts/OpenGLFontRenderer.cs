@@ -16,7 +16,7 @@ internal sealed class OpenGLFontRenderer :
 
     private readonly uint _vao;
     private readonly uint _vbo;
-
+    private uint _fontSampler;
     private readonly int _resolutionLocation;
     private readonly int _textureLocation;
     private readonly int _colorLocation;
@@ -81,11 +81,41 @@ internal sealed class OpenGLFontRenderer :
 
             ValidateUniforms();
 
+            _fontSampler = _gl.GenSampler();
+
+            if (_fontSampler == 0)
+            {
+                throw new InvalidOperationException(
+                    "OpenGL failed to create a font sampler.");
+            }
+
+            _gl.SamplerParameter(
+                _fontSampler,
+                GLEnum.TextureMinFilter,
+                (int)GLEnum.Linear);
+
+            _gl.SamplerParameter(
+                _fontSampler,
+                GLEnum.TextureMagFilter,
+                (int)GLEnum.Linear);
             (_vao, _vbo) =
                 CreateBuffer();
         }
         catch
         {
+            if (_fontSampler != 0)
+            {
+                try
+                {
+                    _gl.DeleteSampler(_fontSampler);
+                }
+                catch
+                {
+                    // Сохраняем исходное исключение.
+                }
+
+                _fontSampler = 0;
+            }
             try
             {
                 _shader.Dispose();
@@ -126,7 +156,7 @@ internal sealed class OpenGLFontRenderer :
 
         _gl.ActiveTexture(
             TextureUnit.Texture0);
-
+        _gl.BindSampler(0, _fontSampler);
         _gl.BindVertexArray(
             _vao);
 
@@ -434,7 +464,7 @@ internal sealed class OpenGLFontRenderer :
         _gl.BindTexture(
             TextureTarget.Texture2D,
             0);
-
+        _gl.BindSampler(0, 0);
         _shader.StopUsing();
 
         _frameActive = false;
@@ -478,7 +508,11 @@ internal sealed class OpenGLFontRenderer :
         {
             return;
         }
-
+        if (_fontSampler != 0)
+        {
+            _gl.DeleteSampler(_fontSampler);
+            _fontSampler = 0;
+        }
         _shader.Dispose();
 
         _gl.DeleteBuffer(

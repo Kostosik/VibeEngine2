@@ -240,15 +240,17 @@ public class UiScrollView : UiContainer
             return;
         }
 
-        var contentWidth =
-            MathF.Max(
+        var contentWidth = HorizontalScrolling
+            ? MathF.Max(
                 finalRect.Width,
-                Content.DesiredSize.X);
+                Content.DesiredSize.X)
+            : finalRect.Width;
 
-        var contentHeight =
-            MathF.Max(
+        var contentHeight = VerticalScrolling
+            ? MathF.Max(
                 finalRect.Height,
-                Content.DesiredSize.Y);
+                Content.DesiredSize.Y)
+            : finalRect.Height;
 
         var maxScrollX =
             MathF.Max(
@@ -499,9 +501,6 @@ public class UiScrollView : UiContainer
                 ScrollOffset.X - previousOffset.X) > 0.0001f ||
             MathF.Abs(
                 ScrollOffset.Y - previousOffset.Y) > 0.0001f;
-
-        pointer.Handled =
-            true;
     }
 
     internal override UiWidget? HitTest(
@@ -663,15 +662,17 @@ public class UiScrollView : UiContainer
             return;
         }
 
-        var contentWidth =
-            MathF.Max(
+        var contentWidth = HorizontalScrolling
+            ? MathF.Max(
                 Bounds.Width,
-                Content.DesiredSize.X);
+                Content.DesiredSize.X)
+            : Bounds.Width;
 
-        var contentHeight =
-            MathF.Max(
+        var contentHeight = VerticalScrolling
+            ? MathF.Max(
                 Bounds.Height,
-                Content.DesiredSize.Y);
+                Content.DesiredSize.Y)
+            : Bounds.Height;
 
         Content.Arrange(
             new UiRect(

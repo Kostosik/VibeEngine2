@@ -1,4 +1,4 @@
-﻿
+﻿using Engine.Core.Math;
 using Engine.Editor.Assets;
 using Engine.Editor.Documents;
 using Engine.Editor.UI.Dialogs;
@@ -16,7 +16,15 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
 {
     private readonly ParticleEffectDocument _document;
     private readonly ParticleEffectPreviewView _previewView;
+    private readonly UiLabel _documentNameLabel;
+    private readonly UiScrollView _fieldsScroll;
+    private readonly UiStackPanel _contentRow;
 
+    private bool _bodyLayoutInitialized;
+    private bool _bodyLayoutCompact;
+
+    private UiStackPanel? _modifierAddRow;
+    private UiButton? _addModifierButton;
     private readonly UiDropdown _modifierTypeDropdown = new();
 
     private readonly UiStackPanel _modifierRowsPanel = new()
@@ -71,12 +79,14 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
             FontSize = 20.0f
         });
 
-        layout.AddChild(new UiLabel(document.DisplayName)
+        _documentNameLabel = new UiLabel(document.DisplayName)
         {
             Height = 24.0f,
             FontSize = 13.0f,
             Color = new UiColor(170, 170, 170, 255)
-        });
+        };
+
+        layout.AddChild(_documentNameLabel);
 
         _previewView = new ParticleEffectPreviewView(
     document,
@@ -85,13 +95,17 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
         _previewView.Width = 400.0f;
         _previewView.Height = 250.0f;
 
-        var scroll = new UiScrollView
+        _fieldsScroll = new UiScrollView
         {
             Width = 820.0f,
             Height = 250.0f,
+
             HorizontalScrolling = false,
             VerticalScrolling = true,
+
+            ShowHorizontalScrollBar = false,
             ShowVerticalScrollBar = true,
+
             HorizontalAlignment = UiHorizontalAlignment.Stretch,
             VerticalAlignment = UiVerticalAlignment.Top
         };
@@ -172,20 +186,22 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
         fieldsPanel.AddChild(velocityExpander);
         fieldsPanel.AddChild(modifiersExpander);
 
-        scroll.SetContent(fieldsPanel);
+        _fieldsScroll.SetContent(fieldsPanel);
 
-        var contentRow = new UiStackPanel
+        _contentRow = new UiStackPanel
         {
             Orientation = UiOrientation.Horizontal,
             Spacing = 12.0f,
+
             HorizontalAlignment = UiHorizontalAlignment.Stretch,
             VerticalAlignment = UiVerticalAlignment.Top
         };
 
-        contentRow.AddChild(scroll);
-        contentRow.AddChild(_previewView);
+        _contentRow.AddChild(_fieldsScroll);
+        _contentRow.AddChild(_previewView);
 
-        layout.AddChild(contentRow);
+        layout.AddChild(_contentRow);
+
 
         _messageLabel = new UiLabel
         {
@@ -225,7 +241,21 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
         buttons.AddChild(resetButton);
         layout.AddChild(buttons);
 
-        AddChild(layout);
+        var pageScroll = new UiScrollView
+        {
+            HorizontalScrolling = false,
+            VerticalScrolling = true,
+
+            ShowHorizontalScrollBar = false,
+            ShowVerticalScrollBar = true,
+
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Stretch
+        };
+
+        pageScroll.SetContent(layout);
+
+        AddChild(pageScroll);
 
         // Emitter
         AddField(
@@ -393,6 +423,186 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
 
         panel.AddChild(row);
         _fieldRows.Add(key, row);
+    }
+
+    protected override Vector2 MeasureCore(
+        UiLayoutContext context,
+        Vector2 availableSize)
+    {
+        var contentWidth = MathF.Max(
+            0.0f,
+            availableSize.X -
+            Padding.Left -
+            Padding.Right);
+
+        var compact = contentWidth < 900.0f;
+        var narrowForms = contentWidth < 520.0f;
+
+        SetContentRowLayout(compact);
+
+        _contentRow.Orientation =
+            compact
+                ? UiOrientation.Vertical
+                : UiOrientation.Horizontal;
+
+        _contentRow.Height =
+            compact
+                ? null
+                : 250.0f;
+
+        // Вычисляем ширину отдельно, чтобы использовать float,
+        // а не nullable float из свойства Width.
+        var fieldsWidth = compact
+            ? contentWidth
+            : Math.Clamp(
+                contentWidth * 0.68f,
+                360.0f,
+                1000.0f);
+
+        _fieldsScroll.Width = fieldsWidth;
+        _fieldsScroll.Height = 250.0f;
+
+        var previewWidth = compact
+            ? contentWidth
+            : Math.Clamp(
+                contentWidth -
+                fieldsWidth -
+                12.0f,
+                220.0f,
+                400.0f);
+
+        _previewView.Width = previewWidth;
+        _previewView.Height = 250.0f;
+
+        _messageLabel.Width = contentWidth;
+        _documentNameLabel.Width = contentWidth;
+
+        // Подгоняем строки параметров под ширину панели.
+        var fieldAvailableWidth = MathF.Max(
+            0.0f,
+            fieldsWidth - 16.0f);
+
+        var labelWidth = MathF.Min(
+            220.0f,
+            MathF.Max(
+                72.0f,
+                (fieldAvailableWidth - 8.0f) * 0.42f));
+
+        var inputWidth = MathF.Min(
+            280.0f,
+            MathF.Max(
+                72.0f,
+                fieldAvailableWidth -
+                labelWidth -
+                8.0f));
+
+        foreach (var widget in _fieldRows.Values.Distinct())
+        {
+            if (widget is not UiStackPanel row ||
+                row.Children.Count < 2 ||
+                row.Children[0] is not UiLabel label)
+            {
+                continue;
+            }
+
+            label.Width = labelWidth;
+            row.Children[1].Width = inputWidth;
+        }
+
+        // На узком экране строка добавления модификаторов
+        // переходит в вертикальный режим.
+        if (_modifierAddRow is not null &&
+            _addModifierButton is not null)
+        {
+            _modifierAddRow.Orientation =
+                narrowForms
+                    ? UiOrientation.Vertical
+                    : UiOrientation.Horizontal;
+
+            _modifierAddRow.Height =
+                narrowForms
+                    ? null
+                    : 32.0f;
+
+            _modifierTypeDropdown.Width =
+                narrowForms
+                    ? fieldAvailableWidth
+                    : 220.0f;
+
+            _addModifierButton.Width =
+                narrowForms
+                    ? fieldAvailableWidth
+                    : 120.0f;
+        }
+
+        // На узком экране параметры модификаторов
+        // располагаются вертикально.
+        foreach (var modifierRow in _modifierRows)
+        {
+            var row = modifierRow.Container;
+
+            row.Orientation =
+                narrowForms
+                    ? UiOrientation.Vertical
+                    : UiOrientation.Horizontal;
+
+            row.Height =
+                narrowForms
+                    ? null
+                    : 32.0f;
+
+            for (var i = 0; i < row.Children.Count; i++)
+            {
+                if (narrowForms)
+                {
+                    row.Children[i].Width =
+                        fieldAvailableWidth;
+
+                    continue;
+                }
+
+                row.Children[i].Width =
+                    i == 0
+                        ? 140.0f
+                        : i == row.Children.Count - 1
+                            ? 70.0f
+                            : i % 2 == 1
+                                ? 45.0f
+                                : 75.0f;
+            }
+        }
+
+        return base.MeasureCore(
+            context,
+            availableSize);
+    }
+
+    private void SetContentRowLayout(bool compact)
+    {
+        if (_bodyLayoutInitialized &&
+            _bodyLayoutCompact == compact)
+        {
+            return;
+        }
+
+        _contentRow.RemoveChild(_fieldsScroll);
+        _contentRow.RemoveChild(_previewView);
+
+        if (compact)
+        {
+            // Сначала превью, затем параметры.
+            _contentRow.AddChild(_previewView);
+            _contentRow.AddChild(_fieldsScroll);
+        }
+        else
+        {
+            // Стандартная двухколоночная компоновка.
+            _contentRow.AddChild(_fieldsScroll);
+            _contentRow.AddChild(_previewView);
+        }
+
+        _bodyLayoutCompact = compact;
+        _bodyLayoutInitialized = true;
     }
 
     private static bool IsTextureAsset(EditorAssetEntry entry)
@@ -593,6 +803,7 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
 
         row.AddChild(_shapeDropdown);
         panel.AddChild(row);
+        _fieldRows["emissionShape"] = row;
     }
     private void UpdateShapeParameterFields(string shape)
     {
@@ -617,7 +828,7 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
             Spacing = 8.0f,
             Height = 32.0f
         };
-
+        _modifierAddRow = addRow;
         _modifierTypeDropdown.Width = 220.0f;
         _modifierTypeDropdown.Height = 30.0f;
 
@@ -631,7 +842,7 @@ public sealed class ParticleEffectEditorPanelView : UiPanel
             Width = 120.0f,
             Height = 30.0f
         };
-
+        _addModifierButton = addButton;
         addButton.Clicked += AddSelectedModifier;
 
         addRow.AddChild(_modifierTypeDropdown);

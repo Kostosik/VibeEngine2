@@ -6,7 +6,7 @@ namespace Engine.UI.Core;
 public abstract class UiContainer : UiWidget
 {
     private readonly List<UiWidget> _children = new();
-
+    public bool ClipChildren { get; set; }
     public IReadOnlyList<UiWidget> Children =>
         _children;
 
@@ -117,6 +117,7 @@ public abstract class UiContainer : UiWidget
             Bounds.Y + Bounds.Height / 2.0f);
 
         var rotationPushed = false;
+        var clipPushed = false;
 
         try
         {
@@ -130,6 +131,12 @@ public abstract class UiContainer : UiWidget
 
             OnRender(context);
 
+            if (ClipChildren)
+            {
+                context.PushClip(Bounds);
+                clipPushed = true;
+            }
+
             foreach (var child in GetRenderOrder())
             {
                 child.Render(context);
@@ -137,6 +144,11 @@ public abstract class UiContainer : UiWidget
         }
         finally
         {
+            if (clipPushed)
+            {
+                context.PopClip();
+            }
+
             if (rotationPushed)
             {
                 context.PopRotation();

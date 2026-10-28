@@ -9,20 +9,21 @@ public sealed class TilemapRenderer
 {
     private readonly IGraphicsDevice _graphics;
     private readonly Camera2D _camera;
-    private readonly TextureAtlas _atlas;
+    private readonly TileSet _tileSet;
     private readonly float _tileSize;
 
     public TilemapRenderer(
-        IGraphicsDevice graphics,
-        Camera2D camera,
-        TextureAtlas atlas,
-        float tileSize)
+    IGraphicsDevice graphics,
+    Camera2D camera,
+    TileSet tileSet,
+    float tileSize)
     {
         ArgumentNullException.ThrowIfNull(graphics);
         ArgumentNullException.ThrowIfNull(camera);
-        ArgumentNullException.ThrowIfNull(atlas);
+        ArgumentNullException.ThrowIfNull(tileSet);
 
-        if (tileSize <= 0.0f)
+        if (!float.IsFinite(tileSize) ||
+            tileSize <= 0.0f)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(tileSize));
@@ -30,7 +31,7 @@ public sealed class TilemapRenderer
 
         _graphics = graphics;
         _camera = camera;
-        _atlas = atlas;
+        _tileSet = tileSet;
         _tileSize = tileSize;
     }
 
@@ -120,8 +121,8 @@ public sealed class TilemapRenderer
         }
 
         for (var y = startY;
-             y <= endY;
-             y++)
+     y <= endY;
+     y++)
         {
             for (var x = startX;
                  x <= endX;
@@ -134,22 +135,17 @@ public sealed class TilemapRenderer
                 var tileValue =
                     tiles[index];
 
-                if (tileValue == 0)
+                if (tileValue == 0 ||
+                    !_tileSet.TryGet(
+                        tileValue,
+                        out var visual))
                 {
                     continue;
                 }
 
-                var atlasIndex =
-                    checked(
-                        (int)tileValue - 1);
-
-                var region =
-                    _atlas.GetRegion(
-                        atlasIndex);
-
                 _graphics.Submit(
                     new DrawWorldTextureCommand(
-                        _atlas.Texture,
+                        visual.Texture,
 
                         new Vector2(
                             chunkWorldX + x,
@@ -159,7 +155,7 @@ public sealed class TilemapRenderer
                             _tileSize,
                             _tileSize),
 
-                        region.UV));
+                        visual.UV));
             }
         }
     }

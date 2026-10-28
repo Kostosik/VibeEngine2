@@ -4,13 +4,18 @@ using Engine.Graphics.Commands;
 using Engine.Scripting;
 using Engine.Tooling.Debugging;
 using Engine.UI.Controls;
-using Engine.UI.Core;
+using Engine.Core.Math;
 using Engine.UI.Layout;
 
 namespace Engine.Editor.UI.Workspace;
 
 public sealed class ScriptDefinitionEditorPanelView : UiPanel
 {
+    private readonly UiLabel _documentNameLabel;
+    private readonly UiLabel _instructionsLabel;
+    private readonly UiStackPanel _scriptIdRow;
+    private readonly UiStackPanel _buttons;
+
     private readonly ScriptDefinitionDocument _document;
     private readonly EditorContext _editor;
     private readonly DebugConsole? _console;
@@ -55,13 +60,14 @@ public sealed class ScriptDefinitionEditorPanelView : UiPanel
                 FontSize = 22.0f
             });
 
-        layout.AddChild(
-            new UiLabel(document.DisplayName)
-            {
-                Height = 24.0f,
-                FontSize = 13.0f,
-                Color = new UiColor(170, 170, 170, 255)
-            });
+        _documentNameLabel = new UiLabel(document.DisplayName)
+        {
+            Height = 24.0f,
+            FontSize = 13.0f,
+            Color = new UiColor(170, 170, 170, 255)
+        };
+
+        layout.AddChild(_documentNameLabel);
 
         _scriptIdTextBox.SetText(
             _document.Definition.ScriptId);
@@ -72,14 +78,14 @@ public sealed class ScriptDefinitionEditorPanelView : UiPanel
         _scriptIdTextBox.MaxLength = 256;
         _scriptIdTextBox.Placeholder = "game.my_script";
 
-        var scriptIdRow = new UiStackPanel
+        _scriptIdRow = new UiStackPanel
         {
             Orientation = UiOrientation.Horizontal,
             Spacing = 8.0f,
             Height = 32.0f
         };
 
-        scriptIdRow.AddChild(
+        _scriptIdRow.AddChild(
             new UiLabel("Script ID")
             {
                 Width = 120.0f,
@@ -87,7 +93,7 @@ public sealed class ScriptDefinitionEditorPanelView : UiPanel
                 FontSize = 13.0f
             });
 
-        scriptIdRow.AddChild(_scriptIdTextBox);
+        _scriptIdRow.AddChild(_scriptIdTextBox);
 
         var applyScriptIdButton = new UiButton("Apply ID")
         {
@@ -97,8 +103,8 @@ public sealed class ScriptDefinitionEditorPanelView : UiPanel
 
         applyScriptIdButton.Clicked += ApplyScriptId;
 
-        scriptIdRow.AddChild(applyScriptIdButton);
-        layout.AddChild(scriptIdRow);
+        _scriptIdRow.AddChild(applyScriptIdButton);
+        layout.AddChild(_scriptIdRow);
 
         layout.AddChild(
             new UiLabel("C# implementation")
@@ -144,7 +150,7 @@ public sealed class ScriptDefinitionEditorPanelView : UiPanel
 
         layout.AddChild(_statusLabel);
 
-        var buttons = new UiStackPanel
+        _buttons = new UiStackPanel
         {
             Orientation = UiOrientation.Horizontal,
             Spacing = 8.0f,
@@ -168,23 +174,121 @@ public sealed class ScriptDefinitionEditorPanelView : UiPanel
 
         _assignButton.Clicked += AssignSelectedClass;
 
-        buttons.AddChild(_refreshButton);
-        buttons.AddChild(_assignButton);
+        _buttons.AddChild(_refreshButton);
+        _buttons.AddChild(_assignButton);
 
-        layout.AddChild(buttons);
+        layout.AddChild(_buttons);
 
-        layout.AddChild(
-            new UiLabel(
-                "Classes must implement IEntityScript and have a public " +
-                "parameterless constructor. Save the resource after changing its class.")
-            {
-                FontSize = 11.0f,
-                Color = new UiColor(155, 155, 155, 255)
-            });
+        _instructionsLabel = new UiLabel(
+            "Classes must implement IEntityScript and have a public " +
+            "parameterless constructor. Save the resource after changing its class.")
+        {
+            FontSize = 11.0f,
+            Color = new UiColor(155, 155, 155, 255)
+        };
 
-        AddChild(layout);
+        layout.AddChild(_instructionsLabel);
+
+        var pageScroll = new UiScrollView
+        {
+            HorizontalScrolling = false,
+            VerticalScrolling = true,
+
+            ShowHorizontalScrollBar = false,
+            ShowVerticalScrollBar = true,
+
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Stretch
+        };
+
+        pageScroll.SetContent(layout);
+
+        AddChild(pageScroll);
 
         RefreshImplementationLabel();
+    }
+
+    protected override Vector2 MeasureCore(
+    UiLayoutContext context,
+    Vector2 availableSize)
+    {
+        var measuredWidth = Bounds.Width > 0.0f
+            ? Bounds.Width
+            : availableSize.X;
+
+        var contentWidth = MathF.Max(
+            0.0f,
+            measuredWidth -
+            Padding.Left -
+            Padding.Right);
+
+        var compact = contentWidth < 620.0f;
+        var narrow = contentWidth < 420.0f;
+
+        // Информация о документе и реализации.
+        _documentNameLabel.Width = contentWidth;
+        _implementationLabel.Width = contentWidth;
+        _statusLabel.Width = contentWidth;
+        _instructionsLabel.Width = contentWidth;
+
+        // Строка Script ID.
+        _scriptIdRow.Orientation =
+            compact
+                ? UiOrientation.Vertical
+                : UiOrientation.Horizontal;
+
+        _scriptIdRow.Height =
+            compact
+                ? null
+                : 32.0f;
+
+        _scriptIdRow.Children[0].Width =
+            compact
+                ? contentWidth
+                : 120.0f;
+
+        _scriptIdTextBox.Width =
+            compact
+                ? contentWidth
+                : MathF.Min(
+                    280.0f,
+                    MathF.Max(
+                        120.0f,
+                        contentWidth - 120.0f - 100.0f - 16.0f));
+
+        _scriptIdRow.Children[2].Width =
+            compact
+                ? contentWidth
+                : 100.0f;
+
+        // Выбор реализации C#.
+        _classDropdown.Width = contentWidth;
+        _classDropdown.Height = 42.0f;
+
+        // На узкой панели кнопки располагаются вертикально.
+        _buttons.Orientation =
+            narrow
+                ? UiOrientation.Vertical
+                : UiOrientation.Horizontal;
+
+        _buttons.Height =
+            narrow
+                ? null
+                : 36.0f;
+
+        _refreshButton.Width =
+            narrow
+                ? contentWidth
+                : 150.0f;
+
+        _assignButton.Width =
+            narrow
+                ? contentWidth
+                : 130.0f;
+
+        return base.MeasureCore(
+            context,
+            availableSize);
     }
 
     private void ApplyScriptId()

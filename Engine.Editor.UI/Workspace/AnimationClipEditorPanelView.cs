@@ -11,6 +11,12 @@ namespace Engine.Editor.UI.Workspace;
 
 public sealed class AnimationClipEditorPanelView : UiPanel
 {
+    private readonly UiLabel _documentNameLabel;
+    private readonly UiStackPanel _durationRow;
+    private readonly UiStackPanel _trackRow;
+    private readonly UiScrollView _tracksScroll;
+
+    private bool _compactLayout;
     private readonly AnimationClipDocument _document;
     private readonly UiLabel _summaryLabel;
     private readonly UiLabel _messageLabel;
@@ -43,12 +49,14 @@ public sealed class AnimationClipEditorPanelView : UiPanel
             FontSize = 20.0f
         });
 
-        layout.AddChild(new UiLabel(document.DisplayName)
+        _documentNameLabel = new UiLabel(document.DisplayName)
         {
             Height = 24.0f,
             FontSize = 13.0f,
             Color = new UiColor(170, 170, 170, 255)
-        });
+        };
+
+        layout.AddChild(_documentNameLabel);
 
         _summaryLabel = new UiLabel
         {
@@ -59,14 +67,14 @@ public sealed class AnimationClipEditorPanelView : UiPanel
         layout.AddChild(_summaryLabel);
 
         // Duration controls.
-        var durationRow = new UiStackPanel
+        _durationRow = new UiStackPanel
         {
             Orientation = UiOrientation.Horizontal,
             Spacing = 8.0f,
             Height = 34.0f
         };
 
-        durationRow.AddChild(new UiLabel("Duration (seconds)")
+        _durationRow.AddChild(new UiLabel("Duration (seconds)")
         {
             Width = 150.0f,
             Height = 30.0f,
@@ -91,12 +99,12 @@ public sealed class AnimationClipEditorPanelView : UiPanel
 
         applyDurationButton.Clicked += ApplyDuration;
 
-        durationRow.AddChild(_durationTextBox);
-        durationRow.AddChild(applyDurationButton);
-        layout.AddChild(durationRow);
+        _durationRow.AddChild(_durationTextBox);
+        _durationRow.AddChild(applyDurationButton);
+        layout.AddChild(_durationRow);
 
         // Track creation controls.
-        var trackRow = new UiStackPanel
+        _trackRow = new UiStackPanel
         {
             Orientation = UiOrientation.Horizontal,
             Spacing = 8.0f,
@@ -132,11 +140,11 @@ public sealed class AnimationClipEditorPanelView : UiPanel
 
         addTrackButton.Clicked += AddTrack;
 
-        trackRow.AddChild(_trackIdTextBox);
-        trackRow.AddChild(_trackTypeDropdown);
-        trackRow.AddChild(addTrackButton);
+        _trackRow.AddChild(_trackIdTextBox);
+        _trackRow.AddChild(_trackTypeDropdown);
+        _trackRow.AddChild(addTrackButton);
 
-        layout.AddChild(trackRow);
+        layout.AddChild(_trackRow);
 
         _messageLabel = new UiLabel
         {
@@ -156,12 +164,16 @@ public sealed class AnimationClipEditorPanelView : UiPanel
 
         layout.AddChild(_timelineView);
 
-        var scroll = new UiScrollView
+        _tracksScroll = new UiScrollView
         {
             Height = 500.0f,
-            HorizontalScrolling = false,
+
+            HorizontalScrolling = true,
             VerticalScrolling = true,
+
+            ShowHorizontalScrollBar = true,
             ShowVerticalScrollBar = true,
+
             HorizontalAlignment = UiHorizontalAlignment.Stretch,
             VerticalAlignment = UiVerticalAlignment.Stretch
         };
@@ -173,10 +185,24 @@ public sealed class AnimationClipEditorPanelView : UiPanel
             HorizontalAlignment = UiHorizontalAlignment.Stretch
         };
 
-        scroll.SetContent(_tracksPanel);
-        layout.AddChild(scroll);
+        _tracksScroll.SetContent(_tracksPanel);
+        layout.AddChild(_tracksScroll);
 
-        AddChild(layout);
+        var pageScroll = new UiScrollView
+        {
+            HorizontalScrolling = false,
+            VerticalScrolling = true,
+
+            ShowHorizontalScrollBar = false,
+            ShowVerticalScrollBar = true,
+
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Stretch
+        };
+
+        pageScroll.SetContent(layout);
+
+        AddChild(pageScroll);
 
         _document.Changed += OnDocumentChanged;
 
@@ -184,6 +210,148 @@ public sealed class AnimationClipEditorPanelView : UiPanel
     }
 
     public AnimationClipDocument Document => _document;
+
+    protected override Vector2 MeasureCore(
+    UiLayoutContext context,
+    Vector2 availableSize)
+    {
+        var contentWidth = MathF.Max(
+            0.0f,
+            availableSize.X -
+            Padding.Left -
+            Padding.Right);
+
+        var compact = contentWidth < 720.0f;
+
+        _compactLayout = compact;
+
+        _documentNameLabel.Width = contentWidth;
+        _summaryLabel.Width = contentWidth;
+        _messageLabel.Width = contentWidth;
+
+        // Строка изменения длительности.
+        _durationRow.Orientation =
+            compact
+                ? UiOrientation.Vertical
+                : UiOrientation.Horizontal;
+
+        _durationRow.Height =
+            compact
+                ? null
+                : 34.0f;
+
+        _durationRow.Children[0].Width =
+            compact ? contentWidth : 150.0f;
+
+        _durationRow.Children[1].Width =
+            compact ? contentWidth : 130.0f;
+
+        _durationRow.Children[2].Width =
+            compact ? contentWidth : 130.0f;
+
+        // Строка создания трека.
+        _trackRow.Orientation =
+            compact
+                ? UiOrientation.Vertical
+                : UiOrientation.Horizontal;
+
+        _trackRow.Height =
+            compact
+                ? null
+                : 34.0f;
+
+        _trackRow.Children[0].Width =
+            compact ? contentWidth : 180.0f;
+
+        _trackRow.Children[1].Width =
+            compact ? contentWidth : 130.0f;
+
+        _trackRow.Children[2].Width =
+            compact ? contentWidth : 100.0f;
+
+        // Сохраняем ширину временной шкалы
+        // по доступной ширине родительской панели.
+        _timelineView.Width = contentWidth;
+        _timelineView.Height = compact ? 140.0f : 170.0f;
+
+        // Список треков занимает доступную ширину.
+        _tracksScroll.Width = contentWidth;
+        _tracksScroll.Height = 500.0f;
+
+        foreach (var section in
+                 _tracksPanel.Children.OfType<UiStackPanel>())
+        {
+            var headerRow = section.Children
+                .OfType<UiStackPanel>()
+                .FirstOrDefault();
+
+            if (headerRow is null)
+            {
+                continue;
+            }
+
+            // Заголовок трека и его кнопки.
+            headerRow.Orientation =
+                compact
+                    ? UiOrientation.Vertical
+                    : UiOrientation.Horizontal;
+
+            headerRow.Height =
+                compact
+                    ? null
+                    : 30.0f;
+
+            if (headerRow.Children.Count >= 3)
+            {
+                headerRow.Children[0].Width =
+                    compact ? contentWidth : 280.0f;
+
+                headerRow.Children[1].Width = 90.0f;
+                headerRow.Children[2].Width = 110.0f;
+            }
+
+            // Строки ключевых кадров.
+            foreach (var row in section.Children
+                         .OfType<UiStackPanel>()
+                         .Where(row =>
+                             !ReferenceEquals(row, headerRow)))
+            {
+                if (row.Children.Count != 5)
+                {
+                    continue;
+                }
+
+                row.Orientation =
+                    compact
+                        ? UiOrientation.Vertical
+                        : UiOrientation.Horizontal;
+
+                row.Height =
+                    compact
+                        ? null
+                        : 30.0f;
+
+                row.Children[0].Width =
+                    compact ? contentWidth : 24.0f;
+
+                row.Children[1].Width =
+                    compact ? contentWidth : 100.0f;
+
+                row.Children[2].Width =
+                    compact ? contentWidth : 240.0f;
+
+                row.Children[3].Width =
+                    compact ? contentWidth : 65.0f;
+
+                row.Children[4].Width =
+                    compact ? contentWidth : 75.0f;
+            }
+        }
+
+        return base.MeasureCore(
+            context,
+            availableSize);
+    }
 
     private void OnTimelineMessageChanged(string message)
     {

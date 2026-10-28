@@ -26,7 +26,10 @@ public sealed class TilemapRendererTests
                     TextureFormat.Rgba8),
                 32,
                 32);
+        var tileSet = new TileSet();
 
+        tileSet.Set(1u, atlas, 0);
+        tileSet.Set(2u, atlas, 1);
         var camera =
             new Camera2D(
                 new Engine.Core.Math.Vector2(
@@ -37,7 +40,7 @@ public sealed class TilemapRendererTests
             new TilemapRenderer(
                 graphics,
                 camera,
-                atlas,
+                tileSet,
                 1.0f);
 
         var tiles =
@@ -120,12 +123,14 @@ public sealed class TilemapRendererTests
                     TextureFormat.Rgba8),
                 32,
                 32);
+        var tileSet = new TileSet();
 
+        tileSet.Set(1u, atlas, 0);
         var renderer =
             new TilemapRenderer(
                 graphics,
                 camera,
-                atlas,
+                tileSet,
                 1.0f);
 
         var tiles =

@@ -1,8 +1,10 @@
 ﻿using Engine.Core.Math;
 using Engine.ECS.Components;
+using Engine.ECS.Entities;
 using Engine.Editor.Documents;
 using Engine.Graphics.Commands;
 using Engine.Physics;
+using Engine.Physics.BroadPhase;
 using Engine.Physics.Components;
 using Engine.Physics.Shapes;
 using Engine.UI.Core;
@@ -96,6 +98,7 @@ internal static class ViewportColliderRenderer
                         context,
                         document,
                         viewportBounds,
+                        entity,
                         collider,
                         transform,
                         color);
@@ -198,45 +201,45 @@ internal static class ViewportColliderRenderer
     }
 
     private static void DrawPolygon(
-        UiRenderContext context,
-        EditorDocument document,
-        UiRect bounds,
-        Collider2D collider,
-        WorldTransform2D transform,
-        UiColor color)
+    UiRenderContext context,
+    EditorDocument document,
+    UiRect bounds,
+    EntityId entity,
+    Collider2D collider,
+    WorldTransform2D transform,
+    UiColor color)
     {
-        var shape = collider.Shape.Polygon;
-
-        var worldCenter =
+        var worldPosition =
             collider.GetWorldPosition(
                 transform.Position,
                 transform.Rotation);
 
-        var center = new Vector2(
-            worldCenter.X.ToFloat(),
-            worldCenter.Y.ToFloat());
+        var worldBounds =
+            collider.GetWorldBounds(
+                transform.Position,
+                transform.Rotation);
 
-        var rotation =
-            transform.Rotation.ToFloat();
+        // Используем тот же proxy и тот же расчёт вершин,
+        // что применяются в CollisionDetector2D.
+        var proxy =
+            new PhysicsColliderProxy(
+                entity,
+                worldBounds,
+                collider)
+            {
+                WorldPosition = worldPosition,
+                WorldRotation = transform.Rotation
+            };
 
-        var cosine = MathF.Cos(rotation);
-        var sine = MathF.Sin(rotation);
+        var shape = collider.Shape.Polygon;
 
         var points =
             new Vector2[shape.VertexCount];
 
         for (var i = 0; i < shape.VertexCount; i++)
         {
-            var vertex = shape.GetVertex(i);
-
-            // Shape vertices have already been scaled by the
-            // shared helper. Rotate and translate like physics does.
-            var localX = vertex.X.ToFloat();
-            var localY = vertex.Y.ToFloat();
-
-            var worldVertex = new Vector2(
-                center.X + localX * cosine - localY * sine,
-                center.Y + localX * sine + localY * cosine);
+            var worldVertex =
+                proxy.GetWorldPolygonVertex(i);
 
             points[i] =
                 ToScreen(

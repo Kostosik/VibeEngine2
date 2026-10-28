@@ -401,12 +401,12 @@ internal static class ViewportEntityRenderer
     }
 
     private static void DrawScreenLine(
-        UiRenderContext context,
-        Vector2 start,
-        Vector2 end,
-        UiColor color,
-        float zoom,
-        int layer)
+    UiRenderContext context,
+    Vector2 start,
+    Vector2 end,
+    UiColor color,
+    float zoom,
+    int layer)
     {
         var delta = end - start;
 
@@ -414,33 +414,44 @@ internal static class ViewportEntityRenderer
             delta.X * delta.X +
             delta.Y * delta.Y);
 
+        if (!float.IsFinite(length) ||
+            length <= 0.01f)
+        {
+            return;
+        }
+
         var thickness = Math.Clamp(
             zoom * 1.25f,
             1.25f,
             4.0f);
 
-        var sampleSpacing = MathF.Max(
-            thickness * 1.25f,
-            1.5f);
+        var center = new Vector2(
+            (start.X + end.X) * 0.5f,
+            (start.Y + end.Y) * 0.5f);
 
-        var steps = Math.Clamp(
-            (int)MathF.Ceiling(length / sampleSpacing),
-            1,
-            256);
+        var angleDegrees =
+            MathF.Atan2(delta.Y, delta.X) *
+            (180.0f / MathF.PI);
 
-        for (var i = 0; i <= steps; i++)
+        context.PushRotation(
+            center,
+            angleDegrees);
+
+        try
         {
-            var point = start + delta * (i / (float)steps);
-
             context.DrawRectangle(
                 new UiRect(
-                    point.X - thickness * 0.5f,
-                    point.Y - thickness * 0.5f,
-                    thickness,
+                    center.X - length * 0.5f,
+                    center.Y - thickness * 0.5f,
+                    length,
                     thickness),
                 color,
                 filled: true,
                 layer: layer);
+        }
+        finally
+        {
+            context.PopRotation();
         }
     }
 

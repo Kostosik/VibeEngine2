@@ -75,7 +75,9 @@ public sealed class EditorWorkspaceView :
                     UiHorizontalAlignment.Stretch,
 
                 VerticalAlignment =
-                    UiVerticalAlignment.Stretch
+                    UiVerticalAlignment.Stretch,
+
+                ClipChildren = true
             };
         _inspectorHost =
             CreateHost(
@@ -790,9 +792,7 @@ public sealed class EditorWorkspaceView :
             GetPanels(
                 EditorDockArea.Bottom);
 
-        var centerPanels =
-            GetPanels(
-                EditorDockArea.Center);
+        
 
         var leftWidth =
             GetDockSize(
@@ -817,6 +817,38 @@ public sealed class EditorWorkspaceView :
                 bottomPanels,
                 finalRect.Height,
                 220.0f);
+
+        ConstrainDockPair(
+    ref leftWidth,
+    ref rightWidth,
+    finalRect.Width,
+    MinCenterSize);
+
+        ConstrainDockPair(
+            ref topHeight,
+            ref bottomHeight,
+            finalRect.Height,
+            MinCenterSize);
+
+        _leftSplitter.Visible =
+            leftPanels.Count > 0 &&
+            leftWidth > 0.0f;
+
+        _rightSplitter.Visible =
+            rightPanels.Count > 0 &&
+            rightWidth > 0.0f;
+
+        _topSplitter.Visible =
+            topPanels.Count > 0 &&
+            topHeight > 0.0f;
+
+        _bottomSplitter.Visible =
+            bottomPanels.Count > 0 &&
+            bottomHeight > 0.0f;
+
+        var centerPanels =
+            GetPanels(
+                EditorDockArea.Center);
 
         var contentX =
             finalRect.X +
@@ -950,6 +982,33 @@ public sealed class EditorWorkspaceView :
                 DockSplitterThickness * 0.5f,
                 finalRect.Width,
                 DockSplitterThickness));
+    }
+
+    private static void ConstrainDockPair(
+    ref float firstSize,
+    ref float secondSize,
+    float availableSize,
+    float minimumCenterSize)
+    {
+        var maximumDockSize =
+            MathF.Max(
+                0.0f,
+                availableSize - minimumCenterSize);
+
+        var totalDockSize =
+            firstSize + secondSize;
+
+        if (totalDockSize <= maximumDockSize ||
+            totalDockSize <= 0.0f)
+        {
+            return;
+        }
+
+        var scale =
+            maximumDockSize / totalDockSize;
+
+        firstSize *= scale;
+        secondSize *= scale;
     }
 
     public void SetWorldEditorContext(

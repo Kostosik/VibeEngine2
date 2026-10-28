@@ -164,11 +164,23 @@ public sealed class TopDownScenario :
         _moveLeft = moveLeft;
         _moveRight = moveRight;
 
+        var tileSet = new TileSet();
+
+        tileSet.Set(
+            1u,
+            tileAtlas,
+            0);
+
+        tileSet.Set(
+            2u,
+            tileAtlas,
+            tileAtlas.Count > 1 ? 1 : 0);
+
         _tilemapRenderer =
             new TilemapRenderer(
                 runtime.Services.Graphics,
                 camera,
-                tileAtlas,
+                tileSet,
                 1.0f);
 
         _spriteRenderer =
@@ -1122,6 +1134,9 @@ public sealed class TopDownScenario :
 
     private void BuildMap()
     {
+        const uint grassTile = 1u;
+        const uint dirtTile = 2u;
+
         for (var chunkY = -2;
              chunkY <= 2;
              chunkY++)
@@ -1136,13 +1151,42 @@ public sealed class TopDownScenario :
                             chunkX,
                             chunkY));
 
-                var tileValue =
-                    ((chunkX + chunkY) & 1) == 0
-                        ? 1u
-                        : 2u;
+                var dirtStartX =
+                    chunk.Tiles.Width / 3;
 
-                chunk.Tiles.Fill(
-                    new Tile(tileValue));
+                var dirtEndX =
+                    chunk.Tiles.Width * 2 / 3;
+
+                var dirtStartY =
+                    chunk.Tiles.Height / 3;
+
+                var dirtEndY =
+                    chunk.Tiles.Height * 2 / 3;
+
+                for (var y = 0;
+                     y < chunk.Tiles.Height;
+                     y++)
+                {
+                    for (var x = 0;
+                         x < chunk.Tiles.Width;
+                         x++)
+                    {
+                        var isDirt =
+                            x >= dirtStartX &&
+                            x < dirtEndX &&
+                            y >= dirtStartY &&
+                            y < dirtEndY;
+
+                        var tileValue =
+                            isDirt
+                                ? dirtTile
+                                : grassTile;
+
+                        chunk.Tiles.Set(
+                            new LocalPosition(x, y),
+                            new Tile(tileValue));
+                    }
+                }
             }
         }
     }

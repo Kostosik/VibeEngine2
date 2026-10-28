@@ -15,6 +15,8 @@ using Engine.UI.Assets;
 using Engine.UI.Core;
 using Engine.UI.Styling;
 using Game.Sandbox.Serialization;
+using Engine.Core.Events;
+using Engine.UI.Actions;
 
 namespace Game.Sandbox;
 
@@ -28,7 +30,11 @@ internal sealed class SandboxGame : EngineGame, IDisposable
     private SandboxScriptProbe? _scriptProbe;
     private bool _sandboxShutdown;
     private bool _disposed;
-
+    private UiSystem? _ui;
+    private UiActionRuntime? _uiActionRuntime;
+    private UiAssetInstance? _mainMenuInstance;
+    private EventSubscription? _toggleShowcaseSubscription;
+    private sealed record ToggleUiShowcaseRequestedEvent : IEvent;
     public SandboxGame(
         DesktopGameHostContext context,
         SandboxInputActions sandboxActions,
@@ -101,6 +107,23 @@ internal sealed class SandboxGame : EngineGame, IDisposable
                 _context.Cursor,
                 uiTheme);
 
+            _ui = ui;
+
+            _uiActionRuntime = new UiActionRuntime(
+                Runtime.Events,
+                resources);
+
+            _uiActionRuntime.Register(
+                "Sandbox.ToggleUiShowcase",
+                () => new ToggleUiShowcaseRequestedEvent());
+
+            _toggleShowcaseSubscription =
+                Runtime.Events.Subscribe<ToggleUiShowcaseRequestedEvent>(
+                    _ => _sandbox?.ToggleUiShowcase());
+
+            _mainMenuInstance =
+                _uiActionRuntime.Load(mainMenuAsset);
+
             _context.Resized += ui.Resize;
 
             DebugConsoleOverlay? console = null;
@@ -170,7 +193,8 @@ internal sealed class SandboxGame : EngineGame, IDisposable
                 console,
                 () => _scriptProbe,
                 _networkRoleOptions);
-
+            ui.Root.AddChild(
+    _mainMenuInstance.Root);
             _context.Resized += _sandbox.Resize;
         }
         catch
@@ -211,7 +235,30 @@ internal sealed class SandboxGame : EngineGame, IDisposable
         }
 
         _sandboxShutdown = true;
-        _sandbox?.Shutdown();
+
+        try
+        {
+            _sandbox?.Shutdown();
+        }
+        finally
+        {
+            _toggleShowcaseSubscription?.Dispose();
+            _toggleShowcaseSubscription = null;
+
+            if (_ui is not null &&
+                _mainMenuInstance is not null)
+            {
+                _ui.Root.RemoveChild(
+                    _mainMenuInstance.Root);
+            }
+
+            _mainMenuInstance = null;
+
+            _uiActionRuntime?.Dispose();
+            _uiActionRuntime = null;
+
+            _ui = null;
+        }
     }
 
     public void Dispose()

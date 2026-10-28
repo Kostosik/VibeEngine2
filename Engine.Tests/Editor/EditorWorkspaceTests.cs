@@ -191,7 +191,30 @@ public sealed class EditorWorkspaceTests
 
         Assert.True(
             editor.Workspace.Layout.GetPanel(
-                "Viewport").IsActive);
+                "DocumentArea").IsActive);
+    }
+
+    [Fact]
+    public void ClosingViewport_DoesNotCloseDocumentArea()
+    {
+        var editor =
+            new EditorContext();
+
+        editor.Workspace.SetPanelOpen(
+            "Viewport",
+            false);
+
+        Assert.False(
+            editor.Workspace.FindPanel(
+                "Viewport")!.IsOpen);
+
+        Assert.True(
+            editor.Workspace.FindPanel(
+                "DocumentArea")!.IsOpen);
+
+        Assert.True(
+            editor.Workspace.Layout.GetPanel(
+                "DocumentArea").IsActive);
     }
 
     [Fact]
@@ -207,7 +230,7 @@ public sealed class EditorWorkspaceTests
             () => changed++;
 
         editor.Workspace.ActivatePanel(
-            "Viewport");
+            "DocumentArea");
 
         Assert.Equal(
             0,
@@ -296,12 +319,16 @@ public sealed class EditorWorkspaceTests
             new EditorContext();
 
         Assert.NotNull(
-            editor.Workspace.FindPanel(
-                "Hierarchy"));
+    editor.Workspace.FindPanel(
+        "DocumentArea"));
 
         Assert.NotNull(
             editor.Workspace.FindPanel(
-                "Viewport"));
+                "Hierarchy"));
+
+        Assert.True(
+            editor.Workspace.Layout.GetPanel(
+                "DocumentArea").IsActive);
 
         Assert.NotNull(
             editor.Workspace.FindPanel(

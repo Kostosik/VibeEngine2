@@ -19,9 +19,10 @@ public sealed class SpriteRenderer
     }
 
     public void DrawWorld(
-    Sprite sprite,
-    Vector2 position,
-    Camera2D camera)
+        Sprite sprite,
+        Vector2 position,
+        Camera2D camera,
+        float rotationDegrees = 0.0f)
     {
         ArgumentNullException.ThrowIfNull(camera);
 
@@ -48,7 +49,8 @@ public sealed class SpriteRenderer
                 position,
                 sprite.Size,
                 sprite.UV,
-                sprite.Layer));
+                sprite.Layer,
+                rotationDegrees));
     }
 
     public void Draw(
@@ -71,7 +73,8 @@ public sealed class SpriteRenderer
 
     public void DrawWorld(
         Sprite sprite,
-        Vector2 position)
+        Vector2 position,
+        float rotationDegrees = 0.0f)
     {
         if (!sprite.Texture.IsValid)
         {
@@ -84,6 +87,7 @@ public sealed class SpriteRenderer
                 position,
                 sprite.Size,
                 sprite.UV,
-                sprite.Layer));
+                sprite.Layer,
+                rotationDegrees));
     }
 }

@@ -106,10 +106,15 @@ public sealed class SpriteRenderSystem : IDisposable
                     position.X.ToFloat() - width * 0.5f,
                     position.Y.ToFloat() - height * 0.5f);
 
+            var rotationDegrees =
+                transform.Rotation.ToFloat() *
+                (180.0f / MathF.PI);
+
             _renderer.DrawWorld(
                 sprite,
                 drawPosition,
-                _camera);
+                _camera,
+                rotationDegrees);
         }
     }
 

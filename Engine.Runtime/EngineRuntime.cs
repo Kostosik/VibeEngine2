@@ -7,6 +7,7 @@ using Engine.Core.Events;
 using Engine.Core.Systems;
 using Engine.Core.Time;
 using Engine.ECS.Components;
+using Engine.ECS.Systems;
 using Engine.Graphics.Sprites;
 using Engine.Graphics2D.Sprites;
 using Engine.Particles;
@@ -127,15 +128,28 @@ public sealed class EngineRuntime :
             Physics,
             SystemPhase.FixedUpdate);
 
+        var transformHierarchySystem =
+    new TransformHierarchySystem(EcsWorld);
+
+        Scheduler.Add(
+            transformHierarchySystem,
+            SystemPhase.FixedUpdate)
+            .Before<PhysicsSystem2D>();
+
         SpatialSync =
             new SpatialSyncSystem(
                 World,
                 EcsWorld);
 
         Scheduler.Add(
-            SpatialSync,
+            new PhysicsTransformSyncSystem(EcsWorld),
             SystemPhase.FixedUpdate)
             .After<PhysicsSystem2D>();
+
+        Scheduler.Add(
+            SpatialSync,
+            SystemPhase.FixedUpdate)
+            .After<PhysicsTransformSyncSystem>();
 
         Simulation =
             new Simulation(

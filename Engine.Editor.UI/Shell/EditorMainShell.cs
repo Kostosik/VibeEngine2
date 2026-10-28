@@ -31,6 +31,7 @@ public sealed class EditorMainShell :
     private readonly UiButton _closeButton;
     private readonly UiButton _toolsButton;
     private readonly EditorAssetPickerDialog? _assetPickerDialog;
+    private readonly EditorUiActionPickerDialog? _actionPickerDialog;
     private readonly UiPanel _menuBar;
     private readonly UiPanel _toolbar;
     private bool _isGameRunning;
@@ -189,7 +190,12 @@ public sealed class EditorMainShell :
                     editor,
                     overlays,
                     focus);
-
+        _actionPickerDialog =
+    focus is null
+        ? null
+        : new EditorUiActionPickerDialog(
+            overlays,
+            focus);
         _workspaceView = new EditorWorkspaceView(
             editor,
             overlays,
@@ -257,16 +263,22 @@ public sealed class EditorMainShell :
     private EditorUiWorkspaceView CreateUiWorkspaceView(
         EditorUiDocument document)
     {
-        var view =
-            new EditorUiWorkspaceView(
-                document,
-                Editor,
-                _overlays,
-                _assetPreviewTextures,
-                _filePreviewTextureManager);
+        Func<IReadOnlyList<string>, string?, Action<string>, bool>?
+            pickAction = null;
 
-        view.AssetActivated +=
-            entry => AssetActivated?.Invoke(entry);
+        if (_actionPickerDialog is not null)
+        {
+            pickAction = _actionPickerDialog.Show;
+        }
+
+        var view = new EditorUiWorkspaceView(
+            document,
+            Editor,
+            _overlays,
+            _assetPreviewTextures,
+            _filePreviewTextureManager,
+            pickAction);
+
 
         return view;
     }

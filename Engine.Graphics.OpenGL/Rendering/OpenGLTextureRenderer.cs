@@ -438,17 +438,18 @@ internal sealed class OpenGLTextureRenderer : IDisposable
             command.Texture,
             position,
             size,
-            command.UV);
+            command.UV,
+            command.RotationDegrees);
     }
 
     private void DrawQuad(
-    TextureHandle texture,
-    Vector2 position,
-    Vector2 size,
-    Rectangle uv)
+        TextureHandle texture,
+        Vector2 position,
+        Vector2 size,
+        Rectangle uv,
+        float rotationDegrees = 0.0f)
     {
-        if (!PrepareTextureBatch(
-                texture))
+        if (!PrepareTextureBatch(texture))
         {
             return;
         }
@@ -458,7 +459,8 @@ internal sealed class OpenGLTextureRenderer : IDisposable
             position.Y,
             size.X,
             size.Y,
-            uv);
+            uv,
+            rotationDegrees);
     }
 
     public void End()

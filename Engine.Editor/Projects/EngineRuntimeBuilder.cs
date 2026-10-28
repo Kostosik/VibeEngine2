@@ -14,7 +14,9 @@ public static class EngineRuntimeBuilder
         Path.Combine(
             "Engine.Serialization",
             "Engine.Serialization.csproj"),
-
+        Path.Combine(
+    "Engine.Networking.Replication",
+    "Engine.Networking.Replication.csproj"),
         Path.Combine(
             "Engine.Input.SilkNet",
             "Engine.Input.SilkNet.csproj")
@@ -28,7 +30,9 @@ public static class EngineRuntimeBuilder
         "Engine.Audio.OpenAL.dll",
         "Engine.Serialization.dll",
         "Engine.Graphics2D.dll",
-        "Engine.Input.SilkNet.dll"
+        "Engine.Input.SilkNet.dll",
+            "Engine.Networking.dll",
+"Engine.Networking.Replication.dll"
     };
 
     public static IReadOnlyList<string> SourceProjectPaths { get; } =

@@ -309,17 +309,7 @@ public sealed class SandboxState
         if (_input.IsPressed(
                 _actions.ToggleUiShowcase))
         {
-            if (_uiShowcase.IsOpen)
-            {
-                _uiShowcase.Close();
-            }
-            else
-            {
-                _uiShowcase.Show(
-                    new Vector2(
-                        660.0f,
-                        40.0f));
-            }
+            ToggleUiShowcase();
         }
 
         // Если UI принимает клавиатурный ввод,
@@ -438,6 +428,21 @@ public sealed class SandboxState
         else
         {
             _topDown?.StopMovement();
+        }
+    }
+
+    public void ToggleUiShowcase()
+    {
+        if (_uiShowcase.IsOpen)
+        {
+            _uiShowcase.Close();
+        }
+        else
+        {
+            _uiShowcase.Show(
+                new Vector2(
+                    660.0f,
+                    40.0f));
         }
     }
 

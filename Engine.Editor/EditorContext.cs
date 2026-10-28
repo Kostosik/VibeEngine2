@@ -563,6 +563,11 @@ public sealed class EditorContext
                 "Hierarchy"));
 
         Workspace.RegisterPanel(
+    new EditorPanel(
+        "DocumentArea",
+        "Document Area"));
+
+        Workspace.RegisterPanel(
             new EditorPanel(
                 "Viewport",
                 "Viewport"));
@@ -594,6 +599,16 @@ public sealed class EditorContext
                 280.0f);
 
         Workspace.Layout.GetPanel(
+            "DocumentArea")
+            .SetArea(
+                EditorDockArea.Center);
+
+        Workspace.Layout.GetPanel(
+            "DocumentArea")
+            .SetActive(
+                true);
+
+        Workspace.Layout.GetPanel(
             "Viewport")
             .SetArea(
                 EditorDockArea.Center);
@@ -601,7 +616,7 @@ public sealed class EditorContext
         Workspace.Layout.GetPanel(
             "Viewport")
             .SetActive(
-                true);
+                false);
 
         Workspace.Layout.GetPanel(
             "Inspector")

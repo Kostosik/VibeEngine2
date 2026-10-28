@@ -16,7 +16,8 @@ public sealed class RebuildEngineCommand :
     {
         @"Engine.Hosting.Desktop\Engine.Hosting.Desktop.csproj",
         @"Engine.Serialization\Engine.Serialization.csproj",
-        @"Engine.Input.SilkNet\Engine.Input.SilkNet.csproj"
+        @"Engine.Input.SilkNet\Engine.Input.SilkNet.csproj",
+@"Engine.Networking.Replication\Engine.Networking.Replication.csproj"
     };
 
     private static readonly string[] RequiredAssemblies =
@@ -27,7 +28,8 @@ public sealed class RebuildEngineCommand :
         "Engine.Audio.OpenAL.dll",
         "Engine.Serialization.dll",
         "Engine.Graphics2D.dll",
-        "Engine.Input.SilkNet.dll"
+        "Engine.Input.SilkNet.dll","Engine.Networking.dll",
+"Engine.Networking.Replication.dll"
     };
     private readonly Func<bool>? _areGameSessionsActive;
     private readonly Func<GameProject?> _getActiveProject;

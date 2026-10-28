@@ -17,9 +17,16 @@ public sealed class EditorUiInspectorPanelView :
     private readonly Func<string?>? _getSelectedTexturePath;
     private readonly Func<IReadOnlyList<string>>?
     _getAvailableActions;
+
+    private readonly Func<
+    IReadOnlyList<string>,
+    string?,
+    Action<string>,
+    bool>? _pickAction;
+
     public EditorUiInspectorPanelView(
         EditorUiDocument document,
-        Func<string?>? getSelectedTexturePath = null, Func<IReadOnlyList<string>>? getAvailableActions = null)
+        Func<string?>? getSelectedTexturePath = null, Func<IReadOnlyList<string>>? getAvailableActions = null, Func<IReadOnlyList<string>, string?, Action<string>, bool>? pickAction = null)
     {
         ArgumentNullException.ThrowIfNull(
             document);
@@ -75,6 +82,7 @@ public sealed class EditorUiInspectorPanelView :
 
         AddChild(
             scroll);
+        _pickAction = pickAction;
     }
 
     public EditorUiDocument Document =>
@@ -217,123 +225,79 @@ public sealed class EditorUiInspectorPanelView :
     private UiWidget CreateActionProperty(
     EditorProperty property)
     {
-        var container =
-            new UiStackPanel
-            {
-                Orientation =
-                    UiOrientation.Vertical,
-
-                Spacing = 4.0f,
-
-                HorizontalAlignment =
-                    UiHorizontalAlignment.Stretch,
-
-                VerticalAlignment =
-                    UiVerticalAlignment.Top
-            };
+        var container = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical,
+            Spacing = 4.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
 
         container.AddChild(
-            new UiLabel(
-                property.DisplayName)
+            new UiLabel(property.DisplayName)
             {
                 FontSize = 12.0f
             });
 
-        var availableActions =
-    (_getAvailableActions?.Invoke()
-        ?? Array.Empty<string>())
-    .Where(
-        static action =>
-            !string.IsNullOrWhiteSpace(action))
-    .Distinct(StringComparer.Ordinal)
-    .OrderBy(
-        static action => action,
-        StringComparer.OrdinalIgnoreCase)
-    .ToArray();
-
-        if (availableActions.Length > 0)
+        var row = new UiStackPanel
         {
-            container.AddChild(
-                new UiLabel("Existing Actions")
-                {
-                    FontSize = 12.0f
-                });
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 4.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
 
-            var dropdown =
-                new UiDropdown
-                {
-                    Width = 220.0f,
-                    Height = 32.0f
-                };
+        var currentAction =
+            property.GetValue()?.ToString() ?? string.Empty;
 
-            foreach (var action in availableActions)
+        var pickAction = _pickAction;
+
+        if (pickAction is not null)
+        {
+            var picker = new UiPickerField(
+                string.IsNullOrWhiteSpace(currentAction)
+                    ? null
+                    : currentAction)
             {
-                dropdown.AddOption(action);
-            }
-
-            var currentAction =
-                property.GetValue()?.ToString();
-
-            var selectedIndex =
-                Array.FindIndex(
-                    availableActions,
-                    action => string.Equals(
-                        action,
-                        currentAction,
-                        StringComparison.Ordinal));
-
-            if (selectedIndex >= 0)
-            {
-                dropdown.SetSelectedIndex(selectedIndex);
-            }
-
-            dropdown.SelectionChanged +=
-                (_, action) =>
-                {
-                    _document.Execute(
-                        new SetEditorPropertyCommand(
-                            property,
-                            action));
-
-                    Refresh();
-                };
-
-            container.AddChild(dropdown);
-
-            container.AddChild(
-                new UiLabel("Or enter a new Action ID")
-                {
-                    FontSize = 11.0f
-                });
-        }
-
-        var row =
-            new UiStackPanel
-            {
-                Orientation =
-                    UiOrientation.Horizontal,
-
-                Spacing = 4.0f,
-
-                HorizontalAlignment =
-                    UiHorizontalAlignment.Stretch,
-
-                VerticalAlignment =
-                    UiVerticalAlignment.Top
+                Width = 170.0f,
+                Height = 32.0f,
+                FontSize = 12.0f,
+                Placeholder = "Select Action..."
             };
 
-        var textBox =
-            new UiTextBox(
-                property.GetValue()?.ToString()
-                ?? string.Empty)
+            picker.SelectionRequested += () =>
             {
-                Width = 130.0f,
+                var availableActions =
+                    _getAvailableActions?.Invoke()
+                    ?? Array.Empty<string>();
+
+                pickAction(
+                    availableActions,
+                    property.GetValue()?.ToString(),
+                    action =>
+                    {
+                        _document.Execute(
+                            new SetEditorPropertyCommand(
+                                property,
+                                action));
+
+                        Refresh();
+                    });
+            };
+
+            row.AddChild(picker);
+        }
+        else
+        {
+            // Резервный вариант, если редактор создан без диалога выбора.
+            var textBox = new UiTextBox(currentAction)
+            {
+                Width = 150.0f,
                 Height = 32.0f,
                 FontSize = 12.0f
             };
 
-        textBox.Submitted +=
-            value =>
+            textBox.Submitted += value =>
             {
                 _document.Execute(
                     new SetEditorPropertyCommand(
@@ -343,26 +307,25 @@ public sealed class EditorUiInspectorPanelView :
                 Refresh();
             };
 
-        row.AddChild(textBox);
+            row.AddChild(textBox);
+        }
 
-        var clearButton =
-            new UiButton("Clear")
-            {
-                Width = 48.0f,
-                Height = 32.0f,
-                FontSize = 11.0f
-            };
+        var clearButton = new UiButton("Clear")
+        {
+            Width = 50.0f,
+            Height = 32.0f,
+            FontSize = 11.0f
+        };
 
-        clearButton.Clicked +=
-            () =>
-            {
-                _document.Execute(
-                    new SetEditorPropertyCommand(
-                        property,
-                        string.Empty));
+        clearButton.Clicked += () =>
+        {
+            _document.Execute(
+                new SetEditorPropertyCommand(
+                    property,
+                    string.Empty));
 
-                Refresh();
-            };
+            Refresh();
+        };
 
         row.AddChild(clearButton);
         container.AddChild(row);

@@ -306,6 +306,13 @@ public sealed class EditorWorkspaceView :
 
     private void ApplyPanelState()
     {
+        var viewportPanel =
+    Editor.Workspace.FindPanel(
+        "Viewport");
+
+        Viewport.Visible =
+            viewportPanel?.IsOpen ?? true;
+
         foreach (var panel in GetPanelBindings())
         {
             panel.View.Visible =
@@ -424,7 +431,7 @@ public sealed class EditorWorkspaceView :
             _hierarchyHost);
 
         yield return GetPanelBinding(
-            "Viewport",
+            "DocumentArea",
             _centerContentHost);
 
         yield return GetPanelBinding(

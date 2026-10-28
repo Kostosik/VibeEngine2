@@ -239,8 +239,9 @@ public sealed class ViewportPanelView :
 
     public void Refresh()
     {
-        var document =
-            Editor.ActiveDocument;
+        var document = Editor.ActiveDocument;
+
+        _toolBar.Visible = document is not null;
 
         if (document is null)
         {

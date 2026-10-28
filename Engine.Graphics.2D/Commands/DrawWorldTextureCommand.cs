@@ -10,4 +10,5 @@ public sealed record DrawWorldTextureCommand(
     Vector2 Position,
     Vector2 Size,
     Rectangle UV,
-    int Layer = RenderLayers.World) : IRenderCommand;
+    int Layer = RenderLayers.World,
+    float RotationDegrees = 0.0f) : IRenderCommand;

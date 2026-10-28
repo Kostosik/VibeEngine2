@@ -27,34 +27,29 @@ public sealed class EditorUiWorkspaceView :
     private readonly UiPanel _previewHost;
     private readonly UiPanel _inspectorHost;
 
-    private readonly AssetBrowserPanelView? _assetBrowser;
-    private readonly EditorDockSplitter? _bottomSplitter;
-
-    private float _assetBrowserHeight = 220.0f;
-
-    private const float MinAssetBrowserHeight = 120.0f;
-    private const float MinTopWorkspaceHeight = 180.0f;
 
     public EditorUiWorkspaceView(
         EditorUiDocument document,
         EditorContext? editor = null,
         UiOverlayLayer? overlays = null,
-        ITextureResourceManager? assetPreviewTextures = null, ITextureManager? filePreviewTextureManager = null)
+        ITextureResourceManager? assetPreviewTextures = null, ITextureManager? filePreviewTextureManager = null, Func<IReadOnlyList<string>, string?, Action<string>, bool>?
+    pickAction = null)
     {
         ArgumentNullException.ThrowIfNull(
             document);
+        ArgumentNullException.ThrowIfNull(document);
 
-        var hasAssetBrowserServices =
-    editor is not null ||
-    overlays is not null ||
-    assetPreviewTextures is not null;
+        var hasEditorServices =
+            editor is not null ||
+            assetPreviewTextures is not null;
 
-        if (hasAssetBrowserServices)
+        if (hasEditorServices)
         {
             ArgumentNullException.ThrowIfNull(editor);
-            ArgumentNullException.ThrowIfNull(overlays);
             ArgumentNullException.ThrowIfNull(assetPreviewTextures);
         }
+
+        _editor = editor;
 
         Document =
             document;
@@ -105,7 +100,8 @@ public sealed class EditorUiWorkspaceView :
             new EditorUiInspectorPanelView(
                 document,
                 GetSelectedTexturePath,
-                GetAvailableActionIds);
+                GetAvailableActionIds,
+                pickAction);
 
         _hierarchyHost.AddChild(
             Hierarchy);
@@ -116,31 +112,6 @@ public sealed class EditorUiWorkspaceView :
         _inspectorHost.AddChild(
             Inspector);
 
-        if (editor is not null &&
-    overlays is not null &&
-    assetPreviewTextures is not null)
-        {
-            _assetBrowser =
-                new AssetBrowserPanelView(
-                    editor,
-                    overlays,
-                    assetPreviewTextures,
-                    filePreviewTextureManager);
-
-            _assetBrowser.AssetActivated +=
-                entry => AssetActivated?.Invoke(entry);
-
-            _bottomSplitter =
-                new EditorDockSplitter(
-                    EditorDockResizeAxis.Vertical,
-                    -1.0f,
-                    () => _assetBrowserHeight,
-                    ResizeAssetBrowserHeight);
-
-            AddChild(_bottomSplitter);
-            AddChild(_assetBrowser);
-        }
-
         AddChild(
             _hierarchyHost);
 
@@ -150,11 +121,6 @@ public sealed class EditorUiWorkspaceView :
         AddChild(
             _inspectorHost);
     }
-
-    public AssetBrowserPanelView? AssetBrowser =>
-    _assetBrowser;
-
-    public event Action<EditorAssetEntry>? AssetActivated;
 
     public EditorUiDocument Document { get; }
 
@@ -167,78 +133,37 @@ public sealed class EditorUiWorkspaceView :
     public void ReleaseResources()
     {
         Preview.ReleaseResources();
-        _assetBrowser?.ReleaseResources();
     }
 
     public void Refresh()
     {
         Hierarchy.Refresh();
         Inspector.Refresh();
-        _assetBrowser?.Refresh();
     }
 
     protected override Vector2 MeasureCore(
-        UiLayoutContext context,
-        Vector2 availableSize)
+    UiLayoutContext context,
+    Vector2 availableSize)
     {
-        var browserHeight =
-            _assetBrowser is null
-                ? 0.0f
-                : CalculateAssetBrowserHeight(
-                    availableSize.Y);
-
-        var splitterHeight =
-            _bottomSplitter is null
-                ? 0.0f
-                : DockSplitterThickness;
-
-        var topHeight = MathF.Max(
-            0.0f,
-            availableSize.Y -
-            browserHeight -
-            splitterHeight);
-
-        var topSize = new Vector2(
-            availableSize.X,
-            topHeight);
-
         _hierarchyHost.Measure(
             context,
-            topSize);
+            availableSize);
 
         _previewHost.Measure(
             context,
-            topSize);
+            availableSize);
 
         _inspectorHost.Measure(
             context,
-            topSize);
+            availableSize);
 
         _leftSplitter.Measure(
             context,
-            topSize);
+            availableSize);
 
         _rightSplitter.Measure(
             context,
-            topSize);
-
-        if (_bottomSplitter is not null)
-        {
-            _bottomSplitter.Measure(
-                context,
-                new Vector2(
-                    availableSize.X,
-                    splitterHeight));
-        }
-
-        if (_assetBrowser is not null)
-        {
-            _assetBrowser.Measure(
-                context,
-                new Vector2(
-                    availableSize.X,
-                    browserHeight));
-        }
+            availableSize);
 
         return availableSize;
     }
@@ -332,20 +257,7 @@ public sealed class EditorUiWorkspaceView :
         var x = finalRect.X;
         var y = finalRect.Y;
 
-        var browserHeight =
-            _assetBrowser is null
-                ? 0.0f
-                : CalculateAssetBrowserHeight(
-                    finalRect.Height);
-
-        var splitterHeight =
-            _assetBrowser is null
-                ? 0.0f
-                : DockSplitterThickness;
-
-        var height = MathF.Max(
-            0.0f,
-            finalRect.Height - browserHeight - splitterHeight);
+        var height = finalRect.Height;
 
         _hierarchyHost.Arrange(
             new UiRect(
@@ -389,27 +301,6 @@ public sealed class EditorUiWorkspaceView :
                 y,
                 widths.Inspector,
                 height));
-
-        if (_assetBrowser is not null &&
-    _bottomSplitter is not null)
-        {
-            var splitterY =
-                finalRect.Y + height;
-
-            _bottomSplitter.Arrange(
-                new UiRect(
-                    finalRect.X,
-                    splitterY,
-                    finalRect.Width,
-                    DockSplitterThickness));
-
-            _assetBrowser.Arrange(
-                new UiRect(
-                    finalRect.X,
-                    splitterY + DockSplitterThickness,
-                    finalRect.Width,
-                    browserHeight));
-        }
     }
 
     private (
@@ -500,7 +391,7 @@ public sealed class EditorUiWorkspaceView :
     private string? GetSelectedTexturePath()
     {
         var browser =
-            _assetBrowser?.Editor.AssetBrowser;
+            _editor?.AssetBrowser;
 
         if (browser?.SelectedAsset is not
             { } selectedAsset)
@@ -575,65 +466,6 @@ public sealed class EditorUiWorkspaceView :
             width,
             minSideWidth,
             maxWidth) / totalWidth;
-    }
-
-    private float CalculateAssetBrowserHeight(
-    float totalHeight)
-    {
-        var availableHeight = MathF.Max(
-            0.0f,
-            totalHeight - DockSplitterThickness);
-
-        var minBrowserHeight = MathF.Min(
-            MinAssetBrowserHeight,
-            availableHeight / 3.0f);
-
-        var minMainHeight = MathF.Min(
-            MinTopWorkspaceHeight,
-            MathF.Max(
-                0.0f,
-                availableHeight - minBrowserHeight));
-
-        var maxBrowserHeight = MathF.Max(
-            minBrowserHeight,
-            availableHeight - minMainHeight);
-
-        return Math.Clamp(
-            _assetBrowserHeight,
-            minBrowserHeight,
-            maxBrowserHeight);
-    }
-
-    private void ResizeAssetBrowserHeight(
-        float height)
-    {
-        if (Bounds.Height <= 0.0f)
-        {
-            return;
-        }
-
-        var availableHeight = MathF.Max(
-            0.0f,
-            Bounds.Height - DockSplitterThickness);
-
-        var minBrowserHeight = MathF.Min(
-            MinAssetBrowserHeight,
-            availableHeight / 3.0f);
-
-        var minMainHeight = MathF.Min(
-            MinTopWorkspaceHeight,
-            MathF.Max(
-                0.0f,
-                availableHeight - minBrowserHeight));
-
-        var maxBrowserHeight = MathF.Max(
-            minBrowserHeight,
-            availableHeight - minMainHeight);
-
-        _assetBrowserHeight = Math.Clamp(
-            height,
-            minBrowserHeight,
-            maxBrowserHeight);
     }
 
     private static UiPanel CreateHost()

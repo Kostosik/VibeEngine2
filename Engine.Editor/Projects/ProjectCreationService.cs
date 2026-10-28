@@ -695,6 +695,7 @@ public sealed class ProjectCreationService
         using Engine.Runtime;
         using Engine.Serialization.SaveLoad.Ecs;
         using Engine.Serialization.SaveLoad.Worlds;
+        using Engine.Networking.Replication;
 
         namespace GameProject;
 

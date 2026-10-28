@@ -3,11 +3,94 @@ using Engine.Core.Systems;
 using Engine.ECS;
 using Engine.ECS.Entities;
 using Engine.Scripting;
+using Engine.UI.Actions;
+using Engine.UI.Assets;
+using Engine.UI.Controls;
+using Engine.UI.Layout;
+using Engine.Core.Math;
 
 namespace Engine.Tests.Scripting;
 
 public sealed class ScriptRuntimeTests
 {
+    [Fact]
+    public void UiAssetAction_ReachesAttachedGameScriptThroughEventBus()
+    {
+        using var world = new World();
+        using var events = new EventBus();
+
+        var entity = world.CreateEntity();
+        var script = new UiActionListeningScript();
+
+        var scripts = new ScriptRegistry();
+        scripts.Register(
+            "test.ui-action-listener",
+            () => script);
+
+        using var runtime = new ScriptRuntime(
+            world,
+            scripts,
+            events);
+
+        runtime.Attach(
+            entity,
+            "test.ui-action-listener");
+
+        var actions = new UiActionRegistry();
+
+        actions.Register(
+            "StartGameRequested",
+            () => events.Publish(
+                new UiActionRequestedEvent()));
+
+        var rootId = Guid.NewGuid();
+        var buttonId = Guid.NewGuid();
+
+        var asset = new UiAsset(
+            "MainMenu",
+            new Vector2(1280.0f, 720.0f),
+            new[]
+            {
+            new UiAssetElement(
+                rootId,
+                Guid.Empty,
+                UiAssetElementType.Root,
+                "Root",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(1280.0f, 720.0f))),
+
+            new UiAssetElement(
+                buttonId,
+                rootId,
+                UiAssetElementType.Button,
+                "StartButton",
+                new UiAssetLayout(
+                    UiAnchor.Center,
+                    Vector2.Zero,
+                    new Vector2(240.0f, 60.0f)),
+                text: "Start",
+                action: "StartGameRequested")
+            });
+
+        var instance = new UiAssetLoader(
+            actions: actions).Load(asset);
+
+        var button = Assert.IsType<UiButton>(
+            instance.Get(buttonId));
+
+        button.Click();
+
+        Assert.Equal(0, script.ReceivedCount);
+        Assert.Equal(1, events.PendingCount);
+
+        events.DispatchPending();
+
+        Assert.Equal(1, script.ReceivedCount);
+        Assert.Equal(0, events.PendingCount);
+    }
+
     [Fact]
     public void EventSubscriptionIsRemovedWhenScriptIsDetached()
     {
@@ -874,7 +957,18 @@ public sealed class ScriptRuntimeTests
             DetachCount++;
         }
     }
+    private sealed record UiActionRequestedEvent : IEvent;
 
+    private sealed class UiActionListeningScript : IEntityScript
+    {
+        public int ReceivedCount { get; private set; }
+
+        public void OnAttach(ScriptContext context)
+        {
+            context.Subscribe<UiActionRequestedEvent>(
+                _ => ReceivedCount++);
+        }
+    }
     public sealed class RecordingScript : IEntityScript
     {
         public string? ConfigurationJson { get; private set; }

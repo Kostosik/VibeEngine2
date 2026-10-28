@@ -32,6 +32,58 @@ namespace Engine.Tests.Graphics;
 public sealed class SpriteRenderSystemTests
 {
     [Fact]
+    public void Render_PassesWorldTransformRotationToDrawCommand()
+    {
+        var textures = new FakeTextureManager();
+        var graphics = new FakeGraphicsDevice(textures);
+
+        using var content = CreateContent();
+        using var world = new World();
+
+        var entity = world.CreateEntity();
+
+        world.Add(
+            entity,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromFloat(10.0f),
+                    Fixed32.FromFloat(12.0f))));
+
+        ref var transform =
+            ref world.Get<WorldTransform2D>(entity);
+
+        transform.Rotation =
+            Fixed32.FromFloat(MathF.PI / 2.0f);
+
+        world.Add(
+            entity,
+            new SpriteComponent(
+                "Textures/test.png",
+                4.0f,
+                4.0f));
+
+        var camera =
+            new Camera2D(new Vector2(100.0f, 100.0f));
+
+        using var renderer = new SpriteRenderSystem(
+            world,
+            graphics,
+            content,
+            camera);
+
+        renderer.Render();
+
+        var command =
+            Assert.IsType<DrawWorldTextureCommand>(
+                Assert.Single(graphics.Commands));
+
+        Assert.InRange(
+            command.RotationDegrees,
+            89.9f,
+            90.1f);
+    }
+
+    [Fact]
     public void ParticleRenderer_RendersParticlesAndReusesTexture()
     {
         var textures = new FakeTextureManager();

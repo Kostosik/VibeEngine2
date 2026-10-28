@@ -22,6 +22,10 @@ public static class EcsComponentSerializerRegistryExtensions
             new Collider2DSerializer());
 
         registry.Register(
+    "engine.graphics.tilemap2d",
+    new TilemapComponentSerializer());
+
+        registry.Register(
             "engine.physics.joint.distance2d",
             new DistanceJoint2DSerializer());
 

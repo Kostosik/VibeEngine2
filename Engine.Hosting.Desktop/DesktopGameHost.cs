@@ -73,6 +73,12 @@ public static class DesktopGameHost
         contentLoaders.Register(
             new JsonParticleEffectContentLoader());
 
+        contentLoaders.Register(
+    new JsonTileSetContentLoader());
+
+        contentLoaders.Register(
+            new JsonTilemapContentLoader());
+
         options.ConfigureContentLoaders?.Invoke(
             contentLoaders);
 

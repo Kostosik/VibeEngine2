@@ -27,7 +27,7 @@ public sealed class ViewportPanelView :
     private readonly ViewportProjectTextureCache
     _projectTextureCache;
     private readonly ViewportSpriteRenderer _projectSpriteRenderer;
-
+    private readonly ViewportTilemapRenderer _projectTilemapRenderer;
     private TransformTool _activeTool = TransformTool.Move;
     private bool _translationUsesLocalTransform;
     private LocalTransform2D _translationStartLocalTransform;
@@ -81,6 +81,9 @@ public sealed class ViewportPanelView :
         _projectSpriteRenderer =
     new ViewportSpriteRenderer(
         _projectTextureCache);
+        _projectTilemapRenderer = new ViewportTilemapRenderer(
+    _projectTextureCache,
+    projectTextureManager);
         Background =
             new UiColor(
                 18,
@@ -307,7 +310,9 @@ public sealed class ViewportPanelView :
                 context,
                 document,
                 Bounds);
-
+            DrawTilemaps(
+                context,
+                document);
             DrawSprites(
                 context,
                 document);
@@ -325,6 +330,12 @@ public sealed class ViewportPanelView :
             ViewportEntityRenderer.DrawSelection(
                 context,
                 document,
+                Bounds);
+
+            _projectTilemapRenderer.DrawSelectionOutline(
+                context,
+                document,
+                Editor.ActiveGameProject?.AssetsDirectoryPath,
                 Bounds);
 
             DrawActiveGizmo(
@@ -370,7 +381,16 @@ public sealed class ViewportPanelView :
                 break;
         }
     }
-
+    private void DrawTilemaps(
+    UiRenderContext context,
+    Engine.Editor.Documents.EditorDocument document)
+    {
+        _projectTilemapRenderer.Draw(
+            context,
+            document,
+            Editor.ActiveGameProject?.AssetsDirectoryPath,
+            Bounds);
+    }
     private void DrawSprites(
         UiRenderContext context,
         Engine.Editor.Documents.EditorDocument document)
@@ -384,6 +404,7 @@ public sealed class ViewportPanelView :
 
     public void ReleaseResources()
     {
+        _projectTilemapRenderer.ReleaseResources();
         _projectTextureCache.ReleaseResources();
     }
 

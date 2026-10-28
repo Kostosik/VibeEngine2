@@ -9,10 +9,12 @@ using Engine.Core.Time;
 using Engine.ECS.Components;
 using Engine.ECS.Systems;
 using Engine.Graphics.Sprites;
+using Engine.Graphics.Tilemaps;
 using Engine.Graphics2D.Sprites;
 using Engine.Particles;
 using Engine.Physics;
 using Engine.Runtime.Particles;
+using Engine.Runtime.Tilemaps;
 using Engine.Scripting;
 using Engine.Simulations;
 using Engine.Tooling.Console;
@@ -35,6 +37,7 @@ public sealed class EngineRuntime :
     public ValidationService? Validation { get; private set; }
     public DebugVisualizationRenderer? DebugVisualizationRenderer { get; private set; }
     private SpriteRenderSystem? _spriteRenderSystem;
+    private TilemapRenderSystem? _tilemapRenderSystem;
     public ScriptRegistry ScriptRegistry { get; }
     private AudioEcsSystem? _audioEcsSystem;
     public ScriptRuntime Scripts { get; }
@@ -409,6 +412,28 @@ Services.Graphics;
             context);
     }
 
+    internal void RenderTilemaps()
+    {
+        EnsureNotDisposed();
+
+        var enumerator = EcsWorld
+            .Query<TilemapComponent, WorldTransform2D>()
+            .GetEnumerator();
+
+        if (!enumerator.MoveNext())
+        {
+            return;
+        }
+
+        _tilemapRenderSystem ??= new TilemapRenderSystem(
+            EcsWorld,
+            Services.Graphics,
+            Services.Content,
+            Services.Camera);
+
+        _tilemapRenderSystem.Render();
+    }
+
     internal void RenderSprites()
     {
         EnsureNotDisposed();
@@ -446,6 +471,14 @@ Services.Graphics;
         _particleRuntime = null;
 
         particles?.Dispose();
+    }
+
+    private void DisposeTilemapRenderSystem()
+    {
+        var renderer = _tilemapRenderSystem;
+        _tilemapRenderSystem = null;
+
+        renderer?.Dispose();
     }
 
     private void DisposeSpriteRenderSystem()
@@ -591,7 +624,7 @@ Services.Graphics;
                 errors.Add(exception);
             }
         }
-
+        TryCleanup(DisposeTilemapRenderSystem);
         TryCleanup(Simulation.Shutdown);
         TryCleanup(DisposeAudioEcsSystem);
         TryCleanup(DisposeSpriteRenderSystem);
@@ -662,7 +695,7 @@ Services.Graphics;
         TryCleanup(DisposeAudioEcsSystem);
         TryCleanup(DisposeSpriteRenderSystem);
         TryCleanup(DisposeParticleRuntime);
-
+        TryCleanup(DisposeTilemapRenderSystem);
         TryCleanup(() => EngineConsole?.Dispose());
         TryCleanup(() => Console?.Dispose());
         TryCleanup(() => SchedulerProfiler?.Dispose());

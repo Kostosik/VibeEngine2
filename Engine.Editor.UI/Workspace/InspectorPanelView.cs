@@ -7,6 +7,7 @@ using Engine.Editor.Inspection;
 using Engine.Editor.UI.Dialogs;
 using Engine.Editor.UI.Inspection;
 using Engine.Graphics.Commands;
+using Engine.Graphics.Tilemaps;
 using Engine.Graphics2D.Sprites;
 using Engine.Particles;
 using Engine.Physics.Components;
@@ -627,6 +628,17 @@ public sealed class InspectorPanelView : UiPanel
                          entity,
                          componentType))
             {
+                if (componentType == typeof(TilemapComponent) &&
+    property.Name == nameof(TilemapComponent.TilemapPath) &&
+    _assetPickerDialog is not null)
+                {
+                    section.AddChild(
+                        CreateTilemapPathProperty(
+                            document,
+                            property));
+
+                    continue;
+                }
                 if (componentType == typeof(SpriteComponent) &&
                     property.Name == nameof(SpriteComponent.TexturePath))
                 {
@@ -660,6 +672,90 @@ public sealed class InspectorPanelView : UiPanel
         _content.AddChild(expander);
     }
 
+    private UiStackPanel CreateTilemapPathProperty(
+    Engine.Editor.Documents.EditorDocument document,
+    EditorProperty property)
+    {
+        var container = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical,
+            Spacing = 4.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        container.AddChild(
+            new UiLabel(property.DisplayName)
+            {
+                FontSize = 12.0f
+            });
+
+        var row = new UiStackPanel
+        {
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 4.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        var currentPath = property.GetValue()?.ToString();
+
+        var pickerField = new UiPickerField(
+            string.IsNullOrWhiteSpace(currentPath)
+                ? null
+                : currentPath)
+        {
+            Width = 150.0f,
+            Height = 32.0f,
+            FontSize = 12.0f,
+            Placeholder = "Select tilemap..."
+        };
+
+        pickerField.SelectionRequested += () =>
+        {
+            if (_assetPickerDialog is null)
+            {
+                return;
+            }
+
+            _assetPickerDialog.Show(
+                "Select Tilemap",
+                IsTilemapAsset,
+                path =>
+                {
+                    document.Execute(
+                        new SetEditorPropertyCommand(
+                            property,
+                            path));
+
+                    Refresh();
+                });
+        };
+
+        row.AddChild(pickerField);
+
+        var clearButton = new UiButton("Clear")
+        {
+            Width = 50.0f,
+            Height = 32.0f,
+            FontSize = 11.0f
+        };
+
+        clearButton.Clicked += () =>
+        {
+            document.Execute(
+                new SetEditorPropertyCommand(
+                    property,
+                    string.Empty));
+
+            Refresh();
+        };
+
+        row.AddChild(clearButton);
+        container.AddChild(row);
+
+        return container;
+    }
     private UiStackPanel CreateParticleEffectPathProperty(
     Engine.Editor.Documents.EditorDocument document,
     EditorProperty property)
@@ -954,7 +1050,14 @@ public sealed class InspectorPanelView : UiPanel
             ".bmp" or
             ".tga";
     }
-
+    private static bool IsTilemapAsset(
+    EditorAssetEntry entry)
+    {
+        return !entry.IsDirectory &&
+               entry.Name.EndsWith(
+                   ".tilemap.json",
+                   StringComparison.OrdinalIgnoreCase);
+    }
     private void AddDistanceJointSection(
     Engine.Editor.Documents.EditorDocument document,
     EntityId entity,

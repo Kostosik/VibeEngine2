@@ -3,6 +3,7 @@ using Engine.ECS.Components;
 using Engine.ECS.Entities;
 using Engine.Editor.Documents;
 using Engine.Graphics.Commands;
+using Engine.Graphics.Tilemaps;
 using Engine.Graphics2D.Sprites;
 using Engine.UI.Core;
 using Engine.UI.Layout;
@@ -28,7 +29,13 @@ internal static class ViewportEntityRenderer
             {
                 continue;
             }
-
+            if (ecs.Has<TilemapComponent>(entity) &&
+    ecs.Has<WorldTransform2D>(entity) &&
+    !string.IsNullOrWhiteSpace(
+        ecs.Get<TilemapComponent>(entity).TilemapPath))
+            {
+                continue;
+            }
             if (TryGetRenderableSprite(
                     document,
                     entity,
@@ -107,6 +114,15 @@ internal static class ViewportEntityRenderer
                     spriteTransform,
                     selectionColor);
 
+                continue;
+            }
+
+            var ecs = document.World.EcsWorld;
+
+            if (ecs.Has<TilemapComponent>(entity) &&
+                !string.IsNullOrWhiteSpace(
+                    ecs.Get<TilemapComponent>(entity).TilemapPath))
+            {
                 continue;
             }
 

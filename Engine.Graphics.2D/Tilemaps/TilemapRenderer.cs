@@ -1,7 +1,8 @@
 ﻿using Engine.Camera;
 using Engine.Core.Math;
-using Engine.Graphics2D.Commands;
+using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
+using Engine.Graphics2D.Commands;
 
 namespace Engine.Graphics.Tilemaps;
 
@@ -158,6 +159,232 @@ public sealed class TilemapRenderer
                         visual.UV));
             }
         }
+    }
+
+    public void RenderMap(
+    TilemapDefinition definition,
+    Vector2 position,
+    Vector2 scale,
+    float rotationRadians,
+    int layer = RenderLayers.World)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+
+        if (!float.IsFinite(position.X) ||
+            !float.IsFinite(position.Y) ||
+            !float.IsFinite(scale.X) ||
+            !float.IsFinite(scale.Y) ||
+            !float.IsFinite(rotationRadians) ||
+            MathF.Abs(scale.X) < 0.0001f ||
+            MathF.Abs(scale.Y) < 0.0001f)
+        {
+            return;
+        }
+
+        var cosine = MathF.Cos(rotationRadians);
+        var sine = MathF.Sin(rotationRadians);
+
+        if (!TryGetVisibleCellBounds(
+                definition,
+                position,
+                scale,
+                cosine,
+                sine,
+                out var startX,
+                out var endX,
+                out var startY,
+                out var endY))
+        {
+            return;
+        }
+
+        var tileWidth = _tileSize * MathF.Abs(scale.X);
+        var tileHeight = _tileSize * MathF.Abs(scale.Y);
+
+        if (!float.IsFinite(tileWidth) ||
+            !float.IsFinite(tileHeight) ||
+            tileWidth <= 0.0f ||
+            tileHeight <= 0.0f)
+        {
+            return;
+        }
+
+        var absCosine = MathF.Abs(cosine);
+        var absSine = MathF.Abs(sine);
+
+        var extentX =
+            (tileWidth * absCosine +
+             tileHeight * absSine) * 0.5f;
+
+        var extentY =
+            (tileWidth * absSine +
+             tileHeight * absCosine) * 0.5f;
+
+        var rotationDegrees =
+            rotationRadians * (180.0f / MathF.PI);
+
+        for (var y = startY; y <= endY; y++)
+        {
+            for (var x = startX; x <= endX; x++)
+            {
+                var tileId =
+                    definition.Tiles[y * definition.Width + x];
+
+                if (tileId == 0 ||
+                    !_tileSet.TryGet(tileId, out var visual))
+                {
+                    continue;
+                }
+
+                var localX =
+                    (x + 0.5f) * _tileSize * scale.X;
+
+                var localY =
+                    (y + 0.5f) * _tileSize * scale.Y;
+
+                var centerX =
+                    position.X +
+                    localX * cosine -
+                    localY * sine;
+
+                var centerY =
+                    position.Y +
+                    localX * sine +
+                    localY * cosine;
+
+                // Отсекаем ячейки за пределами камеры,
+                // учитывая также их поворот.
+                if (!_camera.IsVisible(
+                        new Rectangle(
+                            centerX - extentX,
+                            centerY - extentY,
+                            extentX * 2.0f,
+                            extentY * 2.0f)))
+                {
+                    continue;
+                }
+
+                var uv = visual.UV;
+
+                if (scale.X < 0.0f)
+                {
+                    uv = new Rectangle(
+                        uv.X + uv.Width,
+                        uv.Y,
+                        -uv.Width,
+                        uv.Height);
+                }
+
+                if (scale.Y < 0.0f)
+                {
+                    uv = new Rectangle(
+                        uv.X,
+                        uv.Y + uv.Height,
+                        uv.Width,
+                        -uv.Height);
+                }
+
+                _graphics.Submit(
+                    new DrawWorldTextureCommand(
+                        visual.Texture,
+                        new Vector2(
+                            centerX - tileWidth * 0.5f,
+                            centerY - tileHeight * 0.5f),
+                        new Vector2(tileWidth, tileHeight),
+                        uv,
+                        layer,
+                        rotationDegrees));
+            }
+        }
+    }
+
+    private bool TryGetVisibleCellBounds(
+        TilemapDefinition definition,
+        Vector2 position,
+        Vector2 scale,
+        float cosine,
+        float sine,
+        out int startX,
+        out int endX,
+        out int startY,
+        out int endY)
+    {
+        startX = 0;
+        endX = -1;
+        startY = 0;
+        endY = -1;
+
+        var bounds = _camera.WorldBounds;
+
+        var corners = new[]
+        {
+        new Vector2(bounds.X, bounds.Y),
+        new Vector2(bounds.X + bounds.Width, bounds.Y),
+        new Vector2(
+            bounds.X + bounds.Width,
+            bounds.Y + bounds.Height),
+        new Vector2(bounds.X, bounds.Y + bounds.Height)
+    };
+
+        var minX = float.PositiveInfinity;
+        var minY = float.PositiveInfinity;
+        var maxX = float.NegativeInfinity;
+        var maxY = float.NegativeInfinity;
+
+        foreach (var corner in corners)
+        {
+            var dx = corner.X - position.X;
+            var dy = corner.Y - position.Y;
+
+            // Переводим мировые координаты в координаты сетки.
+            var localX =
+                (dx * cosine + dy * sine) /
+                (_tileSize * scale.X);
+
+            var localY =
+                (-dx * sine + dy * cosine) /
+                (_tileSize * scale.Y);
+
+            minX = MathF.Min(minX, localX);
+            minY = MathF.Min(minY, localY);
+            maxX = MathF.Max(maxX, localX);
+            maxY = MathF.Max(maxY, localY);
+        }
+
+        if (!float.IsFinite(minX) ||
+            !float.IsFinite(minY) ||
+            !float.IsFinite(maxX) ||
+            !float.IsFinite(maxY) ||
+            maxX <= 0.0f ||
+            maxY <= 0.0f ||
+            minX >= definition.Width ||
+            minY >= definition.Height)
+        {
+            return false;
+        }
+
+        // Небольшой запас учитывает ячейки, частично попавшие в экран.
+        startX = Math.Max(
+            0,
+            (int)MathF.Floor(
+                Math.Clamp(minX, -1.0f, definition.Width)) - 1);
+
+        endX = Math.Min(
+            definition.Width - 1,
+            (int)MathF.Ceiling(
+                Math.Clamp(maxX, 0.0f, definition.Width)));
+
+        startY = Math.Max(
+            0,
+            (int)MathF.Floor(
+                Math.Clamp(minY, -1.0f, definition.Height)) - 1);
+
+        endY = Math.Min(
+            definition.Height - 1,
+            (int)MathF.Ceiling(
+                Math.Clamp(maxY, 0.0f, definition.Height)));
+
+        return startX <= endX && startY <= endY;
     }
 
     private static bool Intersects(

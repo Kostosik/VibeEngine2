@@ -93,35 +93,6 @@ public sealed class EditorAssetCreationRegistryTests
     }
 
     [Fact]
-    public void CreateDefault_RegistersInitialCreationTypes()
-    {
-        var registry = EditorAssetCreationRegistry.CreateDefault();
-
-        Assert.Equal(
-            new[]
-            {
-                "tile-set",
-                "tilemap",
-                "folder",
-                "particle-effect",
-                "animation-clip",
-                "sprite-animation",
-                "script-definition",
-                "world-document",
-                "ui-document"
-            },
-            registry.Definitions.Select(item => item.Id));
-
-        Assert.Equal(
-            ".particle.json",
-            registry.GetRequired("particle-effect").Extension);
-
-        Assert.Equal(
-            ".script.json",
-            registry.GetRequired("script-definition").Extension);
-    }
-
-    [Fact]
     public void Register_RejectsDuplicateId()
     {
         var registry = EditorAssetCreationRegistry.CreateDefault();

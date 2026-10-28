@@ -1,6 +1,7 @@
 ﻿
 using Engine.Audio.Components;
 using Engine.ECS.Components;
+using Engine.Graphics.Tilemaps;
 using Engine.Graphics2D.Sprites;
 using Engine.Particles;
 
@@ -97,6 +98,8 @@ public sealed class EditorComponentTypeRegistry
 
     public void RegisterEngineComponents()
     {
+        Register<TilemapComponent>(
+    () => new TilemapComponent());
         Register<LocalTransform2D>();
         Register<WorldTransform2D>();
         Register<SpriteComponent>(

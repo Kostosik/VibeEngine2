@@ -1,5 +1,6 @@
 ﻿using Engine.Audio.Components;
 using Engine.ECS.Components;
+using Engine.Graphics.Tilemaps;
 using Engine.Graphics2D.Sprites;
 using Engine.Particles;
 
@@ -14,6 +15,9 @@ public sealed class EditorComponentDependencyRegistry
     {
         var registry =
             new EditorComponentDependencyRegistry();
+        registry.Register(
+    typeof(TilemapComponent),
+    typeof(WorldTransform2D));
 
         registry.Register(
             typeof(LocalTransform2D),

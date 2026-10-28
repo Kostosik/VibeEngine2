@@ -146,6 +146,7 @@ public abstract class EngineGame : Application
 
         OnRender(interpolationAlpha);
 
+        Runtime.RenderTilemaps();
         Runtime.RenderSprites();
         Runtime.RenderParticles();
     }

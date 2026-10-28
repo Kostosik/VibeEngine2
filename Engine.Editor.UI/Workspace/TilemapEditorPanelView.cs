@@ -19,6 +19,17 @@ namespace Engine.Editor.UI.Workspace;
 
 public sealed class TilemapEditorPanelView : UiPanel
 {
+    private const float BaseCellSize = 40.0f;
+    private const float MinZoom = 0.1f;
+    private const float MaxZoom = 8.0f;
+    private const float ZoomStep = 1.15f;
+
+    private float _zoom = 1.0f;
+    private Vector2 _panOffset;
+
+    private bool _isPanning;
+    private Vector2 _lastPanPosition;
+
     private readonly TilemapDocument _document;
     private readonly EditorContext _editor;
     private readonly EditorAssetPickerDialog? _assetPickerDialog;
@@ -384,22 +395,124 @@ public sealed class TilemapEditorPanelView : UiPanel
             : $"Selected tile: {selected.Id} — {selected.Name}";
     }
 
-    protected override void OnPointerDown(UiPointerEvent pointer)
+    private void RecordStrokeCell(int x, int y)
+    {
+        var tileId = _strokeButton == InputMouseButton.Right
+            ? 0u
+            : _selectedTileId;
+
+        _strokeChanges[(x, y)] = tileId;
+    }
+
+    protected override void OnPointerWheel(
+    UiPointerEvent pointer)
+    {
+        base.OnPointerWheel(pointer);
+
+        if (MathF.Abs(pointer.ScrollDelta) < 0.0001f ||
+            !TryGetGridLayout(
+                out var originX,
+                out var originY,
+                out var cellSize,
+                out var viewport) ||
+            !ContainsPoint(viewport, pointer.Position))
+        {
+            return;
+        }
+
+        var newZoom = Math.Clamp(
+            _zoom * MathF.Pow(
+                ZoomStep,
+                pointer.ScrollDelta),
+            MinZoom,
+            MaxZoom);
+
+        if (MathF.Abs(newZoom - _zoom) < 0.000001f)
+        {
+            return;
+        }
+
+        var map = _document.Definition;
+
+        // Координаты точки карты под курсором
+        // в текущем масштабе.
+        var relativeX =
+            (pointer.Position.X - originX) /
+            (map.Width * cellSize);
+
+        var relativeY =
+            (pointer.Position.Y - originY) /
+            (map.Height * cellSize);
+
+        var newCellSize = BaseCellSize * newZoom;
+
+        var newMapWidth = map.Width * newCellSize;
+        var newMapHeight = map.Height * newCellSize;
+
+        // Новое положение карты, сохраняющее
+        // точку под курсором на прежнем месте.
+        var targetOriginX =
+            pointer.Position.X -
+            relativeX * newMapWidth;
+
+        var targetOriginY =
+            pointer.Position.Y -
+            relativeY * newMapHeight;
+
+        var centeredOriginX =
+            viewport.X +
+            (viewport.Width - newMapWidth) * 0.5f;
+
+        var centeredOriginY =
+            viewport.Y +
+            (viewport.Height - newMapHeight) * 0.5f;
+
+        _panOffset = new Vector2(
+            targetOriginX - centeredOriginX,
+            targetOriginY - centeredOriginY);
+
+        _zoom = newZoom;
+
+        pointer.Handled = true;
+    }
+
+    protected override void OnPointerDown(
+        UiPointerEvent pointer)
     {
         base.OnPointerDown(pointer);
 
+        // Средняя кнопка — перемещение карты.
+        if (pointer.Button == InputMouseButton.Middle)
+        {
+            if (!TryGetMapViewport(out var viewport) ||
+                !ContainsPoint(viewport, pointer.Position))
+            {
+                return;
+            }
+
+            _isPanning = true;
+            _lastPanPosition = pointer.Position;
+
+            pointer.RequestCapture();
+            pointer.Handled = true;
+            return;
+        }
+
+        // ЛКМ — рисование, ПКМ — стирание.
         if (pointer.Button != InputMouseButton.Left &&
             pointer.Button != InputMouseButton.Right)
         {
             return;
         }
 
-        if (!TryGetMapCell(pointer.Position, out var x, out var y))
+        if (!TryGetMapCell(
+                pointer.Position,
+                out var x,
+                out var y))
         {
             return;
         }
 
-        // Не рисуем, пока пользователь не выбрал тайл в палитре.
         if (pointer.Button == InputMouseButton.Left &&
             _selectedTileId == 0)
         {
@@ -417,10 +530,29 @@ public sealed class TilemapEditorPanelView : UiPanel
         pointer.Handled = true;
     }
 
-    protected override void OnPointerMove(UiPointerEvent pointer)
+    protected override void OnPointerMove(
+        UiPointerEvent pointer)
     {
         base.OnPointerMove(pointer);
 
+        if (_isPanning &&
+            pointer.Button == InputMouseButton.Middle)
+        {
+            var delta = new Vector2(
+                pointer.Position.X - _lastPanPosition.X,
+                pointer.Position.Y - _lastPanPosition.Y);
+
+            _lastPanPosition = pointer.Position;
+
+            _panOffset = new Vector2(
+                _panOffset.X + delta.X,
+                _panOffset.Y + delta.Y);
+
+            pointer.Handled = true;
+            return;
+        }
+
+        // Существующая логика рисования сохраняется.
         if (!_isPainting)
         {
             return;
@@ -428,7 +560,10 @@ public sealed class TilemapEditorPanelView : UiPanel
 
         pointer.Handled = true;
 
-        if (!TryGetMapCell(pointer.Position, out var x, out var y))
+        if (!TryGetMapCell(
+                pointer.Position,
+                out var x,
+                out var y))
         {
             _lastStrokeCell = null;
             return;
@@ -450,9 +585,20 @@ public sealed class TilemapEditorPanelView : UiPanel
         _lastStrokeCell = (x, y);
     }
 
-    protected override void OnPointerUp(UiPointerEvent pointer)
+    protected override void OnPointerUp(
+        UiPointerEvent pointer)
     {
         base.OnPointerUp(pointer);
+
+        if (_isPanning &&
+            pointer.Button == InputMouseButton.Middle)
+        {
+            _isPanning = false;
+
+            pointer.ReleaseCapture();
+            pointer.Handled = true;
+            return;
+        }
 
         if (!_isPainting)
         {
@@ -463,15 +609,6 @@ public sealed class TilemapEditorPanelView : UiPanel
 
         pointer.ReleaseCapture();
         pointer.Handled = true;
-    }
-
-    private void RecordStrokeCell(int x, int y)
-    {
-        var tileId = _strokeButton == InputMouseButton.Right
-            ? 0u
-            : _selectedTileId;
-
-        _strokeChanges[(x, y)] = tileId;
     }
 
     private void RecordStrokeLine(
@@ -540,52 +677,77 @@ public sealed class TilemapEditorPanelView : UiPanel
 
         base.OnDetachingFromTree();
     }
-    private bool TryGetGridLayout(
-    out float originX,
-    out float originY,
-    out float cellSize)
+    private bool TryGetMapViewport(out UiRect viewport)
     {
         const float sidebarWidth = 310.0f;
         const float margin = 12.0f;
-
-        var map = _document.Definition;
-
-        originX = 0.0f;
-        originY = 0.0f;
-        cellSize = 0.0f;
+        const float headerHeight = 24.0f;
 
         var availableWidth =
             Bounds.Width - sidebarWidth - margin * 3.0f;
 
         var availableHeight =
-            Bounds.Height - margin * 3.0f;
+            Bounds.Height - margin * 3.0f - headerHeight;
 
-        if (availableWidth <= 0.0f || availableHeight <= 0.0f)
+        viewport = default;
+
+        if (availableWidth <= 0.0f ||
+            availableHeight <= 0.0f)
         {
             return false;
         }
 
-        cellSize = MathF.Min(
-            40.0f,
-            MathF.Min(
-                availableWidth / map.Width,
-                availableHeight / map.Height));
+        viewport = new UiRect(
+            Bounds.X + sidebarWidth + margin,
+            Bounds.Y + margin + headerHeight,
+            availableWidth,
+            availableHeight);
 
-        if (cellSize < 1.0f)
+        return true;
+    }
+
+    private static bool ContainsPoint(
+        UiRect rect,
+        Vector2 point)
+    {
+        return point.X >= rect.X &&
+               point.Y >= rect.Y &&
+               point.X <= rect.X + rect.Width &&
+               point.Y <= rect.Y + rect.Height;
+    }
+
+    private bool TryGetGridLayout(
+        out float originX,
+        out float originY,
+        out float cellSize,
+        out UiRect viewport)
+    {
+        originX = 0.0f;
+        originY = 0.0f;
+        cellSize = 0.0f;
+        viewport = default;
+
+        if (!TryGetMapViewport(out viewport))
         {
             return false;
         }
 
-        var mapWidth = cellSize * map.Width;
-        var mapHeight = cellSize * map.Height;
+        var map = _document.Definition;
+
+        cellSize = BaseCellSize * _zoom;
+
+        var mapWidth = map.Width * cellSize;
+        var mapHeight = map.Height * cellSize;
 
         originX =
-            Bounds.X + sidebarWidth + margin +
-            MathF.Max(0.0f, (availableWidth - mapWidth) * 0.5f);
+            viewport.X +
+            (viewport.Width - mapWidth) * 0.5f +
+            _panOffset.X;
 
         originY =
-            Bounds.Y + margin +
-            MathF.Max(0.0f, (availableHeight - mapHeight) * 0.5f);
+            viewport.Y +
+            (viewport.Height - mapHeight) * 0.5f +
+            _panOffset.Y;
 
         return true;
     }
@@ -601,19 +763,23 @@ public sealed class TilemapEditorPanelView : UiPanel
         if (!TryGetGridLayout(
                 out var originX,
                 out var originY,
-                out var cellSize))
+                out var cellSize,
+                out var viewport) ||
+            !ContainsPoint(viewport, position))
         {
             return false;
         }
 
         var map = _document.Definition;
 
-        x = (int)MathF.Floor((position.X - originX) / cellSize);
-        y = (int)MathF.Floor((position.Y - originY) / cellSize);
+        x = (int)MathF.Floor(
+            (position.X - originX) / cellSize);
 
-        return
-            x >= 0 && x < map.Width &&
-            y >= 0 && y < map.Height;
+        y = (int)MathF.Floor(
+            (position.Y - originY) / cellSize);
+
+        return x >= 0 && x < map.Width &&
+               y >= 0 && y < map.Height;
     }
 
     private uint GetDisplayedTileId(int x, int y)
@@ -632,88 +798,105 @@ public sealed class TilemapEditorPanelView : UiPanel
 
         var map = _document.Definition;
 
-        // Оставляем слева место под палитру.
-        const float sidebarWidth = 310.0f;
-        const float margin = 12.0f;
-
-        var availableWidth = Bounds.Width - sidebarWidth - margin * 3.0f;
-        var availableHeight = Bounds.Height - margin * 3.0f;
-
-        if (availableWidth <= 0.0f || availableHeight <= 0.0f)
+        if (!TryGetGridLayout(
+                out var originX,
+                out var originY,
+                out var cellSize,
+                out var viewport))
         {
             return;
         }
 
-        var cellSize = MathF.Min(
-            40.0f,
-            MathF.Min(
-                availableWidth / map.Width,
-                availableHeight / map.Height));
-
-        if (cellSize < 1.0f)
-        {
-            return;
-        }
-
-        var mapWidth = cellSize * map.Width;
-        var mapHeight = cellSize * map.Height;
-
-        var originX = Bounds.X + sidebarWidth +
-                      margin +
-                      MathF.Max(0.0f, (availableWidth - mapWidth) * 0.5f);
-
-        var originY = Bounds.Y + margin +
-                      MathF.Max(0.0f, (availableHeight - mapHeight) * 0.5f);
-
+        // Размер карты и текущий масштаб.
         context.DrawText(
-            $"{map.Width} × {map.Height}",
-            new Vector2(originX, Bounds.Y + 8.0f),
+            $"{map.Width} × {map.Height}  •  {_zoom * 100.0f:0}%",
+            new Vector2(viewport.X, Bounds.Y + 8.0f),
             13.0f,
             new UiColor(210, 210, 210, 255));
 
-        for (var y = 0; y < map.Height; y++)
+        // Не рисуем карту за пределами viewport.
+        context.PushClip(viewport);
+
+        try
         {
-            for (var x = 0; x < map.Width; x++)
+            // Определяем диапазон видимых ячеек.
+            var firstX = Math.Clamp(
+                (int)MathF.Floor(
+                    (viewport.X - originX) / cellSize),
+                0,
+                map.Width);
+
+            var lastX = Math.Clamp(
+                (int)MathF.Ceiling(
+                    (viewport.X + viewport.Width - originX) /
+                    cellSize),
+                0,
+                map.Width);
+
+            var firstY = Math.Clamp(
+                (int)MathF.Floor(
+                    (viewport.Y - originY) / cellSize),
+                0,
+                map.Height);
+
+            var lastY = Math.Clamp(
+                (int)MathF.Ceiling(
+                    (viewport.Y + viewport.Height - originY) /
+                    cellSize),
+                0,
+                map.Height);
+
+            for (var y = firstY; y < lastY; y++)
             {
-                var tileId = GetDisplayedTileId(x, y);
-
-                var cell = new UiRect(
-                    originX + x * cellSize,
-                    originY + y * cellSize,
-                    cellSize,
-                    cellSize);
-
-                if (tileId != 0 &&
-                    _visuals.TryGet(tileId, out var visual))
+                for (var x = firstX; x < lastX; x++)
                 {
-                    context.DrawTexture(
-                        visual.Texture,
-                        cell,
-                        visual.UV);
-                }
-                else
-                {
+                    var tileId = GetDisplayedTileId(x, y);
+
+                    var cell = new UiRect(
+                        originX + x * cellSize,
+                        originY + y * cellSize,
+                        cellSize,
+                        cellSize);
+
+                    if (tileId != 0 &&
+                        _visuals.TryGet(tileId, out var visual))
+                    {
+                        context.DrawTexture(
+                            visual.Texture,
+                            cell,
+                            visual.UV);
+                    }
+                    else
+                    {
+                        context.DrawRectangle(
+                            cell,
+                            tileId == 0
+                                ? new UiColor(36, 36, 36, 255)
+                                : new UiColor(70, 65, 75, 255));
+
+                        if (tileId != 0 && cellSize >= 18.0f)
+                        {
+                            context.DrawText(
+                                tileId.ToString(),
+                                new Vector2(
+                                    cell.X + 2.0f,
+                                    cell.Y + 2.0f),
+                                MathF.Min(11.0f, cellSize * 0.35f),
+                                new UiColor(245, 245, 245, 255));
+                        }
+                    }
+
+                    // Граница ячейки.
                     context.DrawRectangle(
                         cell,
-                        tileId == 0
-                            ? new UiColor(36, 36, 36, 255)
-                            : new UiColor(70, 65, 75, 255));
-
-                    if (tileId != 0 && cellSize >= 18.0f)
-                    {
-                        context.DrawText(
-                            tileId.ToString(),
-                            new Vector2(cell.X + 2.0f, cell.Y + 2.0f),
-                            MathF.Min(11.0f, cellSize * 0.35f),
-                            new UiColor(245, 245, 245, 255));
-                    }
+                        new UiColor(65, 65, 65, 255),
+                        filled: false);
                 }
-
-                context.DrawRectangle(
-                    cell,
-                    new UiColor(65, 65, 65, 255),
-                    filled: false);
             }
+        }
+        finally
+        {
+            context.PopClip();
         }
     }
 }

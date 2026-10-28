@@ -106,6 +106,7 @@ public sealed class UiButton : UiWidget
             Height ?? 42.0f);
     }
 
+
     protected override void OnRender(
         UiRenderContext context)
     {
@@ -139,13 +140,29 @@ public sealed class UiButton : UiWidget
                 layer: 1);
         }
 
-        var contentBounds =
-            Bounds.Deflate(
-                Padding);
+        var deflatedBounds =
+            Bounds.Deflate(Padding);
+
+        // На очень узких кнопках область содержимого
+        // не должна иметь отрицательные размеры.
+        var contentBounds = new UiRect(
+            deflatedBounds.X,
+            deflatedBounds.Y,
+            MathF.Max(0.0f, deflatedBounds.Width),
+            MathF.Max(0.0f, deflatedBounds.Height));
+
+        var displayedText =
+            UiTextLayout.TruncateToFit(
+                Text,
+                contentBounds.Width,
+                candidate =>
+                    context.MeasureText(
+                        candidate,
+                        FontSize).X);
 
         var textSize =
             context.MeasureText(
-                Text,
+                displayedText,
                 FontSize);
 
         var textPosition =
@@ -155,12 +172,24 @@ public sealed class UiButton : UiWidget
                 HorizontalTextAlignment,
                 VerticalTextAlignment);
 
-        context.DrawText(
-            Text,
-            textPosition,
-            FontSize,
-            context.Theme.Text);
+        // Дополнительная защита от выхода текста
+        // за внутренние границы кнопки.
+        context.PushClip(contentBounds);
+
+        try
+        {
+            context.DrawText(
+                displayedText,
+                textPosition,
+                FontSize,
+                context.Theme.Text);
+        }
+        finally
+        {
+            context.PopClip();
+        }
     }
+
 
     protected override void OnPointerDown(
     UiPointerEvent pointer)

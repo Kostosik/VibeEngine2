@@ -25,6 +25,7 @@ internal sealed class EditorDocumentSaveService
         ArgumentNullException.ThrowIfNull(document);
 
         return document is
+            TileSetDocument or
             SpriteAnimationDocument or
             ParticleEffectDocument or
             AnimationClipDocument or
@@ -39,6 +40,9 @@ internal sealed class EditorDocumentSaveService
 
         switch (document)
         {
+            case TileSetDocument tileSet:
+                tileSet.Save();
+                return true;
             case SpriteAnimationDocument spriteAnimation:
                 spriteAnimation.Save();
                 return true;

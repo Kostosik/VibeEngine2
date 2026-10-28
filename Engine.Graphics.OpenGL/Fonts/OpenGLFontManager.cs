@@ -38,11 +38,13 @@ internal sealed class OpenGLFontManager :
 
     public FontHandle DefaultFont { get; }
 
+
     public FontHandle Create(
         ReadOnlyMemory<byte> data,
         FontDescription description)
     {
         ThrowIfDisposed();
+
         if (data.Length == 0)
         {
             throw new ArgumentException(
@@ -55,7 +57,10 @@ internal sealed class OpenGLFontManager :
         var fontData =
             data.ToArray();
 
-        using var fontInfo = StbTrueType.CreateFont(fontData, 0);
+        using var fontInfo =
+            StbTrueType.CreateFont(
+                fontData,
+                0);
 
         if (fontInfo is null)
         {
@@ -90,7 +95,45 @@ internal sealed class OpenGLFontManager :
                 glyphs,
                 textures);
 
-            if (description.AdditionalCodepointRanges is { } additionalRanges)
+            // U+2026 — Unicode-символ многоточия.
+            const int ellipsisCodepoint = 0x2026;
+
+            var ellipsisAlreadyIncluded =
+                description.AdditionalCodepointRanges is { } ranges &&
+                ranges.Any(range =>
+                    ellipsisCodepoint >= range.FirstCodepoint &&
+                    (long)ellipsisCodepoint <
+                    (long)range.FirstCodepoint +
+                    range.CodepointCount);
+
+            if (!ellipsisAlreadyIncluded)
+            {
+                // Для одного дополнительного глифа не нужен
+                // полноразмерный атлас основного шрифта.
+                var ellipsisDescription =
+                    description with
+                    {
+                        AtlasWidth = System.Math.Min(
+                            description.AtlasWidth,
+                            128),
+
+                        AtlasHeight = System.Math.Min(
+                            description.AtlasHeight,
+                            128)
+                    };
+
+                BakeRange(
+                    fontData,
+                    fontInfo,
+                    ellipsisDescription,
+                    ellipsisCodepoint,
+                    1,
+                    glyphs,
+                    textures);
+            }
+
+            if (description.AdditionalCodepointRanges
+                is { } additionalRanges)
             {
                 foreach (var range in additionalRanges)
                 {
@@ -140,6 +183,7 @@ internal sealed class OpenGLFontManager :
 
         return handle;
     }
+
 
     public bool Exists(
         FontHandle font)

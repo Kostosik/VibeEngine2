@@ -47,6 +47,7 @@ public sealed class EditorMainShell :
     private EditorUiWorkspaceView _uiWorkspaceView;
     private ScriptDefinitionEditorPanelView?
     _scriptDefinitionWorkspaceView;
+    private TileSetEditorPanelView? _tileSetWorkspaceView;
     private ParticleEffectEditorPanelView? _particleEffectWorkspaceView;
     public event Action? NewProjectRequested;
     public event Action? OpenProjectRequested;
@@ -474,7 +475,7 @@ public sealed class EditorMainShell :
 
         if (_scriptDefinitionWorkspaceView is not null)
         {
-            _workspace.RemoveChild(
+            RestoreViewportIfCurrent(
                 _scriptDefinitionWorkspaceView);
 
             _scriptDefinitionWorkspaceView = null;
@@ -490,9 +491,33 @@ public sealed class EditorMainShell :
                 document,
                 Editor,
                 _debugConsole);
+    }
 
-        _workspace.AddChild(
-            _scriptDefinitionWorkspaceView);
+    private void BindTileSetDocument(TileSetDocument? document)
+    {
+        if (ReferenceEquals(
+                _tileSetWorkspaceView?.Document,
+                document))
+        {
+            return;
+        }
+
+        if (_tileSetWorkspaceView is not null)
+        {
+            RestoreViewportIfCurrent(_tileSetWorkspaceView);
+            _tileSetWorkspaceView.ReleaseResources();
+            _tileSetWorkspaceView = null;
+        }
+
+        if (document is null)
+        {
+            return;
+        }
+
+        _tileSetWorkspaceView =
+            new TileSetEditorPanelView(
+                document,
+                _assetPickerDialog);
     }
 
     private void BindParticleEffectDocument(
@@ -553,6 +578,7 @@ public sealed class EditorMainShell :
 
     public void ReleaseResources()
     {
+        BindTileSetDocument(null);
         BindScriptDefinitionDocument(null);
         BindSpriteAnimationDocument(null);
         BindAnimationClipDocument(null);
@@ -565,7 +591,10 @@ public sealed class EditorMainShell :
     {
         var activeDocument =
             Editor.Session.ActiveEditorDocument;
+        var tileSetDocument =
+    activeDocument as TileSetDocument;
 
+        BindTileSetDocument(tileSetDocument);
         var worldDocument =
             activeDocument as EditorDocument;
         _workspaceView.SetWorldEditorContext(
@@ -600,6 +629,12 @@ public sealed class EditorMainShell :
         {
             EditorUiDocument =>
                 _uiWorkspaceView,
+            TileSetDocument
+                when _tileSetWorkspaceView is { } view =>
+                view,
+            ScriptDefinitionDocument
+                when _scriptDefinitionWorkspaceView is { } view =>
+                view,
 
             ParticleEffectDocument
                 when _particleEffectWorkspaceView is { } view =>
@@ -624,7 +659,11 @@ public sealed class EditorMainShell :
 
         _uiWorkspaceView.Visible =
             uiDocument is not null;
-
+        if (_tileSetWorkspaceView is not null)
+        {
+            _tileSetWorkspaceView.Visible =
+                tileSetDocument is not null;
+        }
         if (_particleEffectWorkspaceView is not null)
         {
             _particleEffectWorkspaceView.Visible =
@@ -658,6 +697,14 @@ public sealed class EditorMainShell :
             documentStatus = BuildDocumentStatus(
                 worldDocument,
                 worldDocument.IsDirty
+                    ? "Unsaved changes"
+                    : "Saved");
+        }
+        else if (tileSetDocument is not null)
+        {
+            documentStatus =
+                $"Tile Set • {tileSetDocument.DisplayName} • " +
+                (tileSetDocument.IsDirty
                     ? "Unsaved changes"
                     : "Saved");
         }

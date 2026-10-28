@@ -26,11 +26,11 @@ public sealed class TileSetContentLoaderTests
           "tileHeight": 16
         }
       ],
-      "tiles": [
-        { "id": 1, "atlasId": "terrain", "atlasIndex": 0 },
-        { "id": 2, "atlasId": "terrain", "atlasIndex": 1 },
-        { "id": 100, "atlasId": "decorations", "atlasIndex": 3 }
-      ]
+    "tiles": [
+      { "id": 1, "name": "Grass", "atlasId": "terrain", "atlasIndex": 0 },
+      { "id": 2, "name": "Dirt", "atlasId": "terrain", "atlasIndex": 1 },
+      { "id": 100, "name": "Decoration", "atlasId": "decorations", "atlasIndex": 3 }
+    ]
     }
     """;
 
@@ -76,6 +76,9 @@ public sealed class TileSetContentLoaderTests
             Assert.Equal(1, definition.Tiles[1].AtlasIndex);
 
             Assert.Equal("decorations", definition.Tiles[2].AtlasId);
+            Assert.Equal("Grass", definition.Tiles[0].Name);
+            Assert.Equal("Dirt", definition.Tiles[1].Name);
+            Assert.Equal("Decoration", definition.Tiles[2].Name);
         }
         finally
         {
@@ -110,7 +113,34 @@ public sealed class TileSetContentLoaderTests
             Assert.Equal(original.Tiles[i].Id, restored.Tiles[i].Id);
             Assert.Equal(original.Tiles[i].AtlasId, restored.Tiles[i].AtlasId);
             Assert.Equal(original.Tiles[i].AtlasIndex, restored.Tiles[i].AtlasIndex);
+            Assert.Equal(
+    original.Tiles[i].Name,
+    restored.Tiles[i].Name);
         }
+    }
+
+    [Fact]
+    public void Deserialize_RejectsTexturePathOutsideAssets()
+    {
+        const string json = """
+    {
+      "formatVersion": 1,
+      "atlases": [
+        {
+          "id": "terrain",
+          "texturePath": "../terrain.png",
+          "tileWidth": 32,
+          "tileHeight": 32
+        }
+      ],
+      "tiles": []
+    }
+    """;
+
+        Assert.Throws<InvalidDataException>(
+            () => JsonTileSetDefinitionSerializer.Deserialize(
+                new AssetPath("TileSets/World.tileset.json"),
+                System.Text.Encoding.UTF8.GetBytes(json)));
     }
 
     [Fact]

@@ -1,6 +1,9 @@
 ﻿using Engine.Animation;
+using Engine.Core.Assets;
 using Engine.Editor.Assets;
+using Engine.Graphics.Tilemaps;
 using Engine.Graphics2D.Sprites;
+using Engine.Serialization.Content;
 using System.Text.Json;
 
 namespace Engine.Tests.Editor;
@@ -44,6 +47,30 @@ public sealed class EditorAssetCreationRegistryTests
     }
 
     [Fact]
+    public void TileSetTemplate_CreatesValidResource()
+    {
+        var definition =
+            EditorAssetCreationRegistry.CreateDefault()
+                .GetRequired("tile-set");
+
+        var contents =
+            definition.CreateInitialContents("World");
+
+        var tileSet =
+            JsonTileSetDefinitionSerializer.Deserialize(
+                new AssetPath("World.tileset.json"),
+                System.Text.Encoding.UTF8.GetBytes(contents));
+
+        Assert.Equal(".tileset.json", definition.Extension);
+        Assert.Equal(
+            TileSetDefinition.CurrentFormatVersion,
+            tileSet.FormatVersion);
+
+        Assert.Empty(tileSet.Atlases);
+        Assert.Empty(tileSet.Tiles);
+    }
+
+    [Fact]
     public void CreateDefault_RegistersInitialCreationTypes()
     {
         var registry = EditorAssetCreationRegistry.CreateDefault();
@@ -51,12 +78,13 @@ public sealed class EditorAssetCreationRegistryTests
         Assert.Equal(
             new[]
             {
+                "tile-set",
                 "folder",
                 "particle-effect",
                 "animation-clip",
                 "sprite-animation",
                 "script-definition",
-                "world-document", 
+                "world-document",
                 "ui-document"
             },
             registry.Definitions.Select(item => item.Id));

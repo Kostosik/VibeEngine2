@@ -24,8 +24,6 @@ public sealed class EditorApplication :
     IApplication
 {
     public InspectorPropertyEditorRegistry PropertyEditors { get; }
-    private bool _undoShortcutWasDown;
-    private bool _redoShortcutWasDown;
     private readonly ITextInput? _textInput;
     private readonly EditorNewProjectDialog _newProjectDialog;
     private readonly EditorDocumentSaveService
@@ -36,8 +34,6 @@ public sealed class EditorApplication :
     _documentOpenService;
     private readonly IClipboardService? _clipboardService;
     private readonly EditorAssetCreationDialog _assetCreationDialog;
-    private bool _copyShortcutWasDown;
-    private bool _pasteShortcutWasDown;
     private readonly HashSet<EditorUiDocument>
         _subscribedUiDocuments = new();
     private readonly HashSet<ParticleEffectDocument>
@@ -48,6 +44,8 @@ public sealed class EditorApplication :
     _subscribedSpriteAnimationDocuments = new();
     private readonly HashSet<ScriptDefinitionDocument>
     _subscribedScriptDefinitionDocuments = new();
+    private readonly HashSet<TileSetDocument>
+    _subscribedTileSetDocuments = new();
     private readonly HashSet<EditorDocument> _subscribedDocuments = new();
     private bool _uiDirty = true;
     private readonly IEditorDocumentPersistence?
@@ -565,6 +563,10 @@ SaveAllDocuments;
 
             switch (document)
             {
+                case TileSetDocument tileSet:
+                    _debugConsole?.WriteLine(
+                        $"Saved Tile Set: {tileSet.FilePath}");
+                    break;
                 case SpriteAnimationDocument spriteAnimation:
                     _debugConsole?.WriteLine(
                         $"Saved sprite animation: {spriteAnimation.FilePath}");
@@ -1027,6 +1029,9 @@ SaveAllDocuments;
     {
         switch (document)
         {
+            case TileSetDocument tileSetDocument:
+                SubscribeTileSetDocument(tileSetDocument);
+                break;
             case EditorDocument worldDocument:
                 SubscribeDocument(worldDocument);
                 break;
@@ -1058,6 +1063,17 @@ SaveAllDocuments;
                     $"Unsupported document type: " +
                     $"'{document.DocumentTypeId}'.");
         }
+    }
+
+    private void SubscribeTileSetDocument(
+    TileSetDocument document)
+    {
+        if (!_subscribedTileSetDocuments.Add(document))
+        {
+            return;
+        }
+
+        document.Changed += MarkUiDirty;
     }
     private void SubscribeScriptDefinitionDocument(
     ScriptDefinitionDocument document)
@@ -1811,6 +1827,17 @@ SaveAllDocuments;
         {
             switch (document)
             {
+                case TileSetDocument tileSetDocument:
+                    if (continueApplicationClose)
+                    {
+                        tileSetDocument.MarkSaved();
+                    }
+                    else
+                    {
+                        Editor.Session.Discard(tileSetDocument);
+                    }
+
+                    break;
                 case ScriptDefinitionDocument scriptDefinitionDocument:
                     if (continueApplicationClose)
                     {
@@ -1990,6 +2017,16 @@ SaveAllDocuments;
     private void UnsubscribeAnyDocument(
         IEditorDocument document)
     {
+        if (document is TileSetDocument tileSetDocument)
+        {
+            if (_subscribedTileSetDocuments.Remove(tileSetDocument))
+            {
+                tileSetDocument.Changed -= MarkUiDirty;
+            }
+
+            MarkUiDirty();
+            return;
+        }
         if (document is SpriteAnimationDocument spriteAnimationDocument)
         {
             if (_subscribedSpriteAnimationDocuments.Remove(

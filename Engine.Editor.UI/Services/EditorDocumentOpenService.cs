@@ -28,6 +28,9 @@ internal sealed class EditorDocumentOpenService
         }
 
         if (path.EndsWith(
+                ".tileset.json",
+                StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(
                 ".sprite-animation.json",
                 StringComparison.OrdinalIgnoreCase) ||
             path.EndsWith(
@@ -79,8 +82,14 @@ internal sealed class EditorDocumentOpenService
         IEditorDocument document;
 
         if (normalizedPath.EndsWith(
-                ".sprite-animation.json",
+                ".tileset.json",
                 StringComparison.OrdinalIgnoreCase))
+        {
+            document = TileSetDocument.Open(normalizedPath);
+        }
+        else if (normalizedPath.EndsWith(
+                     ".sprite-animation.json",
+                     StringComparison.OrdinalIgnoreCase))
         {
             document = SpriteAnimationDocument.Open(normalizedPath);
         }

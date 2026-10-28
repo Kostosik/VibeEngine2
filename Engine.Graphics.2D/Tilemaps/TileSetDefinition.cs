@@ -84,23 +84,45 @@ public sealed class TileSetAtlasDefinition
 
         if (tileWidth <= 0)
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(tileWidth));
+            throw new ArgumentOutOfRangeException(nameof(tileWidth));
         }
 
         if (tileHeight <= 0)
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(tileHeight));
+            throw new ArgumentOutOfRangeException(nameof(tileHeight));
         }
 
         Id = id.Trim();
 
-        TexturePath = texturePath
-            .Replace('\\', '/')
-            .Trim('/');
+        var normalizedPath = texturePath.Trim().Replace('\\', '/');
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(TexturePath);
+        var isDriveRooted =
+            normalizedPath.Length >= 2 &&
+            char.IsAsciiLetter(normalizedPath[0]) &&
+            normalizedPath[1] == ':';
+
+        if (Path.IsPathRooted(normalizedPath) ||
+            normalizedPath.StartsWith('/') ||
+            isDriveRooted)
+        {
+            throw new ArgumentException(
+                "Texture path must be relative to the Assets directory.",
+                nameof(texturePath));
+        }
+
+        var segments = normalizedPath.Split(
+            '/',
+            StringSplitOptions.RemoveEmptyEntries);
+
+        if (segments.Length == 0 ||
+            segments.Any(segment => segment is "." or ".."))
+        {
+            throw new ArgumentException(
+                "Texture path must be a valid path inside Assets.",
+                nameof(texturePath));
+        }
+
+        TexturePath = string.Join("/", segments);
 
         TileWidth = tileWidth;
         TileHeight = tileHeight;
@@ -120,7 +142,8 @@ public sealed class TileSetTileDefinition
     public TileSetTileDefinition(
         uint id,
         string atlasId,
-        int atlasIndex)
+        int atlasIndex,
+        string? name = null)
     {
         if (id == 0)
         {
@@ -140,6 +163,10 @@ public sealed class TileSetTileDefinition
         Id = id;
         AtlasId = atlasId.Trim();
         AtlasIndex = atlasIndex;
+
+        Name = string.IsNullOrWhiteSpace(name)
+            ? $"Tile {id}"
+            : name.Trim();
     }
 
     public uint Id { get; }
@@ -147,4 +174,6 @@ public sealed class TileSetTileDefinition
     public string AtlasId { get; }
 
     public int AtlasIndex { get; }
+
+    public string Name { get; }
 }

@@ -40,7 +40,20 @@ public sealed class EditorAssetCreationRegistry
     public static EditorAssetCreationRegistry CreateDefault()
     {
         var registry = new EditorAssetCreationRegistry();
-
+        registry.Register(
+    new EditorAssetCreationDefinition(
+        id: "tile-set",
+        displayName: "Tile Set",
+        defaultName: "New Tile Set",
+        kind: EditorAssetCreationKind.TextFile,
+        extension: ".tileset.json",
+        contentFactory: static _ => """
+        {
+          "formatVersion": 1,
+          "atlases": [],
+          "tiles": []
+        }
+        """));
         registry.Register(
             new EditorAssetCreationDefinition(
                 id: "folder",

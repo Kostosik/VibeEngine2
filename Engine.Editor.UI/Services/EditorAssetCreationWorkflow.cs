@@ -69,7 +69,8 @@ internal sealed class EditorAssetCreationWorkflow
                 "world-document" or
                 "ui-document" or
                 "animation-clip" or
-                "sprite-animation";
+                "sprite-animation" or
+                "tile-set";
 
         return new EditorAssetCreationResult(
             path,

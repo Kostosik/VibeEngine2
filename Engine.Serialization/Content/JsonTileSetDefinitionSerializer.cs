@@ -96,13 +96,22 @@ public static class JsonTileSetDefinitionSerializer
 
                 EnsureObject(element, field, path);
 
+                var id = ReadUInt32(
+                    element,
+                    "id",
+                    $"{field}.id",
+                    path);
+
+                var name = ReadOptionalString(
+                    element,
+                    "name",
+                    $"{field}.name",
+                    $"Tile {id}",
+                    path);
+
                 tiles.Add(
                     new TileSetTileDefinition(
-                        ReadUInt32(
-                            element,
-                            "id",
-                            $"{field}.id",
-                            path),
+                        id,
                         ReadString(
                             element,
                             "atlasId",
@@ -112,7 +121,8 @@ public static class JsonTileSetDefinitionSerializer
                             element,
                             "atlasIndex",
                             $"{field}.atlasIndex",
-                            path)));
+                            path),
+                        name));
 
                 tileIndex++;
             }
@@ -134,6 +144,28 @@ public static class JsonTileSetDefinitionSerializer
                 $"TileSet '{path}' contains invalid settings.",
                 exception);
         }
+    }
+
+    private static string ReadOptionalString(
+    JsonElement parent,
+    string propertyName,
+    string field,
+    string defaultValue,
+    AssetPath path)
+    {
+        if (!parent.TryGetProperty(propertyName, out var value))
+        {
+            return defaultValue;
+        }
+
+        if (value.ValueKind != JsonValueKind.String ||
+            string.IsNullOrWhiteSpace(value.GetString()))
+        {
+            throw new InvalidDataException(
+                $"Field '{field}' in TileSet '{path}' must be a non-empty string.");
+        }
+
+        return value.GetString()!;
     }
 
     public static byte[] Serialize(
@@ -159,6 +191,7 @@ public static class JsonTileSetDefinitionSerializer
                 .Select(tile => new
                 {
                     id = tile.Id,
+                    name = tile.Name,
                     atlasId = tile.AtlasId,
                     atlasIndex = tile.AtlasIndex
                 })

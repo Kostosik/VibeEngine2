@@ -150,6 +150,7 @@ public sealed class EcsComponentPropertyProvider :
             },
             setter,
             metadata?.DisplayName,
-            metadata?.Order ?? 0);
+            metadata?.Order ?? 0, target.ComponentType ==
+    typeof(Engine.ECS.Components.LocalTransform2D));
     }
 }

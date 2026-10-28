@@ -9,9 +9,9 @@ namespace Engine.Editor.UI.Workspace;
 internal static class ViewportGizmoRenderer
 {
     public static void DrawRotation(
-        UiRenderContext context,
-        EditorDocument document,
-        UiRect bounds)
+    UiRenderContext context,
+    EditorDocument document,
+    UiRect bounds)
     {
         if (!TryGetSelectedScreenPosition(
                 document,
@@ -21,28 +21,117 @@ internal static class ViewportGizmoRenderer
             return;
         }
 
-        const int segments = 32;
+        const int segments = 96;
         const float radius = 32.0f;
-        const float segmentSize = 5.0f;
+        const float thickness = 2.0f;
 
         var color = new UiColor(235, 185, 75, 255);
 
+        // Smooth circular ring.
         for (var i = 0; i < segments; i++)
         {
-            var angle = MathF.Tau * i / segments;
+            var angle0 = MathF.Tau * i / segments;
+            var angle1 = MathF.Tau * (i + 1) / segments;
 
-            var x = center.X + MathF.Cos(angle) * radius;
-            var y = center.Y + MathF.Sin(angle) * radius;
+            var start = new Vector2(
+                center.X + MathF.Cos(angle0) * radius,
+                center.Y + MathF.Sin(angle0) * radius);
 
+            var end = new Vector2(
+                center.X + MathF.Cos(angle1) * radius,
+                center.Y + MathF.Sin(angle1) * radius);
+
+            DrawLine(
+                context,
+                start,
+                end,
+                thickness,
+                color,
+                layer: 3);
+        }
+
+        // Arrow placed on the upper-right part of the ring.
+        // Positive angular direction corresponds to clockwise
+        // rotation in screen coordinates.
+        var arrowAngle = -MathF.PI / 4.0f;
+
+        var radial = new Vector2(
+            MathF.Cos(arrowAngle),
+            MathF.Sin(arrowAngle));
+
+        var tangent = new Vector2(
+            -MathF.Sin(arrowAngle),
+            MathF.Cos(arrowAngle));
+
+        var tip = center + radial * radius;
+        var baseCenter = tip - tangent * 8.0f;
+
+        var wingA = baseCenter + radial * 4.5f;
+        var wingB = baseCenter - radial * 4.5f;
+
+        DrawLine(
+            context,
+            tip,
+            wingA,
+            2.5f,
+            color,
+            layer: 4);
+
+        DrawLine(
+            context,
+            tip,
+            wingB,
+            2.5f,
+            color,
+            layer: 4);
+    }
+
+    private static void DrawLine(
+    UiRenderContext context,
+    Vector2 start,
+    Vector2 end,
+    float thickness,
+    UiColor color,
+    int layer)
+    {
+        var delta = end - start;
+
+        var length = MathF.Sqrt(
+            delta.X * delta.X +
+            delta.Y * delta.Y);
+
+        if (length <= 0.001f)
+        {
+            return;
+        }
+
+        var midpoint = new Vector2(
+            (start.X + end.X) * 0.5f,
+            (start.Y + end.Y) * 0.5f);
+
+        var angleDegrees =
+            MathF.Atan2(delta.Y, delta.X) *
+            (180.0f / MathF.PI);
+
+        context.PushRotation(
+            midpoint,
+            angleDegrees);
+
+        try
+        {
             context.DrawRectangle(
                 new UiRect(
-                    x - segmentSize * 0.5f,
-                    y - segmentSize * 0.5f,
-                    segmentSize,
-                    segmentSize),
+                    midpoint.X - length * 0.5f,
+                    midpoint.Y - thickness * 0.5f,
+                    length,
+                    thickness),
                 color,
                 filled: true,
-                layer: 3);
+                layer: layer);
+        }
+        finally
+        {
+            context.PopRotation();
         }
     }
 
@@ -180,31 +269,46 @@ internal static class ViewportGizmoRenderer
 
         // Y: arrow pointing up.
         context.DrawRectangle(
-            new UiRect(screen.X - 7.0f, yTip, 2.0f, 2.0f),
+            new UiRect(
+                screen.X - thickness * 0.5f,
+                yTip + 8.0f,
+                thickness,
+                arm - 8.0f),
+            yColor,
+            filled: true,
+            layer: 3);
+
+        // Arrow head: narrow at the top, wider at the bottom.
+        context.DrawRectangle(
+            new UiRect(
+                screen.X - 1.0f,
+                yTip,
+                2.0f,
+                2.0f),
             yColor, filled: true, layer: 3);
 
         context.DrawRectangle(
-            new UiRect(screen.X - 5.0f, yTip, 2.0f, 4.0f),
+            new UiRect(
+                screen.X - 3.0f,
+                yTip + 2.0f,
+                6.0f,
+                2.0f),
             yColor, filled: true, layer: 3);
 
         context.DrawRectangle(
-            new UiRect(screen.X - 3.0f, yTip, 2.0f, 6.0f),
+            new UiRect(
+                screen.X - 5.0f,
+                yTip + 4.0f,
+                10.0f,
+                2.0f),
             yColor, filled: true, layer: 3);
 
         context.DrawRectangle(
-            new UiRect(screen.X - 1.0f, yTip, 2.0f, 8.0f),
-            yColor, filled: true, layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(screen.X + 1.0f, yTip, 2.0f, 6.0f),
-            yColor, filled: true, layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(screen.X + 3.0f, yTip, 2.0f, 4.0f),
-            yColor, filled: true, layer: 3);
-
-        context.DrawRectangle(
-            new UiRect(screen.X + 5.0f, yTip, 2.0f, 2.0f),
+            new UiRect(
+                screen.X - 7.0f,
+                yTip + 6.0f,
+                14.0f,
+                2.0f),
             yColor, filled: true, layer: 3);
     }
 

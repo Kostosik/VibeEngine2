@@ -307,8 +307,17 @@ public sealed class ViewportPanelView :
                 context,
                 document,
                 Bounds);
-            DrawSprites(context, document);
+
+            DrawSprites(
+                context,
+                document);
+
             ViewportEntityRenderer.DrawEntities(
+                context,
+                document,
+                Bounds);
+
+            ViewportColliderRenderer.Draw(
                 context,
                 document,
                 Bounds);
@@ -318,7 +327,9 @@ public sealed class ViewportPanelView :
                 document,
                 Bounds);
 
-            DrawActiveGizmo(context, document);
+            DrawActiveGizmo(
+                context,
+                document);
 
             DrawInfo(
                 context,

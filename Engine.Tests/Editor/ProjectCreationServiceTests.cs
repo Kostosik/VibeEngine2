@@ -5,6 +5,46 @@ namespace Engine.Tests.Editor;
 public sealed class ProjectCreationServiceTests
 {
     [Fact]
+    public void Create_GeneratedProgram_RegistersUiAssetLoader()
+    {
+        using var root = new TemporaryDirectory();
+
+        var runtimeDirectory =
+            Path.Combine(root.Path, "Runtime");
+
+        Directory.CreateDirectory(runtimeDirectory);
+
+        foreach (var assemblyName in EngineRuntimeBuilder.RequiredAssemblies)
+        {
+            File.WriteAllText(
+                Path.Combine(runtimeDirectory, assemblyName),
+                "test");
+        }
+
+        var parentDirectory =
+            Path.Combine(root.Path, "Projects");
+
+        var projectDirectory =
+            Path.Combine(parentDirectory, "UiLoadingGame");
+
+        var service =
+            new ProjectCreationService(runtimeDirectory);
+
+        var createdDirectory = service.Create(
+            new ProjectCreationRequest(
+                "UiLoadingGame",
+                parentDirectory,
+                projectDirectory));
+
+        var program = File.ReadAllText(
+            Path.Combine(createdDirectory, "Program.cs"));
+
+        Assert.Contains("BinaryContentLoader<UiAsset>", program);
+        Assert.Contains("UiAssetSerializer", program);
+        Assert.Contains(".ui", program);
+    }
+
+    [Fact]
     public void Create_CreatesMissingParentDirectories()
     {
         using var root = new TemporaryDirectory();

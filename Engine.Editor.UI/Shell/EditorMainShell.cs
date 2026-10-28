@@ -8,6 +8,7 @@ using Engine.Editor.UI.Inspection;
 using Engine.Editor.UI.Workspace;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Resources;
+using Engine.Input;
 using Engine.Tooling.Debugging;
 using Engine.Tooling.Validation;
 using Engine.UI.Controls;
@@ -846,31 +847,17 @@ public sealed class EditorMainShell :
         _documentTabs.SetContent(tabs);
     }
 
-    private void ShowWorld()
+    public bool TryExecuteHierarchyShortcut(
+        InputBinding key,
+        bool controlDown,
+        bool shiftDown,
+        bool altDown)
     {
-        if (Editor.Session.ActiveEditorDocument
-            is not EditorDocument)
-        {
-            var document =
-                Editor.Session.Documents.LastOrDefault();
-
-            if (document is not null)
-            {
-                Editor.Session.Activate(document);
-            }
-        }
-
-        Refresh();
-    }
-
-    private void ShowUi()
-    {
-        if (Editor.Session.AllDocuments.Contains(UiDocument))
-        {
-            Editor.Session.Activate(UiDocument);
-        }
-
-        Refresh();
+        return _workspaceView.Hierarchy.TryExecuteShortcut(
+            key,
+            controlDown,
+            shiftDown,
+            altDown);
     }
 
     public void Undo()

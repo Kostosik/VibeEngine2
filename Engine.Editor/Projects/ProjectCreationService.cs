@@ -587,14 +587,23 @@ public sealed class ProjectCreationService
                         "{{manifestFileName}}");
 
                 DesktopGameHost.Run(
-                    runtime => new GameMain(
-                        runtime,
-                        startupScenePath),
-                    new DesktopGameHostOptions
-                    {
-                        Title = "{{title}}"
+                (DesktopGameHostContext context) => new GameMain(
+                    context,
+                    startupScenePath),
+                        new DesktopGameHostOptions
+                        {
+                            Title = "{{title}}",
 
-                    });
+                            ConfigureContentLoaders = loaders =>
+                            {
+                                loaders.Register(
+                                    new BinaryContentLoader<UiAsset>(
+                                        new UiAssetSerializer(),
+                                        asset => asset.Extension.Equals(
+                                            ".ui",
+                                            StringComparison.OrdinalIgnoreCase)));
+                            }
+                        }
             }
 
             private static string ResolveStartupScenePath(

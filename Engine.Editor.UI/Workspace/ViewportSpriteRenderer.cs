@@ -107,11 +107,38 @@ internal sealed class ViewportSpriteRenderer
                 continue;
             }
 
-            context.DrawTexture(
-                texture,
-                destination,
-                new Rectangle(0.0f, 0.0f, 1.0f, 1.0f),
-                layer: sprite.Layer);
+            var rotationDegrees =
+    -transform.Rotation.ToFloat() *
+    (180.0f / MathF.PI);
+
+            var flipX =
+                transform.Scale.X < Fixed32.Zero;
+
+            var flipY =
+                transform.Scale.Y < Fixed32.Zero;
+
+            var uv = new Rectangle(
+                flipX ? 1.0f : 0.0f,
+                flipY ? 1.0f : 0.0f,
+                flipX ? -1.0f : 1.0f,
+                flipY ? -1.0f : 1.0f);
+
+            context.PushRotation(
+                center,
+                rotationDegrees);
+
+            try
+            {
+                context.DrawTexture(
+                    texture,
+                    destination,
+                    uv,
+                    layer: sprite.Layer);
+            }
+            finally
+            {
+                context.PopRotation();
+            }
         }
     }
 

@@ -89,10 +89,22 @@ public sealed class SpriteRenderSystem : IDisposable
                 _resources.Load(
                     new AssetPath(component.TexturePath));
 
+            var flipX =
+    transform.Scale.X < Fixed32.Zero;
+
+            var flipY =
+                transform.Scale.Y < Fixed32.Zero;
+
+            var uv = new Rectangle(
+                flipX ? 1.0f : 0.0f,
+                flipY ? 1.0f : 0.0f,
+                flipX ? -1.0f : 1.0f,
+                flipY ? -1.0f : 1.0f);
+
             var sprite =
                 new Sprite(
                     texture,
-                    new Rectangle(0.0f, 0.0f, 1.0f, 1.0f),
+                    uv,
                     new Vector2(width, height),
                     component.Layer);
 

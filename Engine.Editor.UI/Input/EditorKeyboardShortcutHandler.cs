@@ -9,6 +9,18 @@ namespace Engine.Editor.UI;
 
 internal sealed class EditorKeyboardShortcutHandler
 {
+    private static readonly InputBinding RenameEntityKey =
+    new("Keyboard.F2");
+
+    private static readonly InputBinding DeleteEntityKey =
+        new("Keyboard.Delete");
+
+    private static readonly InputBinding LeftAltKey =
+        new("Keyboard.AltLeft");
+
+    private static readonly InputBinding RightAltKey =
+        new("Keyboard.AltRight");
+
     private static readonly InputBinding LeftShiftKey =
         new("Keyboard.ShiftLeft");
 
@@ -43,7 +55,8 @@ internal sealed class EditorKeyboardShortcutHandler
     private bool _redoShortcutWasDown;
     private bool _copyShortcutWasDown;
     private bool _pasteShortcutWasDown;
-
+    private bool _renameEntityShortcutWasDown;
+    private bool _deleteEntityShortcutWasDown;
     public EditorKeyboardShortcutHandler(
         IInputBackend input,
         UiSystem ui,
@@ -79,6 +92,16 @@ internal sealed class EditorKeyboardShortcutHandler
         var shiftDown =
             _input.GetValue(LeftShiftKey) > 0.5f ||
             _input.GetValue(RightShiftKey) > 0.5f;
+
+        var altDown =
+    _input.GetValue(LeftAltKey) > 0.5f ||
+    _input.GetValue(RightAltKey) > 0.5f;
+
+        var renameEntityDown =
+            _input.GetValue(RenameEntityKey) > 0.5f;
+
+        var deleteEntityDown =
+            _input.GetValue(DeleteEntityKey) > 0.5f;
 
         var undoKeyDown =
             _input.GetValue(UndoKey) > 0.5f;
@@ -192,6 +215,26 @@ internal sealed class EditorKeyboardShortcutHandler
             {
                 _mainShell.Redo();
             }
+
+            if (renameEntityDown &&
+                !_renameEntityShortcutWasDown)
+            {
+                _mainShell.TryExecuteHierarchyShortcut(
+                    RenameEntityKey,
+                    controlDown,
+                    shiftDown,
+                    altDown);
+            }
+
+            if (deleteEntityDown &&
+                !_deleteEntityShortcutWasDown)
+            {
+                _mainShell.TryExecuteHierarchyShortcut(
+                    DeleteEntityKey,
+                    controlDown,
+                    shiftDown,
+                    altDown);
+            }
         }
 
         // Обрабатываем сочетание только при новом нажатии.
@@ -199,5 +242,7 @@ internal sealed class EditorKeyboardShortcutHandler
         _redoShortcutWasDown = redoDown;
         _copyShortcutWasDown = copyDown;
         _pasteShortcutWasDown = pasteDown;
+        _renameEntityShortcutWasDown = renameEntityDown;
+        _deleteEntityShortcutWasDown = deleteEntityDown;
     }
 }

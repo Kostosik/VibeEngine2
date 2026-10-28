@@ -32,6 +32,9 @@ public static class EngineRuntimeBuilder
         "Engine.Graphics2D.dll",
         "Engine.Input.SilkNet.dll",
             "Engine.Networking.dll",
+            "Engine.Serialization.dll",
+"Engine.UI.dll",
+"Engine.Graphics2D.dll",
 "Engine.Networking.Replication.dll"
     };
 

@@ -63,7 +63,8 @@ internal sealed class Fixed32InspectorPropertyEditor
                 document.Execute(
                     new SetEditorPropertyCommand(
                         property,
-                        value));
+                        value,
+                        document));
             };
         }
 
@@ -228,6 +229,7 @@ internal sealed class FixedVector2InspectorPropertyEditor
         document.Execute(
             new SetEditorPropertyCommand(
                 property,
-                value));
+                value,
+                document));
     }
 }

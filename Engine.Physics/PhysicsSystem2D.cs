@@ -9,6 +9,7 @@ using Engine.Physics.BroadPhase;
 using Engine.Physics.Collision;
 using Engine.Physics.Components;
 using Engine.Physics.Joints;
+using Engine.Physics.Shapes;
 
 namespace Engine.Physics;
 
@@ -633,28 +634,36 @@ public sealed class PhysicsSystem2D :
     {
         _colliders.Clear();
 
-        foreach (var item
-                 in _world.Query<PhysicsBody2D>())
+        foreach (var item in _world.Query<PhysicsBody2D>())
         {
-            var entity =
-                item.Entity;
+            var entity = item.Entity;
 
-            if (!_world.Has<Collider2D>(
-                    entity))
+            if (!_world.Has<Collider2D>(entity))
             {
                 continue;
             }
 
-            ref var collider =
-                ref _world.Get<Collider2D>(
-                    entity);
+            ref var sourceCollider =
+                ref _world.Get<Collider2D>(entity);
 
-            if (!collider.Enabled)
+            if (!sourceCollider.Enabled)
+            {
                 continue;
-            collider.Validate();
+            }
+
+            sourceCollider.Validate();
+
             ref var transform =
-                ref _world.Get<WorldTransform2D>(
-                    entity);
+                ref _world.Get<WorldTransform2D>(entity);
+
+            var collider = sourceCollider;
+
+            if (!PhysicsColliderScale2D.TryApplyWorldScale(
+                    ref collider,
+                    transform.Scale))
+            {
+                continue;
+            }
 
             var worldPosition =
                 collider.GetWorldPosition(
@@ -672,11 +681,8 @@ public sealed class PhysicsSystem2D :
                     bounds,
                     collider)
                 {
-                    WorldPosition =
-                        worldPosition,
-
-                    WorldRotation =
-                        transform.Rotation
+                    WorldPosition = worldPosition,
+                    WorldRotation = transform.Rotation
                 });
         }
 

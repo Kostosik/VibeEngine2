@@ -429,6 +429,53 @@ public sealed class HierarchyPanelView :
         }
     }
 
+    public bool TryExecuteShortcut(
+    InputBinding key,
+    bool controlDown,
+    bool shiftDown,
+    bool altDown)
+    {
+        if (!key.IsValid ||
+            Editor.ActiveDocument is not EditorDocument document ||
+            document.EntitySelection.Count != 1)
+        {
+            return false;
+        }
+
+        var entity = document.EntitySelection.Items.First();
+
+        if (!document.World.EcsWorld.Exists(entity))
+        {
+            return false;
+        }
+
+        var context = new EditorHierarchyActionContext(
+            Editor,
+            document,
+            entity,
+            EditorHierarchyActionInvocation.KeyboardShortcut);
+
+        foreach (var action in Actions.Actions.OrderBy(
+                     action => action.Order))
+        {
+            if (action.Shortcut is not { } shortcut ||
+                shortcut.Key != key ||
+                shortcut.Control != controlDown ||
+                shortcut.Shift != shiftDown ||
+                shortcut.Alt != altDown)
+            {
+                continue;
+            }
+
+            if (Actions.Execute(action.Id, context))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void RegisterDefaultActions()
     {
         Actions.Register(
@@ -587,8 +634,12 @@ public sealed class HierarchyPanelView :
         {
             var actionId = action.Id;
 
+            var label = action.Shortcut is { } shortcut
+                ? $"{action.Label} ({shortcut.DisplayText})"
+                : action.Label;
+
             _contextMenu.AddItem(
-                action.Label,
+                label,
                 () =>
                 {
                     Actions.Execute(actionId, context);

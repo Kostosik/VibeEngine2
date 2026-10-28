@@ -15,6 +15,309 @@ namespace Engine.Tests.Physics;
 public sealed class PhysicsSystem2DTests
 {
     [Fact]
+    public void AabbCollider_UsesWorldTransformScale()
+    {
+        using var world = new World();
+
+        var scaled = world.CreateEntity();
+
+        world.Add(
+            scaled,
+            new WorldTransform2D(FixedVector2.Zero)
+            {
+                Scale = new FixedVector2(
+                    Fixed32.FromInt(2),
+                    Fixed32.One)
+            });
+
+        world.Add(scaled, PhysicsBody2D.Static());
+
+        world.Add(
+            scaled,
+            new Collider2D(
+                new AabbShape2D(
+                    new FixedVector2(
+                        Fixed32.FromInt(2),
+                        Fixed32.FromInt(2)))));
+
+        var target = world.CreateEntity();
+
+        world.Add(
+            target,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromFloat(2.1f),
+                    Fixed32.Zero)));
+
+        world.Add(target, PhysicsBody2D.Static());
+
+        world.Add(
+            target,
+            new Collider2D(
+                new AabbShape2D(
+                    new FixedVector2(
+                        Fixed32.One,
+                        Fixed32.One))));
+
+        var physics = CreateScaleTestPhysics(world);
+
+        physics.FixedUpdate(
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.Zero,
+                    Tick.Zero)));
+
+        // Без масштаба эти два AABB не пересекались бы.
+        Assert.Single(physics.Contacts);
+    }
+
+    [Fact]
+    public void CircleCollider_UsesLargestWorldScaleAxis()
+    {
+        using var world = new World();
+
+        var scaled = world.CreateEntity();
+
+        world.Add(
+            scaled,
+            new WorldTransform2D(FixedVector2.Zero)
+            {
+                Scale = new FixedVector2(
+                    Fixed32.FromInt(2),
+                    Fixed32.One)
+            });
+
+        world.Add(scaled, PhysicsBody2D.Static());
+
+        world.Add(
+            scaled,
+            new Collider2D(
+                new CircleShape2D(Fixed32.One)));
+
+        var target = world.CreateEntity();
+
+        world.Add(
+            target,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromFloat(2.3f),
+                    Fixed32.Zero)));
+
+        world.Add(target, PhysicsBody2D.Static());
+
+        world.Add(
+            target,
+            new Collider2D(
+                new CircleShape2D(
+                    Fixed32.FromFloat(0.5f))));
+
+        var physics = CreateScaleTestPhysics(world);
+
+        physics.FixedUpdate(
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.Zero,
+                    Tick.Zero)));
+
+        Assert.Single(physics.Contacts);
+    }
+
+    [Fact]
+    public void PolygonCollider_UsesWorldTransformScale()
+    {
+        using var world = new World();
+
+        var scaled = world.CreateEntity();
+
+        world.Add(
+            scaled,
+            new WorldTransform2D(FixedVector2.Zero)
+            {
+                Scale = new FixedVector2(
+                    Fixed32.FromInt(2),
+                    Fixed32.One)
+            });
+
+        world.Add(scaled, PhysicsBody2D.Static());
+
+        world.Add(
+            scaled,
+            new Collider2D(
+                new PolygonShape2D(
+                    new[]
+                    {
+                    new FixedVector2(
+                        Fixed32.FromInt(-1),
+                        Fixed32.FromInt(-1)),
+
+                    new FixedVector2(
+                        Fixed32.One,
+                        Fixed32.FromInt(-1)),
+
+                    new FixedVector2(
+                        Fixed32.Zero,
+                        Fixed32.One)
+                    })));
+
+        var target = world.CreateEntity();
+
+        world.Add(
+            target,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromFloat(1.8f),
+                    Fixed32.FromFloat(-0.75f))));
+
+        world.Add(target, PhysicsBody2D.Static());
+
+        world.Add(
+            target,
+            new Collider2D(
+                new AabbShape2D(
+                    new FixedVector2(
+                        Fixed32.FromFloat(0.5f),
+                        Fixed32.FromFloat(0.5f)))));
+
+        var physics = CreateScaleTestPhysics(world);
+
+        physics.FixedUpdate(
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.Zero,
+                    Tick.Zero)));
+
+        Assert.Single(physics.Contacts);
+    }
+
+    private static PhysicsSystem2D CreateScaleTestPhysics(
+    World world)
+    {
+        return new PhysicsSystem2D(
+            world,
+            new PhysicsSettings2D
+            {
+                Gravity = FixedVector2.Zero,
+                Substeps = 1,
+                PositionIterations = 0,
+                VelocityIterations = 0
+            },
+            new EventBus());
+    }
+
+    [Fact]
+    public void ScaledCollider_DoesNotMutateStoredShapeOrOffset()
+    {
+        using var world = new World();
+
+        var entity = world.CreateEntity();
+
+        var transform = new WorldTransform2D(FixedVector2.Zero)
+        {
+            Scale = new FixedVector2(
+                Fixed32.FromInt(2),
+                Fixed32.FromInt(3))
+        };
+
+        world.Add(entity, transform);
+        world.Add(entity, PhysicsBody2D.Static());
+
+        var originalShape = PhysicsShape2D.FromAabb(
+            new AabbShape2D(
+                new FixedVector2(
+                    Fixed32.FromInt(2),
+                    Fixed32.FromInt(4))));
+
+        var originalOffset = new FixedVector2(
+            Fixed32.One,
+            Fixed32.Zero);
+
+        world.Add(
+            entity,
+            new Collider2D(
+                new AabbShape2D(originalShape.Size))
+            {
+                Offset = originalOffset
+            });
+
+        var physics = CreateScaleTestPhysics(world);
+
+        for (var i = 0; i < 3; i++)
+        {
+            physics.FixedUpdate(
+                new FixedSystemContext(
+                    new SimulationTime(
+                        Fixed32.Zero,
+                        new Tick((ulong)i))));
+        }
+
+        var stored = world.Get<Collider2D>(entity);
+
+        Assert.Equal(originalShape, stored.Shape);
+        Assert.Equal(originalOffset, stored.Offset);
+    }
+
+    [Fact]
+    public void ColliderOffset_IsScaledBeforeCollisionDetection()
+    {
+        using var world = new World();
+
+        var scaledEntity = world.CreateEntity();
+
+        world.Add(
+            scaledEntity,
+            new WorldTransform2D(FixedVector2.Zero)
+            {
+                Scale = new FixedVector2(
+                    Fixed32.FromInt(2),
+                    Fixed32.One)
+            });
+
+        world.Add(scaledEntity, PhysicsBody2D.Static());
+
+        world.Add(
+            scaledEntity,
+            new Collider2D(
+                new AabbShape2D(
+                    new FixedVector2(
+                        Fixed32.FromInt(2),
+                        Fixed32.FromInt(2))))
+            {
+                Offset = new FixedVector2(
+                    Fixed32.One,
+                    Fixed32.Zero)
+            });
+
+        var target = world.CreateEntity();
+
+        world.Add(
+            target,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromFloat(4.2f),
+                    Fixed32.Zero)));
+
+        world.Add(target, PhysicsBody2D.Static());
+
+        world.Add(
+            target,
+            new Collider2D(
+                new AabbShape2D(
+                    new FixedVector2(
+                        Fixed32.FromFloat(0.5f),
+                        Fixed32.FromFloat(0.5f)))));
+
+        var physics = CreateScaleTestPhysics(world);
+
+        physics.FixedUpdate(
+            new FixedSystemContext(
+                new SimulationTime(
+                    Fixed32.Zero,
+                    Tick.Zero)));
+
+        Assert.Single(physics.Contacts);
+    }
+
+    [Fact]
     public void CollisionMask_PreventsContactsAndCollisionResponse()
     {
         using var world = new World();

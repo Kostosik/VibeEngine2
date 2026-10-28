@@ -1,7 +1,9 @@
 ﻿using Engine.Core.Math;
 using Engine.ECS.Components;
+using Engine.ECS.Entities;
 using Engine.Editor.Documents;
 using Engine.Graphics.Commands;
+using Engine.Graphics2D.Sprites;
 using Engine.UI.Core;
 using Engine.UI.Layout;
 
@@ -14,63 +16,71 @@ internal static class ViewportEntityRenderer
     private const float SelectionOutlineWorldSize = 10.5f;
 
     public static void DrawEntities(
-        UiRenderContext context,
-        EditorDocument document,
-        UiRect bounds)
+    UiRenderContext context,
+    EditorDocument document,
+    UiRect bounds)
     {
-        foreach (var entity in
-                 document.World.EcsWorld.Inspector.GetEntities())
+        var ecs = document.World.EcsWorld;
+
+        foreach (var entity in ecs.Inspector.GetEntities())
         {
             if (!document.World.SpatialEntities.Contains(entity))
             {
                 continue;
             }
 
-            var position =
-                document.World.SpatialEntities.GetPosition(entity);
+            if (TryGetRenderableSprite(
+                    document,
+                    entity,
+                    out _,
+                    out _))
+            {
+                continue;
+            }
+
+            var position = GetWorldPosition(
+                document,
+                entity);
 
             var localScreen =
-                document.Viewport.Transform.WorldToScreen(
-                    new Vector2(position.X, position.Y));
+                document.Viewport.Transform.WorldToScreen(position);
 
             var screen = new Vector2(
                 bounds.X + localScreen.X,
                 bounds.Y + localScreen.Y);
 
-            var zoom = document.Viewport.State.Zoom;
-            var color = new UiColor(90, 160, 230, 255);
+            var scaleX = 1.0f;
+            var scaleY = 1.0f;
+            var rotation = 0.0f;
 
-            if (document.World.EcsWorld.Has<LocalTransform2D>(entity))
+            if (ecs.Has<WorldTransform2D>(entity))
             {
                 var transform =
-                    document.World.EcsWorld.Get<LocalTransform2D>(entity);
+                    ecs.Get<WorldTransform2D>(entity);
 
-                DrawTransformedMarker(
-                    context,
-                    screen,
-                    zoom,
-                    EntityMarkerWorldSize,
-                    transform,
-                    color,
-                    showDirection: true,
-                    layer: 0);
+                scaleX = transform.Scale.X.ToFloat();
+                scaleY = transform.Scale.Y.ToFloat();
+                rotation = transform.Rotation.ToFloat();
             }
-            else
-            {
-                context.DrawRectangle(
-                    CreateScreenRect(
-                        screen,
-                        EntityMarkerWorldSize * zoom),
-                    color,
-                    filled: true);
-            }
+
+            DrawTransformedMarker(
+                context,
+                screen,
+                document.Viewport.State.Zoom,
+                EntityMarkerWorldSize,
+                scaleX,
+                scaleY,
+                rotation,
+                new UiColor(90, 160, 230, 255),
+                showDirection: true,
+                layer: 0);
         }
     }
 
     public static void DrawSelection(
-        UiRenderContext context,
-        EditorDocument document,
-        UiRect bounds)
+    UiRenderContext context,
+    EditorDocument document,
+    UiRect bounds)
     {
         foreach (var entity in document.EntitySelection.Items)
         {
@@ -80,46 +90,196 @@ internal static class ViewportEntityRenderer
                 continue;
             }
 
-            var position =
-                document.World.SpatialEntities.GetPosition(entity);
+            var selectionColor =
+                new UiColor(255, 220, 80, 255);
+
+            if (TryGetRenderableSprite(
+                    document,
+                    entity,
+                    out var sprite,
+                    out var spriteTransform))
+            {
+                DrawSpriteSelectionOutline(
+                    context,
+                    document,
+                    bounds,
+                    sprite,
+                    spriteTransform,
+                    selectionColor);
+
+                continue;
+            }
+
+            var position = GetWorldPosition(
+                document,
+                entity);
 
             var localScreen =
-                document.Viewport.Transform.WorldToScreen(
-                    new Vector2(position.X, position.Y));
+                document.Viewport.Transform.WorldToScreen(position);
 
             var screen = new Vector2(
                 bounds.X + localScreen.X,
                 bounds.Y + localScreen.Y);
 
-            var zoom = document.Viewport.State.Zoom;
-            var selectionColor = new UiColor(255, 220, 80, 255);
+            var scaleX = 1.0f;
+            var scaleY = 1.0f;
+            var rotation = 0.0f;
 
-            if (document.World.EcsWorld.Has<LocalTransform2D>(entity))
+            if (document.World.EcsWorld.Has<WorldTransform2D>(entity))
             {
                 var transform =
-                    document.World.EcsWorld.Get<LocalTransform2D>(entity);
+                    document.World.EcsWorld.Get<WorldTransform2D>(entity);
 
-                DrawTransformedMarker(
-                    context,
-                    screen,
-                    zoom,
-                    SelectionOutlineWorldSize,
-                    transform,
-                    selectionColor,
-                    showDirection: false,
-                    layer: 1);
+                scaleX = transform.Scale.X.ToFloat();
+                scaleY = transform.Scale.Y.ToFloat();
+                rotation = transform.Rotation.ToFloat();
             }
-            else
-            {
-                context.DrawRectangle(
-                    CreateScreenRect(
-                        screen,
-                        SelectionOutlineWorldSize * zoom),
-                    selectionColor,
-                    filled: false,
-                    layer: 1);
-            }
+
+            DrawTransformedMarker(
+                context,
+                screen,
+                document.Viewport.State.Zoom,
+                SelectionOutlineWorldSize,
+                scaleX,
+                scaleY,
+                rotation,
+                selectionColor,
+                showDirection: false,
+                layer: 1);
         }
+    }
+
+    private static bool TryGetRenderableSprite(
+    EditorDocument document,
+    EntityId entity,
+    out SpriteComponent sprite,
+    out WorldTransform2D transform)
+    {
+        var ecs = document.World.EcsWorld;
+
+        sprite = default;
+        transform = default;
+
+        if (!ecs.Has<SpriteComponent>(entity) ||
+            !ecs.Has<WorldTransform2D>(entity))
+        {
+            return false;
+        }
+
+        sprite = ecs.Get<SpriteComponent>(entity);
+        transform = ecs.Get<WorldTransform2D>(entity);
+
+        if (string.IsNullOrWhiteSpace(sprite.TexturePath) ||
+            !float.IsFinite(sprite.Width) ||
+            !float.IsFinite(sprite.Height) ||
+            sprite.Width <= 0.0f ||
+            sprite.Height <= 0.0f)
+        {
+            return false;
+        }
+
+        var width =
+            sprite.Width *
+            MathF.Abs(transform.Scale.X.ToFloat());
+
+        var height =
+            sprite.Height *
+            MathF.Abs(transform.Scale.Y.ToFloat());
+
+        return float.IsFinite(width) &&
+               float.IsFinite(height) &&
+               width > 0.0f &&
+               height > 0.0f;
+    }
+
+    private static Vector2 GetWorldPosition(
+        EditorDocument document,
+        EntityId entity)
+    {
+        var ecs = document.World.EcsWorld;
+
+        if (ecs.Has<WorldTransform2D>(entity))
+        {
+            var transform =
+                ecs.Get<WorldTransform2D>(entity);
+
+            return new Vector2(
+                transform.Position.X.ToFloat(),
+                transform.Position.Y.ToFloat());
+        }
+
+        var position =
+            document.World.SpatialEntities.GetPosition(entity);
+
+        return new Vector2(position.X, position.Y);
+    }
+
+    private static void DrawSpriteSelectionOutline(
+        UiRenderContext context,
+        EditorDocument document,
+        UiRect bounds,
+        SpriteComponent sprite,
+        WorldTransform2D transform,
+        UiColor color)
+    {
+        var width =
+            sprite.Width *
+            MathF.Abs(transform.Scale.X.ToFloat());
+
+        var height =
+            sprite.Height *
+            MathF.Abs(transform.Scale.Y.ToFloat());
+
+        if (!float.IsFinite(width) ||
+            !float.IsFinite(height) ||
+            width <= 0.0f ||
+            height <= 0.0f)
+        {
+            return;
+        }
+
+        var halfWidth = width * 0.5f;
+        var halfHeight = height * 0.5f;
+
+        var worldX = transform.Position.X.ToFloat();
+        var worldY = transform.Position.Y.ToFloat();
+
+        var rotation = transform.Rotation.ToFloat();
+        var cosine = MathF.Cos(rotation);
+        var sine = MathF.Sin(rotation);
+
+        var localCorners = new[]
+        {
+        new Vector2(-halfWidth, -halfHeight),
+        new Vector2( halfWidth, -halfHeight),
+        new Vector2( halfWidth,  halfHeight),
+        new Vector2(-halfWidth,  halfHeight)
+    };
+
+        var screenCorners = new Vector2[localCorners.Length];
+
+        for (var i = 0; i < localCorners.Length; i++)
+        {
+            var corner = localCorners[i];
+
+            var worldCorner = new Vector2(
+                worldX + corner.X * cosine - corner.Y * sine,
+                worldY + corner.X * sine + corner.Y * cosine);
+
+            var localScreen =
+                document.Viewport.Transform.WorldToScreen(worldCorner);
+
+            screenCorners[i] = new Vector2(
+                bounds.X + localScreen.X,
+                bounds.Y + localScreen.Y);
+        }
+
+        DrawClosedOutline(
+            context,
+            screenCorners,
+            color,
+            document.Viewport.State.Zoom,
+            Math.Max(sprite.Layer + 1, 2));
     }
 
     private static void DrawTransformedMarker(
@@ -127,7 +287,9 @@ internal static class ViewportEntityRenderer
         Vector2 center,
         float zoom,
         float sizeWorld,
-        LocalTransform2D transform,
+        float scaleX,
+        float scaleY,
+        float rotation,
         UiColor color,
         bool showDirection,
         int layer)
@@ -138,16 +300,17 @@ internal static class ViewportEntityRenderer
         var corners = new[]
         {
             TransformLocalPoint(
-                center, zoom, transform, -halfWidth, -halfHeight),
+                center, zoom, scaleX, scaleY, rotation,
+                -halfWidth, -halfHeight),
 
             TransformLocalPoint(
-                center, zoom, transform, halfWidth, -halfHeight),
+                center, zoom, scaleX, scaleY, rotation, halfWidth, -halfHeight),
 
             TransformLocalPoint(
-                center, zoom, transform, halfWidth, halfHeight),
+                center, zoom, scaleX, scaleY, rotation, halfWidth, halfHeight),
 
             TransformLocalPoint(
-                center, zoom, transform, -halfWidth, halfHeight)
+                center, zoom, scaleX, scaleY, rotation, -halfWidth, halfHeight)
         };
 
         DrawClosedOutline(
@@ -166,7 +329,7 @@ internal static class ViewportEntityRenderer
             TransformLocalPoint(
                 center,
                 zoom,
-                transform,
+                scaleX, scaleY, rotation,
                 halfWidth + 2.0f,
                 0.0f);
 
@@ -193,19 +356,23 @@ internal static class ViewportEntityRenderer
     private static Vector2 TransformLocalPoint(
         Vector2 center,
         float zoom,
-        LocalTransform2D transform,
+        float scaleX,
+        float scaleY,
+        float rotation,
         float localX,
         float localY)
     {
-        var scaledX = localX * transform.Scale.X.ToFloat();
-        var scaledY = localY * transform.Scale.Y.ToFloat();
+        var scaledX = localX * scaleX;
+        var scaledY = localY * scaleY;
 
-        var rotation = transform.Rotation.ToFloat();
         var cosine = MathF.Cos(rotation);
         var sine = MathF.Sin(rotation);
 
-        var rotatedX = scaledX * cosine - scaledY * sine;
-        var rotatedY = scaledX * sine + scaledY * cosine;
+        var rotatedX =
+            scaledX * cosine - scaledY * sine;
+
+        var rotatedY =
+            scaledX * sine + scaledY * cosine;
 
         return new Vector2(
             center.X + rotatedX * zoom,

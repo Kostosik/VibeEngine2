@@ -2,6 +2,7 @@
 using Engine.Core.Math;
 using Engine.Graphics.Commands;
 using Engine.Graphics.DebugGraphics;
+using Engine.Graphics.Rendering;
 using Silk.NET.OpenGL;
 
 namespace Engine.Graphics.OpenGL.Rendering;
@@ -252,130 +253,115 @@ internal sealed class OpenGLDebugRenderer :
             return;
         }
 
-        var position =
-            command.Position;
-
-        var size =
-            command.Size;
+        var position = command.Position;
+        var size = command.Size;
 
         var rotationOrigin = new Vector2(
-    command.Position.X + command.Size.X * 0.5f,
-    command.Position.Y + command.Size.Y * 0.5f);
+            position.X + size.X * 0.5f,
+            position.Y + size.Y * 0.5f);
 
-        if (command.ClipRect.HasValue)
+        // Сначала строим исходный прямоугольник
+        // и поворачиваем его вершины.
+        var quad = new[]
         {
-            var clip =
-                command.ClipRect.Value;
+        new UiClipVertex(
+            RotatePoint(
+                position,
+                rotationOrigin,
+                command.RotationDegrees),
+            Vector2.Zero),
 
-            var left =
-                MathF.Max(
-                    position.X,
-                    clip.X);
-
-            var top =
-                MathF.Max(
-                    position.Y,
-                    clip.Y);
-
-            var right =
-                MathF.Min(
+        new UiClipVertex(
+            RotatePoint(
+                new Vector2(
                     position.X + size.X,
-                    clip.X + clip.Width);
+                    position.Y),
+                rotationOrigin,
+                command.RotationDegrees),
+            Vector2.Zero),
 
-            var bottom =
-                MathF.Min(
-                    position.Y + size.Y,
-                    clip.Y + clip.Height);
+        new UiClipVertex(
+            RotatePoint(
+                position + size,
+                rotationOrigin,
+                command.RotationDegrees),
+            Vector2.Zero),
 
-            if (right <= left ||
-                bottom <= top)
+        new UiClipVertex(
+            RotatePoint(
+                new Vector2(
+                    position.X,
+                    position.Y + size.Y),
+                rotationOrigin,
+                command.RotationDegrees),
+            Vector2.Zero)
+    };
+
+        // Учитываем как полигональную область clipping,
+        // так и дополнительный прямоугольный clip.
+        ClipRegion? clipRegion = command.ClipRegion;
+
+        if (clipRegion is not null)
+        {
+            clipRegion = UiPolygonClipper.Combine(
+                clipRegion,
+                command.ClipRect);
+        }
+        else if (command.ClipRect.HasValue)
+        {
+            clipRegion = ClipRegion.FromRectangle(
+                command.ClipRect.Value);
+        }
+
+        IReadOnlyList<Vector2> points;
+
+        if (clipRegion is not null)
+        {
+            var clipped = UiPolygonClipper.ClipPolygon(
+                quad,
+                clipRegion);
+
+            if (clipped.Count < 3)
             {
                 return;
             }
 
-            position =
-                new Vector2(
-                    left,
-                    top);
-
-            size =
-                new Vector2(
-                    right - left,
-                    bottom - top);
+            points = clipped
+                .Select(static vertex => vertex.Position)
+                .ToArray();
         }
-
-        var topLeft =
-            position;
-
-        var topRight =
-            new Vector2(
-                position.X + size.X,
-                position.Y);
-
-        var bottomRight =
-            position + size;
-
-        var bottomLeft =
-            new Vector2(
-                position.X,
-                position.Y + size.Y);
-
-        topLeft = RotatePoint(
-    topLeft,
-    rotationOrigin,
-    command.RotationDegrees);
-
-        topRight = RotatePoint(
-            topRight,
-            rotationOrigin,
-            command.RotationDegrees);
-
-        bottomRight = RotatePoint(
-            bottomRight,
-            rotationOrigin,
-            command.RotationDegrees);
-
-        bottomLeft = RotatePoint(
-            bottomLeft,
-            rotationOrigin,
-            command.RotationDegrees);
+        else
+        {
+            points = quad
+                .Select(static vertex => vertex.Position)
+                .ToArray();
+        }
 
         if (command.Filled)
         {
-            DrawTriangle(
-                topLeft,
-                topRight,
-                bottomRight,
-                command.Color);
-
-            DrawTriangle(
-                topLeft,
-                bottomRight,
-                bottomLeft,
-                command.Color);
+            // После clipping может получиться многоугольник
+            // более чем с четырьмя вершинами.
+            for (var i = 1; i < points.Count - 1; i++)
+            {
+                DrawTriangle(
+                    points[0],
+                    points[i],
+                    points[i + 1],
+                    command.Color);
+            }
 
             return;
         }
 
-        DrawLine(
-            topLeft,
-            topRight,
-            command.Color);
+        for (var i = 0; i < points.Count; i++)
+        {
+            var next = (i + 1) % points.Count;
 
-        DrawLine(
-            topRight,
-            bottomRight,
-            command.Color);
-
-        DrawLine(
-            bottomRight,
-            bottomLeft,
-            command.Color);
-
-        DrawLine(
-            bottomLeft,
-            topLeft,
-            command.Color);
+            DrawLine(
+                points[i],
+                points[next],
+                command.Color);
+        }
     }
 
     private static Vector2 RotatePoint(

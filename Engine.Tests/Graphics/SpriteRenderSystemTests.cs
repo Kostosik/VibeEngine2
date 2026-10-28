@@ -83,6 +83,69 @@ public sealed class SpriteRenderSystemTests
             90.1f);
     }
 
+    [Theory]
+    [InlineData(-1.0f, 1.0f, 1.0f, 0.0f, -1.0f, 1.0f)]
+    [InlineData(1.0f, -1.0f, 0.0f, 1.0f, 1.0f, -1.0f)]
+    [InlineData(-1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f)]
+    public void Render_NegativeScaleFlipsTextureCoordinates(
+    float scaleX,
+    float scaleY,
+    float expectedU,
+    float expectedV,
+    float expectedWidth,
+    float expectedHeight)
+    {
+        var textures = new FakeTextureManager();
+        var graphics = new FakeGraphicsDevice(textures);
+
+        using var content = CreateContent();
+        using var world = new World();
+
+        var entity = world.CreateEntity();
+
+        world.Add(
+            entity,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromInt(10),
+                    Fixed32.FromInt(12))));
+
+        ref var transform =
+            ref world.Get<WorldTransform2D>(entity);
+
+        transform.Scale = new FixedVector2(
+            Fixed32.FromFloat(scaleX),
+            Fixed32.FromFloat(scaleY));
+
+        world.Add(
+            entity,
+            new SpriteComponent(
+                "Textures/test.png",
+                4.0f,
+                4.0f));
+
+        using var renderer = new SpriteRenderSystem(
+            world,
+            graphics,
+            content,
+            new Camera2D(new Vector2(100.0f, 100.0f)));
+
+        renderer.Render();
+
+        var command =
+            Assert.IsType<DrawWorldTextureCommand>(
+                Assert.Single(graphics.Commands));
+
+        Assert.Equal(
+            new Vector2(4.0f, 4.0f),
+            command.Size);
+
+        Assert.Equal(expectedU, command.UV.X);
+        Assert.Equal(expectedV, command.UV.Y);
+        Assert.Equal(expectedWidth, command.UV.Width);
+        Assert.Equal(expectedHeight, command.UV.Height);
+    }
+
     [Fact]
     public void ParticleRenderer_RendersParticlesAndReusesTexture()
     {

@@ -11,7 +11,7 @@ public sealed class EditorProperty
         Func<object?> getter,
         Action<object?>? setter = null,
         string? displayName = null,
-        int order = 0)
+        int order = 0, bool affectsTransformHierarchy = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(
             name);
@@ -21,7 +21,7 @@ public sealed class EditorProperty
 
         ArgumentNullException.ThrowIfNull(
             getter);
-
+        AffectsTransformHierarchy = affectsTransformHierarchy;
         Name = name;
         DisplayName =
             string.IsNullOrWhiteSpace(displayName)
@@ -38,7 +38,7 @@ public sealed class EditorProperty
     public string Name { get; }
 
     public string DisplayName { get; }
-
+    public bool AffectsTransformHierarchy { get; }
     public Type PropertyType { get; }
 
     public int Order { get; }

@@ -226,6 +226,19 @@ internal sealed class OpenGLRenderCommandDispatcher
         }
     }
 
+    public void Execute(
+    DrawWorldTextureData command)
+    {
+        BeginTextureRenderer();
+
+        if (!_textureManager.Exists(command.Texture))
+        {
+            return;
+        }
+
+        _textureRenderer.DrawWorld(command);
+    }
+
     public void EndFrame()
     {
         EndActiveRenderer();

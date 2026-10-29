@@ -14,6 +14,52 @@ namespace Engine.Tests.Serialization.SaveLoad;
 
 public sealed class WorldSaveLoadServiceTests
 {
+    [Fact]
+    public void Save_WhenSerializationFails_PreservesExistingFile()
+    {
+        var registry = new EcsComponentSerializerRegistry();
+        var saveLoad = new WorldSaveLoadService(registry);
+
+        using var ecsWorld = new Engine.ECS.World();
+
+        using var world = new Engine.Worlds.World(
+            new ChunkSize(4, 4),
+            ecsWorld);
+
+        var entity = ecsWorld.CreateEntity();
+
+        ecsWorld.Add(
+            entity,
+            new UnsavedRuntimeComponent(42));
+
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"vibe-existing-world-{Guid.NewGuid():N}.world");
+
+        byte[] originalContents =
+        [
+            0x56, 0x49, 0x42, 0x45, 0x01, 0x02, 0x03
+        ];
+
+        try
+        {
+            File.WriteAllBytes(path, originalContents);
+
+            Assert.Throws<InvalidOperationException>(
+                () => saveLoad.Save(path, world));
+
+            Assert.Equal(
+                originalContents,
+                File.ReadAllBytes(path));
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
 
     [Fact]
     public void Save_RejectsRuntimeComponentWithoutRegisteredSerializer()

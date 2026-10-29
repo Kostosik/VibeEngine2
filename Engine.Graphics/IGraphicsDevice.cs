@@ -17,6 +17,10 @@ public interface IGraphicsDevice
     void BeginFrame();
 
     void Submit(IRenderCommand command);
-
+    void Submit(DrawWorldTextureData command)
+    {
+        throw new NotSupportedException(
+            "This graphics device does not support direct world texture submission.");
+    }
     void EndFrame();
 }

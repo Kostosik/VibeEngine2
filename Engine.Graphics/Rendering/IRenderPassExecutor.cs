@@ -9,6 +9,11 @@ public interface IRenderPassExecutor
 
     void Execute(
         IRenderCommand command);
-
+    void Execute(DrawWorldTextureData command)
+    {
+        throw new NotSupportedException(
+            "This render pass executor does not support " +
+            "world texture data.");
+    }
     void End();
 }

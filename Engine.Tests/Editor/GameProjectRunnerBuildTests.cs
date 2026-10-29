@@ -154,16 +154,37 @@ public sealed class GameProjectRunnerBuildTests
             }
             """);
 
-            File.WriteAllText(
-                sourcePath,
-                """
-            Console.WriteLine($"CHILD_PID={Environment.ProcessId}");
-            Console.Out.Flush();
-
-            Thread.Sleep(TimeSpan.FromSeconds(30));
-            """);
-
             var project = GameProject.Open(manifestPath);
+
+            File.WriteAllText(
+    sourcePath,
+    """
+    if (args.Length == 1 && args[0] == "--child")
+    {
+        Thread.Sleep(TimeSpan.FromSeconds(30));
+        return;
+    }
+
+    var childStartInfo = new System.Diagnostics.ProcessStartInfo
+    {
+        FileName = "dotnet",
+        UseShellExecute = false
+    };
+
+    childStartInfo.ArgumentList.Add("exec");
+    childStartInfo.ArgumentList.Add(
+        System.Reflection.Assembly.GetExecutingAssembly().Location);
+    childStartInfo.ArgumentList.Add("--child");
+
+    using var child = System.Diagnostics.Process.Start(childStartInfo)
+        ?? throw new InvalidOperationException(
+            "Failed to start child process.");
+
+    Console.WriteLine($"CHILD_PID={child.Id}");
+    Console.Out.Flush();
+
+    Thread.Sleep(TimeSpan.FromSeconds(30));
+    """);
 
             using var runner = new GameProjectRunner();
 
@@ -189,11 +210,537 @@ public sealed class GameProjectRunnerBuildTests
 
             Assert.True(runner.IsSessionActive);
 
+            Assert.False(
+                childProcess.HasExited,
+                "The child process exited before runner disposal.");
+
             runner.Dispose();
 
             Assert.True(
                 childProcess.WaitForExit(5000),
                 "The game process was not terminated after runner disposal.");
+
+            Assert.False(runner.IsSessionActive);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Dispose_StopsAllRunningSessions()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"VibeEngineSessionsDispose-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(root);
+
+        using var manager = new GameProjectSessionManager();
+
+        try
+        {
+            var firstProject = CreateProbeProject(
+                Path.Combine(root, "First"),
+                "FirstProbe");
+
+            var secondProject = CreateProbeProject(
+                Path.Combine(root, "Second"),
+                "SecondProbe");
+
+            var firstId = manager.Start(
+                firstProject,
+                "First",
+                applicationArguments: new[] { "first" });
+
+            var firstOutput = DrainUntil(
+                manager,
+                outputs => outputs.Any(item =>
+                    item.SessionId == firstId &&
+                    item.Message.StartsWith(
+                        "SESSION_PID=first:",
+                        StringComparison.Ordinal)));
+
+            var firstMessage = Assert.Single(
+                firstOutput.Where(item =>
+                    item.SessionId == firstId &&
+                    item.Message.StartsWith(
+                        "SESSION_PID=first:",
+                        StringComparison.Ordinal)));
+
+            var firstPid = int.Parse(
+                firstMessage.Message.Split(':')[1]);
+
+            using var firstProcess =
+                Process.GetProcessById(firstPid);
+
+            Assert.False(firstProcess.HasExited);
+
+            var secondId = manager.Start(
+                secondProject,
+                "Second",
+                applicationArguments: new[] { "second" });
+
+            var secondOutput = DrainUntil(
+                manager,
+                outputs => outputs.Any(item =>
+                    item.SessionId == secondId &&
+                    item.Message.StartsWith(
+                        "SESSION_PID=second:",
+                        StringComparison.Ordinal)));
+
+            var secondMessage = Assert.Single(
+                secondOutput.Where(item =>
+                    item.SessionId == secondId &&
+                    item.Message.StartsWith(
+                        "SESSION_PID=second:",
+                        StringComparison.Ordinal)));
+
+            var secondPid = int.Parse(
+                secondMessage.Message.Split(':')[1]);
+
+            using var secondProcess =
+                Process.GetProcessById(secondPid);
+
+            Assert.False(firstProcess.HasExited);
+            Assert.False(secondProcess.HasExited);
+            Assert.Equal(2, manager.Sessions.Count);
+
+            manager.Dispose();
+
+            Assert.True(
+                firstProcess.WaitForExit(5000),
+                "The first game process was not terminated.");
+
+            Assert.True(
+                secondProcess.WaitForExit(5000),
+                "The second game process was not terminated.");
+
+            Assert.Empty(manager.Sessions);
+        }
+        finally
+        {
+            manager.Dispose();
+
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+
+        static GameProject CreateProbeProject(
+            string directory,
+            string projectName)
+        {
+            Directory.CreateDirectory(directory);
+
+            var projectPath = Path.Combine(
+                directory,
+                $"{projectName}.csproj");
+
+            var manifestPath = Path.Combine(
+                directory,
+                $"{projectName}.vibeproject");
+
+            File.WriteAllText(
+                projectPath,
+                """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <TargetFramework>net8.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+                <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+              </PropertyGroup>
+            </Project>
+            """);
+
+            File.WriteAllText(
+                manifestPath,
+                $$"""
+            {
+              "formatVersion": 1,
+              "name": "{{projectName}}",
+              "startupProject": "{{projectName}}.csproj",
+              "startupScene": null
+            }
+            """);
+
+            File.WriteAllText(
+                Path.Combine(directory, "Program.cs"),
+                """
+            Console.WriteLine(
+                $"SESSION_PID={args.Single()}:{Environment.ProcessId}");
+
+            Console.Out.Flush();
+
+            Thread.Sleep(TimeSpan.FromMinutes(2));
+            """);
+
+            return GameProject.Open(manifestPath);
+        }
+    }
+
+    [Fact]
+    public void Stop_AndDispose_AreIdempotent()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"VibeEngineRunnerIdempotent-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var projectPath = Path.Combine(root, "Probe.csproj");
+            var manifestPath = Path.Combine(root, "Probe.vibeproject");
+            var sourcePath = Path.Combine(root, "Program.cs");
+
+            File.WriteAllText(
+                projectPath,
+                """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <TargetFramework>net8.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+                <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+              </PropertyGroup>
+            </Project>
+            """);
+
+            File.WriteAllText(
+                manifestPath,
+                """
+            {
+              "formatVersion": 1,
+              "name": "Probe",
+              "startupProject": "Probe.csproj",
+              "startupScene": null
+            }
+            """);
+
+            File.WriteAllText(
+                sourcePath,
+                """
+            Console.WriteLine($"STOP_PID={Environment.ProcessId}");
+            Console.Out.Flush();
+
+            Thread.Sleep(TimeSpan.FromSeconds(30));
+            """);
+
+            var project = GameProject.Open(manifestPath);
+            using var runner = new GameProjectRunner();
+
+            runner.Start(project);
+
+            var output = DrainUntil(
+                runner,
+                outputs => outputs.Any(item =>
+                    item.Message.StartsWith(
+                        "STOP_PID=",
+                        StringComparison.Ordinal)));
+
+            var message = Assert.Single(
+                output.Where(item =>
+                    item.Message.StartsWith(
+                        "STOP_PID=",
+                        StringComparison.Ordinal)));
+
+            var pid = int.Parse(
+                message.Message["STOP_PID=".Length..]);
+
+            using var gameProcess = Process.GetProcessById(pid);
+
+            Assert.True(runner.IsSessionActive);
+            Assert.False(gameProcess.HasExited);
+
+            runner.Stop();
+            runner.Stop();
+
+            runner.Dispose();
+            runner.Dispose();
+
+            Assert.True(
+                gameProcess.WaitForExit(5000),
+                "The game process remained alive after repeated shutdown calls.");
+
+            Assert.False(runner.IsSessionActive);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Stop_WhenExitedProcessHasDescendantHoldingOutput_DoesNotWaitIndefinitely()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"VibeEngineRunnerStopTimeout-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(root);
+
+        Process? descendant = null;
+        Task? stopTask = null;
+        var runner = new GameProjectRunner();
+
+        try
+        {
+            var projectPath = Path.Combine(root, "Probe.csproj");
+            var manifestPath = Path.Combine(root, "Probe.vibeproject");
+            var sourcePath = Path.Combine(root, "Program.cs");
+
+            File.WriteAllText(projectPath, """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <TargetFramework>net8.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+                <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+                <NuGetAudit>false</NuGetAudit>
+              </PropertyGroup>
+            </Project>
+            """);
+
+            File.WriteAllText(manifestPath, """
+            {
+              "formatVersion": 1,
+              "name": "Probe",
+              "startupProject": "Probe.csproj",
+              "startupScene": null
+            }
+            """);
+
+            File.WriteAllText(sourcePath, """
+            using System.Diagnostics;
+            using System.Reflection;
+
+            if (args.Length == 1 && args[0] == "--orphan-child")
+            {
+                Thread.Sleep(TimeSpan.FromSeconds(30));
+                return;
+            }
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "dotnet",
+                UseShellExecute = false
+            };
+
+            startInfo.ArgumentList.Add(
+                Assembly.GetExecutingAssembly().Location);
+            startInfo.ArgumentList.Add("--orphan-child");
+
+            using var child = Process.Start(startInfo)
+                ?? throw new InvalidOperationException(
+                    "Failed to start descendant process.");
+
+            Console.WriteLine($"ORPHAN_PID={child.Id}");
+            Console.Out.Flush();
+            """);
+
+            runner.Start(GameProject.Open(manifestPath));
+
+            var output = DrainUntil(
+                runner,
+                outputs =>
+                    outputs.Any(item =>
+                        item.Message.StartsWith(
+                            "ORPHAN_PID=",
+                            StringComparison.Ordinal))
+                    &&
+                    outputs.Any(item =>
+                        item.Message ==
+                        "Game process exited with code 0."),
+                timeoutSeconds: 30);
+
+            var pidMessage = Assert.Single(
+                output.Where(item =>
+                    item.Message.StartsWith(
+                        "ORPHAN_PID=",
+                        StringComparison.Ordinal)));
+
+            var pid = int.Parse(
+                pidMessage.Message["ORPHAN_PID=".Length..]);
+
+            descendant = Process.GetProcessById(pid);
+
+            Assert.False(runner.IsSessionActive);
+
+            stopTask = Task.Run(runner.Stop);
+
+            Assert.True(
+                stopTask.Wait(TimeSpan.FromSeconds(7)),
+                "Stop blocked indefinitely while waiting for redirected output.");
+        }
+        finally
+        {
+            // Освобождаем поток даже в случае падения проверки.
+            try
+            {
+                if (descendant is not null && !descendant.HasExited)
+                {
+                    descendant.Kill(entireProcessTree: true);
+                }
+            }
+            catch
+            {
+                // Процесс мог уже завершиться.
+            }
+
+            try
+            {
+                stopTask?.Wait(TimeSpan.FromSeconds(5));
+            }
+            catch
+            {
+                // Не скрываем исходную ошибку теста.
+            }
+
+            descendant?.Dispose();
+            runner.Dispose();
+
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Stop_StopsDescendantProcesses()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"VibeEngineRunnerTree-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var projectPath = Path.Combine(
+                root,
+                "ProcessTreeProbe.csproj");
+
+            var manifestPath = Path.Combine(
+                root,
+                "ProcessTreeProbe.vibeproject");
+
+            var sourcePath = Path.Combine(
+                root,
+                "Program.cs");
+
+            File.WriteAllText(
+                projectPath,
+                """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <TargetFramework>net8.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+                <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+              </PropertyGroup>
+            </Project>
+            """);
+
+            File.WriteAllText(
+                manifestPath,
+                """
+            {
+              "formatVersion": 1,
+              "name": "ProcessTreeProbe",
+              "startupProject": "ProcessTreeProbe.csproj",
+              "startupScene": null
+            }
+            """);
+
+            File.WriteAllText(
+                sourcePath,
+                """
+            using System.Diagnostics;
+            using System.Reflection;
+
+            if (args.Length == 1 && args[0] == "--descendant")
+            {
+                Console.WriteLine(
+                    $"DESCENDANT_PID={Environment.ProcessId}");
+
+                Console.Out.Flush();
+                Thread.Sleep(TimeSpan.FromSeconds(30));
+                return;
+            }
+
+            using var descendant = Process.Start(
+                new ProcessStartInfo
+                {
+                    FileName = "dotnet",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    ArgumentList =
+                    {
+                        Assembly.GetEntryAssembly()!.Location,
+                        "--descendant"
+                    }
+                })
+                ?? throw new InvalidOperationException(
+                    "Failed to start descendant process.");
+
+            var pidLine = descendant.StandardOutput.ReadLine()
+                ?? throw new InvalidOperationException(
+                    "Descendant did not report its process ID.");
+
+            Console.WriteLine(pidLine);
+            Console.Out.Flush();
+
+            Thread.Sleep(TimeSpan.FromSeconds(30));
+            """);
+
+            var project = GameProject.Open(manifestPath);
+
+            using var runner = new GameProjectRunner();
+
+            runner.Start(project);
+
+            var output = DrainUntil(
+                runner,
+                outputs => outputs.Any(item =>
+                    item.Message.StartsWith(
+                        "DESCENDANT_PID=",
+                        StringComparison.Ordinal)));
+
+            var pidMessage = Assert.Single(
+                output.Where(item =>
+                    item.Message.StartsWith(
+                        "DESCENDANT_PID=",
+                        StringComparison.Ordinal)));
+
+            var descendantPid = int.Parse(
+                pidMessage.Message["DESCENDANT_PID=".Length..]);
+
+            using var descendantProcess =
+                Process.GetProcessById(descendantPid);
+
+            Assert.True(runner.IsSessionActive);
+            Assert.False(descendantProcess.HasExited);
+
+            runner.Stop();
+
+            Assert.True(
+                descendantProcess.WaitForExit(5000),
+                "The descendant process was not terminated after runner.Stop.");
 
             Assert.False(runner.IsSessionActive);
         }

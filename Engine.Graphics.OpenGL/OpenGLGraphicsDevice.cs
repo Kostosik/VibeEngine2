@@ -12,7 +12,7 @@ using Silk.NET.OpenGL;
 namespace Engine.Graphics.OpenGL;
 
 public sealed class OpenGLGraphicsDevice
-    : IGraphicsDevice, IDisposable
+    : IGraphicsDevice, IWorldTextureDataSubmitter, IDisposable
 {
     private readonly GL _gl;
     private bool _disposed;
@@ -177,6 +177,15 @@ public sealed class OpenGLGraphicsDevice
         IRenderCommand command)
     {
         ThrowIfDisposed();
+        _renderQueue.Submit(
+            command);
+    }
+
+    public void Submit(
+    DrawWorldTextureData command)
+    {
+        ThrowIfDisposed();
+
         _renderQueue.Submit(
             command);
     }

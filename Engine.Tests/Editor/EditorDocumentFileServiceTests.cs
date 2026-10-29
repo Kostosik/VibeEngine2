@@ -1,4 +1,5 @@
 ﻿using Engine.Editor;
+using Engine.Editor.Commands;
 using Engine.Editor.Documents;
 using Engine.Editor.Documents.Persistence;
 using Engine.Worlds;
@@ -8,6 +9,62 @@ namespace Engine.Tests.Editor;
 
 public sealed class EditorDocumentFileServiceTests
 {
+    [Fact]
+    public void SaveAs_WhenPersistenceFails_PreservesDocumentStateAndAllowsRetry()
+    {
+        var editor = new EditorContext();
+
+        using var ecsWorld = new Engine.ECS.World();
+
+        var world = new World(
+            new ChunkSize(16, 16),
+            ecsWorld);
+
+        using var document = editor.OpenDocument(world);
+
+        document.Execute(
+            new CreateEditorEntityCommand(document));
+
+        var persistence = new TestPersistence
+        {
+            FailNextSave = true
+        };
+
+        var service = new EditorDocumentFileService(
+            editor,
+            persistence);
+
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"VibeEngineSave-{Guid.NewGuid():N}.world");
+
+        Assert.True(document.IsDirty);
+        Assert.Null(document.FilePath);
+
+        Assert.Throws<IOException>(
+            () => service.SaveAs(document, path));
+
+        // Неудачная запись не должна помечать документ сохранённым.
+        Assert.True(document.IsDirty);
+
+        // Путь не должен назначаться до успешного сохранения.
+        Assert.Null(document.FilePath);
+        Assert.Null(persistence.SavedPath);
+
+        // После устранения ошибки повторное сохранение работает.
+        service.SaveAs(document, path);
+
+        Assert.Equal(
+            Path.GetFullPath(path),
+            document.FilePath);
+
+        Assert.False(document.IsDirty);
+
+        Assert.Equal(
+            Path.GetFullPath(path),
+            persistence.SavedPath);
+    }
+
     [Fact]
     public void Open_WhenPersistenceLoadFails_DoesNotRegisterDocument()
     {
@@ -168,12 +225,21 @@ public sealed class EditorDocumentFileServiceTests
     {
         public string? SavedPath { get; private set; }
         public bool FailNextLoad { get; set; }
+        public bool FailNextSave { get; set; }
+
         public void Save(
             string path,
             EditorDocument document)
         {
-            SavedPath =
-                path;
+            if (FailNextSave)
+            {
+                FailNextSave = false;
+
+                throw new IOException(
+                    "Simulated write failure.");
+            }
+
+            SavedPath = path;
         }
 
         public World Load(string path)

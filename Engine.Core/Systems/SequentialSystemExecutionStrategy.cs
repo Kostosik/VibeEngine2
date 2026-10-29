@@ -1,7 +1,8 @@
 ﻿namespace Engine.Core.Systems;
 
 internal sealed class SequentialSystemExecutionStrategy :
-    ISystemExecutionStrategy
+    ISystemExecutionStrategy,
+    IStatefulSystemExecutionStrategy
 {
     public void Execute<TSystem>(
         IReadOnlyList<IReadOnlyList<TSystem>> batches,
@@ -20,6 +21,32 @@ internal sealed class SequentialSystemExecutionStrategy :
             {
                 execute(
                     system);
+            }
+        }
+    }
+
+    public void Execute<TSystem, TState>(
+        IReadOnlyList<IReadOnlyList<TSystem>> batches,
+        TState state,
+        Action<TState, TSystem> execute)
+        where TSystem : class
+    {
+        ArgumentNullException.ThrowIfNull(batches);
+        ArgumentNullException.ThrowIfNull(execute);
+
+        for (var batchIndex = 0;
+             batchIndex < batches.Count;
+             batchIndex++)
+        {
+            var batch = batches[batchIndex];
+
+            for (var systemIndex = 0;
+                 systemIndex < batch.Count;
+                 systemIndex++)
+            {
+                execute(
+                    state,
+                    batch[systemIndex]);
             }
         }
     }

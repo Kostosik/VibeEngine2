@@ -305,50 +305,78 @@ public sealed class EditorWorkspace
             panels);
     }
 
-    public void RestoreState(
-    EditorWorkspaceState state)
+    public void RestoreState(EditorWorkspaceState state)
     {
-        ArgumentNullException.ThrowIfNull(
-            state);
+        ArgumentNullException.ThrowIfNull(state);
 
-        Layout.RestoreState(
-            state);
+        var previousState = CaptureState();
 
-        foreach (var savedPanel in state.Panels)
+        try
         {
-            var panel =
-                FindPanel(
-                    savedPanel.PanelId);
+            Layout.RestoreState(state);
 
-            if (panel is null)
+            foreach (var savedPanel in state.Panels)
             {
-                continue;
+                var panel = FindPanel(savedPanel.PanelId);
+
+                if (panel is null)
+                {
+                    continue;
+                }
+
+                panel.SetOpen(savedPanel.IsOpen);
             }
-            panel.SetOpen(
-                savedPanel.IsOpen);
+
+            // В каждой области может быть активна только одна панель.
+            var activeAreas = new HashSet<EditorDockArea>();
+
+            foreach (var savedPanel in state.Panels)
+            {
+                if (!savedPanel.IsActive ||
+                    !Layout.TryGetPanel(
+                        savedPanel.PanelId,
+                        out var layout) ||
+                    layout is null)
+                {
+                    continue;
+                }
+
+                if (!activeAreas.Add(layout.Area))
+                {
+                    layout.SetActive(false);
+                }
+            }
         }
-
-        // Restore is another entry point into the workspace state,
-        // so the active-panel invariant must be enforced here as well.
-        var activeAreas =
-            new HashSet<EditorDockArea>();
-
-        foreach (var savedPanel in state.Panels)
+        catch (Exception restoreException)
         {
-            if (!savedPanel.IsActive ||
-                !Layout.TryGetPanel(
-                    savedPanel.PanelId,
-                    out var layout) ||
-                layout is null)
+            try
             {
-                continue;
+                // Восстанавливаем прежнюю геометрию и активность панелей.
+                Layout.RestoreState(previousState);
+
+                // Возвращаем прежнее состояние видимости панелей.
+                foreach (var savedPanel in previousState.Panels)
+                {
+                    var panel = FindPanel(savedPanel.PanelId);
+
+                    if (panel is null)
+                    {
+                        continue;
+                    }
+
+                    panel.SetOpen(savedPanel.IsOpen);
+                }
+            }
+            catch (Exception rollbackException)
+            {
+                throw new AggregateException(
+                    "Restoring the workspace failed, and rollback was also unsuccessful.",
+                    restoreException,
+                    rollbackException);
             }
 
-            if (!activeAreas.Add(
-                    layout.Area))
-            {
-                layout.SetActive(false);
-            }
+            // Если откат успешен, сохраняем исходное исключение.
+            throw;
         }
 
         Changed?.Invoke();

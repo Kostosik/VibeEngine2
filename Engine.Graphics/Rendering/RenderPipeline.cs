@@ -52,7 +52,16 @@ public sealed class RenderPipeline
                         continue;
                     }
 
-                    executor.Execute(item.Command);
+                    if (item.HasWorldTextureData)
+                    {
+                        executor.Execute(
+                            queue.GetWorldTextureData(
+                                item.WorldTextureDataIndex));
+                    }
+                    else
+                    {
+                        executor.Execute(item.Command);
+                    }
                 }
             }
             finally

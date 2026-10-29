@@ -1,9 +1,20 @@
 ﻿namespace Engine.Core.Systems;
 
+internal interface IStatefulSystemExecutionStrategy
+{
+    void Execute<TSystem, TState>(
+        IReadOnlyList<IReadOnlyList<TSystem>> batches,
+        TState state,
+        Action<TState, TSystem> execute)
+        where TSystem : class;
+}
+
 internal sealed class SystemExecutionPlan<TSystem>
     where TSystem : class
 {
     private readonly IReadOnlyList<IReadOnlyList<TSystem>> _batches;
+
+
 
     private SystemExecutionPlan(
         IReadOnlyList<IReadOnlyList<TSystem>> batches)
@@ -34,6 +45,40 @@ internal sealed class SystemExecutionPlan<TSystem>
 
         return new SystemExecutionPlan<TSystem>(
             batches);
+    }
+
+    public void Execute<TState>(
+        ISystemExecutionStrategy strategy,
+        TState state,
+        Action<TState, TSystem> execute)
+    {
+        ArgumentNullException.ThrowIfNull(strategy);
+        ArgumentNullException.ThrowIfNull(execute);
+
+        if (strategy is IStatefulSystemExecutionStrategy stateful)
+        {
+            stateful.Execute(
+                _batches,
+                state,
+                execute);
+
+            return;
+        }
+
+        ExecuteWithLegacyStrategy(
+            strategy,
+            state,
+            execute);
+    }
+
+    private void ExecuteWithLegacyStrategy<TState>(
+        ISystemExecutionStrategy strategy,
+        TState state,
+        Action<TState, TSystem> execute)
+    {
+        strategy.Execute(
+            _batches,
+            system => execute(state, system));
     }
 
     public void Execute(

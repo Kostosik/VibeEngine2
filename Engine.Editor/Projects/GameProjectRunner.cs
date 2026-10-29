@@ -16,6 +16,15 @@ public sealed class GameProjectRunner : IDisposable
     private readonly ConcurrentQueue<GameProjectOutput> _output = new();
     private int _hotReloadIdleSignal;
     private Process? _process;
+
+    private TaskCompletionSource<bool>? _outputReadersCompleted;
+
+    private static readonly TimeSpan ProcessExitTimeout =
+        TimeSpan.FromSeconds(5);
+
+    private static readonly TimeSpan OutputDrainTimeout =
+        TimeSpan.FromSeconds(1);
+
     private volatile bool _stopRequested;
     private bool _disposed;
     private GameProjectRunMode? _activeRunMode;
@@ -172,8 +181,27 @@ public sealed class GameProjectRunner : IDisposable
             EnableRaisingEvents = true
         };
 
+        var completedOutputStreams = 0;
+
+        var outputReadersCompleted = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void MarkOutputStreamCompleted()
+        {
+            if (System.Threading.Interlocked.Increment(
+                    ref completedOutputStreams) == 2)
+            {
+                outputReadersCompleted.TrySetResult(true);
+            }
+        }
+
         process.OutputDataReceived += (_, args) =>
         {
+            if (args.Data is null)
+            {
+                MarkOutputStreamCompleted();
+                return;
+            }
             if (args.Data is not null)
             {
                 if (mode == GameProjectRunMode.HotReload &&
@@ -243,6 +271,7 @@ public sealed class GameProjectRunner : IDisposable
 
             _process = process;
             _activeRunMode = mode;
+            _outputReadersCompleted = outputReadersCompleted;
             _output.Enqueue(
                 new GameProjectOutput(
                     false,
@@ -257,6 +286,7 @@ public sealed class GameProjectRunner : IDisposable
             {
                 _process = null;
                 _activeRunMode = null;
+                _outputReadersCompleted = null;
             }
 
             try
@@ -313,13 +343,13 @@ public sealed class GameProjectRunner : IDisposable
             return;
         }
 
+        var outputReadersCompleted = _outputReadersCompleted;
         _stopRequested = true;
 
         try
         {
             if (!process.HasExited)
             {
-                _stopRequested = true;
                 process.Kill(entireProcessTree: true);
 
                 _output.Enqueue(
@@ -328,9 +358,20 @@ public sealed class GameProjectRunner : IDisposable
                         "Stopping game process."));
             }
 
-            // Дожидаемся завершения процесса и обработки
-            // асинхронного вывода из перенаправленных потоков.
-            process.WaitForExit();
+            if (!process.WaitForExit(
+                    (int)ProcessExitTimeout.TotalMilliseconds))
+            {
+                _output.Enqueue(
+                    new GameProjectOutput(
+                        true,
+                        "Timed out waiting for the game process to exit."));
+
+                return;
+            }
+
+            // Даём stdout/stderr время дочитать последние сообщения,
+            // но не ждём бесконечно, если дочерний процесс удерживает поток.
+            _ = outputReadersCompleted?.Task.Wait(OutputDrainTimeout);
         }
         catch (InvalidOperationException)
         {
@@ -343,6 +384,8 @@ public sealed class GameProjectRunner : IDisposable
                 if (ReferenceEquals(_process, process))
                 {
                     _process = null;
+                    _activeRunMode = null;
+                    _outputReadersCompleted = null;
                 }
 
                 process.Dispose();
@@ -364,10 +407,18 @@ public sealed class GameProjectRunner : IDisposable
             return;
         }
 
-        process.WaitForExit();
+        // Не блокируем редактор, если дочерний процесс
+        // продолжает удерживать перенаправленный вывод.
+        _ = _outputReadersCompleted?.Task.Wait(OutputDrainTimeout);
+
+        if (ReferenceEquals(_process, process))
+        {
+            _process = null;
+            _activeRunMode = null;
+            _outputReadersCompleted = null;
+        }
 
         process.Dispose();
-        _process = null;
     }
 
     public void Dispose()
@@ -381,6 +432,8 @@ public sealed class GameProjectRunner : IDisposable
 
         var process = _process;
         _process = null;
+        _activeRunMode = null;
+        _outputReadersCompleted = null;
 
         if (process is null)
         {

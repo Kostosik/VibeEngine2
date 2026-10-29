@@ -5,6 +5,60 @@ namespace Engine.Tests.Editor;
 public sealed class ProjectCreationServiceTests
 {
     [Fact]
+    public void Create_WhenRuntimeCopyFails_RemovesStagingDirectoryAndDoesNotPublishPartialProject()
+    {
+        using var root = new TemporaryDirectory();
+
+        var runtimeDirectory = Path.Combine(root.Path, "Runtime");
+        Directory.CreateDirectory(runtimeDirectory);
+
+        foreach (var assemblyName in EngineRuntimeBuilder.RequiredAssemblies)
+        {
+            File.WriteAllText(
+                Path.Combine(runtimeDirectory, assemblyName),
+                "test");
+        }
+
+        // Файл существует, но не разрешает другим процессам читать его.
+        var lockedFilePath = Path.Combine(runtimeDirectory, "Locked.dll");
+        File.WriteAllText(lockedFilePath, "locked");
+
+        using var lockedFile = new FileStream(
+            lockedFilePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.None);
+
+        var parentDirectory = Path.Combine(root.Path, "Projects");
+        var projectDirectory = Path.Combine(parentDirectory, "MyGame");
+
+        var service = new ProjectCreationService(runtimeDirectory);
+
+        var exception = Record.Exception(() => service.Create(
+            new ProjectCreationRequest(
+                "MyGame",
+                parentDirectory,
+                projectDirectory)));
+
+        Assert.NotNull(exception);
+
+        Assert.True(
+            exception is IOException or UnauthorizedAccessException,
+            $"Unexpected exception type: {exception.GetType().FullName}");
+
+        // Незавершённый проект не должен появиться по целевому пути.
+        Assert.False(Directory.Exists(projectDirectory));
+        Assert.False(File.Exists(projectDirectory));
+
+        // Временная директория должна быть удалена после ошибки.
+        Assert.Empty(
+            Directory.EnumerateDirectories(
+                parentDirectory,
+                ".vibeengine-project-*.tmp",
+                SearchOption.TopDirectoryOnly));
+    }
+
+    [Fact]
     public void Create_GeneratedProgram_RegistersUiAssetLoader()
     {
         using var root = new TemporaryDirectory();

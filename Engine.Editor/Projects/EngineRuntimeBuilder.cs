@@ -240,6 +240,7 @@ public static class EngineRuntimeBuilder
         Action<string, bool>? onOutput,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var startInfo = new ProcessStartInfo
         {
             FileName = "dotnet",
@@ -356,7 +357,7 @@ public static class EngineRuntimeBuilder
         await Task.WhenAll(
             stdoutTask,
             stderrTask).ConfigureAwait(false);
-
+        cancellationToken.ThrowIfCancellationRequested();
         if (process.ExitCode != 0)
         {
             string details;

@@ -7,6 +7,65 @@ namespace Engine.Tests.Serialization;
 public sealed class BinaryFileSerializerTests
 {
     [Fact]
+    public void Save_WhenReplacingLockedFileFails_PreservesOriginalAndRemovesTemporaryFile()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"VibeSerializer-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(root);
+
+        var path = Path.Combine(root, "probe.vbe");
+
+        byte[] originalContents =
+        [
+            0x56, 0x49, 0x42, 0x45, 0x01, 0x02, 0x03
+        ];
+
+        try
+        {
+            File.WriteAllBytes(path, originalContents);
+
+            var serializer = new TickSerializer();
+
+            // Запрещаем замену существующего файла на Windows.
+            using (var lockedFile = new FileStream(
+                       path,
+                       FileMode.Open,
+                       FileAccess.Read,
+                       FileShare.None))
+            {
+                var exception = Record.Exception(
+                    () => BinaryFileSerializer.Save(
+                        path,
+                        new Tick(200),
+                        serializer));
+
+                Assert.NotNull(exception);
+
+                Assert.True(
+                    exception is IOException or UnauthorizedAccessException,
+                    $"Unexpected exception type: {exception.GetType().FullName}");
+            }
+
+            // Исходный файл не должен измениться.
+            Assert.Equal(
+                originalContents,
+                File.ReadAllBytes(path));
+
+            // Временный файл должен быть удалён после ошибки.
+            Assert.Empty(
+                Directory.EnumerateFiles(
+                    root,
+                    "probe.vbe.*.tmp"));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Load_RejectsFileExceedingPayloadLimitBeforeDeserialization()
     {
         var path = Path.Combine(

@@ -27,7 +27,7 @@ public sealed class JsonEditorWorkspacePersistence :
                 state,
                 Options);
 
-        File.WriteAllText(
+        AtomicTextFile.WriteAllText(
             path,
             json);
     }

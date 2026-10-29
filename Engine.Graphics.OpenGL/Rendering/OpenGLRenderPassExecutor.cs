@@ -117,6 +117,13 @@ internal sealed class OpenGLRenderPassExecutor :
             command);
     }
 
+    public void Execute(
+    DrawWorldTextureData command)
+    {
+        _dispatcher.Execute(
+            command);
+    }
+
     public void End()
     {
         try

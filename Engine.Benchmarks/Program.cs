@@ -2,10 +2,23 @@
 using Engine.Content.Assets;
 using Engine.Content.Loading;
 using Engine.Core.Assets;
+using Engine.Core.Math;
+using Engine.Core.Systems;
+using Engine.Core.Time;
 using Engine.ECS.Entities;
 using Engine.Jobs.Jobs;
 using Engine.Jobs.Scheduling;
 using System.Diagnostics;
+
+if (args.Any(
+        static arg => string.Equals(
+            arg,
+            "--graphics",
+            StringComparison.OrdinalIgnoreCase)))
+{
+    Engine.Benchmarks.GraphicsWindowBenchmark.Run();
+    return;
+}
 
 const int entityCount =
     100_000;
@@ -253,6 +266,7 @@ BenchmarkWorldLifecycleMemory(entityCount);
 BenchmarkPopulatedWorldMemory(entityCount);
 
 BenchmarkContentPipeline();
+BenchmarkSystemSchedulerDispatch();
 Engine.Benchmarks.EngineRuntimeGameBenchmark.Run();
 Console.WriteLine(
     "Baseline complete.");
@@ -1239,7 +1253,82 @@ static void CollectGarbageForSnapshot()
     GC.Collect();
 }
 
+static void BenchmarkSystemSchedulerDispatch()
+{
+    using var scheduler = new SystemScheduler();
 
+    scheduler.Add(
+        new NoOpUpdateSystem(),
+        SystemPhase.Update);
+
+    scheduler.Add(
+        new NoOpFixedUpdateSystem(),
+        SystemPhase.FixedUpdate);
+
+    scheduler.Build();
+
+    var updateDelta =
+        Duration.FromSeconds(1.0 / 60.0);
+
+    var updateContext = new SystemContext(
+        new TimeSnapshot(
+            updateDelta,
+            updateDelta,
+            new Tick(1)));
+
+    var fixedContext = new FixedSystemContext(
+        new SimulationTime(
+            Fixed32.FromRatio(1, 20),
+            new Tick(1)));
+
+    Benchmark(
+        "SystemScheduler Update Dispatch",
+        warmupIterations: 1_000,
+        iterations: 10_000,
+        () =>
+        {
+            scheduler.Update(updateContext);
+        },
+        measureCurrentThreadAllocations: true);
+
+    Benchmark(
+        "SystemScheduler FixedUpdate Dispatch",
+        warmupIterations: 1_000,
+        iterations: 10_000,
+        action: () => scheduler.FixedUpdate(fixedContext),
+        measureCurrentThreadAllocations: true);
+
+    using var emptyScheduler = new SystemScheduler();
+    emptyScheduler.Build();
+
+    Benchmark(
+        "SystemScheduler Update Empty",
+        warmupIterations: 1_000,
+        iterations: 10_000,
+        action: () => emptyScheduler.Update(updateContext),
+        measureCurrentThreadAllocations: true);
+
+    Benchmark(
+        "SystemScheduler FixedUpdate Empty",
+        warmupIterations: 1_000,
+        iterations: 10_000,
+        action: () => emptyScheduler.FixedUpdate(fixedContext),
+        measureCurrentThreadAllocations: true);
+}
+
+sealed class NoOpUpdateSystem : IUpdateSystem
+{
+    public void Update(SystemContext context)
+    {
+    }
+}
+
+sealed class NoOpFixedUpdateSystem : IFixedUpdateSystem
+{
+    public void FixedUpdate(FixedSystemContext context)
+    {
+    }
+}
 struct TestComponent
 {
     public int Value;

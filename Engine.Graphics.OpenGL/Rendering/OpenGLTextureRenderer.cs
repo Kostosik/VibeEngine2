@@ -11,6 +11,7 @@ namespace Engine.Graphics.OpenGL.Rendering;
 internal sealed class OpenGLTextureRenderer : IDisposable
 {
     private const int SpritesPerBatch = 1024;
+    private const int MaxTexturesPerBatch = 16;
 
     private readonly GL _gl;
     private readonly Camera2D _camera;
@@ -20,17 +21,22 @@ internal sealed class OpenGLTextureRenderer : IDisposable
     private readonly uint _vbo;
 
     private readonly int _resolutionLocation;
-    private readonly int _textureLocation;
+    private readonly int[] _textureLocations =
+        new int[MaxTexturesPerBatch];
 
     private readonly float[] _vertices =
         new float[
             SpritesPerBatch *
             6 *
-            4];
+            5];
 
     private int _vertexCount;
+    private int _batchTextureCount;
+    private int _currentTextureSlot = -1;
+    private int _textureUnitCountUsed;
 
-    private uint _currentTexture;
+    private readonly uint[] _batchTextures =
+        new uint[MaxTexturesPerBatch];
 
     private float _width;
     private float _height;
@@ -76,11 +82,25 @@ internal sealed class OpenGLTextureRenderer : IDisposable
                 _shader.GetUniformLocation(
                     "uResolution");
 
-            _textureLocation =
-                _shader.GetUniformLocation(
-                    "uTexture");
+            for (var i = 0; i < MaxTexturesPerBatch; i++)
+            {
+                _textureLocations[i] =
+                    _shader.GetUniformLocation(
+                        $"uTextures[{i}]");
+            }
 
             ValidateUniforms();
+
+            _shader.Use();
+
+            for (var i = 0; i < MaxTexturesPerBatch; i++)
+            {
+                _gl.Uniform1(
+                    _textureLocations[i],
+                    i);
+            }
+
+            _shader.StopUsing();
 
             (_vao, _vbo) =
                 CreateBatchBuffer();
@@ -136,26 +156,37 @@ internal sealed class OpenGLTextureRenderer : IDisposable
             return false;
         }
 
-        var value =
-            texture.Value;
+        var value = texture.Value;
 
-        if (_currentTexture != 0 &&
-            _currentTexture != value)
+        // Если для следующего спрайта недостаточно места,
+        // отправляем текущий пакет на отрисовку.
+        if (_vertexCount + 6 > _vertices.Length / 5)
         {
             Flush();
         }
 
-        if (_vertexCount + 6 >
-            _vertices.Length / 4)
+        // Ищем текстуру среди уже зарегистрированных.
+        for (var i = 0; i < _batchTextureCount; i++)
+        {
+            if (_batchTextures[i] == value)
+            {
+                _currentTextureSlot = i;
+                return true;
+            }
+        }
+
+        // Все слоты заняты — завершаем пакет и начинаем новый.
+        if (_batchTextureCount >= MaxTexturesPerBatch)
         {
             Flush();
         }
 
-        if (_currentTexture == 0)
-        {
-            _currentTexture =
-                value;
-        }
+        var slot = _batchTextureCount;
+
+        _batchTextures[slot] = value;
+        _batchTextureCount++;
+
+        _currentTextureSlot = slot;
 
         return true;
     }
@@ -171,7 +202,9 @@ internal sealed class OpenGLTextureRenderer : IDisposable
         }
 
         _vertexCount = 0;
-        _currentTexture = 0;
+        _batchTextureCount = 0;
+        _currentTextureSlot = -1;
+        _textureUnitCountUsed = 0;
 
         _shader.Use();
 
@@ -179,10 +212,6 @@ internal sealed class OpenGLTextureRenderer : IDisposable
             _resolutionLocation,
             _width,
             _height);
-
-        _gl.Uniform1(
-            _textureLocation,
-            0);
 
         _gl.ActiveTexture(
             TextureUnit.Texture0);
@@ -416,7 +445,20 @@ internal sealed class OpenGLTextureRenderer : IDisposable
     }
 
     public void DrawWorld(
-     DrawWorldTextureCommand command)
+    DrawWorldTextureCommand command)
+    {
+        DrawWorld(
+            new DrawWorldTextureData(
+                command.Texture,
+                command.Position,
+                command.Size,
+                command.UV,
+                command.Layer,
+                command.RotationDegrees));
+    }
+
+    public void DrawWorld(
+        DrawWorldTextureData command)
     {
         ThrowIfDisposed();
         EnsureFrameActive();
@@ -471,12 +513,21 @@ internal sealed class OpenGLTextureRenderer : IDisposable
 
         Flush();
 
-        _gl.BindVertexArray(
-            0);
+        // Отвязываем все текстуры, использованные в этом кадре.
+        for (var i = 0; i < _textureUnitCountUsed; i++)
+        {
+            _gl.ActiveTexture(
+                (TextureUnit)((int)TextureUnit.Texture0 + i));
 
-        _gl.BindTexture(
-            TextureTarget.Texture2D,
-            0);
+            _gl.BindTexture(
+                TextureTarget.Texture2D,
+                0);
+        }
+
+        _gl.ActiveTexture(
+            TextureUnit.Texture0);
+
+        _gl.BindVertexArray(0);
 
         _shader.StopUsing();
 
@@ -642,45 +693,53 @@ internal sealed class OpenGLTextureRenderer : IDisposable
         float v)
     {
         var index =
-            _vertexCount * 4;
+            _vertexCount * 5;
 
-        _vertices[index] =
-            x;
-
-        _vertices[index + 1] =
-            y;
-
-        _vertices[index + 2] =
-            u;
-
-        _vertices[index + 3] =
-            v;
+        _vertices[index] = x;
+        _vertices[index + 1] = y;
+        _vertices[index + 2] = u;
+        _vertices[index + 3] = v;
+        _vertices[index + 4] = _currentTextureSlot;
 
         _vertexCount++;
     }
 
     private void Flush()
     {
-        if (_vertexCount == 0 ||
-            _currentTexture == 0)
+        if (_vertexCount == 0)
         {
+            _batchTextureCount = 0;
+            _currentTextureSlot = -1;
             return;
         }
 
         try
         {
-            _gl.BindTexture(
-                TextureTarget.Texture2D,
-                _currentTexture);
+            // Привязываем текстуры пакета к отдельным texture units.
+            for (var i = 0; i < _batchTextureCount; i++)
+            {
+                _gl.ActiveTexture(
+                    (TextureUnit)((int)TextureUnit.Texture0 + i));
+
+                _gl.BindTexture(
+                    TextureTarget.Texture2D,
+                    _batchTextures[i]);
+            }
+
+            _textureUnitCountUsed = Math.Max(
+                _textureUnitCountUsed,
+                _batchTextureCount);
+
+            _gl.ActiveTexture(
+                TextureUnit.Texture0);
 
             _gl.BindBuffer(
                 BufferTargetARB.ArrayBuffer,
                 _vbo);
 
-            var vertexData =
-                _vertices.AsSpan(
-                    0,
-                    _vertexCount * 4);
+            var vertexData = _vertices.AsSpan(
+                0,
+                _vertexCount * 5);
 
             _gl.BufferData<float>(
                 BufferTargetARB.ArrayBuffer,
@@ -697,10 +756,15 @@ internal sealed class OpenGLTextureRenderer : IDisposable
             _gl.BindBuffer(
                 BufferTargetARB.ArrayBuffer,
                 0);
+
+            _gl.ActiveTexture(
+                TextureUnit.Texture0);
         }
 
+        // Подготавливаем renderer к следующему пакету.
         _vertexCount = 0;
-        _currentTexture = 0;
+        _batchTextureCount = 0;
+        _currentTextureSlot = -1;
     }
 
     private (uint Vao, uint Vbo) CreateBatchBuffer()
@@ -740,7 +804,7 @@ internal sealed class OpenGLTextureRenderer : IDisposable
                     BufferUsageARB.DynamicDraw);
 
                 const uint stride =
-                    4 * sizeof(float);
+                    5 * sizeof(float);
 
                 _gl.VertexAttribPointer(
                     0,
@@ -761,6 +825,16 @@ internal sealed class OpenGLTextureRenderer : IDisposable
                     2 * sizeof(float));
 
                 _gl.EnableVertexAttribArray(1);
+
+                _gl.VertexAttribPointer(
+                    2,
+                    1,
+                    VertexAttribPointerType.Float,
+                    false,
+                    stride,
+                    4 * sizeof(float));
+
+                _gl.EnableVertexAttribArray(2);
             }
             finally
             {
@@ -828,10 +902,13 @@ internal sealed class OpenGLTextureRenderer : IDisposable
                 "Uniform 'uResolution' was not found.");
         }
 
-        if (_textureLocation < 0)
+        for (var i = 0; i < MaxTexturesPerBatch; i++)
         {
-            throw new InvalidOperationException(
-                "Uniform 'uTexture' was not found.");
+            if (_textureLocations[i] < 0)
+            {
+                throw new InvalidOperationException(
+                    $"Uniform 'uTextures[{i}]' was not found.");
+            }
         }
     }
 
@@ -852,53 +929,73 @@ internal sealed class OpenGLTextureRenderer : IDisposable
     }
 
     private const string VertexShaderSource = """
-        #version 330 core
+    #version 330 core
 
-        layout (location = 0) in vec2 aPosition;
-        layout (location = 1) in vec2 aTexCoord;
+    layout (location = 0) in vec2 aPosition;
+    layout (location = 1) in vec2 aTexCoord;
+    layout (location = 2) in float aTextureIndex;
 
-        uniform vec2 uResolution;
+    uniform vec2 uResolution;
 
-        out vec2 vTexCoord;
+    out vec2 vTexCoord;
+    flat out int vTextureIndex;
 
-        void main()
-        {
-            vec2 normalized =
-                aPosition /
-                uResolution;
+    void main()
+    {
+        vec2 normalized =
+            aPosition /
+            uResolution;
 
-            vec2 clipPosition =
-                normalized * 2.0 - 1.0;
+        vec2 clipPosition =
+            normalized * 2.0 - 1.0;
 
-            clipPosition.y =
-                -clipPosition.y;
+        clipPosition.y =
+            -clipPosition.y;
 
-            gl_Position =
-                vec4(
-                    clipPosition,
-                    0.0,
-                    1.0);
+        gl_Position =
+            vec4(
+                clipPosition,
+                0.0,
+                1.0);
 
-            vTexCoord =
-                aTexCoord;
-        }
-        """;
+        vTexCoord = aTexCoord;
+        vTextureIndex = int(aTextureIndex);
+    }
+    """;
 
     private const string FragmentShaderSource = """
-        #version 330 core
+    #version 330 core
 
-        in vec2 vTexCoord;
+    in vec2 vTexCoord;
+    flat in int vTextureIndex;
 
-        uniform sampler2D uTexture;
+    uniform sampler2D uTextures[16];
 
-        out vec4 FragColor;
+    out vec4 FragColor;
 
-        void main()
+    void main()
+    {
+        switch (vTextureIndex)
         {
-            FragColor =
-                texture(
-                    uTexture,
-                    vTexCoord);
+            case 0: FragColor = texture(uTextures[0], vTexCoord); break;
+            case 1: FragColor = texture(uTextures[1], vTexCoord); break;
+            case 2: FragColor = texture(uTextures[2], vTexCoord); break;
+            case 3: FragColor = texture(uTextures[3], vTexCoord); break;
+            case 4: FragColor = texture(uTextures[4], vTexCoord); break;
+            case 5: FragColor = texture(uTextures[5], vTexCoord); break;
+            case 6: FragColor = texture(uTextures[6], vTexCoord); break;
+            case 7: FragColor = texture(uTextures[7], vTexCoord); break;
+            case 8: FragColor = texture(uTextures[8], vTexCoord); break;
+            case 9: FragColor = texture(uTextures[9], vTexCoord); break;
+            case 10: FragColor = texture(uTextures[10], vTexCoord); break;
+            case 11: FragColor = texture(uTextures[11], vTexCoord); break;
+            case 12: FragColor = texture(uTextures[12], vTexCoord); break;
+            case 13: FragColor = texture(uTextures[13], vTexCoord); break;
+            case 14: FragColor = texture(uTextures[14], vTexCoord); break;
+            case 15: FragColor = texture(uTextures[15], vTexCoord); break;
+
+            default: FragColor = vec4(1.0, 0.0, 1.0, 1.0); break;
         }
-        """;
+    }
+    """;
 }

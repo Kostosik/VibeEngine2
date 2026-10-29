@@ -8,6 +8,48 @@ namespace Engine.Tests.Editor;
 public sealed class EditorWorkspaceTests
 {
     [Fact]
+    public void RestoreState_WhenPanelRejectsState_PreservesPreviousWorkspaceState()
+    {
+        var workspace = new EditorWorkspace(new EditorSession());
+
+        var panel = new TestPanel("Inspector")
+        {
+            IsOpen = true
+        };
+
+        workspace.RegisterPanel(panel);
+        workspace.SetPanelArea("Inspector", EditorDockArea.Left);
+        workspace.SetPanelOrder("Inspector", 3);
+        workspace.SetPanelSize("Inspector", 240.0f);
+        workspace.SetPanelActive("Inspector", true);
+
+        var previousState = workspace.CaptureState();
+
+        panel.ThrowWhenClosed = true;
+
+        var invalidState = new EditorWorkspaceState(
+            new[]
+            {
+            new EditorPanelLayoutState(
+                "Inspector",
+                EditorDockArea.Right,
+                4,
+                400.0f,
+                false,
+                false)
+            });
+
+        Assert.Throws<IOException>(
+            () => workspace.RestoreState(invalidState));
+
+        Assert.Equal(
+            previousState.Panels,
+            workspace.CaptureState().Panels);
+
+        Assert.True(panel.IsOpen);
+    }
+
+    [Fact]
     public void SetPanelOpen_RaisesChanged()
     {
         var session =
@@ -421,9 +463,15 @@ public sealed class EditorWorkspaceTests
 
         public bool IsOpen { get; set; }
 
-        public void SetOpen(
-            bool isOpen)
+        public bool ThrowWhenClosed { get; set; }
+
+        public void SetOpen(bool isOpen)
         {
+            if (!isOpen && ThrowWhenClosed)
+            {
+                throw new IOException("Simulated panel restore failure.");
+            }
+
             IsOpen = isOpen;
         }
     }

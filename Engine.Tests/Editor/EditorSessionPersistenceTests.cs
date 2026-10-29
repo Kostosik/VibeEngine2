@@ -10,6 +10,43 @@ namespace Engine.Tests.Editor;
 public sealed class EditorSessionPersistenceTests
 {
     [Fact]
+    public void LoadSession_WhenRestoreFails_PreservesPreviouslyOpenDocuments()
+    {
+        var editor = new EditorContext();
+
+        var existingDocument = editor.OpenDocument(
+            CreateWorld(),
+            Path.GetFullPath("existing.world"));
+
+        var state = new EditorSessionState(
+            new[]
+            {
+            Path.GetFullPath("first.world"),
+            Path.GetFullPath("second.world")
+            },
+            Path.GetFullPath("first.world"));
+
+        var persistence = new TestSessionPersistence(state);
+        var files = new FailingDocumentFileService(editor);
+
+        Assert.Throws<IOException>(
+            () => editor.LoadSession(
+                persistence,
+                files,
+                "session.json"));
+
+        Assert.Single(editor.Session.Documents);
+
+        Assert.Same(
+            existingDocument,
+            editor.Session.Documents[0]);
+
+        Assert.Same(
+            existingDocument,
+            editor.ActiveDocument);
+    }
+
+    [Fact]
     public void LoadSession_WhenDocumentRestoreFails_ClearsPartiallyRestoredSession()
     {
         var editor = new EditorContext();

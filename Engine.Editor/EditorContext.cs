@@ -218,22 +218,15 @@ public sealed class EditorContext
     }
 
     public void LoadSession(
-        IEditorSessionPersistence persistence,
-        IEditorDocumentFileService files,
-        string path)
+    IEditorSessionPersistence persistence,
+    IEditorDocumentFileService files,
+    string path)
     {
-        ArgumentNullException.ThrowIfNull(
-            persistence);
+        ArgumentNullException.ThrowIfNull(persistence);
+        ArgumentNullException.ThrowIfNull(files);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        ArgumentNullException.ThrowIfNull(
-            files);
-
-        ArgumentException.ThrowIfNullOrWhiteSpace(
-            path);
-
-        var state =
-            persistence.Load(
-                path);
+        var state = persistence.Load(path);
 
         if (Session.AllDocuments.Any(
                 static document => document.IsDirty))
@@ -242,45 +235,81 @@ public sealed class EditorContext
                 "Cannot restore an editor session while dirty documents are open.");
         }
 
-        foreach (var document in Session.Documents.ToArray())
-        {
-            Session.Close(document);
-        }
+        // Сохраняем текущую сессию до начала восстановления.
+        var previousDocuments = Session.Documents.ToArray();
+        var previousActiveDocument = Session.ActiveEditorDocument;
 
-        EditorDocument? activeDocument = null;
+        var restoredDocuments = new List<EditorDocument>();
+        var restoredPaths = new HashSet<string>(GetPathComparer());
 
         try
         {
-            foreach (var documentPath in
-                     state.DocumentPaths)
+            foreach (var documentPath in state.DocumentPaths)
             {
-                var document =
-                    files.Open(
-                        documentPath);
+                ArgumentException.ThrowIfNullOrWhiteSpace(documentPath);
 
-                if (state.ActiveDocumentPath is not null &&
-                    PathsEqual(
-                        document.FilePath,
-                        state.ActiveDocumentPath))
+                var normalizedPath = Path.GetFullPath(documentPath);
+
+                if (!restoredPaths.Add(normalizedPath))
                 {
-                    activeDocument =
-                        document;
+                    throw new InvalidDataException(
+                        $"Session contains duplicate document path: '{normalizedPath}'.");
                 }
+
+                // Если документ уже открыт, используем его повторно.
+                var document = previousDocuments.FirstOrDefault(existing =>
+                    existing.FilePath is not null &&
+                    PathsEqual(existing.FilePath, normalizedPath));
+
+                document ??= files.Open(normalizedPath);
+
+                restoredDocuments.Add(document);
             }
         }
         catch
         {
+            // Удаляем только документы, появившиеся при неудачной попытке.
             foreach (var document in Session.Documents.ToArray())
             {
-                Session.Discard(document);
+                if (!previousDocuments.Contains(document))
+                {
+                    Session.Discard(document);
+                }
             }
+
+            // Возвращаем прежний активный документ.
+            if (previousActiveDocument is not null &&
+                Session.AllDocuments.Contains(previousActiveDocument))
+            {
+                Session.Activate(previousActiveDocument);
+            }
+
             throw;
         }
 
+        // Новая сессия успешно восстановлена.
+        // Теперь можно закрыть прежние документы, которые в неё не входят.
+        foreach (var document in Session.Documents.ToArray())
+        {
+            if (!restoredDocuments.Contains(document))
+            {
+                Session.Discard(document);
+            }
+        }
+
+        var activeDocument = state.ActiveDocumentPath is null
+            ? null
+            : restoredDocuments.FirstOrDefault(document =>
+                document.FilePath is not null &&
+                PathsEqual(document.FilePath, state.ActiveDocumentPath));
+
+        // Если активный путь не задан, сохраняем привычное поведение:
+        // активным становится последний восстановленный документ.
+        activeDocument ??= restoredDocuments.LastOrDefault();
+
         if (activeDocument is not null)
         {
-            Session.Activate(
-                activeDocument);
+            Session.Activate(activeDocument);
         }
     }
 

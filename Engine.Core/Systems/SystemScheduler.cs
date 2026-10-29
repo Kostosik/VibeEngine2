@@ -13,6 +13,26 @@ public sealed class SystemScheduler : IDisposable
 
     private SystemExecutionPlan<IFixedUpdateSystem>? _fixedUpdatePlan;
 
+    private readonly record struct DispatchState<TContext>(
+    SystemScheduler Scheduler,
+    TContext Context);
+
+    private static readonly Action<
+        DispatchState<SystemContext>,
+        IUpdateSystem> s_updateDispatcher =
+            static (state, system) =>
+                state.Scheduler.ExecuteUpdateSystem(
+                    system,
+                    state.Context);
+
+    private static readonly Action<
+        DispatchState<FixedSystemContext>,
+        IFixedUpdateSystem> s_fixedUpdateDispatcher =
+            static (state, system) =>
+                state.Scheduler.ExecuteFixedUpdateSystem(
+                    system,
+                    state.Context);
+
     private bool _built;
 
     public int SystemCount =>
@@ -118,10 +138,10 @@ public sealed class SystemScheduler : IDisposable
 
         _updatePlan!.Execute(
             _executionStrategy,
-            system =>
-                ExecuteUpdateSystem(
-                    system,
-                    context));
+            new DispatchState<SystemContext>(
+                this,
+                context),
+            s_updateDispatcher);
     }
 
     public void FixedUpdate(
@@ -132,10 +152,10 @@ public sealed class SystemScheduler : IDisposable
 
         _fixedUpdatePlan!.Execute(
             _executionStrategy,
-            system =>
-                ExecuteFixedUpdateSystem(
-                    system,
-                    context));
+            new DispatchState<FixedSystemContext>(
+                this,
+                context),
+            s_fixedUpdateDispatcher);
     }
 
     private void ExecuteUpdateSystem(

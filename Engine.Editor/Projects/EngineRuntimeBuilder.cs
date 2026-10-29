@@ -5,8 +5,8 @@ namespace Engine.Editor.Projects;
 
 public static class EngineRuntimeBuilder
 {
-    private static readonly string[] s_sourceProjectPaths =
-    {
+        private static readonly string[] s_sourceProjectPaths =
+        {
         Path.Combine(
             "Engine.Hosting.Desktop",
             "Engine.Hosting.Desktop.csproj"),
@@ -14,29 +14,72 @@ public static class EngineRuntimeBuilder
         Path.Combine(
             "Engine.Serialization",
             "Engine.Serialization.csproj"),
+
         Path.Combine(
-    "Engine.Networking.Replication",
-    "Engine.Networking.Replication.csproj"),
+            "Engine.Networking.Replication",
+            "Engine.Networking.Replication.csproj"),
+
         Path.Combine(
             "Engine.Input.SilkNet",
-            "Engine.Input.SilkNet.csproj")
-    };
+            "Engine.Input.SilkNet.csproj"),
 
-    private static readonly string[] s_requiredAssemblies =
-    {
-        "Engine.Hosting.Desktop.dll",
-        "Engine.Runtime.dll",
-        "Engine.Graphics.OpenGL.dll",
+        Path.Combine(
+            "Engine.Hosting",
+            "Engine.Hosting.csproj"),
+
+        Path.Combine(
+            "Engine.Localization",
+            "Engine.Localization.csproj"),
+
+        Path.Combine(
+            "Engine.Navigation",
+            "Engine.Navigation.csproj"),
+        Path.Combine(
+            "Engine.Hosting",
+            "Engine.Hosting.csproj"),
+
+        Path.Combine(
+            "Engine.Localization",
+            "Engine.Localization.csproj"),
+
+        Path.Combine(
+            "Engine.Navigation",
+            "Engine.Navigation.csproj")
+        };
+
+        private static readonly string[] s_requiredAssemblies =
+        {
+        "Engine.Animation.dll",
         "Engine.Audio.OpenAL.dll",
-        "Engine.Serialization.dll",
+        "Engine.Audio.dll",
+        "Engine.Camera.dll",
+        "Engine.Content.dll",
+        "Engine.Core.dll",
+        "Engine.ECS.dll",
         "Engine.Graphics2D.dll",
+        "Engine.Graphics.OpenGL.dll",
+        "Engine.Graphics.dll",
+        "Engine.Hosting.Desktop.dll",
+        "Engine.Hosting.dll",
         "Engine.Input.SilkNet.dll",
-            "Engine.Networking.dll",
-            "Engine.Serialization.dll",
-"Engine.UI.dll",
-"Engine.Graphics2D.dll",
-"Engine.Networking.Replication.dll"
-    };
+        "Engine.Input.dll",
+        "Engine.Jobs.dll",
+        "Engine.Localization.dll",
+        "Engine.Memory.dll",
+        "Engine.Navigation.dll",
+        "Engine.Networking.Replication.dll",
+        "Engine.Networking.dll",
+        "Engine.Particles.dll",
+        "Engine.Physics.dll",
+        "Engine.Runtime.dll",
+        "Engine.Scripting.dll",
+        "Engine.Serialization.dll",
+        "Engine.Simulations.dll",
+        "Engine.Tooling.dll",
+        "Engine.Transform.dll",
+        "Engine.UI.dll",
+        "Engine.Worlds.dll"
+        };
 
     public static IReadOnlyList<string> SourceProjectPaths { get; } =
         Array.AsReadOnly(s_sourceProjectPaths);

@@ -931,7 +931,7 @@ public sealed class GameProjectRunnerBuildTests
 
             if (Directory.Exists(root))
             {
-                Directory.Delete(root, recursive: true);
+                await ProcessTestCleanup.DeleteDirectoryWithRetryAsync(root);
             }
         }
     }

@@ -9,7 +9,7 @@ namespace Engine.Tests.Editor;
 public sealed class DotnetWatchHotReloadTests
 {
     [Fact]
-    public void DotnetWatch_AppliesMethodBodyChange_WithoutRestartingApp()
+    public async Task DotnetWatch_AppliesMethodBodyChange_WithoutRestartingApp()
     {
         var root = Path.Combine(
             Path.GetTempPath(),
@@ -18,6 +18,25 @@ public sealed class DotnetWatchHotReloadTests
         Directory.CreateDirectory(root);
 
         Process? watcher = null;
+
+        var appProcesses = new Dictionary<int, Process>();
+
+        void TrackApp(int pid)
+        {
+            if (appProcesses.ContainsKey(pid))
+            {
+                return;
+            }
+
+            try
+            {
+                appProcesses.Add(pid, Process.GetProcessById(pid));
+            }
+            catch (ArgumentException)
+            {
+                // Процесс уже завершился.
+            }
+        }
 
         try
         {
@@ -107,6 +126,7 @@ public sealed class DotnetWatchHotReloadTests
                 TimeSpan.FromSeconds(90));
 
             var originalPid = ExtractPid(firstRun);
+            TrackApp(originalPid);
             var originalIteration = ExtractWatchIteration(firstRun);
 
             // Дожидаемся готовности наблюдателя к изменениям.
@@ -127,7 +147,7 @@ public sealed class DotnetWatchHotReloadTests
                 TimeSpan.FromSeconds(60));
 
             var updatedPid = ExtractPid(updatedRun);
-
+            TrackApp(updatedPid);
             // Hot Reload должен сохранить процесс игры.
             Assert.Equal(originalPid, updatedPid);
 
@@ -161,7 +181,7 @@ public sealed class DotnetWatchHotReloadTests
                 output,
                 "HOTRELOAD_VERSION=V3",
                 TimeSpan.FromSeconds(60));
-
+            TrackApp(ExtractPid(recoveredRun));
             Assert.Equal(
     originalIteration,
     ExtractWatchIteration(recoveredRun));
@@ -209,9 +229,27 @@ public sealed class DotnetWatchHotReloadTests
                 }
             }
 
+            foreach (var app in appProcesses.Values)
+            {
+                try
+                {
+                    if (!app.HasExited)
+                    {
+                        app.Kill(entireProcessTree: true);
+                    }
+
+                    await app.WaitForExitAsync()
+                        .WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                finally
+                {
+                    app.Dispose();
+                }
+            }
+
             if (Directory.Exists(root))
             {
-                Directory.Delete(root, recursive: true);
+                await ProcessTestCleanup.DeleteDirectoryWithRetryAsync(root);
             }
         }
     }

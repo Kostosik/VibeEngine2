@@ -27,7 +27,7 @@ public sealed class PhysicsSystem2D :
     private readonly List<PhysicsColliderProxy> _colliders = new();
     private readonly List<CollisionPair> _pairs = new();
     private readonly List<CollisionManifold> _manifolds = new();
-
+    private readonly List<CollisionManifold> _solverManifolds = new();
     private readonly Dictionary<
         CollisionPair,
         ContactState> _previousContacts = new();
@@ -37,7 +37,8 @@ public sealed class PhysicsSystem2D :
         ContactState> _currentContacts = new();
 
     private readonly List<PhysicsContactEvent> _contactEvents = new();
-
+    private readonly List<CollisionPair> _currentContactPairs = new();
+    private readonly List<CollisionPair> _exitedContactPairs = new();
     public PhysicsSystem2D(
         World world,
         PhysicsSettings2D settings,
@@ -54,7 +55,7 @@ public sealed class PhysicsSystem2D :
 
         _broadPhase =
             broadPhase ??
-            new BruteForceBroadPhase();
+            new SpatialHashBroadPhase(Fixed32.One);
 
         _detector =
             new CollisionDetector2D();
@@ -89,20 +90,21 @@ public sealed class PhysicsSystem2D :
                 substepDelta,
                 context.Time.Tick);
 
+        var contactsValid = false;
+
         for (var step = 0;
              step < substeps;
              step++)
         {
             SimulateSubstep(
-                substepTime);
+                substepTime,
+                ref contactsValid);
         }
 
         ApplyDamping(
             context.Time.Delta);
 
         SolveJointVelocities();
-
-        BuildCurrentContactState();
 
         PublishContactEvents();
 
@@ -113,39 +115,57 @@ public sealed class PhysicsSystem2D :
     }
 
     private void SimulateSubstep(
-    SimulationTime time)
+        SimulationTime time,
+        ref bool contactsValid)
     {
-        Integrate(
-            time);
+        var transformsChanged = Integrate(time);
 
-        DetectContacts();
+        if (transformsChanged || !contactsValid)
+        {
+            DetectContacts();
+            contactsValid = true;
+        }
 
         WakeSleepingBodies();
 
-        SolvePositions();
+        if (SolvePositions())
+        {
+            DetectContacts();
+            contactsValid = true;
+        }
 
-        SolveJointPositions();
-
-        DetectContacts();
+        if (SolveJointPositions())
+        {
+            DetectContacts();
+            contactsValid = true;
+        }
 
         SolveVelocities();
     }
 
-    private void SolveJointPositions()
+    private bool SolveJointPositions()
     {
+        var jointsMayHaveChanged = false;
+
         for (var iteration = 0;
              iteration < _settings.PositionIterations;
              iteration++)
         {
-            foreach (var item
-                     in _world.Query<DistanceJoint2D>())
+            foreach (var item in _world.Query<DistanceJoint2D>())
             {
+                if (item.Component.Enabled)
+                {
+                    jointsMayHaveChanged = true;
+                }
+
                 _jointSolver.SolvePosition(
                     _world,
                     item.Component,
                     _settings.PositionCorrectionPercent);
             }
         }
+
+        return jointsMayHaveChanged;
     }
 
     private void SolveJointVelocities()
@@ -224,7 +244,7 @@ public sealed class PhysicsSystem2D :
 
     private void WakeSleepingBodies()
     {
-        foreach (var manifold in _manifolds)
+        foreach (var manifold in _solverManifolds)
         {
             WakeBodyFromContact(
                 manifold.Pair.First,
@@ -300,63 +320,58 @@ public sealed class PhysicsSystem2D :
         _contactEvents.Clear();
     }
 
-    private void Integrate(
+    private bool Integrate(
         SimulationTime time)
     {
-        var delta =
-            time.Delta;
+        var delta = time.Delta;
+        var transformsChanged = false;
 
-        foreach (var item
-                 in _world.Query<PhysicsBody2D>())
+        foreach (var item in _world.Query<PhysicsBody2D>())
         {
-            ref var body =
-                ref item.Component;
+            ref var body = ref item.Component;
 
-            if (body.BodyType ==
-                PhysicsBodyType.Static)
+            if (body.BodyType == PhysicsBodyType.Static)
             {
                 continue;
             }
 
-            if (body.BodyType == PhysicsBodyType.Dynamic && body.IsSleeping)
+            if (body.BodyType == PhysicsBodyType.Dynamic &&
+                body.IsSleeping)
             {
                 continue;
             }
 
             ref var transform =
-                ref _world.Get<WorldTransform2D>(
-                    item.Entity);
+                ref _world.Get<WorldTransform2D>(item.Entity);
 
-            if (body.BodyType ==
-                PhysicsBodyType.Dynamic)
+            if (body.BodyType == PhysicsBodyType.Dynamic)
             {
                 var gravity =
-                    _settings.Gravity *
-                    body.GravityScale;
+                    _settings.Gravity * body.GravityScale;
 
                 var acceleration =
-                    gravity +
-                    body.Force *
-                    body.InverseMass;
+                    gravity + body.Force * body.InverseMass;
 
-                body.Velocity +=
-                    acceleration *
-                    delta;
+                body.Velocity += acceleration * delta;
 
                 body.AngularVelocity +=
-                    body.Torque *
-                    body.InverseInertia *
-                    delta;
+                    body.Torque * body.InverseInertia * delta;
             }
 
-            transform.Position +=
-                body.Velocity *
-                delta;
+            var positionDelta = body.Velocity * delta;
+            var rotationDelta = body.AngularVelocity * delta;
 
-            transform.Rotation +=
-                body.AngularVelocity *
-                delta;
+            if (positionDelta != FixedVector2.Zero ||
+                rotationDelta != Fixed32.Zero)
+            {
+                transformsChanged = true;
+            }
+
+            transform.Position += positionDelta;
+            transform.Rotation += rotationDelta;
         }
+
+        return transformsChanged;
     }
 
     private void ApplyDamping(
@@ -408,7 +423,8 @@ public sealed class PhysicsSystem2D :
         _colliders.Clear();
         _pairs.Clear();
         _manifolds.Clear();
-
+        _currentContacts.Clear();
+        _solverManifolds.Clear();
         CollectColliders();
 
         _broadPhase.FindPairs(
@@ -445,83 +461,6 @@ public sealed class PhysicsSystem2D :
                 continue;
             }
 
-            if (first.Value.Collider.IsTrigger ||
-                second.Value.Collider.IsTrigger)
-            {
-                continue;
-            }
-
-            _manifolds.Add(
-                manifold);
-        }
-    }
-
-    private void SolvePositions()
-    {
-        for (var iteration = 0;
-             iteration < _settings.PositionIterations;
-             iteration++)
-        {
-            foreach (var manifold in _manifolds)
-            {
-                _resolver.ResolvePosition(
-                    _world,
-                    manifold,
-                    _settings.PenetrationSlop,
-                    _settings.PositionCorrectionPercent);
-            }
-
-            if (iteration + 1 <
-                _settings.PositionIterations)
-            {
-                DetectContacts();
-            }
-        }
-    }
-
-    private void SolveVelocities()
-    {
-        for (var iteration = 0;
-             iteration < _settings.VelocityIterations;
-             iteration++)
-        {
-            foreach (var manifold in _manifolds)
-            {
-                _resolver.ResolveVelocity(
-                    _world,
-                    manifold);
-            }
-        }
-    }
-
-    private void BuildCurrentContactState()
-    {
-        _currentContacts.Clear();
-
-        foreach (var pair in _pairs)
-        {
-            var first =
-                FindCollider(
-                    pair.First);
-
-            var second =
-                FindCollider(
-                    pair.Second);
-
-            if (first is null ||
-                second is null)
-            {
-                continue;
-            }
-
-            if (!_detector.TryDetect(
-                    first.Value,
-                    second.Value,
-                    out var manifold))
-            {
-                continue;
-            }
-
             var type =
                 first.Value.Collider.IsTrigger ||
                 second.Value.Collider.IsTrigger
@@ -532,6 +471,81 @@ public sealed class PhysicsSystem2D :
                 new ContactState(
                     type,
                     manifold);
+
+            if (type == PhysicsContactType.Trigger)
+            {
+                continue;
+            }
+
+            _manifolds.Add(manifold);
+
+            ref var firstBody =
+                ref _world.Get<PhysicsBody2D>(
+                    pair.First);
+
+            ref var secondBody =
+                ref _world.Get<PhysicsBody2D>(
+                    pair.Second);
+
+            if (firstBody.InverseMass > Fixed32.Zero ||
+                secondBody.InverseMass > Fixed32.Zero)
+            {
+                _solverManifolds.Add(manifold);
+            }
+        }
+    }
+
+    private bool SolvePositions()
+    {
+        var contactsNeedRefresh = false;
+
+        for (var iteration = 0;
+             iteration < _settings.PositionIterations;
+             iteration++)
+        {
+            var positionsChanged = false;
+
+            foreach (var manifold in _solverManifolds)
+            {
+                if (_resolver.TryResolvePosition(
+                        _world,
+                        manifold,
+                        _settings.PenetrationSlop,
+                        _settings.PositionCorrectionPercent))
+                {
+                    positionsChanged = true;
+                    contactsNeedRefresh = true;
+                }
+            }
+
+            if (!positionsChanged)
+            {
+                break;
+            }
+
+            if (iteration + 1 <
+                _settings.PositionIterations)
+            {
+                DetectContacts();
+                contactsNeedRefresh = false;
+            }
+        }
+
+        return contactsNeedRefresh;
+    }
+
+    private void SolveVelocities()
+    {
+        for (var iteration = 0;
+             iteration < _settings.VelocityIterations;
+             iteration++)
+        {
+            foreach (var manifold in _solverManifolds)
+            {
+                _resolver.ResolveVelocity(
+                    _world,
+                    manifold);
+            }
         }
     }
 
@@ -539,13 +553,16 @@ public sealed class PhysicsSystem2D :
     {
         _contactEvents.Clear();
 
-        var currentPairs =
-            _currentContacts.Keys.ToList();
+        _currentContactPairs.Clear();
 
-        SortPairs(
-            currentPairs);
+        foreach (var pair in _currentContacts.Keys)
+        {
+            _currentContactPairs.Add(pair);
+        }
 
-        foreach (var pair in currentPairs)
+        SortPairs(_currentContactPairs);
+
+        foreach (var pair in _currentContactPairs)
         {
             var current =
                 _currentContacts[pair];
@@ -587,18 +604,19 @@ public sealed class PhysicsSystem2D :
                     current.Manifold));
         }
 
-        var exitedPairs =
-            _previousContacts.Keys
-                .Where(
-                    pair =>
-                        !_currentContacts.ContainsKey(
-                            pair))
-                .ToList();
+        _exitedContactPairs.Clear();
 
-        SortPairs(
-            exitedPairs);
+        foreach (var pair in _previousContacts.Keys)
+        {
+            if (!_currentContacts.ContainsKey(pair))
+            {
+                _exitedContactPairs.Add(pair);
+            }
+        }
 
-        foreach (var pair in exitedPairs)
+        SortPairs(_exitedContactPairs);
+
+        foreach (var pair in _exitedContactPairs)
         {
             var previous =
                 _previousContacts[pair];
@@ -623,11 +641,12 @@ public sealed class PhysicsSystem2D :
     private void Publish(
         PhysicsContactEvent @event)
     {
-        _contactEvents.Add(
-            @event);
+        _contactEvents.Add(@event);
 
-        _events.Publish(
-            @event);
+        if (_events.HasSubscribers<PhysicsContactEvent>())
+        {
+            _events.Publish(@event);
+        }
     }
 
     private void CollectColliders()
@@ -695,10 +714,36 @@ public sealed class PhysicsSystem2D :
     private PhysicsColliderProxy? FindCollider(
         EntityId entity)
     {
-        foreach (var collider in _colliders)
+        var low = 0;
+        var high = _colliders.Count - 1;
+
+        while (low <= high)
         {
-            if (collider.Entity == entity)
-                return collider;
+            var middle =
+                low + ((high - low) >> 1);
+
+            var candidate =
+                _colliders[middle];
+
+            var comparison =
+                candidate.Entity.Index.CompareTo(
+                    entity.Index);
+
+            if (comparison == 0)
+            {
+                return candidate.Entity == entity
+                    ? candidate
+                    : null;
+            }
+
+            if (comparison < 0)
+            {
+                low = middle + 1;
+            }
+            else
+            {
+                high = middle - 1;
+            }
         }
 
         return null;

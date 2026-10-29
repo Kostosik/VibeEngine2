@@ -15,62 +15,61 @@ public sealed class CollisionResolver2D
         Fixed32 penetrationSlop,
         Fixed32 correctionPercent)
     {
-        var firstEntity =
-            manifold.Pair.First;
+        TryResolvePosition(
+            world,
+            manifold,
+            penetrationSlop,
+            correctionPercent);
+    }
 
-        var secondEntity =
-            manifold.Pair.Second;
+    public bool TryResolvePosition(
+    World world,
+    CollisionManifold manifold,
+    Fixed32 penetrationSlop,
+    Fixed32 correctionPercent)
+    {
+        var firstEntity = manifold.Pair.First;
+        var secondEntity = manifold.Pair.Second;
 
         if (!world.Exists(firstEntity) ||
             !world.Exists(secondEntity))
         {
-            return;
+            return false;
         }
 
         ref var firstBody =
-            ref world.Get<PhysicsBody2D>(
-                firstEntity);
+            ref world.Get<PhysicsBody2D>(firstEntity);
 
         ref var secondBody =
-            ref world.Get<PhysicsBody2D>(
-                secondEntity);
+            ref world.Get<PhysicsBody2D>(secondEntity);
 
-        ref var firstTransform =
-            ref world.Get<WorldTransform2D>(
-                firstEntity);
-
-        ref var secondTransform =
-            ref world.Get<WorldTransform2D>(
-                secondEntity);
-
-        var firstInverseMass =
-            firstBody.InverseMass;
-
-        var secondInverseMass =
-            secondBody.InverseMass;
+        var firstInverseMass = firstBody.InverseMass;
+        var secondInverseMass = secondBody.InverseMass;
 
         var inverseMassSum =
-            firstInverseMass +
-            secondInverseMass;
+            firstInverseMass + secondInverseMass;
 
         if (inverseMassSum == Fixed32.Zero)
         {
-            return;
+            return false;
         }
 
+        ref var firstTransform =
+            ref world.Get<WorldTransform2D>(firstEntity);
+
+        ref var secondTransform =
+            ref world.Get<WorldTransform2D>(secondEntity);
+
         var error =
-            manifold.Contact.Penetration -
-            penetrationSlop;
+            manifold.Contact.Penetration - penetrationSlop;
 
         if (error <= Fixed32.Zero)
         {
-            return;
+            return false;
         }
 
         var correction =
-            error *
-            correctionPercent /
-            inverseMassSum;
+            error * correctionPercent / inverseMassSum;
 
         var firstCorrection =
             manifold.Contact.Normal *
@@ -80,11 +79,16 @@ public sealed class CollisionResolver2D
             manifold.Contact.Normal *
             (correction * secondInverseMass);
 
-        firstTransform.Position -=
-            firstCorrection;
+        if (firstCorrection == FixedVector2.Zero &&
+            secondCorrection == FixedVector2.Zero)
+        {
+            return false;
+        }
 
-        secondTransform.Position +=
-            secondCorrection;
+        firstTransform.Position -= firstCorrection;
+        secondTransform.Position += secondCorrection;
+
+        return true;
     }
 
     public void ResolveVelocity(
@@ -131,6 +135,14 @@ public sealed class CollisionResolver2D
         var secondInverseInertia =
             secondBody.InverseInertia;
 
+        if (firstInverseMass == Fixed32.Zero &&
+    secondInverseMass == Fixed32.Zero &&
+    firstInverseInertia == Fixed32.Zero &&
+    secondInverseInertia == Fixed32.Zero)
+        {
+            return;
+        }
+
         var normal =
             manifold.Contact.Normal;
 
@@ -162,6 +174,11 @@ public sealed class CollisionResolver2D
             relativeVelocity.Dot(
                 normal);
 
+        if (velocityAlongNormal >= Fixed32.Zero)
+        {
+            return;
+        }
+
         var firstShape =
             world.Get<Collider2D>(
                 firstEntity)
@@ -179,11 +196,6 @@ public sealed class CollisionResolver2D
              secondShape == PhysicsShapeType.Aabb) ||
             (firstShape == PhysicsShapeType.Aabb &&
              secondShape == PhysicsShapeType.Circle);
-
-        if (velocityAlongNormal > Fixed32.Zero)
-        {
-            return;
-        }
 
         var firstRadiusCrossNormal =
             Cross(

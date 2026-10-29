@@ -10,6 +10,62 @@ using Engine.Jobs.Jobs;
 using Engine.Jobs.Scheduling;
 using System.Diagnostics;
 
+var benchmarkOptionIndex = Array.FindIndex(
+    args,
+    static arg => string.Equals(
+        arg,
+        "--benchmark",
+        StringComparison.OrdinalIgnoreCase));
+
+if (benchmarkOptionIndex >= 0)
+{
+    if (benchmarkOptionIndex + 1 >= args.Length)
+    {
+        Console.Error.WriteLine(
+            "Usage: --benchmark <all|physics|graphics|runtime|list>");
+
+        Environment.ExitCode = 2;
+        return;
+    }
+
+    var benchmarkName = args[benchmarkOptionIndex + 1];
+
+    switch (benchmarkName.ToLowerInvariant())
+    {
+        case "tilemap":
+            Engine.Benchmarks.TilemapRenderingBenchmark.Run();
+            return;
+        case "physics":
+            Engine.Benchmarks.PhysicsBroadPhaseBenchmark.Run();
+            Engine.Benchmarks.PhysicsSystemBenchmark.Run();
+            return;
+
+        case "graphics":
+            Engine.Benchmarks.GraphicsWindowBenchmark.Run();
+            return;
+
+        case "runtime":
+            Engine.Benchmarks.EngineRuntimeGameBenchmark.Run();
+            return;
+
+        case "all":
+            // Продолжаем обычный запуск полного baseline.
+            break;
+
+        case "list":
+            Console.WriteLine(
+                "Available benchmarks: all, physics, graphics, runtime");
+            return;
+
+        default:
+            Console.Error.WriteLine(
+                $"Unknown benchmark: {benchmarkName}");
+
+            Environment.ExitCode = 2;
+            return;
+    }
+}
+
 if (args.Any(
         static arg => string.Equals(
             arg,

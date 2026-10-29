@@ -11,6 +11,15 @@ public sealed class EventBus : IDisposable
     public int PendingCount =>
         _events.Count;
 
+    public bool HasSubscribers<TEvent>()
+    where TEvent : IEvent
+    {
+        return _handlers.TryGetValue(
+                   typeof(TEvent),
+                   out var handlers) &&
+               handlers.Count > 0;
+    }
+
     public EventSubscription Subscribe<TEvent>(
         Action<TEvent> handler)
         where TEvent : IEvent

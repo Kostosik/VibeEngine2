@@ -11,7 +11,7 @@ public sealed class SpatialHashBroadPhase :
     private readonly Dictionary<
         GridCell,
         List<int>> _cells = new();
-
+    private readonly Stack<List<int>> _cellListPool = new();
     private readonly HashSet<CollisionPair>
         _candidatePairs = new();
 
@@ -40,6 +40,13 @@ public sealed class SpatialHashBroadPhase :
         ArgumentNullException.ThrowIfNull(pairs);
 
         pairs.Clear();
+
+        foreach (var indices in _cells.Values)
+        {
+            indices.Clear();
+            _cellListPool.Push(indices);
+        }
+
         _cells.Clear();
         _candidatePairs.Clear();
 
@@ -168,8 +175,11 @@ public sealed class SpatialHashBroadPhase :
                         cell,
                         out var indices))
                 {
-                    indices =
-                        new List<int>();
+                    indices = _cellListPool.Count > 0
+                        ? _cellListPool.Pop()
+                        : new List<int>();
+
+                    indices.Clear();
 
                     _cells.Add(
                         cell,

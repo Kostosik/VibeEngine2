@@ -215,7 +215,12 @@ public sealed class GameProjectRunner : IDisposable
                 }
 
                 _output.Enqueue(
-                    new GameProjectOutput(false, args.Data));
+                    new GameProjectOutput(
+                        IsErrorOutput(
+                            args.Data,
+                            mode,
+                            isStandardError: false),
+                        args.Data));
             }
         };
 
@@ -234,7 +239,12 @@ public sealed class GameProjectRunner : IDisposable
                 }
 
                 _output.Enqueue(
-                    new GameProjectOutput(false, args.Data));
+                    new GameProjectOutput(
+                        IsErrorOutput(
+                            args.Data,
+                            mode,
+                            isStandardError: true),
+                        args.Data));
             }
         };
 
@@ -315,11 +325,12 @@ public sealed class GameProjectRunner : IDisposable
 
     private static bool IsErrorOutput(
     string message,
-    GameProjectRunMode mode)
+    GameProjectRunMode mode,
+    bool isStandardError)
     {
-        if (mode == GameProjectRunMode.Standard)
+        if (mode == GameProjectRunMode.Standard &&
+            isStandardError)
         {
-            // Сохраняем существующее поведение обычного запуска.
             return true;
         }
 

@@ -1108,10 +1108,10 @@ public sealed class EditorConsolePanel : UiPanel
             var color =
                 GetLevelColor(message.Level);
 
-            var text =
-                message.Message
-                    .Replace("\r\n", "\n")
-                    .Replace('\r', '\n');
+            var text = EditorConsoleMessageFormatter
+                .FormatText(message)
+                .Replace("\r\n", "\n")
+                .Replace('\r', '\n');
 
             var logicalLines =
                 text.Split('\n');

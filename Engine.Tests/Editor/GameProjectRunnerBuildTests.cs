@@ -6,6 +6,298 @@ namespace Engine.Tests.Editor;
 public sealed class GameProjectRunnerBuildTests
 {
     [Fact]
+    public void Start_RuntimeException_ReportsExceptionAndStackTrace()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"VibeEngineRunnerRuntimeFailure-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            const string projectName = "RuntimeFailureProbe";
+
+            var projectPath = Path.Combine(
+                root,
+                $"{projectName}.csproj");
+
+            var manifestPath = Path.Combine(
+                root,
+                $"{projectName}.vibeproject");
+
+            var sourcePath = Path.Combine(
+                root,
+                "Program.cs");
+
+            File.WriteAllText(
+                projectPath,
+                """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <TargetFramework>net8.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+                <NuGetAudit>false</NuGetAudit>
+                <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+              </PropertyGroup>
+            </Project>
+            """);
+
+            File.WriteAllText(
+                manifestPath,
+                $$"""
+            {
+              "formatVersion": 1,
+              "name": "{{projectName}}",
+              "startupProject": "{{projectName}}.csproj",
+              "startupScene": null
+            }
+            """);
+
+            File.WriteAllText(
+                sourcePath,
+                """
+            throw new InvalidOperationException(
+                "RUNTIME_PROBE_FAILURE");
+            """);
+
+            var project = GameProject.Open(manifestPath);
+
+            using var runner = new GameProjectRunner();
+
+            runner.Start(project);
+
+            var output = DrainUntil(
+                runner,
+                outputs =>
+                    outputs.Any(item =>
+                        item.Message.Contains(
+                            "RUNTIME_PROBE_FAILURE",
+                            StringComparison.Ordinal))
+                    &&
+                    outputs.Any(item =>
+                        item.Message.StartsWith(
+                            "Game process exited with code ",
+                            StringComparison.Ordinal)));
+
+            Assert.Contains(
+                output,
+                item => item.IsError &&
+                    item.Message.Contains(
+                        "RUNTIME_PROBE_FAILURE",
+                        StringComparison.Ordinal));
+
+            Assert.Contains(
+                output,
+                item => item.IsError &&
+                    item.Message.Contains(
+                        "Program.cs",
+                        StringComparison.Ordinal));
+
+            Assert.Contains(
+                output,
+                item => item.IsError &&
+                    item.Message.StartsWith(
+                        "Game process exited with code ",
+                        StringComparison.Ordinal));
+
+            // Исправляем игру после runtime-аварии.
+            File.WriteAllText(
+                sourcePath,
+                """
+    Console.WriteLine("RUNTIME_RECOVERY_SUCCESS");
+    """);
+
+            runner.Start(project);
+
+            var recoveredRun = DrainUntil(
+                runner,
+                outputs =>
+                    outputs.Any(item =>
+                        item.Message.Contains(
+                            "RUNTIME_RECOVERY_SUCCESS",
+                            StringComparison.Ordinal))
+                    &&
+                    outputs.Any(item =>
+                        item.Message == "Game process exited with code 0."));
+
+            Assert.Contains(
+                recoveredRun,
+                item => !item.IsError &&
+                    item.Message.Contains(
+                        "RUNTIME_RECOVERY_SUCCESS",
+                        StringComparison.Ordinal));
+
+            Assert.Contains(
+                recoveredRun,
+                item => !item.IsError &&
+                    item.Message == "Game process exited with code 0.");
+
+            Assert.False(runner.IsRunning);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void SessionManager_RuntimeFailure_ReportsErrorAndAllowsNewSession()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"VibeEngineSessionRuntimeFailure-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            const string projectName = "RuntimeFailureProbe";
+
+            var projectPath = Path.Combine(
+                root,
+                $"{projectName}.csproj");
+
+            var manifestPath = Path.Combine(
+                root,
+                $"{projectName}.vibeproject");
+
+            var sourcePath = Path.Combine(root, "Program.cs");
+
+            File.WriteAllText(
+                projectPath,
+                """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <OutputType>Exe</OutputType>
+                    <TargetFramework>net8.0</TargetFramework>
+                    <ImplicitUsings>enable</ImplicitUsings>
+                    <Nullable>enable</Nullable>
+                    <NuGetAudit>false</NuGetAudit>
+                    <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+                  </PropertyGroup>
+                </Project>
+                """);
+
+            File.WriteAllText(
+                manifestPath,
+                $$"""
+            {
+              "formatVersion": 1,
+              "name": "{{projectName}}",
+              "startupProject": "{{projectName}}.csproj",
+              "startupScene": null
+            }
+            """);
+
+            File.WriteAllText(
+                sourcePath,
+                """
+            throw new InvalidOperationException(
+                "SESSION_RUNTIME_PROBE_FAILURE");
+            """);
+
+            var project = GameProject.Open(manifestPath);
+
+            using var manager = new GameProjectSessionManager();
+
+            var failedSessionId = manager.Start(
+                project,
+                "RuntimeFailureSession");
+
+            var failedOutput = DrainUntil(
+                manager,
+                outputs =>
+                    outputs.Any(output =>
+                        output.SessionId == failedSessionId &&
+                        output.IsError &&
+                        output.Message.Contains(
+                            "SESSION_RUNTIME_PROBE_FAILURE",
+                            StringComparison.Ordinal))
+                    &&
+                    outputs.Any(output =>
+                        output.SessionId == failedSessionId &&
+                        output.IsError &&
+                        output.Message.Contains(
+                            "Program.cs",
+                            StringComparison.Ordinal))
+                    &&
+                    outputs.Any(output =>
+                        output.SessionId == failedSessionId &&
+                        output.Message.StartsWith(
+                            "Game process exited with code ",
+                            StringComparison.Ordinal)));
+
+            Assert.Contains(
+                failedOutput,
+                output => output.SessionId == failedSessionId &&
+                    output.IsError &&
+                    output.Message.Contains(
+                        "SESSION_RUNTIME_PROBE_FAILURE",
+                        StringComparison.Ordinal));
+
+            Assert.Contains(
+                failedOutput,
+                output => output.SessionId == failedSessionId &&
+                    output.IsError &&
+                    output.Message.Contains(
+                        "Program.cs",
+                        StringComparison.Ordinal));
+
+            // Исправляем исходный код и создаём новую сессию.
+            File.WriteAllText(
+                sourcePath,
+                """
+            Console.WriteLine("SESSION_RUNTIME_RECOVERY_SUCCESS");
+            """);
+
+            var recoveredSessionId = manager.Start(
+                project,
+                "RuntimeFailureSession");
+
+            var recoveredOutput = DrainUntil(
+                manager,
+                outputs =>
+                    outputs.Any(output =>
+                        output.SessionId == recoveredSessionId &&
+                        output.Message.Contains(
+                            "SESSION_RUNTIME_RECOVERY_SUCCESS",
+                            StringComparison.Ordinal))
+                    &&
+                    outputs.Any(output =>
+                        output.SessionId == recoveredSessionId &&
+                        output.Message ==
+                            "Game process exited with code 0."));
+
+            Assert.Contains(
+                recoveredOutput,
+                output => output.SessionId == recoveredSessionId &&
+                    !output.IsError &&
+                    output.Message.Contains(
+                        "SESSION_RUNTIME_RECOVERY_SUCCESS",
+                        StringComparison.Ordinal));
+
+            Assert.Contains(
+                recoveredOutput,
+                output => output.SessionId == recoveredSessionId &&
+                    !output.IsError &&
+                    output.Message == "Game process exited with code 0.");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void Start_ShortLivedGame_ReportsExitAndRemovesInactiveSession()
     {
         var root = Path.Combine(
@@ -1208,6 +1500,8 @@ public sealed class GameProjectRunnerBuildTests
                 output => !output.IsError &&
                     output.Message.Contains("BUILD_PROBE_V1"));
 
+
+
             runner.Stop();
 
             // Имитируем ошибку в исходнике.
@@ -1239,6 +1533,13 @@ public sealed class GameProjectRunnerBuildTests
                 output => output.Message.Contains(
                     "Game process exited with code 1.",
                     StringComparison.Ordinal));
+
+            Assert.Contains(
+    failedBuild,
+    output => output.IsError &&
+        output.Message.Contains(
+            "CS",
+            StringComparison.Ordinal));
 
             Assert.Contains(
                 failedBuild,

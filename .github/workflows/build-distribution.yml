@@ -87,7 +87,6 @@ jobs:
                 ".\Engine.Serialization\Engine.Serialization.csproj"
                 ".\Engine.Input.SilkNet\Engine.Input.SilkNet.csproj"
               ".\Engine.Networking.Replication\Engine.Networking.Replication.csproj"
-                ".\Engine.Networking.Replication\Engine.Networking.Replication.csproj"
                 ".\Engine.Hosting\Engine.Hosting.csproj"
                 ".\Engine.Localization\Engine.Localization.csproj"
                 ".\Engine.Navigation\Engine.Navigation.csproj"
@@ -323,7 +322,7 @@ jobs:
 
           $readme = Get-Content -LiteralPath (Join-Path $verificationRoot "README.txt") -Raw
 
-          if ($readme -notmatch "Windows x64" -or
+              $readme -notmatch '\.NET 8 Desktop Runtime \(x64\)') {
               $readme -notmatch "\.NET 8 Desktop Runtime \\(x64\\)") {
             throw "Distribution README does not document the required platform and .NET runtime."
           }

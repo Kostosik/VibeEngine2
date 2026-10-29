@@ -22,7 +22,7 @@ if (benchmarkOptionIndex >= 0)
     if (benchmarkOptionIndex + 1 >= args.Length)
     {
         Console.Error.WriteLine(
-            "Usage: --benchmark <all|physics|graphics|runtime|tilemap|transforms|list>");
+            "Usage: --benchmark <all|physics|graphics|runtime|tilemap|transforms|list|physics-queries>");
 
         Environment.ExitCode = 2;
         return;
@@ -32,6 +32,9 @@ if (benchmarkOptionIndex >= 0)
 
     switch (benchmarkName.ToLowerInvariant())
     {
+        case "physics-queries":
+            Engine.Benchmarks.PhysicsQuery2DBenchmark.Run();
+            return;
         case "transforms":
             Engine.Benchmarks.TransformHierarchyBenchmark.Run();
             return;

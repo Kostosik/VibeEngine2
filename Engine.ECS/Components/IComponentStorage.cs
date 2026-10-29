@@ -8,7 +8,7 @@ internal interface IComponentStorage :
     IDisposable
 {
     Type ComponentType { get; }
-
+    ulong WriteAccessVersion { get; }
     bool IsDeterministic { get; }
 
     ulong ChangeVersion { get; }

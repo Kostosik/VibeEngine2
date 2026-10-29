@@ -645,6 +645,18 @@ public sealed class World :
             : 0;
     }
 
+    public ulong GetWriteAccessVersion<T>()
+    where T : struct
+    {
+        EnsureNotDisposed();
+        EnsureNoActiveJobs();
+
+        return TryGetStorage<T>(
+                   out var storage)
+            ? storage.WriteAccessVersion
+            : 0;
+    }
+
     public ReadOnlySpan<EntityId> GetRemovedEntities<T>()
         where T : struct
     {

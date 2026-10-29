@@ -15,6 +15,19 @@ internal sealed class ComponentStorage<T> :
         (ulong)Volatile.Read(
             ref _changeVersion));
 
+    private long _writeAccessVersion;
+
+    public ulong WriteAccessVersion =>
+        unchecked(
+            (ulong)Volatile.Read(
+                ref _writeAccessVersion));
+
+    private void AdvanceWriteAccessVersion()
+    {
+        Interlocked.Increment(
+            ref _writeAccessVersion);
+    }
+
     private int _parallelVersionAdvanced;
     private readonly PooledList<EntityId> _entities =
         new();
@@ -55,7 +68,7 @@ internal sealed class ComponentStorage<T> :
     {
         var entity =
             _entities[index];
-
+        AdvanceWriteAccessVersion();
         MarkDirtyParallel(
             index,
             entity);
@@ -76,7 +89,7 @@ internal sealed class ComponentStorage<T> :
                 $"does not have component " +
                 $"{typeof(T).Name}.");
         }
-
+        AdvanceWriteAccessVersion();
         MarkDirtyParallel(
             index,
             entity);
@@ -148,7 +161,7 @@ internal sealed class ComponentStorage<T> :
         {
             _components[existingIndex] =
                 component;
-
+            AdvanceWriteAccessVersion();
             MarkDirty(
                 existingIndex,
                 entity);
@@ -247,6 +260,7 @@ internal sealed class ComponentStorage<T> :
 
         _changeVersion = 0;
         _deterministicOrderDirty = true;
+        AdvanceWriteAccessVersion();
     }
     public ref T Get(
         EntityId entity)
@@ -261,7 +275,7 @@ internal sealed class ComponentStorage<T> :
                 $"does not have component " +
                 $"{typeof(T).Name}.");
         }
-
+        AdvanceWriteAccessVersion();
         MarkDirty(
             index,
             entity);
@@ -324,6 +338,7 @@ internal sealed class ComponentStorage<T> :
         AdvanceChangeVersion();
         _deterministicOrderDirty =
     true;
+        AdvanceWriteAccessVersion();
         return true;
     }
 
@@ -338,7 +353,7 @@ internal sealed class ComponentStorage<T> :
     {
         var entity =
             _entities[index];
-
+        AdvanceWriteAccessVersion();
         MarkDirty(
             index,
             entity);
@@ -532,6 +547,7 @@ internal sealed class ComponentStorage<T> :
 
         _deterministicOrderDirty =
             true;
+        AdvanceWriteAccessVersion();
     }
 
     public void Dispose()

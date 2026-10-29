@@ -5,6 +5,42 @@ namespace Engine.Tests.ECS.DirtyTracking;
 public sealed class WorldDirtyTrackingTests
 {
     [Fact]
+    public void WriteAccessVersion_AdvancesOnRepeatedMutableAccess()
+    {
+        using var world = new World();
+
+        var entity = world.CreateEntity();
+
+        world.Add(
+            entity,
+            new TestComponent(10));
+
+        world.ClearDirty<TestComponent>();
+
+        var initialVersion =
+            world.GetWriteAccessVersion<TestComponent>();
+
+        ref var first =
+            ref world.Get<TestComponent>(entity);
+
+        first.Value++;
+
+        var firstVersion =
+            world.GetWriteAccessVersion<TestComponent>();
+
+        ref var second =
+            ref world.Get<TestComponent>(entity);
+
+        second.Value++;
+
+        var secondVersion =
+            world.GetWriteAccessVersion<TestComponent>();
+
+        Assert.True(firstVersion > initialVersion);
+        Assert.True(secondVersion > firstVersion);
+    }
+
+    [Fact]
     public void GetReadOnly_DoesNotMarkComponentDirty()
     {
         using var world = new World();

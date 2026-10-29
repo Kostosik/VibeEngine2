@@ -12,13 +12,14 @@ namespace Engine.Physics.Queries;
 public sealed class PhysicsQuery2D
 {
     private readonly World _world;
-
+    private readonly PhysicsQuerySpatialIndex2D _spatialIndex;
     public PhysicsQuery2D(
         World world)
     {
         ArgumentNullException.ThrowIfNull(world);
 
         _world = world;
+        _spatialIndex = new PhysicsQuerySpatialIndex2D(world);
     }
 
     public bool Raycast(
@@ -58,12 +59,12 @@ public sealed class PhysicsQuery2D
         hit = default;
 
         foreach (var item
-                 in _world.Query<Collider2D>())
+                 in _world.QueryReadOnly<Collider2D>())
         {
             var entity =
                 item.Entity;
 
-            ref var collider =
+            ref readonly var collider =
                 ref item.Component;
 
             if (!collider.Enabled)
@@ -89,8 +90,8 @@ public sealed class PhysicsQuery2D
                 continue;
             }
 
-            ref var transform =
-                ref _world.Get<WorldTransform2D>(
+            ref readonly var transform =
+                ref _world.GetReadOnly<WorldTransform2D>(
                     entity);
 
             var position =
@@ -567,60 +568,34 @@ public sealed class PhysicsQuery2D
 
         results.Clear();
 
-        foreach (var item in
-                 _world.Query<Collider2D>())
+        var pointBounds = new FixedBounds2(point, point);
+
+        foreach (var proxy in _spatialIndex.QueryBounds(pointBounds))
         {
-            var entity =
-                item.Entity;
+            var entity = proxy.Entity;
+            var collider = proxy.Collider;
 
-            ref var collider =
-                ref item.Component;
-
-            if (!collider.Enabled)
+            if ((collider.CollisionLayer & layerMask) == 0)
             {
                 continue;
             }
 
-            if ((collider.CollisionLayer &
-                 layerMask) == 0)
+            if (!includeTriggers && collider.IsTrigger)
             {
                 continue;
             }
-
-            if (!includeTriggers &&
-                collider.IsTrigger)
-            {
-                continue;
-            }
-
-            if (!_world.Has<WorldTransform2D>(
-                    entity))
-            {
-                continue;
-            }
-
-            ref var transform =
-                ref _world.Get<WorldTransform2D>(
-                    entity);
-
-            var position =
-                collider.GetWorldPosition(
-                    transform.Position,
-                    transform.Rotation);
 
             if (ContainsPoint(
                     collider.Shape,
-                    position,
-                    transform.Rotation,
+                    proxy.WorldPosition,
+                    proxy.WorldRotation,
                     point))
             {
-                results.Add(
-                    entity);
+                results.Add(entity);
             }
         }
 
-        SortEntities(
-            results);
+        SortEntities(results);
     }
 
     public void OverlapBounds(
@@ -654,12 +629,12 @@ public sealed class PhysicsQuery2D
             new CollisionDetector2D();
 
         foreach (var item in
-                 _world.Query<Collider2D>())
+                 _world.QueryReadOnly<Collider2D>())
         {
             var entity =
                 item.Entity;
 
-            ref var collider =
+            ref readonly var collider =
                 ref item.Component;
 
             if (!collider.Enabled)
@@ -685,8 +660,8 @@ public sealed class PhysicsQuery2D
                 continue;
             }
 
-            ref var transform =
-                ref _world.Get<WorldTransform2D>(
+            ref readonly var transform =
+                ref _world.GetReadOnly<WorldTransform2D>(
                     entity);
 
             var position =

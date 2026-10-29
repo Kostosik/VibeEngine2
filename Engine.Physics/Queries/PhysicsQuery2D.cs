@@ -13,6 +13,7 @@ public sealed class PhysicsQuery2D
 {
     private readonly World _world;
     private readonly PhysicsQuerySpatialIndex2D _spatialIndex;
+    private readonly CollisionDetector2D _collisionDetector;
     public PhysicsQuery2D(
         World world)
     {
@@ -20,6 +21,7 @@ public sealed class PhysicsQuery2D
 
         _world = world;
         _spatialIndex = new PhysicsQuerySpatialIndex2D(world);
+        _collisionDetector = new CollisionDetector2D();
     }
 
     public bool Raycast(
@@ -37,8 +39,7 @@ public sealed class PhysicsQuery2D
                 "Maximum raycast distance must be greater than zero.");
         }
 
-        var directionLength =
-            direction.Length();
+        var directionLength = direction.Length();
 
         if (directionLength == Fixed32.Zero)
         {
@@ -47,62 +48,54 @@ public sealed class PhysicsQuery2D
                 nameof(direction));
         }
 
-        direction /=
-            directionLength;
+        direction /= directionLength;
 
-        var found =
-            false;
+        var rayEnd = origin + direction * maxDistance;
 
-        var closestDistance =
-            maxDistance;
+        var rayBounds = new FixedBounds2(
+            new FixedVector2(
+                Fixed32.Min(origin.X, rayEnd.X),
+                Fixed32.Min(origin.Y, rayEnd.Y)),
+            new FixedVector2(
+                Fixed32.Max(origin.X, rayEnd.X),
+                Fixed32.Max(origin.Y, rayEnd.Y)));
+
+        var candidates = _spatialIndex.QueryBounds(rayBounds);
+
+        // Сохраняем стабильный порядок обработки кандидатов.
+        candidates.Sort(
+            static (left, right) =>
+                left.Entity.Index.CompareTo(right.Entity.Index));
+
+        var found = false;
+        var closestDistance = maxDistance;
 
         hit = default;
 
-        foreach (var item
-                 in _world.QueryReadOnly<Collider2D>())
+        foreach (var proxy in candidates)
         {
-            var entity =
-                item.Entity;
-
-            ref readonly var collider =
-                ref item.Component;
+            var entity = proxy.Entity;
+            var collider = proxy.Collider;
 
             if (!collider.Enabled)
             {
                 continue;
             }
 
-            if ((collider.CollisionLayer &
-                 layerMask) == 0)
+            if ((collider.CollisionLayer & layerMask) == 0)
             {
                 continue;
             }
 
-            if (!includeTriggers &&
-                collider.IsTrigger)
+            if (!includeTriggers && collider.IsTrigger)
             {
                 continue;
             }
-
-            if (!_world.Has<WorldTransform2D>(
-                    entity))
-            {
-                continue;
-            }
-
-            ref readonly var transform =
-                ref _world.GetReadOnly<WorldTransform2D>(
-                    entity);
-
-            var position =
-                collider.GetWorldPosition(
-                    transform.Position,
-                    transform.Rotation);
 
             if (!TryRaycastShape(
                     collider.Shape,
-                    position,
-                    transform.Rotation,
+                    proxy.WorldPosition,
+                    proxy.WorldRotation,
                     origin,
                     direction,
                     closestDistance,
@@ -112,23 +105,16 @@ public sealed class PhysicsQuery2D
                 continue;
             }
 
-            var point =
-                origin +
-                direction *
-                distance;
+            var point = origin + direction * distance;
 
-            hit =
-                new PhysicsRaycastHit2D(
-                    entity,
-                    point,
-                    normal,
-                    distance);
+            hit = new PhysicsRaycastHit2D(
+                entity,
+                point,
+                normal,
+                distance);
 
-            closestDistance =
-                distance;
-
-            found =
-                true;
+            closestDistance = distance;
+            found = true;
         }
 
         return found;
@@ -599,111 +585,79 @@ public sealed class PhysicsQuery2D
     }
 
     public void OverlapBounds(
-        FixedBounds2 bounds,
-        List<EntityId> results,
-        uint layerMask = uint.MaxValue,
-        bool includeTriggers = false)
+    FixedBounds2 bounds,
+    List<EntityId> results,
+    uint layerMask = uint.MaxValue,
+    bool includeTriggers = false)
     {
         ArgumentNullException.ThrowIfNull(results);
 
         results.Clear();
 
-        var queryCollider =
-            new Collider2D(
-                new AabbShape2D(
-                    bounds.Size));
+        var queryCollider = new Collider2D(
+            new AabbShape2D(bounds.Size));
 
-        queryCollider.CollisionLayer =
-            uint.MaxValue;
+        queryCollider.CollisionLayer = uint.MaxValue;
+        queryCollider.CollisionMask = uint.MaxValue;
 
-        queryCollider.CollisionMask =
-            uint.MaxValue;
+        var queryProxy = new PhysicsColliderProxy(
+            default,
+            bounds,
+            queryCollider);
 
-        var queryProxy =
-            new PhysicsColliderProxy(
-                default,
-                bounds,
-                queryCollider);
 
-        var detector =
-            new CollisionDetector2D();
-
-        foreach (var item in
-                 _world.QueryReadOnly<Collider2D>())
+        foreach (var proxy in _spatialIndex.QueryBounds(bounds))
         {
-            var entity =
-                item.Entity;
-
-            ref readonly var collider =
-                ref item.Component;
+            var entity = proxy.Entity;
+            var collider = proxy.Collider;
 
             if (!collider.Enabled)
             {
                 continue;
             }
 
-            if ((collider.CollisionLayer &
-                 layerMask) == 0)
+            if ((collider.CollisionLayer & layerMask) == 0)
             {
                 continue;
             }
 
-            if (!includeTriggers &&
-                collider.IsTrigger)
+            if (!includeTriggers && collider.IsTrigger)
             {
                 continue;
             }
 
-            if (!_world.Has<WorldTransform2D>(
-                    entity))
+            var colliderBounds = proxy.Bounds;
+
+            if (!colliderBounds.Intersects(bounds))
             {
                 continue;
             }
 
             ref readonly var transform =
-                ref _world.GetReadOnly<WorldTransform2D>(
-                    entity);
+                ref _world.GetReadOnly<WorldTransform2D>(entity);
 
-            var position =
-                transform.Position +
-                collider.Offset;
+            // Сохраняем прежнее поведение вычисления Offset.
+            var position = transform.Position + collider.Offset;
 
-            var colliderBounds =
-                collider.GetWorldBounds(
-                    transform.Position,
-                    transform.Rotation);
-
-            if (!colliderBounds.Intersects(
-                    bounds))
+            var colliderProxy = new PhysicsColliderProxy(
+                entity,
+                colliderBounds,
+                collider)
             {
-                continue;
-            }
+                WorldPosition = position,
+                WorldRotation = transform.Rotation
+            };
 
-            var colliderProxy =
-                new PhysicsColliderProxy(
-                    entity,
-                    colliderBounds,
-                    collider)
-                {
-                    WorldPosition =
-                        position,
-
-                    WorldRotation =
-                        transform.Rotation
-                };
-
-            if (detector.TryDetect(
+            if (_collisionDetector.TryDetect(
                     colliderProxy,
                     queryProxy,
                     out _))
             {
-                results.Add(
-                    entity);
+                results.Add(entity);
             }
         }
 
-        SortEntities(
-            results);
+        SortEntities(results);
     }
 
     private static bool ContainsPoint(

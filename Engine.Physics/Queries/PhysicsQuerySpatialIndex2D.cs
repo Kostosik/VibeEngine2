@@ -11,7 +11,7 @@ namespace Engine.Physics.Queries;
 internal sealed class PhysicsQuerySpatialIndex2D
 {
     private readonly World _world;
-    private readonly Fixed32 _cellSize = Fixed32.One;
+    private readonly Fixed32 _cellSize = Fixed32.FromInt(2);
 
     private readonly Dictionary<GridCell, List<PhysicsColliderProxy>>
         _cells = new();
@@ -174,9 +174,12 @@ internal sealed class PhysicsQuerySpatialIndex2D
 
     private GridCell ToCell(FixedVector2 position)
     {
+        var halfCellSize =
+            _cellSize * Fixed32.FromRatio(1, 2);
+
         return new GridCell(
-            (position.X / _cellSize).FloorToInt(),
-            (position.Y / _cellSize).FloorToInt());
+            ((position.X + halfCellSize) / _cellSize).FloorToInt(),
+            ((position.Y + halfCellSize) / _cellSize).FloorToInt());
     }
 
     private readonly record struct GridCell(int X, int Y);

@@ -51,6 +51,62 @@ public sealed class PhysicsQueryOverlap2DTests
         Assert.Equal(new[] { entity }, results);
     }
 
+    [Fact]
+    public void OverlapPoint_RefreshesIndexAfterColliderRemoved()
+    {
+        using var world = new World();
+
+        var entity = world.CreateEntity();
+
+        world.Add(
+            entity,
+            new WorldTransform2D(FixedVector2.Zero));
+
+        world.Add(
+            entity,
+            new Collider2D(new CircleShape2D(Fixed32.One)));
+
+        var query = new PhysicsQuery2D(world);
+        var results = new List<EntityId>();
+
+        query.OverlapPoint(FixedVector2.Zero, results);
+
+        Assert.Equal(new[] { entity }, results);
+
+        Assert.True(world.Remove<Collider2D>(entity));
+
+        query.OverlapPoint(FixedVector2.Zero, results);
+
+        Assert.Empty(results);
+    }
+
+    [Fact]
+    public void OverlapPoint_RefreshesIndexAfterColliderAdded()
+    {
+        using var world = new World();
+
+        var query = new PhysicsQuery2D(world);
+        var results = new List<EntityId>();
+
+        // Инициализируем индекс на пустом мире.
+        query.OverlapPoint(FixedVector2.Zero, results);
+        Assert.Empty(results);
+
+        // Добавляем коллайдер уже после построения индекса.
+        var entity = world.CreateEntity();
+
+        world.Add(
+            entity,
+            new WorldTransform2D(FixedVector2.Zero));
+
+        world.Add(
+            entity,
+            new Collider2D(new CircleShape2D(Fixed32.One)));
+
+        query.OverlapPoint(FixedVector2.Zero, results);
+
+        Assert.Equal(new[] { entity }, results);
+    }
 
     [Fact]
     public void OverlapBounds_FindsRotatedPolygon()

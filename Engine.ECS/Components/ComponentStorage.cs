@@ -189,7 +189,7 @@ internal sealed class ComponentStorage<T> :
             entity);
 
         AdvanceChangeVersion();
-
+        AdvanceWriteAccessVersion();
         _deterministicOrderDirty =
             true;
     }

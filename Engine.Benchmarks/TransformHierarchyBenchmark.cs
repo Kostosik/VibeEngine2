@@ -11,7 +11,7 @@ namespace Engine.Benchmarks;
 
 internal static class TransformHierarchyBenchmark
 {
-    private const int WarmupIterations = 5;
+    private const int WarmupIterations = 100;
     private const int SampleCount = 9;
     private const int OperationsPerSample = 25;
     private static readonly int[] RootCounts =
@@ -151,6 +151,24 @@ internal static class TransformHierarchyBenchmark
         Array.Sort(allocations);
 
         var scenario = deepChain ? "Chain" : "Roots";
+
+        for (var i = 0; i < count; i++)
+        {
+            var expectedX = Fixed32.FromInt(
+                deepChain ? i + 1 : 1);
+
+            var actualX = world
+                .GetReadOnly<WorldTransform2D>(entities[i])
+                .Position.X;
+
+            if (actualX != expectedX)
+            {
+                throw new InvalidOperationException(
+                    $"Transform mismatch: scenario={scenario}, " +
+                    $"entity={i}, expected X={expectedX}, " +
+                    $"actual X={actualX}.");
+            }
+        }
 
         Console.WriteLine(
             $"  {scenario,-6} " +

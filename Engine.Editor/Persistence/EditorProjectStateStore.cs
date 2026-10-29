@@ -13,6 +13,18 @@ public sealed class EditorProjectStateStore
     private readonly string _filePath;
 
     public EditorProjectStateStore()
+        : this(GetDefaultFilePath())
+    {
+    }
+
+    public EditorProjectStateStore(string filePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+
+        _filePath = Path.GetFullPath(filePath);
+    }
+
+    private static string GetDefaultFilePath()
     {
         var localAppData = Environment.GetFolderPath(
             Environment.SpecialFolder.LocalApplicationData);
@@ -23,7 +35,7 @@ public sealed class EditorProjectStateStore
                 "Cannot determine the local application data directory.");
         }
 
-        _filePath = Path.Combine(
+        return Path.Combine(
             localAppData,
             "VibeEngine2",
             "Editor",

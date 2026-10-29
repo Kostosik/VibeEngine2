@@ -9,6 +9,8 @@ namespace Engine.Editor.UI;
 
 internal sealed class EditorKeyboardShortcutHandler
 {
+    private static readonly InputBinding SaveKey =
+    new("Keyboard.S");
     private static readonly InputBinding RenameEntityKey =
     new("Keyboard.F2");
 
@@ -50,7 +52,8 @@ internal sealed class EditorKeyboardShortcutHandler
     private readonly EditorMainShell _mainShell;
     private readonly IClipboardService? _clipboardService;
     private readonly DebugConsole? _debugConsole;
-
+    private bool _saveShortcutWasDown;
+    private bool _saveAllShortcutWasDown;
     private bool _undoShortcutWasDown;
     private bool _redoShortcutWasDown;
     private bool _copyShortcutWasDown;
@@ -96,6 +99,21 @@ internal sealed class EditorKeyboardShortcutHandler
         var altDown =
     _input.GetValue(LeftAltKey) > 0.5f ||
     _input.GetValue(RightAltKey) > 0.5f;
+
+        var saveKeyDown =
+    _input.GetValue(SaveKey) > 0.5f;
+
+        var saveDown =
+            controlDown &&
+            !shiftDown &&
+            !altDown &&
+            saveKeyDown;
+
+        var saveAllDown =
+            controlDown &&
+            shiftDown &&
+            !altDown &&
+            saveKeyDown;
 
         var renameEntityDown =
             _input.GetValue(RenameEntityKey) > 0.5f;
@@ -202,6 +220,21 @@ internal sealed class EditorKeyboardShortcutHandler
             }
         }
 
+        // Save shortcuts work in text fields too,
+        // but not inside modal dialogs.
+        if (_ui.Focus.ActiveScope is null)
+        {
+            if (saveDown && !_saveShortcutWasDown)
+            {
+                _mainShell.RequestSave();
+            }
+
+            if (saveAllDown && !_saveAllShortcutWasDown)
+            {
+                _mainShell.RequestSaveAll();
+            }
+        }
+
         // Не перехватываем Undo/Redo внутри полей ввода
         // и модальных окон.
         if (!shortcutSuppressed)
@@ -244,5 +277,7 @@ internal sealed class EditorKeyboardShortcutHandler
         _pasteShortcutWasDown = pasteDown;
         _renameEntityShortcutWasDown = renameEntityDown;
         _deleteEntityShortcutWasDown = deleteEntityDown;
+        _saveShortcutWasDown = saveDown;
+        _saveAllShortcutWasDown = saveAllDown;
     }
 }

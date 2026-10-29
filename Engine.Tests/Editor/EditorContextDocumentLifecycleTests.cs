@@ -10,6 +10,53 @@ namespace Engine.Tests.Editor;
 public sealed class EditorContextDocumentLifecycleTests
 {
     [Fact]
+    public void CloseDocument_SaveFailure_LeavesDirtyDocumentOpen()
+    {
+        var editor = new EditorContext();
+
+        var document = editor.OpenDocument(
+            new World(
+                new ChunkSize(16, 16),
+                new Engine.ECS.World()));
+
+        var persistence = new TestPersistence();
+
+        var files = editor.CreateDocumentFileService(
+            persistence);
+
+        // Сначала сохраняем документ, чтобы у него был путь.
+        files.SaveAs(document, "test.world");
+
+        // Затем изменяем документ.
+        document.Execute(
+            new CreateEditorEntityCommand(document));
+
+        Assert.True(document.IsDirty);
+
+        var savedPath = document.FilePath;
+
+        // Имитируем ошибку записи на диск.
+        persistence.FailNextSave = true;
+
+        Assert.Throws<IOException>(
+            () => editor.CloseDocument(
+                document,
+                EditorDocumentCloseDecision.Save,
+                files));
+
+        // Документ должен остаться открытым и изменённым.
+        Assert.Contains(document, editor.Session.Documents);
+        Assert.Same(document, editor.ActiveDocument);
+        Assert.True(document.IsDirty);
+
+        // Путь документа не должен измениться.
+        Assert.Equal(savedPath, document.FilePath);
+
+        // Первое сохранение прошло, повторное завершилось ошибкой.
+        Assert.Equal(1, persistence.SaveCount);
+    }
+
+    [Fact]
     public void OpenDocument_InvokesWorldDocumentConfiguringBeforeSessionOpen()
     {
         var editor = new EditorContext();
@@ -149,6 +196,28 @@ public sealed class EditorContextDocumentLifecycleTests
     }
 
     [Fact]
+    public void OpenDocument_WhenConfiguringFails_DoesNotRegisterDocument()
+    {
+        var editor = new EditorContext();
+
+        using var ecsWorld = new Engine.ECS.World();
+
+        var world = new World(
+            new ChunkSize(16, 16),
+            ecsWorld);
+
+        editor.WorldDocumentConfiguring += _ =>
+            throw new InvalidOperationException(
+                "Simulated configuration failure.");
+
+        Assert.Throws<InvalidOperationException>(
+            () => editor.OpenDocument(world));
+
+        Assert.Empty(editor.Session.Documents);
+        Assert.Null(editor.ActiveDocument);
+    }
+
+    [Fact]
     public void CloseDocument_Save_ClosesDocumentAfterSave()
     {
         var editor =
@@ -205,6 +274,7 @@ public sealed class EditorContextDocumentLifecycleTests
     private sealed class TestPersistence :
         IEditorDocumentPersistence
     {
+        public bool FailNextSave { get; set; }
         public int SaveCount { get; private set; }
         public string? SavedPath { get; private set; }
 
@@ -212,9 +282,16 @@ public sealed class EditorContextDocumentLifecycleTests
             string path,
             EditorDocument document)
         {
+            if (FailNextSave)
+            {
+                FailNextSave = false;
+
+                throw new IOException(
+                    "Simulated disk write failure.");
+            }
+
             SaveCount++;
-            SavedPath =
-                path;
+            SavedPath = path;
         }
 
         public World Load(

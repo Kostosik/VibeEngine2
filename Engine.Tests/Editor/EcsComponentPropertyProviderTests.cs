@@ -10,6 +10,77 @@ namespace Engine.Tests.Editor;
 
 public sealed class EcsComponentPropertyProviderTests
 {
+
+    [Fact]
+    public void InspectorPropertyEdit_TracksDirtyStateAndUndoRedo()
+    {
+        using var ecsWorld = new Engine.ECS.World();
+
+        var world = new World(
+            new ChunkSize(16, 16),
+            ecsWorld);
+
+        var entity = ecsWorld.CreateEntity();
+
+        ecsWorld.Add(
+            entity,
+            PhysicsBody2D.Dynamic(Fixed32.One));
+
+        using var document = new EditorDocument(world);
+
+        var mass = Assert.Single(
+            document.Inspector.GetProperties(
+                entity,
+                typeof(PhysicsBody2D)),
+            property => property.Name == nameof(PhysicsBody2D.Mass));
+
+        var newMass = Fixed32.FromInt(3);
+
+        // Изменение через историю команд документа.
+        document.Execute(
+            new SetEditorPropertyCommand(mass, newMass));
+
+        Assert.Equal(
+            newMass,
+            ecsWorld.Get<PhysicsBody2D>(entity).Mass);
+
+        Assert.True(document.IsDirty);
+        Assert.True(document.CommandHistory.CanUndo);
+
+        // Undo возвращает исходное значение.
+        document.Undo();
+
+        Assert.Equal(
+            Fixed32.One,
+            ecsWorld.Get<PhysicsBody2D>(entity).Mass);
+
+        Assert.False(document.IsDirty);
+        Assert.True(document.CommandHistory.CanRedo);
+
+        // Redo повторяет изменение.
+        document.Redo();
+
+        Assert.Equal(
+            newMass,
+            ecsWorld.Get<PhysicsBody2D>(entity).Mass);
+
+        Assert.True(document.IsDirty);
+
+        // Сохранённое состояние становится новой точкой отсчёта.
+        document.MarkSaved();
+
+        Assert.False(document.IsDirty);
+
+        // Отмена после сохранения снова помечает документ изменённым.
+        document.Undo();
+
+        Assert.Equal(
+            Fixed32.One,
+            ecsWorld.Get<PhysicsBody2D>(entity).Mass);
+
+        Assert.True(document.IsDirty);
+    }
+
     [Fact]
     public void PhysicsBodyMassAndInertia_AreEditableAndUndoable()
     {

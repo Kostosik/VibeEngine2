@@ -5,6 +5,206 @@ namespace Engine.Tests.Editor;
 
 public sealed class GameProjectRunnerBuildTests
 {
+    [Fact]
+    public void Start_ShortLivedGame_ReportsExitAndRemovesInactiveSession()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"VibeEngineRunnerExit-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var projectPath = Path.Combine(
+                root,
+                "ExitProbe.csproj");
+
+            var manifestPath = Path.Combine(
+                root,
+                "ExitProbe.vibeproject");
+
+            var sourcePath = Path.Combine(
+                root,
+                "Program.cs");
+
+            File.WriteAllText(
+                projectPath,
+                """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <TargetFramework>net8.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+                <NuGetAudit>false</NuGetAudit>
+                <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+              </PropertyGroup>
+            </Project>
+            """);
+
+            File.WriteAllText(
+                manifestPath,
+                """
+            {
+              "formatVersion": 1,
+              "name": "ExitProbe",
+              "startupProject": "ExitProbe.csproj",
+              "startupScene": null
+            }
+            """);
+
+            File.WriteAllText(
+                sourcePath,
+                """
+            Console.WriteLine("EXIT_PROBE");
+            """);
+
+            var project = GameProject.Open(manifestPath);
+
+            using var manager = new GameProjectSessionManager();
+
+            var sessionId = manager.Start(
+                project,
+                "ExitProbe");
+
+            var output = DrainUntil(
+                manager,
+                outputs =>
+                    outputs.Any(item =>
+                        item.SessionId == sessionId &&
+                        item.Message == "EXIT_PROBE")
+                    &&
+                    outputs.Any(item =>
+                        item.SessionId == sessionId &&
+                        item.Message == "Game process exited with code 0."));
+
+            Assert.Contains(
+                output,
+                item => item.SessionId == sessionId &&
+                        item.Message == "EXIT_PROBE");
+
+            Assert.Contains(
+                output,
+                item => item.SessionId == sessionId &&
+                        item.Message == "Game process exited with code 0.");
+
+            // Получение списка очищает завершённые сессии.
+            Assert.Empty(manager.Sessions);
+
+            Assert.DoesNotContain(
+                manager.Sessions,
+                session => session.IsActive);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Dispose_StopsRunningGameProcessTree()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"VibeEngineRunnerDispose-{Guid.NewGuid():N}");
+
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var projectPath = Path.Combine(
+                root,
+                "DisposeProbe.csproj");
+
+            var manifestPath = Path.Combine(
+                root,
+                "DisposeProbe.vibeproject");
+
+            var sourcePath = Path.Combine(
+                root,
+                "Program.cs");
+
+            File.WriteAllText(
+                projectPath,
+                """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <TargetFramework>net8.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+                <NuGetAudit>false</NuGetAudit>
+                <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+              </PropertyGroup>
+            </Project>
+            """);
+
+            File.WriteAllText(
+                manifestPath,
+                """
+            {
+              "formatVersion": 1,
+              "name": "DisposeProbe",
+              "startupProject": "DisposeProbe.csproj",
+              "startupScene": null
+            }
+            """);
+
+            File.WriteAllText(
+                sourcePath,
+                """
+            Console.WriteLine($"CHILD_PID={Environment.ProcessId}");
+            Console.Out.Flush();
+
+            Thread.Sleep(TimeSpan.FromSeconds(30));
+            """);
+
+            var project = GameProject.Open(manifestPath);
+
+            using var runner = new GameProjectRunner();
+
+            runner.Start(project);
+
+            var output = DrainUntil(
+                runner,
+                outputs => outputs.Any(item =>
+                    item.Message.StartsWith(
+                        "CHILD_PID=",
+                        StringComparison.Ordinal)));
+
+            var pidMessage = Assert.Single(
+                output.Where(item =>
+                    item.Message.StartsWith(
+                        "CHILD_PID=",
+                        StringComparison.Ordinal)));
+
+            var childPid = int.Parse(
+                pidMessage.Message["CHILD_PID=".Length..]);
+
+            using var childProcess = Process.GetProcessById(childPid);
+
+            Assert.True(runner.IsSessionActive);
+
+            runner.Dispose();
+
+            Assert.True(
+                childProcess.WaitForExit(5000),
+                "The game process was not terminated after runner disposal.");
+
+            Assert.False(runner.IsSessionActive);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
 
     [Fact]
     public void Start_ApplicationArguments_ArePassedToGameUnchanged()

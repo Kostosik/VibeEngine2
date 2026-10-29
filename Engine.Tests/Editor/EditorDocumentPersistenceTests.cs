@@ -19,6 +19,78 @@ namespace Engine.Tests.Editor;
 public sealed class EditorDocumentPersistenceTests
 {
     [Fact]
+    public void BinaryPersistence_RoundTripsPhysicsBodyMassEditedThroughInspector()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"vibe-inspector-mass-{Guid.NewGuid():N}.world");
+
+        try
+        {
+            var serializers = new EcsComponentSerializerRegistry();
+            serializers.RegisterEngineComponents();
+
+            var persistence =
+                new BinaryEditorDocumentPersistence(serializers);
+
+            using var ecsWorld = new Engine.ECS.World();
+
+            using var world = new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
+
+            var entity = ecsWorld.CreateEntity();
+
+            ecsWorld.Add(
+                entity,
+                PhysicsBody2D.Dynamic(Fixed32.One));
+
+            var editor = new EditorContext();
+
+            using var document = editor.OpenDocument(world);
+
+            var mass = Assert.Single(
+                document.Inspector.GetProperties(
+                    entity,
+                    typeof(PhysicsBody2D)),
+                property => property.Name == nameof(PhysicsBody2D.Mass));
+
+            var expectedMass = Fixed32.FromInt(5);
+
+            // Меняем значение через тот же механизм, что использует Inspector.
+            document.Execute(
+                new SetEditorPropertyCommand(
+                    mass,
+                    expectedMass));
+
+            Assert.True(document.IsDirty);
+
+            // Сохраняем штатным методом EditorContext.
+            editor.SaveDocument(
+                document,
+                persistence,
+                path);
+
+            Assert.False(document.IsDirty);
+
+            // Загружаем сцену в новый World.
+            using var restoredWorld = persistence.Load(path);
+
+            var restoredBody = restoredWorld.EcsWorld.Get<PhysicsBody2D>(
+                entity);
+
+            Assert.Equal(expectedMass, restoredBody.Mass);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    [Fact]
     public void BinaryPersistence_RoundTripsNetworkIdentity()
     {
         var path = Path.Combine(

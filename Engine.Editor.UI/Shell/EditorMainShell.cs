@@ -436,6 +436,16 @@ public sealed class EditorMainShell :
                 _assetPickerDialog);
     }
 
+    public void RequestSave()
+    {
+        SaveRequested?.Invoke();
+    }
+
+    public void RequestSaveAll()
+    {
+        SaveAllRequested?.Invoke();
+    }
+
     private void BindAnimationClipDocument(
     AnimationClipDocument? document)
 {
@@ -1147,10 +1157,9 @@ view,
         AddButton("Open", 64.0f,
             () => OpenRequested?.Invoke());
 
-        AddButton("Save", 64.0f,
-            () => SaveRequested?.Invoke());
-        AddButton("Save All", 84.0f,
-    () => SaveAllRequested?.Invoke());
+        AddButton("Save", 64.0f, RequestSave);
+
+        AddButton("Save All", 84.0f, RequestSaveAll);
 
         AddButton("Save As", 78.0f,
             () => SaveAsRequested?.Invoke());

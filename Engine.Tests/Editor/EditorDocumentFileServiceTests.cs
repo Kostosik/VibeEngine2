@@ -9,6 +9,27 @@ namespace Engine.Tests.Editor;
 public sealed class EditorDocumentFileServiceTests
 {
     [Fact]
+    public void Open_WhenPersistenceLoadFails_DoesNotRegisterDocument()
+    {
+        var editor = new EditorContext();
+
+        var persistence = new TestPersistence
+        {
+            FailNextLoad = true
+        };
+
+        var service = new EditorDocumentFileService(
+            editor,
+            persistence);
+
+        Assert.Throws<IOException>(
+            () => service.Open("broken.world"));
+
+        Assert.Empty(editor.Session.Documents);
+        Assert.Null(editor.ActiveDocument);
+    }
+
+    [Fact]
     public void Save_RequiresFilePath()
     {
         var editor =
@@ -146,7 +167,7 @@ public sealed class EditorDocumentFileServiceTests
         IEditorDocumentPersistence
     {
         public string? SavedPath { get; private set; }
-
+        public bool FailNextLoad { get; set; }
         public void Save(
             string path,
             EditorDocument document)
@@ -155,16 +176,19 @@ public sealed class EditorDocumentFileServiceTests
                 path;
         }
 
-        public World Load(
-            string path)
+        public World Load(string path)
         {
-            var ecsWorld =
-                new Engine.ECS.World();
+            if (FailNextLoad)
+            {
+                FailNextLoad = false;
+                throw new IOException("Simulated read failure.");
+            }
 
-            var world =
-                new World(
-                    new ChunkSize(16, 16),
-                    ecsWorld);
+            var ecsWorld = new Engine.ECS.World();
+
+            var world = new World(
+                new ChunkSize(16, 16),
+                ecsWorld);
 
             return world;
         }

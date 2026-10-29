@@ -575,6 +575,9 @@ public sealed class ProjectCreationService
         using System.Text.Json;
         using Engine.Hosting.Desktop;
         using Engine.Runtime;
+        using Engine.Serialization.Content;
+        using Engine.Serialization.UI;
+        using Engine.UI.Assets;
 
         namespace GameProject;
 
@@ -588,7 +591,7 @@ public sealed class ProjectCreationService
 
                 DesktopGameHost.Run(
                 (DesktopGameHostContext context) => new GameMain(
-                    context,
+                    context.Runtime,
                     startupScenePath),
                         new DesktopGameHostOptions
                         {
@@ -603,7 +606,7 @@ public sealed class ProjectCreationService
                                             ".ui",
                                             StringComparison.OrdinalIgnoreCase)));
                             }
-                        }
+                        });
             }
 
             private static string ResolveStartupScenePath(

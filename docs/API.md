@@ -1732,7 +1732,7 @@ transform.Scale =
 
 Для использования трансформаций в ECS добавь сущности компоненты `LocalTransform2D` и `WorldTransform2D`. Первая хранит локальное преобразование, а вторая — вычисленное положение в мировом пространстве.
 
-Чтобы вычислять мировые трансформации с учётом родительских сущностей, зарегистрируй `TransformHierarchySystem` в Runtime **до вызова `runtime.Initialize()`**. Runtime не регистрирует эту систему автоматически.
+`EngineRuntime` автоматически создаёт и регистрирует `TransformHierarchySystem` в фазе `FixedUpdate` до `PhysicsSystem2D`. При обычном использовании Runtime не нужно регистрировать эту систему повторно. Если приложение использует собственный `SystemScheduler` без `EngineRuntime`, оно отвечает за регистрацию и порядок выполнения системы самостоятельно.
 
 ```csharp
 using Engine.Core.Math;
@@ -2282,7 +2282,7 @@ float moveValue =
 
 ### Мышь и позиция указателя
 
-В `DesktopGameHostContext` свойство `PointerInput` предоставляет `IPointerInput?`. Оно может быть `null`, если используемый host не поддерживает ввод указателя.
+В `DesktopGameHostContext` свойство `PointerInput` имеет тип `IPointerInput?`, поэтому в пользовательском коде следует учитывать nullable-контракт. Текущий стандартный `DesktopGameHost` создаёт `SilkNetInputBackend`, который реализует `IPointerInput`; отсутствие указателя относится к возможной конфигурации host без этой возможности, а не к текущей реализации стандартного desktop host.
 
 ```csharp
 using Engine.Input;

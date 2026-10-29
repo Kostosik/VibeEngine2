@@ -71,7 +71,16 @@ public sealed class SpriteRenderSystemTests
             content,
             camera);
 
+        world.ClearDirty<SpriteComponent>();
+        world.ClearDirty<WorldTransform2D>();
+
         renderer.Render();
+
+        Assert.Empty(
+            world.GetDirtyEntities<SpriteComponent>().ToArray());
+
+        Assert.Empty(
+            world.GetDirtyEntities<WorldTransform2D>().ToArray());
 
         var command =
             Assert.IsType<DrawWorldTextureCommand>(

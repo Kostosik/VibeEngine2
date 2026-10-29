@@ -22,7 +22,7 @@ public static class JsonTilemapDefinitionSerializer
                 $"Tilemap '{path}' is empty.");
         }
 
-        var json = Encoding.UTF8.GetString(data.Span);
+        var json = StrictUtf8Text.Decode(path, "Tilemap", data.Span);
 
         if (json.Length > 0 && json[0] == '\uFEFF')
         {

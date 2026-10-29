@@ -5,6 +5,35 @@ namespace Engine.Tests.ECS.DirtyTracking;
 public sealed class WorldDirtyTrackingTests
 {
     [Fact]
+    public void GetReadOnly_DoesNotMarkComponentDirty()
+    {
+        using var world = new World();
+
+        var entity = world.CreateEntity();
+
+        world.Add(
+            entity,
+            new TestComponent(10));
+
+        world.ClearDirty<TestComponent>();
+
+        var versionBefore =
+            world.GetChangeVersion<TestComponent>();
+
+        ref readonly var component =
+            ref world.GetReadOnly<TestComponent>(entity);
+
+        Assert.Equal(10, component.Value);
+
+        Assert.Empty(
+            world.GetDirtyEntities<TestComponent>().ToArray());
+
+        Assert.Equal(
+            versionBefore,
+            world.GetChangeVersion<TestComponent>());
+    }
+
+    [Fact]
     public void ReadOnlyQuery_DoesNotMarkComponentDirty()
     {
         using var world =

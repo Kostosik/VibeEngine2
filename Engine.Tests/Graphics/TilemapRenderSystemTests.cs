@@ -167,7 +167,16 @@ public sealed class TilemapRenderSystemTests
 
         try
         {
+            world.ClearDirty<TilemapComponent>();
+            world.ClearDirty<WorldTransform2D>();
+
             renderer.Render();
+
+            Assert.Empty(
+                world.GetDirtyEntities<TilemapComponent>().ToArray());
+
+            Assert.Empty(
+                world.GetDirtyEntities<WorldTransform2D>().ToArray());
 
             var commands = graphics.Commands
                 .Select(command =>

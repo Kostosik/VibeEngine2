@@ -46,7 +46,7 @@ public sealed class SpriteRenderSystem : IDisposable
             this);
 
         foreach (var item in
-                 _world.Query<SpriteComponent, WorldTransform2D>())
+                 _world.QueryReadOnly<SpriteComponent, WorldTransform2D>())
         {
             var component = item.First;
             var transform = item.Second;

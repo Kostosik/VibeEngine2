@@ -22,7 +22,7 @@ if (benchmarkOptionIndex >= 0)
     if (benchmarkOptionIndex + 1 >= args.Length)
     {
         Console.Error.WriteLine(
-            "Usage: --benchmark <all|physics|graphics|runtime|list>");
+            "Usage: --benchmark <all|physics|graphics|runtime|tilemap|transforms|list>");
 
         Environment.ExitCode = 2;
         return;
@@ -32,6 +32,9 @@ if (benchmarkOptionIndex >= 0)
 
     switch (benchmarkName.ToLowerInvariant())
     {
+        case "transforms":
+            Engine.Benchmarks.TransformHierarchyBenchmark.Run();
+            return;
         case "tilemap":
             Engine.Benchmarks.TilemapRenderingBenchmark.Run();
             return;

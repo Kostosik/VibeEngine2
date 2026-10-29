@@ -151,7 +151,7 @@ public sealed class PhysicsSystem2D :
              iteration < _settings.PositionIterations;
              iteration++)
         {
-            foreach (var item in _world.Query<DistanceJoint2D>())
+            foreach (var item in _world.QueryReadOnly<DistanceJoint2D>())
             {
                 if (item.Component.Enabled)
                 {
@@ -175,7 +175,7 @@ public sealed class PhysicsSystem2D :
              iteration++)
         {
             foreach (var item
-                     in _world.Query<DistanceJoint2D>())
+                     in _world.QueryReadOnly<DistanceJoint2D>())
             {
                 _jointSolver.SolveVelocity(
                     _world,
@@ -256,7 +256,7 @@ public sealed class PhysicsSystem2D :
         }
 
         foreach (var item
-                 in _world.Query<DistanceJoint2D>())
+                 in _world.QueryReadOnly<DistanceJoint2D>())
         {
             var joint =
                 item.Component;

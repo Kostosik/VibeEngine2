@@ -22,7 +22,7 @@ public sealed class PhysicsTransformSyncSystem :
         FixedSystemContext context)
     {
         foreach (var item in
-                 _world.Query<PhysicsBody2D>())
+                 _world.QueryReadOnly<PhysicsBody2D>())
         {
             var bodyType =
                 item.Component.BodyType;

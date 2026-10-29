@@ -9,11 +9,112 @@ using Engine.Worlds.Chunks;
 using Engine.Worlds.Persistence;
 using Engine.Worlds.Spatial;
 using Engine.Worlds.Tiles;
+using System.Buffers.Binary;
 
 namespace Engine.Tests.Serialization.SaveLoad;
 
 public sealed class WorldSaveLoadServiceTests
 {
+    [Theory]
+    [InlineData(0, 4)]
+    [InlineData(-1, 4)]
+    [InlineData(4, 0)]
+    [InlineData(4, -1)]
+    public void Load_InvalidChunkSize_ThrowsInvalidDataException(
+    int width,
+    int height)
+    {
+        var saveLoad = new WorldSaveLoadService(
+            new EcsComponentSerializerRegistry());
+
+        using var ecsWorld = new Engine.ECS.World();
+
+        using var world = new Engine.Worlds.World(
+            new ChunkSize(4, 4),
+            ecsWorld);
+
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"vibe-invalid-chunk-{Guid.NewGuid():N}.world");
+
+        try
+        {
+            saveLoad.Save(path, world);
+
+            var data = File.ReadAllBytes(path);
+
+            const int headerSize =
+                sizeof(uint) + sizeof(int) + sizeof(int);
+
+            BinaryPrimitives.WriteInt32LittleEndian(
+                data.AsSpan(headerSize, sizeof(int)),
+                width);
+
+            BinaryPrimitives.WriteInt32LittleEndian(
+                data.AsSpan(headerSize + sizeof(int), sizeof(int)),
+                height);
+
+            File.WriteAllBytes(path, data);
+
+            Assert.Throws<InvalidDataException>(
+                () => saveLoad.LoadWorld(path));
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    [Fact]
+    public void Load_RejectsChunkDimensionsExceedingCollectionLimit()
+    {
+        var saveLoad = new WorldSaveLoadService(
+            new EcsComponentSerializerRegistry());
+
+        using var ecsWorld = new Engine.ECS.World();
+
+        using var world = new Engine.Worlds.World(
+            new ChunkSize(4, 4),
+            ecsWorld);
+
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"vibe-invalid-chunk-size-{Guid.NewGuid():N}.world");
+
+        try
+        {
+            saveLoad.Save(path, world);
+
+            var data = File.ReadAllBytes(path);
+
+            const int headerSize =
+                sizeof(uint) + sizeof(int) + sizeof(int);
+
+            BinaryPrimitives.WriteInt32LittleEndian(
+                data.AsSpan(headerSize, sizeof(int)),
+                1025);
+
+            BinaryPrimitives.WriteInt32LittleEndian(
+                data.AsSpan(headerSize + sizeof(int), sizeof(int)),
+                1024);
+
+            File.WriteAllBytes(path, data);
+
+            Assert.Throws<InvalidDataException>(
+                () => saveLoad.LoadWorld(path));
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
     [Fact]
     public void Save_WhenSerializationFails_PreservesExistingFile()
     {

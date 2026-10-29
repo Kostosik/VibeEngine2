@@ -9,6 +9,43 @@ namespace Engine.Tests.Transform;
 public sealed class TransformHierarchySystemTests
 {
     [Fact]
+    public void FixedUpdate_ReadOnlyInputs_DoesNotMarkThemDirty()
+    {
+        using var world = new World();
+
+        var parent = world.CreateEntity();
+        var child = world.CreateEntity();
+
+        AddLocal(world, parent, 10, 0);
+        AddLocal(world, child, 3, 0);
+
+        world.Add(
+            child,
+            new TransformParent2D(parent));
+
+        world.ClearDirty<LocalTransform2D>();
+        world.ClearDirty<TransformParent2D>();
+        world.ClearDirty<WorldTransform2D>();
+
+        var system = new TransformHierarchySystem(world);
+
+        system.FixedUpdate(default);
+
+        Assert.Empty(
+            world.GetDirtyEntities<LocalTransform2D>().ToArray());
+
+        Assert.Empty(
+            world.GetDirtyEntities<TransformParent2D>().ToArray());
+
+        Assert.NotEmpty(
+            world.GetDirtyEntities<WorldTransform2D>().ToArray());
+
+        Assert.Equal(
+            Fixed32.FromInt(13),
+            world.GetReadOnly<WorldTransform2D>(child).Position.X);
+    }
+
+    [Fact]
     public void ParentWithWorldTransformOnlyIsValid()
     {
         using var world = new World();

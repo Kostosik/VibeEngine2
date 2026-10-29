@@ -27,18 +27,15 @@ public sealed class FileAssetSource :
                 nameof(path));
         }
 
-        var fullPath =
-            Path.GetFullPath(
-                Path.Combine(
-                    _rootDirectory,
-                    path.Value));
+        var fullPath = ResolveAssetPath(path);
 
         var relativePath =
             Path.GetRelativePath(
                 _rootDirectory,
                 fullPath);
 
-        if (relativePath == ".." ||
+        if (Path.IsPathRooted(relativePath) ||
+            relativePath == ".." ||
             relativePath.StartsWith(
                 ".." + Path.DirectorySeparatorChar,
                 StringComparison.Ordinal))
@@ -69,18 +66,15 @@ public sealed class FileAssetSource :
                 nameof(path));
         }
 
-        var fullPath =
-            Path.GetFullPath(
-                Path.Combine(
-                    _rootDirectory,
-                    path.Value));
+        var fullPath = ResolveAssetPath(path);
 
         var relativePath =
             Path.GetRelativePath(
                 _rootDirectory,
                 fullPath);
 
-        if (relativePath == ".." ||
+        if (Path.IsPathRooted(relativePath) ||
+            relativePath == ".." ||
             relativePath.StartsWith(
                 ".." + Path.DirectorySeparatorChar,
                 StringComparison.Ordinal))
@@ -102,5 +96,86 @@ public sealed class FileAssetSource :
                 cancellationToken);
 
         return data;
+    }
+
+    private void EnsureAssetRootIsNotReparsePoint()
+    {
+        if (!Directory.Exists(_rootDirectory))
+        {
+            return;
+        }
+
+        var attributes = File.GetAttributes(_rootDirectory);
+
+        if ((attributes & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidOperationException(
+                $"Asset root '{_rootDirectory}' must not be a symbolic link or reparse point.");
+        }
+    }
+
+    private string ResolveAssetPath(AssetPath path)
+    {
+        EnsureAssetRootIsNotReparsePoint();
+        if (string.IsNullOrWhiteSpace(path.Value))
+        {
+            throw new ArgumentException(
+                "Asset path is empty.",
+                nameof(path));
+        }
+
+        var fullPath = Path.GetFullPath(
+            Path.Combine(_rootDirectory, path.Value));
+
+        var relativePath = Path.GetRelativePath(
+            _rootDirectory,
+            fullPath);
+
+        if (Path.IsPathRooted(relativePath) ||
+            relativePath == ".." ||
+            relativePath.StartsWith(
+                ".." + Path.DirectorySeparatorChar,
+                StringComparison.Ordinal) ||
+            relativePath.StartsWith(
+                ".." + Path.AltDirectorySeparatorChar,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Asset path '{path}' escapes the asset root.");
+        }
+
+        var currentPath = _rootDirectory;
+
+        var segments = relativePath.Split(
+            new[]
+            {
+            Path.DirectorySeparatorChar,
+            Path.AltDirectorySeparatorChar
+            },
+            StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var segment in segments)
+        {
+            currentPath = Path.Combine(
+                currentPath,
+                segment);
+
+            if (!File.Exists(currentPath) &&
+                !Directory.Exists(currentPath))
+            {
+                break;
+            }
+
+            var attributes = File.GetAttributes(currentPath);
+
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new InvalidOperationException(
+                    $"Asset path '{path}' traverses a symbolic link " +
+                    "or reparse point.");
+            }
+        }
+
+        return fullPath;
     }
 }

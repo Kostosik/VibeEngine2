@@ -37,7 +37,16 @@ public sealed class AudioEcsSystemTests
 
         using var system = new AudioEcsSystem(world, audio);
 
+        world.ClearDirty<AudioSourceComponent>();
+        world.ClearDirty<WorldTransform2D>();
+
         system.Update(0.0);
+
+        Assert.Empty(
+            world.GetDirtyEntities<AudioSourceComponent>().ToArray());
+
+        Assert.Empty(
+            world.GetDirtyEntities<WorldTransform2D>().ToArray());
 
         var source = Assert.Single(audio.Sources);
 

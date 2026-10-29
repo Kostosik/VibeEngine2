@@ -23,7 +23,7 @@ public static class JsonTileSetDefinitionSerializer
                 $"TileSet '{path}' is empty.");
         }
 
-        var json = Encoding.UTF8.GetString(data.Span);
+        var json = StrictUtf8Text.Decode(path, "TileSet", data.Span);
 
         if (json.Length > 0 && json[0] == '\uFEFF')
         {

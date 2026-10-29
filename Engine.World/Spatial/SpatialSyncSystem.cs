@@ -25,9 +25,9 @@ public sealed class SpatialSyncSystem :
         FixedSystemContext context)
     {
         foreach (var item
-                 in _ecsWorld.Query<WorldTransform2D>())
+                 in _ecsWorld.QueryReadOnly<WorldTransform2D>())
         {
-            ref var transform =
+            ref readonly var transform =
                 ref item.Component;
 
             var position =

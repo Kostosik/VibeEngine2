@@ -396,6 +396,24 @@ public sealed class World :
                storage.Has(entity);
     }
 
+    public ref readonly T GetReadOnly<T>(
+    EntityId entity)
+    where T : struct
+    {
+        EnsureNotDisposed();
+        EnsureEntityExists(entity);
+        EnsureNoActiveJobs();
+
+        if (!TryGetStorage<T>(out var storage))
+        {
+            throw new KeyNotFoundException(
+                $"Component storage " +
+                $"{typeof(T).Name} does not exist.");
+        }
+
+        return ref storage.GetReadOnly(entity);
+    }
+
     public ref T Get<T>(
         EntityId entity)
         where T : struct

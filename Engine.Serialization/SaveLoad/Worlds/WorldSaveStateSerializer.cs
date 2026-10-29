@@ -29,6 +29,11 @@ public sealed class WorldSaveStateSerializer :
         ArgumentNullException.ThrowIfNull(
             value);
 
+        ValidateChunkSize(
+    value.ChunkSize.Width,
+    value.ChunkSize.Height,
+    writer.Context.MaxCollectionLength);
+
         writer.WriteInt32(
             value.ChunkSize.Width);
 
@@ -92,6 +97,12 @@ public sealed class WorldSaveStateSerializer :
 
         var height =
             reader.ReadInt32();
+
+
+        ValidateChunkSize(
+            width,
+            height,
+            reader.Context.MaxCollectionLength);
 
         var chunkSize =
             new ChunkSize(
@@ -160,6 +171,27 @@ public sealed class WorldSaveStateSerializer :
             chunkSize,
             ecs,
             chunks);
+    }
+
+    private static void ValidateChunkSize(
+    int width,
+    int height,
+    int maximumTileCount)
+    {
+        if (width <= 0 || height <= 0)
+        {
+            throw new InvalidDataException(
+                $"Serialized chunk size '{width}x{height}' is invalid.");
+        }
+
+        var tileCount = (long)width * height;
+
+        if (tileCount > maximumTileCount)
+        {
+            throw new InvalidDataException(
+                $"Serialized chunk size '{width}x{height}' exceeds " +
+                $"the maximum allowed tile count '{maximumTileCount}'.");
+        }
     }
 
     private static int ReadCount(

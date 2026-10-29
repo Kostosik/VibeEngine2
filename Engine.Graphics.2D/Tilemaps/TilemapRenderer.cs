@@ -1,5 +1,6 @@
 ﻿using Engine.Camera;
 using Engine.Core.Math;
+using Engine.Graphics.Commands;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Engine.Graphics2D.Commands;
@@ -12,7 +13,8 @@ public sealed class TilemapRenderer
     private readonly Camera2D _camera;
     private readonly TileSet _tileSet;
     private readonly float _tileSize;
-
+    private readonly IWorldTextureDataSubmitter?
+    _worldTextureDataSubmitter;
     public TilemapRenderer(
     IGraphicsDevice graphics,
     Camera2D camera,
@@ -31,9 +33,32 @@ public sealed class TilemapRenderer
         }
 
         _graphics = graphics;
+        _worldTextureDataSubmitter =
+    graphics as IWorldTextureDataSubmitter;
         _camera = camera;
         _tileSet = tileSet;
         _tileSize = tileSize;
+    }
+
+    private void SubmitWorldTexture(
+    DrawWorldTextureData command)
+    {
+        if (_worldTextureDataSubmitter is not null)
+        {
+            _worldTextureDataSubmitter.Submit(command);
+            return;
+        }
+
+        // Совместимость с backend, которые поддерживают
+        // только обычные объекты render-команд.
+        _graphics.Submit(
+            new DrawWorldTextureCommand(
+                command.Texture,
+                command.Position,
+                command.Size,
+                command.UV,
+                command.Layer,
+                command.RotationDegrees));
     }
 
     public void RenderChunk(
@@ -144,18 +169,15 @@ public sealed class TilemapRenderer
                     continue;
                 }
 
-                _graphics.Submit(
-                    new DrawWorldTextureCommand(
+                SubmitWorldTexture(
+                    new DrawWorldTextureData(
                         visual.Texture,
-
                         new Vector2(
                             chunkWorldX + x,
                             chunkWorldY + y),
-
                         new Vector2(
                             _tileSize,
                             _tileSize),
-
                         visual.UV));
             }
         }
@@ -284,13 +306,15 @@ public sealed class TilemapRenderer
                         -uv.Height);
                 }
 
-                _graphics.Submit(
-                    new DrawWorldTextureCommand(
+                SubmitWorldTexture(
+                    new DrawWorldTextureData(
                         visual.Texture,
                         new Vector2(
                             centerX - tileWidth * 0.5f,
                             centerY - tileHeight * 0.5f),
-                        new Vector2(tileWidth, tileHeight),
+                        new Vector2(
+                            tileWidth,
+                            tileHeight),
                         uv,
                         layer,
                         rotationDegrees));
@@ -316,27 +340,29 @@ public sealed class TilemapRenderer
 
         var bounds = _camera.WorldBounds;
 
-        var corners = new[]
-        {
-        new Vector2(bounds.X, bounds.Y),
-        new Vector2(bounds.X + bounds.Width, bounds.Y),
-        new Vector2(
-            bounds.X + bounds.Width,
-            bounds.Y + bounds.Height),
-        new Vector2(bounds.X, bounds.Y + bounds.Height)
-    };
-
         var minX = float.PositiveInfinity;
         var minY = float.PositiveInfinity;
         var maxX = float.NegativeInfinity;
         var maxY = float.NegativeInfinity;
 
-        foreach (var corner in corners)
-        {
-            var dx = corner.X - position.X;
-            var dy = corner.Y - position.Y;
+        var right = bounds.X + bounds.Width;
+        var top = bounds.Y + bounds.Height;
 
-            // Переводим мировые координаты в координаты сетки.
+        for (var cornerIndex = 0; cornerIndex < 4; cornerIndex++)
+        {
+            var cornerX =
+                cornerIndex is 1 or 2
+                    ? right
+                    : bounds.X;
+
+            var cornerY =
+                cornerIndex >= 2
+                    ? top
+                    : bounds.Y;
+
+            var dx = cornerX - position.X;
+            var dy = cornerY - position.Y;
+
             var localX =
                 (dx * cosine + dy * sine) /
                 (_tileSize * scale.X);

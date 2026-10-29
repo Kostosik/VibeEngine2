@@ -71,7 +71,7 @@ public sealed class JsonParticleEffectContentLoader :
                 $"Particle effect '{path}' is empty.");
         }
 
-        var json = Encoding.UTF8.GetString(data.Span);
+        var json = StrictUtf8Text.Decode(path, "Particle effect", data.Span);
 
         if (json.Length > 0 && json[0] == '\uFEFF')
         {

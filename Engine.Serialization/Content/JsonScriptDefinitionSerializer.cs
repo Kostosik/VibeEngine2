@@ -25,7 +25,7 @@ public static class JsonScriptDefinitionSerializer
 
         try
         {
-            var json = Encoding.UTF8.GetString(utf8Json.Span);
+            var json = StrictUtf8Text.Decode(path, "Script definition", utf8Json.Span);
 
             if (json.Length > 0 && json[0] == '\uFEFF')
             {

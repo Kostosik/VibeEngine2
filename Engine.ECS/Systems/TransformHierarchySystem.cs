@@ -35,7 +35,7 @@ public sealed class TransformHierarchySystem :
         _states.Clear();
 
         foreach (var item in
-         _world.Query<TransformParent2D>())
+         _world.QueryReadOnly<TransformParent2D>())
         {
             if (!_world.Has<LocalTransform2D>(
                     item.Entity))
@@ -47,7 +47,7 @@ public sealed class TransformHierarchySystem :
         }
 
         foreach (var item in
-                 _world.Query<LocalTransform2D>())
+                 _world.QueryReadOnly<LocalTransform2D>())
         {
             Resolve(
                 item.Entity);
@@ -84,8 +84,7 @@ public sealed class TransformHierarchySystem :
 
         var local =
             _world
-                .Get<LocalTransform2D>(
-                    entity)
+                .GetReadOnly<LocalTransform2D>(entity)
                 .Value;
 
         FixedTransform2D world;
@@ -95,8 +94,7 @@ public sealed class TransformHierarchySystem :
         {
             var parent =
                 _world
-                    .Get<TransformParent2D>(
-                        entity)
+                    .GetReadOnly<TransformParent2D>(entity)
                     .Parent;
 
             if (!_world.Exists(
@@ -166,7 +164,7 @@ public sealed class TransformHierarchySystem :
         EntityId entity)
     {
         var transform =
-            _world.Get<WorldTransform2D>(
+            _world.GetReadOnly<WorldTransform2D>(
                 entity);
 
         return new FixedTransform2D(

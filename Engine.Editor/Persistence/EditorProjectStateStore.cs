@@ -79,17 +79,10 @@ public sealed class EditorProjectStateStore
 
         Directory.CreateDirectory(directory);
 
-        var temporaryPath = _filePath + ".tmp";
-
-        File.WriteAllText(
-            temporaryPath,
-            JsonSerializer.Serialize(state, Options)
-                + Environment.NewLine);
-
-        File.Move(
-            temporaryPath,
-            _filePath,
-            overwrite: true);
+        AtomicTextFile.WriteAllText(
+    _filePath,
+    JsonSerializer.Serialize(state, Options)
+        + Environment.NewLine);
     }
 
     private sealed class EditorProjectState

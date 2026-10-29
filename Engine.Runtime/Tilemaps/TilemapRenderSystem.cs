@@ -57,7 +57,7 @@ public sealed class TilemapRenderSystem : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        foreach (var item in _world.Query<
+        foreach (var item in _world.QueryReadOnly<
                      TilemapComponent,
                      WorldTransform2D>())
         {

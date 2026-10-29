@@ -92,6 +92,11 @@ public sealed class GameProject
                 "The 'startupProject' path cannot point outside the project directory.");
         }
 
+        EnsureNoReparsePointsWithinProject(
+            rootDirectory,
+            projectFilePath,
+            "startupProject");
+
         if (!string.Equals(
                 Path.GetExtension(projectFilePath),
                 ".csproj",
@@ -108,6 +113,46 @@ public sealed class GameProject
                 projectFilePath);
         }
 
+        var startupScenePath = manifest.StartupScene;
+
+        if (!string.IsNullOrWhiteSpace(startupScenePath))
+        {
+            if (Path.IsPathRooted(startupScenePath))
+            {
+                throw new InvalidDataException(
+                    "The 'startupScene' path must be relative to the project directory.");
+            }
+
+
+
+            var fullStartupScenePath = Path.GetFullPath(
+                Path.Combine(rootDirectory, startupScenePath));
+
+            var relativeStartupScenePath = Path.GetRelativePath(
+                rootDirectory,
+                fullStartupScenePath);
+
+            if (IsOutsideProjectRoot(relativeStartupScenePath))
+            {
+                throw new InvalidDataException(
+                    "The 'startupScene' path cannot point outside the project directory.");
+            }
+
+            EnsureNoReparsePointsWithinProject(
+                rootDirectory,
+                fullStartupScenePath,
+                "startupScene");
+
+            if (!string.Equals(
+                    Path.GetExtension(fullStartupScenePath),
+                    ".world",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "The 'startupScene' path must point to a .world file.");
+            }
+        }
+
         var solutionFilePath =
             FindSolutionFilePath(
                 rootDirectory,
@@ -122,6 +167,60 @@ public sealed class GameProject
             manifest.StartupScene);
     }
 
+    private static void EnsureNoReparsePointsWithinProject(
+    string rootDirectory,
+    string targetPath,
+    string fieldName)
+    {
+        var relativePath = Path.GetRelativePath(
+            rootDirectory,
+            targetPath);
+
+        if (IsOutsideProjectRoot(relativePath))
+        {
+            throw new InvalidDataException(
+                $"The '{fieldName}' path cannot point outside the project directory.");
+        }
+
+
+
+        var currentPath = rootDirectory;
+
+        var separators = new[]
+        {
+        Path.DirectorySeparatorChar,
+        Path.AltDirectorySeparatorChar
+    };
+
+        foreach (var segment in relativePath.Split(
+                     separators,
+                     StringSplitOptions.RemoveEmptyEntries))
+        {
+            currentPath = Path.Combine(currentPath, segment);
+
+            FileAttributes attributes;
+
+            try
+            {
+                attributes = File.GetAttributes(currentPath);
+            }
+            catch (FileNotFoundException)
+            {
+                continue;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                continue;
+            }
+
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new InvalidDataException(
+                    $"The '{fieldName}' path cannot traverse a symbolic link or reparse point.");
+            }
+        }
+    }
+
     public void SetStartupScene(string sceneFilePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sceneFilePath);
@@ -134,6 +233,11 @@ public sealed class GameProject
                 "The startup scene must be inside the game project directory.",
                 nameof(sceneFilePath));
         }
+
+        EnsureNoReparsePointsWithinProject(
+            RootDirectory,
+            fullScenePath,
+            "startupScene");
 
         if (!string.Equals(
                 Path.GetExtension(fullScenePath),

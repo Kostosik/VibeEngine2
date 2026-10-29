@@ -134,7 +134,9 @@ internal static class TilemapRenderingBenchmark
             $"alloc/tile={(double)medianAllocations / tileCount,7:F2} B");
     }
 
-    private sealed class CountingGraphicsDevice : IGraphicsDevice
+    private sealed class CountingGraphicsDevice :
+        IGraphicsDevice,
+        IWorldTextureDataSubmitter
     {
         public int SubmittedCount { get; private set; }
 
@@ -142,7 +144,10 @@ internal static class TilemapRenderingBenchmark
         {
             SubmittedCount = 0;
         }
-
+        public void Submit(DrawWorldTextureData command)
+        {
+            SubmittedCount++;
+        }
         public void Submit(IRenderCommand command)
         {
             SubmittedCount++;

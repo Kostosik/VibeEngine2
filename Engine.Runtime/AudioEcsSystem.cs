@@ -83,7 +83,7 @@ public sealed class AudioEcsSystem : IDisposable
         _activeSources.Clear();
 
         foreach (var item in
-                 _world.Query<AudioSourceComponent, WorldTransform2D>())
+                 _world.QueryReadOnly<AudioSourceComponent, WorldTransform2D>())
         {
             var component = item.First;
             var transform = item.Second;
@@ -217,7 +217,7 @@ public sealed class AudioEcsSystem : IDisposable
         var found = false;
 
         foreach (var item in
-                 _world.Query<AudioListenerComponent, WorldTransform2D>())
+                 _world.QueryReadOnly<AudioListenerComponent, WorldTransform2D>())
         {
             var candidate = item.First;
 

@@ -775,7 +775,7 @@ public sealed class GameProjectRunnerBuildTests
     }
 
     [Fact]
-    public void Stop_WhenExitedProcessHasDescendantHoldingOutput_DoesNotWaitIndefinitely()
+    public async Task Stop_WhenExitedProcessHasDescendantHoldingOutput_DoesNotWaitIndefinitely()
     {
         var root = Path.Combine(
             Path.GetTempPath(),
@@ -873,13 +873,19 @@ public sealed class GameProjectRunnerBuildTests
 
             stopTask = Task.Run(runner.Stop);
 
+            await Task.WhenAny(
+                stopTask,
+                Task.Delay(TimeSpan.FromSeconds(7)));
+
             Assert.True(
-                stopTask.Wait(TimeSpan.FromSeconds(7)),
+                stopTask.IsCompleted,
                 "Stop blocked indefinitely while waiting for redirected output.");
+
+            await stopTask;
         }
         finally
         {
-            // Освобождаем поток даже в случае падения проверки.
+            // Завершаем дочерний процесс.
             try
             {
                 if (descendant is not null && !descendant.HasExited)
@@ -892,9 +898,28 @@ public sealed class GameProjectRunnerBuildTests
                 // Процесс мог уже завершиться.
             }
 
+            // Дожидаемся завершения процесса, чтобы он не удерживал Probe.dll.
             try
             {
-                stopTask?.Wait(TimeSpan.FromSeconds(5));
+                if (descendant is not null)
+                {
+                    await descendant
+                        .WaitForExitAsync()
+                        .WaitAsync(TimeSpan.FromSeconds(5));
+                }
+            }
+            catch
+            {
+                // Не скрываем исходную ошибку теста.
+            }
+
+            // Дожидаемся завершения Stop без блокировки потока.
+            try
+            {
+                if (stopTask is not null)
+                {
+                    await stopTask.WaitAsync(TimeSpan.FromSeconds(5));
+                }
             }
             catch
             {

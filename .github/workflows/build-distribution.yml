@@ -305,7 +305,6 @@ jobs:
 
           # OpenAL Soft is the native audio backend dependency shipped with the desktop projects.
           $requiredNativeFiles = @(
-            "Editor.Sandbox\soft_oal.dll"
             "Game.Sandbox\soft_oal.dll"
             "Editor.Sandbox\EngineRuntime\win-x64\soft_oal.dll"
           )

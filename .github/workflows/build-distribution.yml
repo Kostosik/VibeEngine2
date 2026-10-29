@@ -322,8 +322,8 @@ jobs:
 
           $readme = Get-Content -LiteralPath (Join-Path $verificationRoot "README.txt") -Raw
 
+          if ($readme -notmatch "Windows x64" -or
               $readme -notmatch '\.NET 8 Desktop Runtime \(x64\)') {
-              $readme -notmatch "\.NET 8 Desktop Runtime \\(x64\\)") {
             throw "Distribution README does not document the required platform and .NET runtime."
           }
 

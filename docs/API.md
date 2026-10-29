@@ -1647,19 +1647,20 @@ world.Add(
 
 За вычисление итоговых преобразований отвечает `TransformHierarchySystem`. Это система фазы `FixedUpdate`, которая обрабатывает локальные преобразования и записывает результаты в `WorldTransform2D`.
 
-В текущей реализации её необходимо зарегистрировать в планировщике до инициализации Runtime:
+`EngineRuntime` уже регистрирует эту систему в фазе `FixedUpdate` и задаёт её выполнение перед `PhysicsSystem2D`. При использовании стандартного Runtime дополнительная регистрация не нужна.
+
+Если приложение использует собственный `SystemScheduler` без `EngineRuntime`, система должна быть зарегистрирована до инициализации этого планировщика:
 
 ```csharp
 using Engine.Core.Systems;
 using Engine.ECS.Systems;
 
-runtime.Scheduler.Add(
-    new TransformHierarchySystem(
-        runtime.EcsWorld),
+scheduler.Add(
+    new TransformHierarchySystem(ecsWorld),
     SystemPhase.FixedUpdate);
 ```
 
-После регистрации и вызова `runtime.Initialize()` система будет пересчитывать преобразования на фиксированных шагах симуляции.
+Планировщик должен быть инициализирован после регистрации системы.
 
 ### Обязательные компоненты и ошибки
 

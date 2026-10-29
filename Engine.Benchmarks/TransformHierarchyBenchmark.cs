@@ -16,17 +16,17 @@ internal static class TransformHierarchyBenchmark
     private const int OperationsPerSample = 25;
     private static readonly int[] RootCounts =
     [
-        100,
-        500,
-        1_000,
-        5_000
+        5_000,
+    1_000,
+    500,
+    100
     ];
 
     private static readonly int[] ChainCounts =
     [
-        100,
-        250,
-        500
+        500,
+    250,
+    100
     ];
 
     public static void Run()

@@ -653,7 +653,7 @@ public sealed class PhysicsSystem2D :
     {
         _colliders.Clear();
 
-        foreach (var item in _world.Query<PhysicsBody2D>())
+        foreach (var item in _world.QueryReadOnly<PhysicsBody2D>())
         {
             var entity = item.Entity;
 
@@ -662,8 +662,8 @@ public sealed class PhysicsSystem2D :
                 continue;
             }
 
-            ref var sourceCollider =
-                ref _world.Get<Collider2D>(entity);
+            var sourceCollider =
+                _world.GetReadOnly<Collider2D>(entity);
 
             if (!sourceCollider.Enabled)
             {
@@ -672,8 +672,8 @@ public sealed class PhysicsSystem2D :
 
             sourceCollider.Validate();
 
-            ref var transform =
-                ref _world.Get<WorldTransform2D>(entity);
+            var transform =
+                _world.GetReadOnly<WorldTransform2D>(entity);
 
             var collider = sourceCollider;
 

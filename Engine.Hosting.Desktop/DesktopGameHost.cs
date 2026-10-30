@@ -55,7 +55,9 @@ public static class DesktopGameHost
         using var window = new OpenGLWindow(
             options.Width,
             options.Height,
-            options.Title);
+            options.Title,
+            options.Fullscreen,
+            options.VSync);
 
         window.Initialize();
 

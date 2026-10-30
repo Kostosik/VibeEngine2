@@ -25,15 +25,7 @@ public sealed class UiAssetLoader
         ArgumentNullException.ThrowIfNull(
             asset);
 
-        var root =
-            new UiRoot
-            {
-                Width =
-                    asset.CanvasSize.X,
-
-                Height =
-                    asset.CanvasSize.Y
-            };
+        var root = new UiRoot();
 
         var runtimeElements =
             new Dictionary<Guid, UiWidget>();

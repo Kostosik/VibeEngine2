@@ -13,6 +13,12 @@ namespace Engine.Graphics.OpenGL;
 
 public sealed class OpenGLWindow : IDisposable
 {
+    private bool _startFullscreen;
+    private bool _isBorderlessFullscreen;
+
+    private Vector2D<int> _windowedPosition;
+    private WindowBorder _windowedBorder;
+
     private bool _hasFocus = true;
     private readonly IWindow _window;
     private GameLoop? _gameLoop;
@@ -26,6 +32,29 @@ public sealed class OpenGLWindow : IDisposable
     _inputBackend as ICursorService
     ?? throw new InvalidOperationException(
         "Cursor service is not initialized.");
+
+    public int Width => _window.Size.X;
+
+    public int Height => _window.Size.Y;
+
+    public bool IsFullscreen
+    {
+        get =>
+            _window.WindowState ==
+            Silk.NET.Windowing.WindowState.Fullscreen;
+
+        set
+        {
+            var state = value
+                ? Silk.NET.Windowing.WindowState.Fullscreen
+                : Silk.NET.Windowing.WindowState.Normal;
+
+            if (_window.WindowState != state)
+            {
+                _window.WindowState = state;
+            }
+        }
+    }
 
     public ITextInput TextInput =>
     _inputBackend as ITextInput
@@ -44,14 +73,17 @@ public sealed class OpenGLWindow : IDisposable
     public OpenGLWindow(
         int width,
         int height,
-        string title)
+        string title,
+        bool fullscreen = false,
+        bool vsync = false)
     {
         var options =
             WindowOptions.Default;
 
-        options.VSync = false;
+        options.VSync = vsync;
 
-
+        options.WindowState =
+            WindowState.Normal;
 
         options.Size =
             new Vector2D<int>(
@@ -60,7 +92,7 @@ public sealed class OpenGLWindow : IDisposable
 
         options.Title =
             title;
-
+        _startFullscreen = fullscreen;
         _window =
             Window.Create(options);
 
@@ -97,7 +129,89 @@ public sealed class OpenGLWindow : IDisposable
 
         _window.Initialize();
 
+        if (_startFullscreen)
+        {
+            EnterBorderlessFullscreen();
+        }
+
         _initialized = true;
+    }
+
+    public void ApplyWindowSettings(
+    int width,
+    int height,
+    bool fullscreen,
+    bool vsync)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+
+        _window.VSync = vsync;
+
+        var fullscreenState =
+            Silk.NET.Windowing.WindowState.Fullscreen;
+
+        var isCurrentlyFullscreen =
+            _window.WindowState == fullscreenState;
+
+        if (fullscreen)
+        {
+            if (!isCurrentlyFullscreen)
+            {
+                _window.WindowState = fullscreenState;
+            }
+
+            return;
+        }
+
+        if (_window.WindowState !=
+            Silk.NET.Windowing.WindowState.Normal)
+        {
+            _window.WindowState =
+                Silk.NET.Windowing.WindowState.Normal;
+        }
+
+        var currentSize = _window.Size;
+
+        if (currentSize.X != width ||
+            currentSize.Y != height)
+        {
+            _window.Size = new Vector2D<int>(
+                width,
+                height);
+        }
+    }
+
+    private void EnterBorderlessFullscreen()
+    {
+        var monitor = _window.Monitor
+            ?? throw new InvalidOperationException(
+                "No monitor is available.");
+
+        var bounds = monitor.Bounds;
+
+        _windowedPosition = _window.Position;
+        _windowedBorder = _window.WindowBorder;
+
+        _window.WindowBorder = WindowBorder.Hidden;
+        _window.Position = bounds.Origin;
+        _window.Size = bounds.Size;
+
+        _isBorderlessFullscreen = true;
+    }
+
+    private void ExitBorderlessFullscreen(
+        int width,
+        int height)
+    {
+        _window.WindowBorder = _windowedBorder;
+        _window.Position = _windowedPosition;
+
+        _window.Size = new Vector2D<int>(
+            width,
+            height);
+
+        _isBorderlessFullscreen = false;
     }
 
     public void Run(

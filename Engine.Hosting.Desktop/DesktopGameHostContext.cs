@@ -48,9 +48,17 @@ public sealed class DesktopGameHostContext : IDisposable
     public IContentManager Content { get; }
 
     public InputActionMap InputActions { get; }
+    public int WindowWidth => _window.Width;
 
+    public int WindowHeight => _window.Height;
     public IGraphicsDevice Graphics =>
         Runtime.Services.Graphics;
+
+    public bool IsFullscreen
+    {
+        get => _window.IsFullscreen;
+        set => _window.IsFullscreen = value;
+    }
 
     public IInput Input =>
         Runtime.Services.Input;
@@ -60,6 +68,19 @@ public sealed class DesktopGameHostContext : IDisposable
 
     public Camera2D Camera =>
         Runtime.Services.Camera;
+
+    public void ApplyWindowSettings(
+    int width,
+    int height,
+    bool fullscreen,
+    bool vsync)
+    {
+        _window.ApplyWindowSettings(
+            width,
+            height,
+            fullscreen,
+            vsync);
+    }
 
     /// <summary>
     /// Optional capability: a host may not provide pointer input.

@@ -1,5 +1,6 @@
 ﻿using Engine.Graphics.Commands;
 using Engine.UI.Controls;
+using Engine.UI.Core;
 using Engine.UI.Layout;
 
 namespace Engine.Editor.UI.Authoring;
@@ -11,15 +12,58 @@ public sealed class EditorUiHierarchyPanelView :
     private readonly UiStackPanel _items;
     private readonly UiDropdown _addDropdown;
     private readonly UiButton _deleteButton;
-
+    private readonly UiButton _duplicateButton;
+    private readonly UiButton _multiSelectButton;
+    private readonly UiButton _clearSelectionButton;
+    private bool _multiSelectMode;
+    private readonly UiOverlayLayer? _overlay;
+    private readonly UiContextMenu? _contextMenu;
+    private readonly Action? _copySelection;
+    private readonly Action<Guid>? _pasteSelection;
+    private readonly Func<bool>? _canPasteSelection;
+    private Guid _contextTargetId;
     public EditorUiHierarchyPanelView(
-        EditorUiDocument document)
+        EditorUiDocument document,
+        UiOverlayLayer? overlays = null,
+        Action? copySelection = null,
+        Action<Guid>? pasteSelection = null,
+        Func<bool>? canPasteSelection = null)
     {
         ArgumentNullException.ThrowIfNull(
             document);
 
         _document =
             document;
+
+        _overlay = overlays;
+        _copySelection = copySelection;
+        _pasteSelection = pasteSelection;
+        _canPasteSelection = canPasteSelection;
+
+        if (overlays is not null)
+        {
+            _contextMenu = new UiContextMenu(overlays);
+
+            _contextMenu.AddItem(
+                "Duplicate",
+                DuplicateSelected,
+                HasSingleEditableSelection);
+
+            _contextMenu.AddItem(
+                "Copy",
+                () => _copySelection?.Invoke(),
+                HasSingleEditableSelection);
+
+            _contextMenu.AddItem(
+                "Paste",
+                () => _pasteSelection?.Invoke(_contextTargetId),
+                () => _canPasteSelection?.Invoke() == true);
+
+            _contextMenu.AddItem(
+                "Delete",
+                DeleteSelected,
+                HasSingleEditableSelection);
+        }
 
         Background =
             new UiColor(
@@ -31,21 +75,6 @@ public sealed class EditorUiHierarchyPanelView :
         Padding =
             new UiThickness(
                 6.0f);
-
-        var content =
-            new UiStackPanel
-            {
-                Orientation =
-                    UiOrientation.Vertical,
-
-                Spacing = 6.0f,
-
-                HorizontalAlignment =
-                    UiHorizontalAlignment.Stretch,
-
-                VerticalAlignment =
-                    UiVerticalAlignment.Stretch
-            };
 
         var toolbar =
             new UiStackPanel
@@ -86,13 +115,74 @@ public sealed class EditorUiHierarchyPanelView :
                 Height = 32.0f,
                 Enabled = false
             };
-
         _deleteButton.Clicked +=
-            DeleteSelected;
+    DeleteSelected;
+
+        _duplicateButton = new UiButton("Duplicate")
+        {
+            Width = 220.0f,
+            Height = 32.0f,
+            Enabled = false
+        };
+
+        _duplicateButton.Clicked += DuplicateSelected;
+
 
         toolbar.AddChild(
             _addDropdown);
 
+        _multiSelectButton = new UiButton("Multi-select: Off")
+        {
+            Width = 220.0f,
+            Height = 32.0f
+        };
+
+        _multiSelectButton.Clicked += () =>
+        {
+            _multiSelectMode = !_multiSelectMode;
+
+            _multiSelectButton.Text =
+                _multiSelectMode
+                    ? "Multi-select: On"
+                    : "Multi-select: Off";
+        };
+
+        _clearSelectionButton = new UiButton("Clear Selection")
+        {
+            Width = 220.0f,
+            Height = 32.0f
+        };
+
+        _clearSelectionButton.Clicked += () =>
+        {
+            _document.Selection.Clear();
+            Refresh();
+        };
+
+        toolbar.AddChild(_multiSelectButton);
+        toolbar.AddChild(_clearSelectionButton);
+
+        toolbar.AddChild(CreateAlignmentRow(
+    "Left",
+    "Right",
+    EditorUiAlignment.Left,
+    EditorUiAlignment.Right));
+
+        toolbar.AddChild(CreateAlignmentRow(
+            "Top",
+            "Bottom",
+            EditorUiAlignment.Top,
+            EditorUiAlignment.Bottom));
+
+        toolbar.AddChild(CreateAlignmentRow(
+            "Center H",
+            "Center V",
+            EditorUiAlignment.HorizontalCenter,
+            EditorUiAlignment.VerticalCenter));
+        toolbar.AddChild(CreateDistributionRow(
+    "Distribute H",
+    "Distribute V"));
+        toolbar.AddChild(_duplicateButton);
         toolbar.AddChild(
             _deleteButton);
 
@@ -111,31 +201,43 @@ public sealed class EditorUiHierarchyPanelView :
                     UiVerticalAlignment.Top
             };
 
-        var scrollView =
-            new UiScrollView
-            {
-                VerticalScrolling = true,
-                HorizontalScrolling = false,
-                ScrollSpeed = 32.0f,
+        var scrollContent = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical,
+            Spacing = 6.0f,
 
-                HorizontalAlignment =
-                    UiHorizontalAlignment.Stretch,
+            HorizontalAlignment =
+                UiHorizontalAlignment.Stretch,
 
-                VerticalAlignment =
-                    UiVerticalAlignment.Stretch
-            };
+            VerticalAlignment =
+                UiVerticalAlignment.Top
+        };
 
-        scrollView.SetContent(
-            _items);
+        // Панель инструментов и список находятся
+        // внутри одной прокручиваемой области.
+        scrollContent.AddChild(toolbar);
+        scrollContent.AddChild(_items);
 
-        content.AddChild(
-            toolbar);
+        var scrollView = new UiScrollView
+        {
+            VerticalScrolling = true,
+            HorizontalScrolling = false,
 
-        content.AddChild(
-            scrollView);
+            ShowVerticalScrollBar = true,
+            ShowHorizontalScrollBar = false,
 
-        AddChild(
-            content);
+            ScrollSpeed = 40.0f,
+
+            HorizontalAlignment =
+                UiHorizontalAlignment.Stretch,
+
+            VerticalAlignment =
+                UiVerticalAlignment.Stretch
+        };
+
+        scrollView.SetContent(scrollContent);
+
+        AddChild(scrollView);
     }
 
     public EditorUiDocument Document =>
@@ -180,51 +282,102 @@ public sealed class EditorUiHierarchyPanelView :
         }
     }
 
+    private UiStackPanel CreateAlignmentRow(
+    string firstText,
+    string secondText,
+    EditorUiAlignment firstAlignment,
+    EditorUiAlignment secondAlignment)
+    {
+        var row = new UiStackPanel
+        {
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 4.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        UiButton CreateButton(
+            string text,
+            EditorUiAlignment alignment)
+        {
+            var button = new UiButton(text)
+            {
+                Width = 106.0f,
+                Height = 30.0f,
+                FontSize = 11.0f
+            };
+
+            button.Clicked += () =>
+            {
+                if (EditorUiLayoutAlignment.Align(
+                        _document,
+                        alignment))
+                {
+                    Refresh();
+                }
+            };
+
+            return button;
+        }
+
+        row.AddChild(CreateButton(
+            firstText,
+            firstAlignment));
+
+        row.AddChild(CreateButton(
+            secondText,
+            secondAlignment));
+
+        return row;
+    }
+
     private void AddElementRow(
         EditorUiElement element,
         int depth)
     {
-        var selected =
-            _document.Selection.Contains(
-                element.Id);
+        var row = new EditorUiHierarchyElementRow(
+            _document,
+            element,
+            depth);
 
-        var prefix =
-            selected
-                ? "● "
-                : "  ";
+        var button = row.Button;
 
-        var indentation =
-            depth * 14.0f;
-
-        var button =
-            new UiButton(
-                prefix +
-                GetElementLabel(element))
+        button.Clicked += () =>
+        {
+            if (_multiSelectMode)
             {
-                Height = 30.0f,
-
-                HorizontalAlignment =
-                    UiHorizontalAlignment.Stretch,
-
-                Margin =
-                    new UiThickness(
-                        indentation,
-                        0.0f,
-                        0.0f,
-                        0.0f)
-            };
-
-        button.Clicked +=
-            () =>
+                if (!_document.Selection.Remove(element.Id))
+                {
+                    _document.Selection.Add(element.Id);
+                }
+            }
+            else
             {
-                _document.Selection.Set(
-                    element.Id);
+                _document.Selection.Set(element.Id);
+            }
 
-                Refresh();
-            };
+            Refresh();
+        };
+
+        button.RightClicked += pointer =>
+        {
+            if (!_document.Selection.Contains(element.Id))
+            {
+                _document.Selection.Set(element.Id);
+            }
+
+            _contextTargetId = element.Id;
+
+            Refresh();
+
+            _contextMenu?.Open(pointer.Position);
+        };
 
         _items.AddChild(
             button);
+        row.Dropped += Refresh;
+
+        _items.AddChild(row);
     }
 
     private void OnAddTypeSelected(
@@ -266,6 +419,76 @@ public sealed class EditorUiHierarchyPanelView :
         Refresh();
     }
 
+    public void ReleaseResources()
+    {
+        _contextMenu?.Close();
+
+        if (_contextMenu is not null)
+        {
+            _overlay?.Hide(_contextMenu);
+        }
+    }
+
+    private UiStackPanel CreateDistributionRow(
+    string horizontalText,
+    string verticalText)
+    {
+        var row = new UiStackPanel
+        {
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 4.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        UiButton CreateButton(
+            string text,
+            EditorUiDistributionAxis axis)
+        {
+            var button = new UiButton(text)
+            {
+                Width = 106.0f,
+                Height = 30.0f,
+                FontSize = 11.0f
+            };
+
+            button.Clicked += () =>
+            {
+                if (EditorUiLayoutAlignment.Distribute(
+                        _document,
+                        axis))
+                {
+                    Refresh();
+                }
+            };
+
+            return button;
+        }
+
+        row.AddChild(CreateButton(
+            horizontalText,
+            EditorUiDistributionAxis.Horizontal));
+
+        row.AddChild(CreateButton(
+            verticalText,
+            EditorUiDistributionAxis.Vertical));
+
+        return row;
+    }
+
+    private bool HasSingleEditableSelection()
+    {
+        if (_document.Selection.Count != 1)
+        {
+            return false;
+        }
+
+        var id = _document.Selection.Items.First();
+
+        return id != _document.Root.Id &&
+               _document.ContainsElement(id);
+    }
+
     private void DeleteSelected()
     {
         if (_document.Selection.Count != 1)
@@ -291,12 +514,46 @@ public sealed class EditorUiHierarchyPanelView :
         Refresh();
     }
 
+    public void DuplicateSelection()
+    {
+        DuplicateSelected();
+    }
+
+    private void DuplicateSelected()
+    {
+        if (_document.Selection.Count != 1)
+        {
+            return;
+        }
+
+        var selectedId = _document.Selection.Items.First();
+
+        if (selectedId == _document.Root.Id)
+        {
+            return;
+        }
+
+        var command = new DuplicateEditorUiElementCommand(
+            _document,
+            selectedId);
+
+        _document.Execute(command);
+
+        _document.Selection.Set(
+            command.DuplicatedElement.Id);
+
+        Refresh();
+    }
+
     private void UpdateDeleteState()
     {
         _deleteButton.Enabled =
             _document.Selection.Count == 1 &&
             _document.Selection.Items.First() !=
             _document.Root.Id;
+        _duplicateButton.Enabled =
+            _document.Selection.Count == 1 &&
+            _document.Selection.Items.First() != _document.Root.Id;
     }
 
     private Guid GetSelectedParentId()

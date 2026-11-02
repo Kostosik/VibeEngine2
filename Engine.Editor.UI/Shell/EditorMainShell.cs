@@ -57,7 +57,12 @@ public sealed class EditorMainShell :
     public event Action? StopRequested;
     public event Action? RestartRequested;
     public event Action? HotReloadRequested;
-
+    private EditorUiElement? _uiElementClipboard;
+    private EditorUiDocument? _uiElementClipboardSourceDocument;
+    private Guid _uiElementClipboardParentId;
+    private int _uiElementPasteCount;
+    public bool CanPasteUiElement =>
+    IsUiMode && _uiElementClipboard is not null;
     public UiWidget ConsoleOutputWidget =>
     _workspaceView.Console.ConsoleOutputWidget;
 
@@ -282,7 +287,15 @@ public sealed class EditorMainShell :
             _overlays,
             _assetPreviewTextures,
             _filePreviewTextureManager,
-            pickAction);
+            pickAction, () =>
+            {
+                CopySelectedUiElement();
+            },
+elementId =>
+{
+    PasteUiElement(elementId);
+},
+() => CanPasteUiElement);
 
 
         return view;
@@ -954,6 +967,103 @@ view,
         }
 
         _documentTabs.SetContent(tabs);
+    }
+
+    public bool CopySelectedUiElement()
+    {
+        if (Editor.Session.ActiveEditorDocument
+            is not EditorUiDocument document)
+        {
+            return false;
+        }
+
+        if (document.Selection.Count != 1)
+        {
+            return false;
+        }
+
+        var selectedId = document.Selection.Items.First();
+        var source = document.GetElement(selectedId);
+
+        // Корневой элемент документа копировать нельзя.
+        if (ReferenceEquals(source, document.Root) ||
+            source.Parent is null)
+        {
+            return false;
+        }
+
+        _uiElementClipboard =
+            EditorUiElementCloner.Clone(source);
+
+        _uiElementClipboardSourceDocument = document;
+        _uiElementClipboardParentId = source.Parent.Id;
+        _uiElementPasteCount = 0;
+
+        return true;
+    }
+
+    public bool PasteUiElement()
+    {
+        return PasteUiElement(null);
+    }
+
+    public bool PasteUiElement(Guid? targetParentId)
+    {
+        if (Editor.Session.ActiveEditorDocument
+            is not EditorUiDocument document ||
+            _uiElementClipboard is null)
+        {
+            return false;
+        }
+
+        // В исходном документе стараемся сохранить родителя.
+        // При вставке в другой документ используем корень.
+        var parentId =
+            targetParentId is { } target &&
+            document.ContainsElement(target)
+                ? target
+                : ReferenceEquals(
+                    document,
+                    _uiElementClipboardSourceDocument) &&
+                  document.ContainsElement(_uiElementClipboardParentId)
+                    ? _uiElementClipboardParentId
+                    : document.Root.Id;
+
+        _uiElementPasteCount++;
+
+        var offsetValue = 20.0f * _uiElementPasteCount;
+
+        var suffix =
+            _uiElementPasteCount == 1
+                ? " Copy"
+                : $" Copy {_uiElementPasteCount}";
+
+        var command = new PasteEditorUiElementCommand(
+            document,
+            _uiElementClipboard,
+            parentId,
+            new Vector2(offsetValue, offsetValue),
+            suffix);
+
+        document.Execute(command);
+
+        document.Selection.Set(
+            command.PastedElement.Id);
+
+        Refresh();
+
+        return true;
+    }
+
+    public void DuplicateSelectedUiElement()
+    {
+        if (Editor.Session.ActiveEditorDocument
+            is not EditorUiDocument)
+        {
+            return;
+        }
+
+        _uiWorkspaceView.Hierarchy.DuplicateSelection();
     }
 
     public bool TryExecuteHierarchyShortcut(

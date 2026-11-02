@@ -14,6 +14,9 @@ internal sealed class EditorKeyboardShortcutHandler
     private static readonly InputBinding RenameEntityKey =
     new("Keyboard.F2");
 
+    private static readonly InputBinding DuplicateKey =
+    new("Keyboard.D");
+
     private static readonly InputBinding DeleteEntityKey =
         new("Keyboard.Delete");
 
@@ -60,6 +63,7 @@ internal sealed class EditorKeyboardShortcutHandler
     private bool _pasteShortcutWasDown;
     private bool _renameEntityShortcutWasDown;
     private bool _deleteEntityShortcutWasDown;
+    private bool _duplicateShortcutWasDown;
     public EditorKeyboardShortcutHandler(
         IInputBackend input,
         UiSystem ui,
@@ -137,6 +141,12 @@ internal sealed class EditorKeyboardShortcutHandler
             (redoKeyDown ||
              (shiftDown && undoKeyDown));
 
+        var duplicateDown =
+    controlDown &&
+    !shiftDown &&
+    !altDown &&
+    _input.GetValue(DuplicateKey) > 0.5f;
+
         var focusedWidget = _ui.Focus.FocusedWidget;
         var focusedTextBox = focusedWidget as UiTextBox;
 
@@ -153,7 +163,8 @@ internal sealed class EditorKeyboardShortcutHandler
              consoleOutput.IsHovered);
 
         // Ctrl+C: сначала выделение TextBox,
-        // иначе выделенный текст консоли.
+        // затем выделенный текст консоли,
+        // иначе выбранный UI-элемент.
         if (copyDown &&
             !_copyShortcutWasDown &&
             _ui.Focus.ActiveScope is null)
@@ -186,37 +197,49 @@ internal sealed class EditorKeyboardShortcutHandler
                     }
                 }
             }
+            else if (focusedTextBox is null &&
+                     !canCopyConsoleSelection)
+            {
+                _mainShell.CopySelectedUiElement();
+            }
         }
 
-        // Ctrl+V: вставка только в активное поле ввода.
+        // Ctrl+V: сначала вставка текста в TextBox,
+        // иначе вставка UI-элемента.
         if (pasteDown &&
             !_pasteShortcutWasDown &&
-            _ui.Focus.ActiveScope is null &&
-            focusedTextBox is not null)
+            _ui.Focus.ActiveScope is null)
         {
-            if (_clipboardService is null)
+            if (focusedTextBox is not null)
             {
-                _debugConsole?.WriteError(
-                    "Clipboard service is not configured.");
+                if (_clipboardService is null)
+                {
+                    _debugConsole?.WriteError(
+                        "Clipboard service is not configured.");
+                }
+                else
+                {
+                    try
+                    {
+                        var clipboardText =
+                            _clipboardService.GetText();
+
+                        if (!string.IsNullOrEmpty(clipboardText))
+                        {
+                            focusedTextBox.InsertText(clipboardText);
+                        }
+                    }
+                    catch (Exception exception)
+                    {
+                        _debugConsole?.WriteException(
+                            exception,
+                            "Failed to paste clipboard text.");
+                    }
+                }
             }
             else
             {
-                try
-                {
-                    var clipboardText =
-                        _clipboardService.GetText();
-
-                    if (!string.IsNullOrEmpty(clipboardText))
-                    {
-                        focusedTextBox.InsertText(clipboardText);
-                    }
-                }
-                catch (Exception exception)
-                {
-                    _debugConsole?.WriteException(
-                        exception,
-                        "Failed to paste clipboard text.");
-                }
+                _mainShell.PasteUiElement();
             }
         }
 
@@ -239,6 +262,12 @@ internal sealed class EditorKeyboardShortcutHandler
         // и модальных окон.
         if (!shortcutSuppressed)
         {
+            if (duplicateDown &&
+    !_duplicateShortcutWasDown)
+            {
+                _mainShell.DuplicateSelectedUiElement();
+            }
+
             if (undoDown && !_undoShortcutWasDown)
             {
                 _mainShell.Undo();
@@ -279,5 +308,6 @@ internal sealed class EditorKeyboardShortcutHandler
         _deleteEntityShortcutWasDown = deleteEntityDown;
         _saveShortcutWasDown = saveDown;
         _saveAllShortcutWasDown = saveAllDown;
+        _duplicateShortcutWasDown = duplicateDown;
     }
 }

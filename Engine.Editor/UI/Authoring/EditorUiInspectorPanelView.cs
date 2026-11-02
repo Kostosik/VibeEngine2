@@ -234,7 +234,7 @@ public sealed class EditorUiInspectorPanelView :
         var container = new UiStackPanel
         {
             Orientation = UiOrientation.Vertical,
-            Spacing = 4.0f,
+            Spacing = 5.0f,
             HorizontalAlignment = UiHorizontalAlignment.Stretch,
             VerticalAlignment = UiVerticalAlignment.Top
         };
@@ -245,55 +245,72 @@ public sealed class EditorUiInspectorPanelView :
                 FontSize = 12.0f
             });
 
-        var dropdown = new UiDropdown
+        var presets = new (string Label, string Value)[][]
         {
-            Width = 220.0f,
-            Height = 32.0f
+        new[]
+        {
+            ("TL", "Top Left"),
+            ("TC", "Top Center"),
+            ("TR", "Top Right")
+        },
+        new[]
+        {
+            ("ML", "Middle Left"),
+            ("C", "Center"),
+            ("MR", "Middle Right")
+        },
+        new[]
+        {
+            ("BL", "Bottom Left"),
+            ("BC", "Bottom Center"),
+            ("BR", "Bottom Right")
+        }
         };
 
-        var presets = new[]
+        var current =
+            property.GetValue()?.ToString() ?? "Custom";
+
+        var grid = new UiStackPanel
         {
-        "Custom",
-        "Top Left",
-        "Top Center",
-        "Top Right",
-        "Middle Left",
-        "Center",
-        "Middle Right",
-        "Bottom Left",
-        "Bottom Center",
-        "Bottom Right"
-    };
+            Orientation = UiOrientation.Vertical,
+            Spacing = 3.0f
+        };
 
-        foreach (var preset in presets)
+        foreach (var presetRow in presets)
         {
-            dropdown.AddOption(preset);
-        }
-
-        var current = property.GetValue()?.ToString() ?? "Custom";
-        var selectedIndex = Array.IndexOf(presets, current);
-
-        dropdown.SetSelectedIndex(
-            selectedIndex >= 0 ? selectedIndex : 0);
-
-        dropdown.SelectionChanged += (_, selected) =>
-        {
-            if (selected == "Custom" ||
-                selected == property.GetValue()?.ToString())
+            var row = new UiStackPanel
             {
-                Refresh();
-                return;
+                Orientation = UiOrientation.Horizontal,
+                Spacing = 3.0f
+            };
+
+            foreach (var (label, value) in presetRow)
+            {
+                var button = new UiButton(label)
+                {
+                    Width = 42.0f,
+                    Height = 30.0f,
+                    FontSize = 11.0f,
+                    Enabled = value != current
+                };
+
+                button.Clicked += () =>
+                {
+                    _document.Execute(
+                        new SetEditorPropertyCommand(
+                            property,
+                            value));
+
+                    Refresh();
+                };
+
+                row.AddChild(button);
             }
 
-            _document.Execute(
-                new SetEditorPropertyCommand(
-                    property,
-                    selected));
+            grid.AddChild(row);
+        }
 
-            Refresh();
-        };
-
-        container.AddChild(dropdown);
+        container.AddChild(grid);
 
         return container;
     }

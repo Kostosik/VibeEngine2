@@ -33,7 +33,9 @@ public sealed class EditorUiWorkspaceView :
         EditorContext? editor = null,
         UiOverlayLayer? overlays = null,
         ITextureResourceManager? assetPreviewTextures = null, ITextureManager? filePreviewTextureManager = null, Func<IReadOnlyList<string>, string?, Action<string>, bool>?
-    pickAction = null)
+    pickAction = null, Action? copySelection = null,
+Action<Guid>? pasteSelection = null,
+Func<bool>? canPasteSelection = null)
     {
         ArgumentNullException.ThrowIfNull(
             document);
@@ -85,9 +87,12 @@ public sealed class EditorUiWorkspaceView :
         AddChild(_leftSplitter);
         AddChild(_rightSplitter);
 
-        Hierarchy =
-            new EditorUiHierarchyPanelView(
-                document);
+        Hierarchy = new EditorUiHierarchyPanelView(
+            document,
+            overlays,
+            copySelection,
+            pasteSelection,
+            canPasteSelection);
 
         var previewWorkspace =
             new EditorUiCanvasWorkspaceView(
@@ -134,6 +139,7 @@ public sealed class EditorUiWorkspaceView :
     public void ReleaseResources()
     {
         Preview.ReleaseResources();
+        Hierarchy.ReleaseResources();
     }
 
     public void Refresh()

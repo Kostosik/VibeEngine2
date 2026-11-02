@@ -7,23 +7,19 @@ using Engine.UI.Controls;
 using Engine.UI.Core;
 using Engine.UI.Input;
 using Engine.UI.Layout;
+using ResizeHandle =
+    Engine.Editor.UI.Authoring.EditorUiCanvasTransformTool.ResizeHandle;
 
 namespace Engine.Editor.UI.Authoring;
 
 public sealed class EditorUiCanvasPreviewView :
     UiPanel
 {
-    private const float CanvasPadding = 16.0f;
-
     private readonly EditorUiDocument _document;
-    private readonly EditorUiCanvasImageRenderer _imageRenderer;
-    private const float MinZoom = 0.25f;
-    private const float MaxZoom = 8.0f;
-    private const float ZoomStep = 1.15f;
-
-    private float _zoom = 1.0f;
-    private Vector2 _pan = Vector2.Zero;
-
+    private readonly EditorUiCanvasElementRenderer _elementRenderer;
+    private readonly EditorUiCanvasViewportTransform _viewportTransform =
+    new();
+    private readonly EditorUiCanvasTransformTool _transformTool;
     private bool _panning;
     private Vector2 _panStartPointer;
     private Vector2 _panStartOffset;
@@ -39,7 +35,6 @@ public sealed class EditorUiCanvasPreviewView :
     private float _dragScale;
 
     private DragOperation _dragOperation;
-    private ResizeHandle _resizeHandle;
 
     private const float GizmoRotateHandleOffset = 22.0f;
 
@@ -62,19 +57,6 @@ public sealed class EditorUiCanvasPreviewView :
         Rotate
     }
 
-    private enum ResizeHandle
-    {
-        None,
-        Left,
-        Right,
-        Top,
-        Bottom,
-        TopLeft,
-        TopRight,
-        BottomLeft,
-        BottomRight
-    }
-
     public EditorUiCanvasPreviewView(
         EditorUiDocument document,
         ITextureResourceManager? textures = null,
@@ -85,8 +67,9 @@ public sealed class EditorUiCanvasPreviewView :
             document);
 
         _document = document;
-        _imageRenderer =
-            new EditorUiCanvasImageRenderer(
+        _transformTool = new EditorUiCanvasTransformTool(document);
+        _elementRenderer =
+            new EditorUiCanvasElementRenderer(
                 textures,
                 editor,
                 projectTextureManager);
@@ -134,13 +117,13 @@ public sealed class EditorUiCanvasPreviewView :
             filled: false);
 
 
-        RenderElement(
+        _elementRenderer.Render(
             context,
-            _document.Root,
-            Vector2.Zero,
-            _document.Root.Layout.Size,
+            _document,
             canvasRect.Position,
-            GetScale());
+            GetScale(),
+            GetEffectiveLayout);
+
         RenderSelectionGizmo(context);
 
         context.PopClip();
@@ -149,63 +132,19 @@ public sealed class EditorUiCanvasPreviewView :
     protected override void OnPointerWheel(
     UiPointerEvent pointer)
     {
-        if (!Bounds.Contains(pointer.Position) ||
-            MathF.Abs(pointer.ScrollDelta) < 0.0001f)
+        if (!Bounds.Contains(pointer.Position))
         {
             return;
         }
 
-        var rootSize = _document.Root.Layout.Size;
-        var oldScale = GetScale();
-
-        if (oldScale <= 0.0f)
-        {
-            return;
-        }
-
-        // Точка документа под курсором до масштабирования.
-        var oldCanvas = GetCanvasRect();
-
-        var documentPoint = new Vector2(
-            (pointer.Position.X - oldCanvas.X) / oldScale,
-            (pointer.Position.Y - oldCanvas.Y) / oldScale);
-
-        var newZoom = Math.Clamp(
-            _zoom * MathF.Pow(
-                ZoomStep,
-                pointer.ScrollDelta),
-            MinZoom,
-            MaxZoom);
-
-        if (MathF.Abs(newZoom - _zoom) < 0.0001f)
+        if (_viewportTransform.ZoomAt(
+                Bounds,
+                _document.Root.Layout.Size,
+                pointer.Position,
+                pointer.ScrollDelta))
         {
             pointer.Handled = true;
-            return;
         }
-
-        _zoom = newZoom;
-
-        var newScale = GetScale();
-
-        // Положение Canvas при центрировании без pan.
-        var centeredOrigin = new Vector2(
-            Bounds.X +
-            (Bounds.Width - rootSize.X * newScale) * 0.5f,
-
-            Bounds.Y +
-            (Bounds.Height - rootSize.Y * newScale) * 0.5f);
-
-        // Оставляем прежнюю точку документа под курсором.
-        _pan = new Vector2(
-            pointer.Position.X -
-            documentPoint.X * newScale -
-            centeredOrigin.X,
-
-            pointer.Position.Y -
-            documentPoint.Y * newScale -
-            centeredOrigin.Y);
-
-        pointer.Handled = true;
     }
 
     protected override void OnPointerDown(
@@ -220,7 +159,7 @@ public sealed class EditorUiCanvasPreviewView :
         {
             _panning = true;
             _panStartPointer = pointer.Position;
-            _panStartOffset = _pan;
+            _panStartOffset = _viewportTransform.Pan;
 
             pointer.RequestCapture();
             pointer.Handled = true;
@@ -260,10 +199,8 @@ public sealed class EditorUiCanvasPreviewView :
 
             if (HitTestRotateHandle(gizmoPoint, gizmoRect))
             {
-                BeginDrag(
+                _transformTool.BeginRotate(
                     selected,
-                    DragOperation.Rotate,
-                    ResizeHandle.None,
                     pointer,
                     scale,
                     selectedTransform.ParentRotationDegrees,
@@ -280,9 +217,8 @@ public sealed class EditorUiCanvasPreviewView :
 
             if (handle != ResizeHandle.None)
             {
-                BeginDrag(
+                _transformTool.BeginResize(
                     selected,
-                    DragOperation.Resize,
                     handle,
                     pointer,
                     scale,
@@ -306,11 +242,10 @@ public sealed class EditorUiCanvasPreviewView :
             (pointer.Position.X - canvasRect.X) / scale,
             (pointer.Position.Y - canvasRect.Y) / scale);
 
-        var hit = FindElementAt(
-            _document.Root,
+        var hit = EditorUiCanvasHitTester.HitTest(
+            _document,
             documentPosition,
-            Vector2.Zero,
-            _document.Root.Layout.Size);
+            GetEffectiveLayout);
 
         if (hit is null)
         {
@@ -325,10 +260,8 @@ public sealed class EditorUiCanvasPreviewView :
                 scale,
                 out var hitTransform))
         {
-            BeginDrag(
+            _transformTool.BeginMove(
                 hit,
-                DragOperation.Move,
-                ResizeHandle.None,
                 pointer,
                 scale,
                 hitTransform.ParentRotationDegrees,
@@ -344,8 +277,9 @@ public sealed class EditorUiCanvasPreviewView :
     {
         if (_panning)
         {
-            _pan = _panStartOffset +
-                   (pointer.Position - _panStartPointer);
+            _viewportTransform.SetPan(
+                _panStartOffset +
+                (pointer.Position - _panStartPointer));
 
             pointer.Handled = true;
             return;
@@ -963,322 +897,24 @@ public sealed class EditorUiCanvasPreviewView :
         return ResizeHandle.None;
     }
 
-    private void RenderElement(
-    UiRenderContext context,
-    EditorUiElement element,
-    Vector2 parentOrigin,
-    Vector2 parentSize,
-    Vector2 canvasOrigin,
-    float scale)
-    {
-        if (!element.Visible)
-        {
-            return;
-        }
-
-        var layout = GetEffectiveLayout(element);
-
-        var localRect = layout.Resolve(parentSize);
-
-        var elementOrigin = new Vector2(
-            parentOrigin.X + localRect.X,
-            parentOrigin.Y + localRect.Y);
-
-        var rect = new UiRect(
-            canvasOrigin.X + elementOrigin.X * scale,
-            canvasOrigin.Y + elementOrigin.Y * scale,
-            localRect.Width * scale,
-            localRect.Height * scale);
-
-        // Центр вращения элемента в экранных координатах.
-        var rotationCenter = new Vector2(
-            rect.X + rect.Width / 2.0f,
-            rect.Y + rect.Height / 2.0f);
-
-        // Начинаем вращение этого элемента.
-        context.PushRotation(
-            rotationCenter,
-            layout.RotationDegrees);
-
-        try
-        {
-            if (!ReferenceEquals(element, _document.Root))
-            {
-                context.DrawRectangle(
-                    rect,
-                    GetElementBackground(element),
-                    filled: true);
-
-                if (element.Type == EditorUiElementType.Image)
-                {
-                    _imageRenderer.Draw(
-                        context,
-                        element,
-                        rect);
-                }
-
-                context.DrawRectangle(
-                    rect,
-                    _document.Selection.Contains(element.Id)
-                        ? new UiColor(235, 235, 235, 255)
-                        : new UiColor(105, 105, 105, 255),
-                    filled: false,
-                    layer: 1);
-
-                if (ShouldDrawText(element) &&
-                    !string.IsNullOrEmpty(element.Text))
-                {
-                    var textSize = context.MeasureText(
-                        element.Text,
-                        12.0f);
-
-                    var textPosition = UiTextLayout.CalculatePosition(
-                        rect,
-                        textSize,
-                        UiTextHorizontalAlignment.Center,
-                        UiTextVerticalAlignment.Center);
-
-                    context.DrawText(
-                        element.Text,
-                        textPosition,
-                        12.0f,
-                        new UiColor(235, 235, 235, 255),
-                        layer: 2);
-                }
-
-                if (element.Type != EditorUiElementType.Image &&
-                    string.IsNullOrEmpty(element.Text) &&
-                    rect.Width >= 80.0f &&
-                    rect.Height >= 26.0f)
-                {
-                    var text = element.Name;
-
-                    var textSize = context.MeasureText(
-                        text,
-                        11.0f);
-
-                    var textPosition = UiTextLayout.CalculatePosition(
-                        rect,
-                        textSize,
-                        UiTextHorizontalAlignment.Center,
-                        UiTextVerticalAlignment.Center);
-
-                    context.DrawText(
-                        text,
-                        textPosition,
-                        11.0f,
-                        new UiColor(190, 190, 190, 255),
-                        layer: 2);
-                }
-            }
-
-            // Дочерние элементы отрисовываются внутри
-            // системы координат с поворотом родителя.
-            foreach (var child in element.Children.OrderBy(
-                         static child => child.ZIndex))
-            {
-                RenderElement(
-                    context,
-                    child,
-                    elementOrigin,
-                    new Vector2(
-                        localRect.Width,
-                        localRect.Height),
-                    canvasOrigin,
-                    scale);
-            }
-        }
-        finally
-        {
-            // Обязательно снимаем поворот перед выходом.
-            context.PopRotation();
-        }
-    }
 
     public void ReleaseResources()
     {
-        _imageRenderer.ReleaseResources();
+        _elementRenderer.Dispose();
     }
 
-    private static bool ShouldDrawText(
-    EditorUiElement element)
-    {
-        return element.Type is
-            EditorUiElementType.Label or
-            EditorUiElementType.Button or
-            EditorUiElementType.TextBox or
-            EditorUiElementType.Toggle or
-            EditorUiElementType.Dropdown;
-    }
-    private EditorUiElement? FindElementAt(
-    EditorUiElement element,
-    Vector2 point,
-    Vector2 parentOrigin,
-    Vector2 parentSize)
-    {
-        if (!element.Visible)
-        {
-            return null;
-        }
-
-        var layout = GetEffectiveLayout(element);
-        var localRect = layout.Resolve(parentSize);
-
-        var elementOrigin = new Vector2(
-            parentOrigin.X + localRect.X,
-            parentOrigin.Y + localRect.Y);
-
-        var elementCenter = new Vector2(
-            elementOrigin.X + localRect.Width * 0.5f,
-            elementOrigin.Y + localRect.Height * 0.5f);
-
-        var unrotatedPoint = RotatePointForHitTest(
-            point,
-            elementCenter,
-            -layout.RotationDegrees);
-
-        foreach (var child in element.Children
-                     .OrderByDescending(
-                         static child => child.ZIndex))
-        {
-            var hit = FindElementAt(
-                child,
-                unrotatedPoint,
-                elementOrigin,
-                new Vector2(
-                    localRect.Width,
-                    localRect.Height));
-
-            if (hit is not null)
-            {
-                return hit;
-            }
-        }
-
-        if (unrotatedPoint.X >= elementOrigin.X &&
-            unrotatedPoint.Y >= elementOrigin.Y &&
-            unrotatedPoint.X <= elementOrigin.X + localRect.Width &&
-            unrotatedPoint.Y <= elementOrigin.Y + localRect.Height)
-        {
-            return element;
-        }
-
-        return null;
-    }
 
     private UiRect GetCanvasRect()
     {
-        var rootSize =
-            _document.Root.Layout.Size;
-
-        var availableWidth =
-            MathF.Max(
-                0.0f,
-                Bounds.Width -
-                CanvasPadding * 2.0f);
-
-        var availableHeight =
-            MathF.Max(
-                0.0f,
-                Bounds.Height -
-                CanvasPadding * 2.0f);
-
-        if (rootSize.X <= 0.0f ||
-            rootSize.Y <= 0.0f)
-        {
-            return new UiRect(
-                Bounds.X,
-                Bounds.Y,
-                0.0f,
-                0.0f);
-        }
-
-        var scale = GetScale();
-
-        var width =
-            rootSize.X *
-            scale;
-
-        var height =
-            rootSize.Y *
-            scale;
-
-        return new UiRect(
-            Bounds.X +
-            (Bounds.Width - width) * 0.5f +
-            _pan.X,
-
-            Bounds.Y +
-            (Bounds.Height - height) * 0.5f +
-            _pan.Y,
-
-            width,
-            height);
+        return _viewportTransform.GetCanvasRect(
+            Bounds,
+            _document.Root.Layout.Size);
     }
 
     private float GetScale()
     {
-        var rootSize =
-            _document.Root.Layout.Size;
-
-        if (rootSize.X <= 0.0f ||
-            rootSize.Y <= 0.0f)
-        {
-            return 0.0f;
-        }
-
-        var availableWidth =
-            MathF.Max(
-                0.0f,
-                Bounds.Width -
-                CanvasPadding * 2.0f);
-
-        var availableHeight =
-            MathF.Max(
-                0.0f,
-                Bounds.Height -
-                CanvasPadding * 2.0f);
-
-        return _zoom * MathF.Min(
-            availableWidth / rootSize.X,
-            availableHeight / rootSize.Y);
-    }
-
-    private static UiColor GetElementBackground(
-        EditorUiElement element)
-    {
-        return element.Type switch
-        {
-            EditorUiElementType.Panel =>
-                new UiColor(60, 70, 85, 255),
-
-            EditorUiElementType.Label =>
-                new UiColor(70, 70, 70, 255),
-
-            EditorUiElementType.Button =>
-                new UiColor(65, 85, 105, 255),
-
-            EditorUiElementType.Image =>
-                new UiColor(75, 65, 90, 255),
-
-            EditorUiElementType.TextBox =>
-                new UiColor(55, 80, 75, 255),
-
-            EditorUiElementType.Toggle =>
-                new UiColor(75, 80, 55, 255),
-
-            EditorUiElementType.Dropdown =>
-                new UiColor(80, 65, 55, 255),
-
-            EditorUiElementType.ScrollView =>
-                new UiColor(55, 75, 85, 255),
-
-            _ =>
-                new UiColor(
-                    60,
-                    60,
-                    60,
-                    255)
-        };
+        return _viewportTransform.GetScale(
+            Bounds,
+            _document.Root.Layout.Size);
     }
 }

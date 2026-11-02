@@ -11,11 +11,15 @@ public static class EditorUiCanvasHitTester
     {
         ArgumentNullException.ThrowIfNull(document);
 
+        var rootSize =
+    layoutResolver?.Invoke(document.Root).Size
+    ?? document.Root.Layout.Size;
+
         return FindElementAt(
             document.Root,
             documentPosition,
             Vector2.Zero,
-            document.Root.Layout.Size,
+            rootSize,
             layoutResolver);
     }
 

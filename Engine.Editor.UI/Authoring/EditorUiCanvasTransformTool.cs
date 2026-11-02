@@ -19,6 +19,8 @@ internal sealed class EditorUiCanvasTransformTool
     private DragOperation _dragOperation;
     private ResizeHandle _resizeHandle;
     public bool SnapEnabled { get; set; } = true;
+    public bool IsMoving =>
+    _dragOperation == DragOperation.Move;
     private float _dragParentRotationDegrees;
     private float _dragTotalRotationDegrees;
     private Vector2 _dragRotationCenter;
@@ -352,6 +354,25 @@ internal sealed class EditorUiCanvasTransformTool
         _dragStartDocumentCenter = Vector2.Zero;
     }
 
+    public void ApplyMoveCorrection(Vector2 documentCorrection)
+    {
+        if (!IsMoving)
+        {
+            return;
+        }
+
+        var localCorrection = RotatePoint(
+            documentCorrection,
+            Vector2.Zero,
+            -_dragParentRotationDegrees);
+
+        _dragLayout = _dragLayout with
+        {
+            Offset = new Vector2(
+                _dragLayout.Offset.X + localCorrection.X,
+                _dragLayout.Offset.Y + localCorrection.Y)
+        };
+    }
     private EditorUiLayout CreateResizedLayout(
         float deltaX,
         float deltaY)

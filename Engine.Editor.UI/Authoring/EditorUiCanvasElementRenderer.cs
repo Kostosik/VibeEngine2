@@ -37,7 +37,7 @@ internal sealed class EditorUiCanvasElementRenderer
             document,
             document.Root,
             Vector2.Zero,
-            document.Root.Layout.Size,
+            layoutResolver(document.Root).Size,
             canvasOrigin,
             scale,
             layoutResolver);

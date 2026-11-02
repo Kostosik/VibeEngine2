@@ -15,12 +15,14 @@ namespace Engine.Editor.UI.Authoring;
 public sealed class EditorUiCanvasPreviewView :
     UiPanel
 {
+    private readonly EditorUiCanvasSmartGuideRenderer _smartGuideRenderer = new();
     private readonly EditorUiCanvasGizmoRenderer _gizmoRenderer = new();
     private readonly EditorUiDocument _document;
     private readonly EditorUiCanvasElementRenderer _elementRenderer;
     private readonly EditorUiCanvasGridRenderer _gridRenderer = new();
     private readonly EditorUiCanvasViewportTransform _viewportTransform =
     new();
+    private Vector2? _previewCanvasSize;
     private readonly EditorUiCanvasTransformTool _transformTool;
     public bool ShowGrid { get; set; } = true;
     private enum DragOperation
@@ -35,6 +37,23 @@ public sealed class EditorUiCanvasPreviewView :
     {
         get => _transformTool.SnapEnabled;
         set => _transformTool.SnapEnabled = value;
+    }
+
+    public Vector2 CanvasPreviewSize =>
+    _previewCanvasSize ?? _document.Root.Layout.Size;
+
+    public void SetCanvasPreviewSize(Vector2? size)
+    {
+        if (size is { } value &&
+            (!float.IsFinite(value.X) ||
+             !float.IsFinite(value.Y) ||
+             value.X <= 0.0f ||
+             value.Y <= 0.0f))
+        {
+            throw new ArgumentOutOfRangeException(nameof(size));
+        }
+
+        _previewCanvasSize = size;
     }
 
     public EditorUiCanvasPreviewView(
@@ -92,7 +111,7 @@ public sealed class EditorUiCanvasPreviewView :
             _gridRenderer.Render(
                 context,
                 canvasRect,
-                _document.Root.Layout.Size,
+                CanvasPreviewSize,
                 GetScale());
         }
 
@@ -112,7 +131,7 @@ public sealed class EditorUiCanvasPreviewView :
             canvasRect.Position,
             GetScale(),
             GetEffectiveLayout);
-
+        RenderSmartGuides(context);
         RenderSelectionGizmo(context);
 
         context.PopClip();
@@ -128,7 +147,7 @@ public sealed class EditorUiCanvasPreviewView :
 
         if (_viewportTransform.ZoomAt(
                 Bounds,
-                _document.Root.Layout.Size,
+                CanvasPreviewSize,
                 pointer.Position,
                 pointer.ScrollDelta))
         {
@@ -272,7 +291,7 @@ public sealed class EditorUiCanvasPreviewView :
     }
 
     protected override void OnPointerMove(
-    UiPointerEvent pointer)
+        UiPointerEvent pointer)
     {
         if (_viewportTransform.UpdatePan(pointer.Position))
         {
@@ -280,7 +299,77 @@ public sealed class EditorUiCanvasPreviewView :
             return;
         }
 
-        _transformTool.HandlePointerMove(pointer);
+        if (_transformTool.HandlePointerMove(pointer))
+        {
+            ApplySmartGuideSnap();
+        }
+    }
+
+    private void ApplySmartGuideSnap()
+    {
+        if (!_transformTool.IsMoving ||
+            !TryGetSelectedElement(out var selected) ||
+            selected is null)
+        {
+            return;
+        }
+
+        var scale = GetScale();
+
+        if (scale <= 0.0f ||
+            !TryGetElementScreenTransform(
+                selected,
+                scale,
+                out var transform))
+        {
+            return;
+        }
+
+        var references = GetSmartGuideReferences(selected, scale);
+
+        var correction = _smartGuideRenderer.GetSnapCorrection(
+            GetCanvasRect(),
+            transform,
+            references);
+
+        if (MathF.Abs(correction.X) < 0.001f &&
+            MathF.Abs(correction.Y) < 0.001f)
+        {
+            return;
+        }
+
+        _transformTool.ApplyMoveCorrection(
+            new Vector2(
+                correction.X / scale,
+                correction.Y / scale));
+    }
+
+    private List<EditorUiCanvasElementScreenTransform>
+    GetSmartGuideReferences(
+        EditorUiElement selected,
+        float scale)
+    {
+        var references =
+            new List<EditorUiCanvasElementScreenTransform>();
+
+        foreach (var element in _document.EnumerateDepthFirst())
+        {
+            if (ReferenceEquals(element, _document.Root) ||
+                IsInSubtree(element, selected))
+            {
+                continue;
+            }
+
+            if (TryGetElementScreenTransform(
+                    element,
+                    scale,
+                    out var referenceTransform))
+            {
+                references.Add(referenceTransform);
+            }
+        }
+
+        return references;
     }
 
     protected override void OnPointerUp(
@@ -300,7 +389,82 @@ public sealed class EditorUiCanvasPreviewView :
     private EditorUiLayout GetEffectiveLayout(
         EditorUiElement element)
     {
-        return _transformTool.GetEffectiveLayout(element);
+        var layout = _transformTool.GetEffectiveLayout(element);
+
+        if (ReferenceEquals(element, _document.Root) &&
+            _previewCanvasSize is { } previewSize)
+        {
+            return layout with { Size = previewSize };
+        }
+
+        return layout;
+    }
+
+    private void RenderSmartGuides(UiRenderContext context)
+    {
+        if (!_transformTool.IsMoving ||
+            !TryGetSelectedElement(out var selected) ||
+            selected is null)
+        {
+            return;
+        }
+
+        var scale = GetScale();
+
+        if (scale <= 0.0f ||
+            !TryGetElementScreenTransform(
+                selected,
+                scale,
+                out var transform))
+        {
+            return;
+        }
+
+        var references = GetSmartGuideReferences(
+            selected,
+            scale);
+
+        foreach (var element in _document.EnumerateDepthFirst())
+        {
+            // Не сравниваем элемент с самим собой
+            // и с его потомками.
+            if (ReferenceEquals(element, _document.Root) ||
+                IsInSubtree(element, selected))
+            {
+                continue;
+            }
+
+            if (TryGetElementScreenTransform(
+                    element,
+                    scale,
+                    out var referenceTransform))
+            {
+                references.Add(referenceTransform);
+            }
+        }
+
+        _smartGuideRenderer.Render(
+            context,
+            GetCanvasRect(),
+            transform,
+            references);
+    }
+
+    private static bool IsInSubtree(
+        EditorUiElement element,
+        EditorUiElement ancestor)
+    {
+        for (var current = element;
+             current is not null;
+             current = current.Parent)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private bool TryGetSelectedElement(
@@ -378,13 +542,13 @@ public sealed class EditorUiCanvasPreviewView :
     {
         return _viewportTransform.GetCanvasRect(
             Bounds,
-            _document.Root.Layout.Size);
+            CanvasPreviewSize);
     }
 
-    private float GetScale()
+    private float GetScale()    
     {
         return _viewportTransform.GetScale(
             Bounds,
-            _document.Root.Layout.Size);
+            CanvasPreviewSize);
     }
 }

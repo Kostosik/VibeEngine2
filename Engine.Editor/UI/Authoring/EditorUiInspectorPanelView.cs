@@ -152,6 +152,12 @@ public sealed class EditorUiInspectorPanelView :
     private void AddProperty(
         EditorProperty property)
     {
+        if (property.Name == "AnchorPreset")
+        {
+            _content.AddChild(CreateAnchorPresetProperty(property));
+            return;
+        }
+
         if (property.PropertyType == typeof(bool))
         {
             _content.AddChild(
@@ -220,6 +226,76 @@ public sealed class EditorUiInspectorPanelView :
             {
                 FontSize = 12.0f
             });
+    }
+
+    private UiWidget CreateAnchorPresetProperty(
+    EditorProperty property)
+    {
+        var container = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical,
+            Spacing = 4.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        container.AddChild(
+            new UiLabel(property.DisplayName)
+            {
+                FontSize = 12.0f
+            });
+
+        var dropdown = new UiDropdown
+        {
+            Width = 220.0f,
+            Height = 32.0f
+        };
+
+        var presets = new[]
+        {
+        "Custom",
+        "Top Left",
+        "Top Center",
+        "Top Right",
+        "Middle Left",
+        "Center",
+        "Middle Right",
+        "Bottom Left",
+        "Bottom Center",
+        "Bottom Right"
+    };
+
+        foreach (var preset in presets)
+        {
+            dropdown.AddOption(preset);
+        }
+
+        var current = property.GetValue()?.ToString() ?? "Custom";
+        var selectedIndex = Array.IndexOf(presets, current);
+
+        dropdown.SetSelectedIndex(
+            selectedIndex >= 0 ? selectedIndex : 0);
+
+        dropdown.SelectionChanged += (_, selected) =>
+        {
+            if (selected == "Custom" ||
+                selected == property.GetValue()?.ToString())
+            {
+                Refresh();
+                return;
+            }
+
+            _document.Execute(
+                new SetEditorPropertyCommand(
+                    property,
+                    selected));
+
+            Refresh();
+        };
+
+        container.AddChild(dropdown);
+
+        return container;
     }
 
     private UiWidget CreateActionProperty(

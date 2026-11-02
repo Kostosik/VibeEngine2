@@ -12,7 +12,7 @@ namespace Engine.Editor.UI.Workspace;
 internal sealed class EditorUiCanvasWorkspaceView : UiPanel
 {
     private const float ToolbarHeight = 38.0f;
-
+    private readonly UiDropdown _previewSizeDropdown;
     private readonly UiStackPanel _toolbar;
     private readonly UiToggle _gridToggle;
     private readonly UiToggle _snapToggle;
@@ -86,10 +86,26 @@ internal sealed class EditorUiCanvasWorkspaceView : UiPanel
         _gridStepInput.TextChanged += OnGridStepTextChanged;
         _gridStepInput.Submitted += OnGridStepSubmitted;
 
+        _previewSizeDropdown = new UiDropdown
+        {
+            Width = 220.0f,
+            Height = 30.0f
+        };
+
+        _previewSizeDropdown.AddOption("Design Size");
+        _previewSizeDropdown.AddOption("Desktop 16:9");
+        _previewSizeDropdown.AddOption("Desktop 4:3");
+        _previewSizeDropdown.AddOption("Tablet 4:3");
+        _previewSizeDropdown.AddOption("Mobile");
+
+        _previewSizeDropdown.SelectionChanged += OnPreviewSizeChanged;
+        _previewSizeDropdown.SetSelectedIndex(0);
+
         _toolbar.AddChild(_snapToggle);
         _toolbar.AddChild(_gridToggle);
         _toolbar.AddChild(_gridStepLabel);
         _toolbar.AddChild(_gridStepInput);
+        _toolbar.AddChild(_previewSizeDropdown);
         AddChild(_toolbar);
         AddChild(Preview);
     }
@@ -109,6 +125,36 @@ internal sealed class EditorUiCanvasWorkspaceView : UiPanel
                 MathF.Max(0.0f, availableSize.Y - ToolbarHeight)));
 
         return availableSize;
+    }
+
+    private void OnPreviewSizeChanged(int index, string text)
+    {
+        switch (index)
+        {
+            case 0:
+                Preview.SetCanvasPreviewSize(null);
+                break;
+
+            case 1:
+                Preview.SetCanvasPreviewSize(
+                    new Vector2(1920.0f, 1080.0f));
+                break;
+
+            case 2:
+                Preview.SetCanvasPreviewSize(
+                    new Vector2(1600.0f, 1200.0f));
+                break;
+
+            case 3:
+                Preview.SetCanvasPreviewSize(
+                    new Vector2(1024.0f, 768.0f));
+                break;
+
+            case 4:
+                Preview.SetCanvasPreviewSize(
+                    new Vector2(390.0f, 844.0f));
+                break;
+        }
     }
 
     private void OnGridStepTextChanged(string text)

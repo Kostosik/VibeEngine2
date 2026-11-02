@@ -53,7 +53,7 @@ internal static class EditorUiCanvasElementGeometry
         var rotationCenters = new List<Vector2>(path.Count);
         var rotations = new List<float>(path.Count);
 
-        var parentSize = document.Root.Layout.Size;
+        var parentSize = layoutResolver(document.Root).Size;
         var parentOrigin = Vector2.Zero;
 
         var elementOrigin = Vector2.Zero;

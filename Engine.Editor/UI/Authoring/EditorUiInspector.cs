@@ -159,6 +159,43 @@ public sealed class EditorUiInspector
                 order: 1));
 
         properties.Add(
+    new EditorProperty(
+        "AnchorPreset",
+        typeof(string),
+        () => GetAnchorPreset(element.Layout.Anchor),
+        value =>
+        {
+            var preset = value as string;
+
+            var anchor = preset switch
+            {
+                "Top Left" => new Vector2(0.0f, 0.0f),
+                "Top Center" => new Vector2(0.5f, 0.0f),
+                "Top Right" => new Vector2(1.0f, 0.0f),
+
+                "Middle Left" => new Vector2(0.0f, 0.5f),
+                "Center" => new Vector2(0.5f, 0.5f),
+                "Middle Right" => new Vector2(1.0f, 0.5f),
+
+                "Bottom Left" => new Vector2(0.0f, 1.0f),
+                "Bottom Center" => new Vector2(0.5f, 1.0f),
+                "Bottom Right" => new Vector2(1.0f, 1.0f),
+
+                "Custom" => element.Layout.Anchor,
+
+                _ => throw new ArgumentOutOfRangeException(
+                    nameof(value))
+            };
+
+            element.Layout = element.Layout with
+            {
+                Anchor = anchor
+            };
+        },
+        displayName: "Anchor Preset",
+        order: 9));
+
+        properties.Add(
            new EditorProperty(
                "AnchorX",
                typeof(float),
@@ -404,5 +441,34 @@ public sealed class EditorUiInspector
             .OrderBy(
                 static property => property.Order)
             .ToArray();
+    }
+
+    private static string GetAnchorPreset(Vector2 anchor)
+    {
+        const float tolerance = 0.001f;
+
+        var horizontal =
+            MathF.Abs(anchor.X) <= tolerance ? "Left" :
+            MathF.Abs(anchor.X - 0.5f) <= tolerance ? "Center" :
+            MathF.Abs(anchor.X - 1.0f) <= tolerance ? "Right" :
+            null;
+
+        var vertical =
+            MathF.Abs(anchor.Y) <= tolerance ? "Top" :
+            MathF.Abs(anchor.Y - 0.5f) <= tolerance ? "Middle" :
+            MathF.Abs(anchor.Y - 1.0f) <= tolerance ? "Bottom" :
+            null;
+
+        if (horizontal is null || vertical is null)
+        {
+            return "Custom";
+        }
+
+        if (horizontal == "Center" && vertical == "Middle")
+        {
+            return "Center";
+        }
+
+        return $"{vertical} {horizontal}";
     }
 }

@@ -8,9 +8,8 @@ namespace Engine.Editor.UI.Authoring;
 internal sealed class EditorUiCanvasTransformTool
 {
     private const float MinimumElementSize = 1.0f;
-
+    private Vector2 _dragStartDocumentPosition;
     private readonly EditorUiDocument _document;
-
     private EditorUiElement? _dragElement;
     private EditorUiLayout _dragStartLayout;
     private EditorUiLayout _dragLayout;
@@ -67,7 +66,7 @@ internal sealed class EditorUiCanvasTransformTool
         float scale,
         float parentRotationDegrees,
         float totalRotationDegrees,
-        Vector2 rotationCenter)
+        Vector2 rotationCenter, Vector2 documentStartPosition)
     {
         BeginDrag(
             element,
@@ -78,6 +77,7 @@ internal sealed class EditorUiCanvasTransformTool
             parentRotationDegrees,
             totalRotationDegrees,
             rotationCenter);
+        _dragStartDocumentPosition = documentStartPosition;
     }
 
     public void BeginResize(
@@ -141,6 +141,24 @@ internal sealed class EditorUiCanvasTransformTool
                         screenDelta,
                         Vector2.Zero,
                         -_dragParentRotationDegrees);
+
+                    var documentDelta = RotatePoint(
+                        localDelta,
+                        Vector2.Zero,
+                        _dragParentRotationDegrees);
+
+                    var unsnappedPosition =
+                        _dragStartDocumentPosition + documentDelta;
+
+                    var snappedPosition =
+                        EditorUiCanvasGrid.SnapPosition(unsnappedPosition);
+
+                    var correction = RotatePoint(
+                        snappedPosition - unsnappedPosition,
+                        Vector2.Zero,
+                        -_dragParentRotationDegrees);
+
+                    localDelta += correction;
 
                     _dragLayout = _dragStartLayout with
                     {

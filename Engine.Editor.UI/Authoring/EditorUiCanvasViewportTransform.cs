@@ -9,15 +9,63 @@ public sealed class EditorUiCanvasViewportTransform
     private const float MinZoom = 0.25f;
     private const float MaxZoom = 8.0f;
     private const float ZoomStep = 1.15f;
-
+    private bool _isPanning;
+    private Vector2 _panStartPointer;
+    private Vector2 _panStartOffset;
     public float Zoom { get; private set; } = 1.0f;
 
     public Vector2 Pan { get; private set; } =
         Vector2.Zero;
 
+    public Vector2 ScreenToDocument(
+    Vector2 screenPosition,
+    UiRect canvasRect,
+    float scale)
+    {
+        if (scale <= 0.0f)
+        {
+            throw new ArgumentOutOfRangeException(nameof(scale));
+        }
+
+        return new Vector2(
+            (screenPosition.X - canvasRect.X) / scale,
+            (screenPosition.Y - canvasRect.Y) / scale);
+    }
+
     public void SetPan(Vector2 pan)
     {
         Pan = pan;
+    }
+
+    public void BeginPan(Vector2 pointerPosition)
+    {
+        _isPanning = true;
+        _panStartPointer = pointerPosition;
+        _panStartOffset = Pan;
+    }
+
+    public bool UpdatePan(Vector2 pointerPosition)
+    {
+        if (!_isPanning)
+        {
+            return false;
+        }
+
+        Pan = _panStartOffset +
+              (pointerPosition - _panStartPointer);
+
+        return true;
+    }
+
+    public bool EndPan()
+    {
+        if (!_isPanning)
+        {
+            return false;
+        }
+
+        _isPanning = false;
+        return true;
     }
 
     public float GetScale(
@@ -101,9 +149,10 @@ public sealed class EditorUiCanvasViewportTransform
             viewportBounds,
             canvasSize);
 
-        var documentPoint = new Vector2(
-            (pointerPosition.X - oldCanvas.X) / oldScale,
-            (pointerPosition.Y - oldCanvas.Y) / oldScale);
+        var documentPoint = ScreenToDocument(
+            pointerPosition,
+            oldCanvas,
+            oldScale);
 
         var newZoom = Math.Clamp(
             Zoom * MathF.Pow(

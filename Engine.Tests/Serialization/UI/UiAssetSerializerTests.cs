@@ -10,6 +10,56 @@ namespace Engine.Tests.Serialization.UI;
 public sealed class UiAssetSerializerTests
 {
     [Fact]
+    public void SerializeDeserialize_PreservesSliderValue()
+    {
+        var rootId = Guid.NewGuid();
+        var sliderId = Guid.NewGuid();
+
+        var asset = new UiAsset(
+            "SliderTest",
+            new Vector2(1280.0f, 720.0f),
+            new[]
+            {
+            new UiAssetElement(
+                rootId,
+                Guid.Empty,
+                UiAssetElementType.Root,
+                "Root",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(1280.0f, 720.0f))),
+
+            new UiAssetElement(
+                sliderId,
+                rootId,
+                UiAssetElementType.Slider,
+                "Volume",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(240.0f, 24.0f)),
+                sliderValue: 0.75f)
+            });
+
+        var serializer = new UiAssetSerializer();
+
+        var data = BinarySerializer.Serialize(
+            asset,
+            serializer);
+
+        var restored = BinarySerializer.Deserialize(
+            data,
+            serializer);
+
+        var slider = Assert.Single(
+            restored.Elements.Where(
+                element => element.Type == UiAssetElementType.Slider));
+
+        Assert.Equal(0.75f, slider.SliderValue);
+    }
+
+    [Fact]
     public void SerializeDeserialize_PreservesAsset()
     {
         var rootId =

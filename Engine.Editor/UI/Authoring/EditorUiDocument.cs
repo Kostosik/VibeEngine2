@@ -126,8 +126,11 @@ public sealed class EditorUiDocument : IEditorDocument
                 nameof(type));
         }
 
-        GetElement(
-            parentId);
+        var parent = GetElement(parentId);
+
+        EditorUiHierarchyRules.EnsureCanAcceptChild(
+            parent,
+            type);
 
         var command =
             new CreateEditorUiElementCommand(
@@ -162,6 +165,18 @@ public sealed class EditorUiDocument : IEditorDocument
                 elementId));
 
         return true;
+    }
+
+    public bool CanAcceptChild(
+    Guid parentId,
+    EditorUiElementType childType)
+    {
+        return TryGetElement(
+                   parentId,
+                   out var parent) &&
+               EditorUiHierarchyRules.CanAcceptChild(
+                   parent,
+                   childType);
     }
 
     public bool ContainsElement(
@@ -243,6 +258,9 @@ public sealed class EditorUiDocument : IEditorDocument
         var parent =
             GetElement(
                 parentId);
+        EditorUiHierarchyRules.EnsureCanAcceptChild(
+    parent,
+    element.Type);
 
         if (element.Parent is not null)
         {
@@ -305,6 +323,10 @@ public sealed class EditorUiDocument : IEditorDocument
         var parent =
             GetElement(
                 parentId);
+
+        EditorUiHierarchyRules.EnsureCanAcceptChild(
+            parent,
+            element.Type);
 
         RegisterSubtree(
             element);

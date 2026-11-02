@@ -8,6 +8,112 @@ namespace Engine.Tests.Editor.Authoring;
 public sealed class EditorUiDocumentTests
 {
     [Fact]
+    public void AddElement_LeafCannotContainChildren()
+    {
+        var document = new EditorUiDocument();
+
+        var button = document.AddElement(
+            EditorUiElementType.Button,
+            document.Root.Id);
+
+        Assert.Throws<InvalidOperationException>(
+            () => document.AddElement(
+                EditorUiElementType.Label,
+                button.Id));
+    }
+
+    [Fact]
+    public void AddElement_ScrollViewCanContainOnlyOneChild()
+    {
+        var document = new EditorUiDocument();
+
+        var scrollView = document.AddElement(
+            EditorUiElementType.ScrollView,
+            document.Root.Id);
+
+        document.AddElement(
+            EditorUiElementType.Panel,
+            scrollView.Id);
+
+        Assert.Throws<InvalidOperationException>(
+            () => document.AddElement(
+                EditorUiElementType.Label,
+                scrollView.Id));
+    }
+
+    [Fact]
+    public void Reparent_CannotMoveElementIntoLeaf()
+    {
+        var document = new EditorUiDocument();
+
+        var source = document.AddElement(
+            EditorUiElementType.Panel,
+            document.Root.Id);
+
+        var button = document.AddElement(
+            EditorUiElementType.Button,
+            document.Root.Id);
+
+        var label = document.AddElement(
+            EditorUiElementType.Label,
+            source.Id);
+
+        Assert.Throws<InvalidOperationException>(
+            () => new ReparentEditorUiElementCommand(
+                document,
+                label.Id,
+                button.Id));
+    }
+
+    [Fact]
+    public void Reparent_ScrollViewRejectsSecondChild()
+    {
+        var document = new EditorUiDocument();
+
+        var source = document.AddElement(
+            EditorUiElementType.Panel,
+            document.Root.Id);
+
+        var scrollView = document.AddElement(
+            EditorUiElementType.ScrollView,
+            document.Root.Id);
+
+        document.AddElement(
+            EditorUiElementType.Label,
+            scrollView.Id);
+
+        var button = document.AddElement(
+            EditorUiElementType.Button,
+            source.Id);
+
+        Assert.Throws<InvalidOperationException>(
+            () => new ReparentEditorUiElementCommand(
+                document,
+                button.Id,
+                scrollView.Id));
+    }
+
+    [Fact]
+    public void AddElement_PanelCanContainMultipleChildren()
+    {
+        var document = new EditorUiDocument();
+
+        var panel = document.AddElement(
+            EditorUiElementType.Panel,
+            document.Root.Id);
+
+        document.AddElement(
+            EditorUiElementType.Button,
+            panel.Id);
+
+        document.AddElement(
+            EditorUiElementType.Label,
+            panel.Id);
+
+        Assert.Equal(2, panel.Children.Count);
+    }
+
+    [Fact]
     public void ActionProperty_ExecuteUndoRedo_RestoresAction()
     {
         var document =

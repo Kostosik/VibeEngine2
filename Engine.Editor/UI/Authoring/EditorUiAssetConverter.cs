@@ -53,7 +53,7 @@ public static class EditorUiAssetConverter
             element.MaxLength,
             element.Visible,
             element.Enabled,
-            element.ZIndex, element.PreserveAspectRatio);
+            element.ZIndex, element.PreserveAspectRatio, element.SliderValue);
     }
 
     public static EditorUiDocument ConvertToDocument(
@@ -135,6 +135,8 @@ public static class EditorUiAssetConverter
 
         PreserveAspectRatio =
         descriptor.PreserveAspectRatio,
+                    SliderValue =
+    descriptor.SliderValue,
                 };
 
             elements.Add(
@@ -196,7 +198,8 @@ public static class EditorUiAssetConverter
 
             UiAssetElementType.ScrollView =>
                 EditorUiElementType.ScrollView,
-
+            UiAssetElementType.Slider =>
+EditorUiElementType.Slider,
             _ =>
                 throw new ArgumentOutOfRangeException(
                     nameof(type),
@@ -283,7 +286,8 @@ public static class EditorUiAssetConverter
 
             EditorUiElementType.ScrollView =>
                 UiAssetElementType.ScrollView,
-
+            EditorUiElementType.Slider =>
+UiAssetElementType.Slider,
             _ =>
                 throw new ArgumentOutOfRangeException(
                     nameof(type),

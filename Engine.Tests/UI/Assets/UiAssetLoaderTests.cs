@@ -10,6 +10,177 @@ namespace Engine.Tests.UI.Assets;
 public sealed class UiAssetLoaderTests
 {
     [Fact]
+    public void Load_Slider_RestoresValueAndInvokesValueChangedAction()
+    {
+        var rootId = Guid.NewGuid();
+        var sliderId = Guid.NewGuid();
+
+        var invoked = false;
+        var receivedValue = -1.0f;
+        var receivedTrigger = UiActionTrigger.Click;
+
+        var actions = new UiActionRegistry();
+
+        actions.Register(
+            "VolumeChanged",
+            context =>
+            {
+                invoked = true;
+                receivedValue = Assert.IsType<float>(context.Value);
+                receivedTrigger = context.Trigger;
+            });
+
+        var asset = new UiAsset(
+            "SliderTest",
+            new Vector2(1280.0f, 720.0f),
+            new[]
+            {
+            new UiAssetElement(
+                rootId,
+                Guid.Empty,
+                UiAssetElementType.Root,
+                "Root",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(1280.0f, 720.0f))),
+
+            new UiAssetElement(
+                sliderId,
+                rootId,
+                UiAssetElementType.Slider,
+                "Volume",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(240.0f, 24.0f)),
+                action: "VolumeChanged",
+                sliderValue: 0.65f)
+            });
+
+        var instance = new UiAssetLoader(
+            actions: actions).Load(asset);
+
+        var slider = Assert.IsType<UiSlider>(
+            instance.Get(sliderId));
+
+        Assert.Equal(0.65f, slider.Value);
+
+        slider.Value = 0.8f;
+
+        Assert.True(invoked);
+        Assert.Equal(0.8f, receivedValue);
+        Assert.Equal(
+            UiActionTrigger.ValueChanged,
+            receivedTrigger);
+    }
+
+    [Fact]
+    public void Load_ScrollViewRejectsMultipleDirectChildren()
+    {
+        var rootId = Guid.NewGuid();
+        var scrollViewId = Guid.NewGuid();
+        var firstChildId = Guid.NewGuid();
+        var secondChildId = Guid.NewGuid();
+
+        var asset = new UiAsset(
+            "InvalidScrollView",
+            new Vector2(1280.0f, 720.0f),
+            new[]
+            {
+            new UiAssetElement(
+                rootId,
+                Guid.Empty,
+                UiAssetElementType.Root,
+                "Root",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(1280.0f, 720.0f))),
+
+            new UiAssetElement(
+                scrollViewId,
+                rootId,
+                UiAssetElementType.ScrollView,
+                "ScrollView",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(300.0f, 300.0f))),
+
+            new UiAssetElement(
+                firstChildId,
+                scrollViewId,
+                UiAssetElementType.Panel,
+                "First",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(200.0f, 100.0f))),
+
+            new UiAssetElement(
+                secondChildId,
+                scrollViewId,
+                UiAssetElementType.Label,
+                "Second",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(100.0f, 30.0f)))
+            });
+
+        Assert.Throws<InvalidDataException>(
+            () => new UiAssetLoader().Load(asset));
+    }
+
+    [Fact]
+    public void Load_RejectsChildrenUnderLeafElements()
+    {
+        var rootId = Guid.NewGuid();
+        var buttonId = Guid.NewGuid();
+        var labelId = Guid.NewGuid();
+
+        var asset = new UiAsset(
+            "InvalidHierarchy",
+            new Vector2(1280.0f, 720.0f),
+            new[]
+            {
+            new UiAssetElement(
+                rootId,
+                Guid.Empty,
+                UiAssetElementType.Root,
+                "Root",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(1280.0f, 720.0f))),
+
+            new UiAssetElement(
+                buttonId,
+                rootId,
+                UiAssetElementType.Button,
+                "Button",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(200.0f, 50.0f))),
+
+            new UiAssetElement(
+                labelId,
+                buttonId,
+                UiAssetElementType.Label,
+                "InvalidChild",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(100.0f, 30.0f)))
+            });
+
+        Assert.Throws<InvalidDataException>(
+            () => new UiAssetLoader().Load(asset));
+    }
+
+    [Fact]
     public void Load_ButtonAction_PublishesEventThroughEventBus()
     {
         var rootId = Guid.NewGuid();

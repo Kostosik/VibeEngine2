@@ -122,7 +122,8 @@ public sealed class UiAssetLoader
 
             UiAssetElementType.ScrollView =>
                 new UiScrollView(),
-
+            UiAssetElementType.Slider =>
+CreateSlider(element),
             UiAssetElementType.Root =>
                 throw new InvalidDataException(
                     "The root UI element cannot be created as a child."),
@@ -148,6 +149,17 @@ public sealed class UiAssetLoader
             };
 
         return textBox;
+    }
+
+    private static UiSlider CreateSlider(
+    UiAssetElement element)
+    {
+        var slider = new UiSlider
+        {
+            Value = element.SliderValue
+        };
+
+        return slider;
     }
 
     private static UiToggle CreateToggle(
@@ -350,7 +362,15 @@ public sealed class UiAssetLoader
                         value);
 
                 return;
+            case UiSlider slider:
+                slider.ValueChanged +=
+                    value => InvokeAction(
+                        action,
+                        element,
+                        UiActionTrigger.ValueChanged,
+                        value);
 
+                return;
             default:
                 throw new InvalidDataException(
                     $"UI action '{action}' is not supported by " +

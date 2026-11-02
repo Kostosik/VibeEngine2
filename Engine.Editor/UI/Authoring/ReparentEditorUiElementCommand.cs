@@ -40,6 +40,10 @@ public sealed class ReparentEditorUiElementCommand : IEditorCommand
                 nameof(newParentId));
         }
 
+        EditorUiHierarchyRules.EnsureCanAcceptChild(
+    _newParent,
+    _element.Type);
+
         for (var current = _newParent;
              current is not null;
              current = current.Parent)
@@ -114,6 +118,10 @@ public sealed class ReparentEditorUiElementCommand : IEditorCommand
                 "The element is not attached to its original parent.");
         }
 
+        EditorUiHierarchyRules.EnsureCanAcceptChild(
+    _newParent,
+    _element.Type);
+
         if (!_oldParent.RemoveChild(_element))
         {
             throw new InvalidOperationException(
@@ -134,6 +142,10 @@ public sealed class ReparentEditorUiElementCommand : IEditorCommand
             throw new InvalidOperationException(
                 "The element is not attached to its new parent.");
         }
+
+        EditorUiHierarchyRules.EnsureCanAcceptChild(
+    _oldParent,
+    _element.Type);
 
         if (!_newParent.RemoveChild(_element))
         {

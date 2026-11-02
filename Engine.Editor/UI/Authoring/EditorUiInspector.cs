@@ -70,7 +70,8 @@ public sealed class EditorUiInspector
             EditorUiElementType.Button or
             EditorUiElementType.Toggle or
             EditorUiElementType.Dropdown or
-            EditorUiElementType.TextBox)
+            EditorUiElementType.TextBox or
+            EditorUiElementType.Slider)
         {
             properties.Add(
                 new EditorProperty(
@@ -88,6 +89,34 @@ public sealed class EditorUiInspector
                     },
                     displayName: "Action",
                     order: 21));
+        }
+
+        if (element.Type == EditorUiElementType.Slider)
+        {
+            properties.Add(
+                new EditorProperty(
+                    "SliderValue",
+                    typeof(float),
+                    () => element.SliderValue,
+                    value =>
+                    {
+                        var sliderValue = Convert.ToSingle(
+                            value,
+                            System.Globalization.CultureInfo.InvariantCulture);
+
+                        if (!float.IsFinite(sliderValue) ||
+                            sliderValue < 0.0f ||
+                            sliderValue > 1.0f)
+                        {
+                            throw new ArgumentOutOfRangeException(
+                                nameof(value),
+                                "Slider value must be between 0 and 1.");
+                        }
+
+                        element.SliderValue = sliderValue;
+                    },
+                    displayName: "Value",
+                    order: 20));
         }
 
         if (element.Type ==

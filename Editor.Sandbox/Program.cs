@@ -72,7 +72,8 @@ var defaultFont =
             AdditionalCodepointRanges =
                 [
                     new FontCodepointRange(0x25BA, 1), // ►
-                    new FontCodepointRange(0x25BC, 1)  // ▼
+                    new FontCodepointRange(0x25BC, 1), // ▼
+                    new FontCodepointRange(0x25CF, 1)  // ●
                 ]
         });
 

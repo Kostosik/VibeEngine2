@@ -10,5 +10,6 @@ public enum UiAssetElementType
     TextBox,
     Toggle,
     Dropdown,
-    ScrollView
+    ScrollView,
+    Slider
 }

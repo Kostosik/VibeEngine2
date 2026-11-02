@@ -12,7 +12,7 @@ public sealed class EditorUiElement
     public int SelectedIndex { get; internal set; } = -1;
 
     public bool ToggleValue { get; internal set; }
-
+    public float SliderValue { get; set; }
     public string Placeholder { get; internal set; } =
         string.Empty;
 

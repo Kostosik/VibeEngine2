@@ -8,6 +8,33 @@ namespace Engine.Tests.Editor.Authoring;
 public sealed class EditorUiAssetConverterTests
 {
     [Fact]
+    public void ConvertToDocument_PreservesSliderValue()
+    {
+        var document = new EditorUiDocument("SliderTest");
+
+        var slider = document.AddElement(
+            EditorUiElementType.Slider,
+            document.Root.Id,
+            "Volume");
+
+        slider.SliderValue = 0.65f;
+
+        var asset = EditorUiAssetConverter.Convert(document);
+
+        var assetSlider = Assert.Single(
+            asset.Elements.Where(
+                element => element.Type == UiAssetElementType.Slider));
+
+        Assert.Equal(0.65f, assetSlider.SliderValue);
+
+        var restored = EditorUiAssetConverter.ConvertToDocument(asset);
+
+        Assert.Equal(
+            0.65f,
+            restored.GetElement(slider.Id).SliderValue);
+    }
+
+    [Fact]
     public void ConvertToDocument_ThenConvert_PreservesAsset()
     {
         var document =

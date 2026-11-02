@@ -53,7 +53,8 @@ public static class EditorUiElementCloner
             SelectedIndex = source.SelectedIndex,
             ToggleValue = source.ToggleValue,
             Placeholder = source.Placeholder,
-            MaxLength = source.MaxLength
+            MaxLength = source.MaxLength,
+            SliderValue = source.SliderValue,
         };
 
         foreach (var child in source.Children)

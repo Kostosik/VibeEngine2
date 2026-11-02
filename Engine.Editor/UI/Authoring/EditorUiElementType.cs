@@ -10,5 +10,5 @@ public enum EditorUiElementType
     TextBox,
     Toggle,
     Dropdown,
-    ScrollView
+    ScrollView, Slider
 }

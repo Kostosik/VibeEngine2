@@ -21,7 +21,7 @@ public sealed class UiAssetElement
         bool visible = true,
         bool enabled = true,
         int zIndex = 0,
-        bool preserveAspectRatio = true)
+        bool preserveAspectRatio = true, float sliderValue = 0.0f)
     {
         if (id == Guid.Empty)
         {
@@ -47,6 +47,23 @@ public sealed class UiAssetElement
             throw new ArgumentException(
                 "Non-root UI asset elements must have a parent.",
                 nameof(parentId));
+        }
+
+        if (type == UiAssetElementType.Slider)
+        {
+            if (!float.IsFinite(sliderValue) ||
+                sliderValue < 0.0f ||
+                sliderValue > 1.0f)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(sliderValue));
+            }
+        }
+        else if (sliderValue != 0.0f)
+        {
+            throw new ArgumentException(
+                "Slider value is only valid for slider elements.",
+                nameof(sliderValue));
         }
 
         var options =
@@ -111,11 +128,11 @@ public sealed class UiAssetElement
 
         Enabled =
             enabled;
-
+        SliderValue = sliderValue;
         ZIndex =
             zIndex;
     }
-
+    public float SliderValue { get; }
     public bool Visible { get; }
 
     public bool Enabled { get; }

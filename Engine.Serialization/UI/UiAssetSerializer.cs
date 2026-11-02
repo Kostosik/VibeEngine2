@@ -113,6 +113,8 @@ public sealed class UiAssetSerializer :
 
             writer.WriteBoolean(
     element.PreserveAspectRatio);
+            writer.WriteSingle(
+    element.SliderValue);
         }
     }
 
@@ -313,6 +315,11 @@ public sealed class UiAssetSerializer :
                     reader.ReadBoolean();
             }
 
+            var sliderValue =
+    version >= 6
+        ? reader.ReadSingle()
+        : 0.0f;
+
             elements.Add(
                 new UiAssetElement(
                     id,
@@ -329,7 +336,8 @@ public sealed class UiAssetSerializer :
                     maxLength,
                     visible,
                     enabled,
-                    zIndex, preserveAspectRatio));
+                    zIndex, preserveAspectRatio,
+                    sliderValue));
         }
 
         return new UiAsset(

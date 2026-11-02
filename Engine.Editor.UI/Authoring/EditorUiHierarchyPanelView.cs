@@ -338,7 +338,8 @@ public sealed class EditorUiHierarchyPanelView :
         var row = new EditorUiHierarchyElementRow(
             _document,
             element,
-            depth);
+            depth,
+            _overlay);
 
         var button = row.Button;
 
@@ -373,8 +374,6 @@ public sealed class EditorUiHierarchyPanelView :
             _contextMenu?.Open(pointer.Position);
         };
 
-        _items.AddChild(
-            button);
         row.Dropped += Refresh;
 
         _items.AddChild(row);
@@ -605,7 +604,8 @@ public sealed class EditorUiHierarchyPanelView :
             EditorUiElementType.TextBox,
             EditorUiElementType.Toggle,
             EditorUiElementType.Dropdown,
-            EditorUiElementType.ScrollView
+            EditorUiElementType.ScrollView,
+            EditorUiElementType.Slider
         };
     }
 }

@@ -17,6 +17,7 @@ public sealed class OpenGLWindow : IDisposable
     private bool _isBorderlessFullscreen;
 
     private Vector2D<int> _windowedPosition;
+    private Vector2D<int> _windowedSize;
     private WindowBorder _windowedBorder;
 
     private bool _hasFocus = true;
@@ -39,19 +40,19 @@ public sealed class OpenGLWindow : IDisposable
 
     public bool IsFullscreen
     {
-        get =>
-            _window.WindowState ==
-            Silk.NET.Windowing.WindowState.Fullscreen;
+        get => _isBorderlessFullscreen;
 
         set
         {
-            var state = value
-                ? Silk.NET.Windowing.WindowState.Fullscreen
-                : Silk.NET.Windowing.WindowState.Normal;
-
-            if (_window.WindowState != state)
+            if (value)
             {
-                _window.WindowState = state;
+                EnterBorderlessFullscreen();
+            }
+            else
+            {
+                ExitBorderlessFullscreen(
+                    _windowedSize.X,
+                    _windowedSize.Y);
             }
         }
     }
@@ -148,33 +149,25 @@ public sealed class OpenGLWindow : IDisposable
 
         _window.VSync = vsync;
 
-        var fullscreenState =
-            Silk.NET.Windowing.WindowState.Fullscreen;
-
-        var isCurrentlyFullscreen =
-            _window.WindowState == fullscreenState;
-
         if (fullscreen)
         {
-            if (!isCurrentlyFullscreen)
+            if (!_isBorderlessFullscreen)
             {
-                _window.WindowState = fullscreenState;
+                EnterBorderlessFullscreen();
             }
+
+            _windowedSize = new Vector2D<int>(
+                width,
+                height);
 
             return;
         }
 
-        if (_window.WindowState !=
-            Silk.NET.Windowing.WindowState.Normal)
+        if (_isBorderlessFullscreen)
         {
-            _window.WindowState =
-                Silk.NET.Windowing.WindowState.Normal;
+            ExitBorderlessFullscreen(width, height);
         }
-
-        var currentSize = _window.Size;
-
-        if (currentSize.X != width ||
-            currentSize.Y != height)
+        else
         {
             _window.Size = new Vector2D<int>(
                 width,
@@ -184,6 +177,9 @@ public sealed class OpenGLWindow : IDisposable
 
     private void EnterBorderlessFullscreen()
     {
+        if (_isBorderlessFullscreen)
+            return;
+
         var monitor = _window.Monitor
             ?? throw new InvalidOperationException(
                 "No monitor is available.");
@@ -191,6 +187,7 @@ public sealed class OpenGLWindow : IDisposable
         var bounds = monitor.Bounds;
 
         _windowedPosition = _window.Position;
+        _windowedSize = _window.Size;
         _windowedBorder = _window.WindowBorder;
 
         _window.WindowBorder = WindowBorder.Hidden;

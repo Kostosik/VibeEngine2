@@ -103,6 +103,14 @@ public sealed class DesktopGameHostContext : IDisposable
         Resized?.Invoke(width, height);
     }
 
+    /// <summary>
+    /// Requests graceful application shutdown.
+    /// </summary>
+    public void Close()
+    {
+        _window.Close();
+    }
+
     public void Dispose()
     {
         if (_disposed)

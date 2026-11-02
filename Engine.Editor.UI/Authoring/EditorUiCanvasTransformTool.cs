@@ -15,10 +15,10 @@ internal sealed class EditorUiCanvasTransformTool
     private EditorUiLayout _dragLayout;
     private Vector2 _dragStartPointer;
     private float _dragScale;
-
+    private Vector2 _dragStartDocumentCenter;
     private DragOperation _dragOperation;
     private ResizeHandle _resizeHandle;
-
+    public bool SnapEnabled { get; set; } = true;
     private float _dragParentRotationDegrees;
     private float _dragTotalRotationDegrees;
     private Vector2 _dragRotationCenter;
@@ -87,7 +87,7 @@ internal sealed class EditorUiCanvasTransformTool
         float scale,
         float parentRotationDegrees,
         float totalRotationDegrees,
-        Vector2 rotationCenter)
+        Vector2 rotationCenter, Vector2 documentCenter)
     {
         BeginDrag(
             element,
@@ -98,6 +98,7 @@ internal sealed class EditorUiCanvasTransformTool
             parentRotationDegrees,
             totalRotationDegrees,
             rotationCenter);
+        _dragStartDocumentCenter = documentCenter;
     }
 
     public void BeginRotate(
@@ -142,23 +143,26 @@ internal sealed class EditorUiCanvasTransformTool
                         Vector2.Zero,
                         -_dragParentRotationDegrees);
 
-                    var documentDelta = RotatePoint(
-                        localDelta,
-                        Vector2.Zero,
-                        _dragParentRotationDegrees);
+                    if (SnapEnabled)
+                    {
+                        var documentDelta = RotatePoint(
+                            localDelta,
+                            Vector2.Zero,
+                            _dragParentRotationDegrees);
 
-                    var unsnappedPosition =
-                        _dragStartDocumentPosition + documentDelta;
+                        var unsnappedPosition =
+                            _dragStartDocumentPosition + documentDelta;
 
-                    var snappedPosition =
-                        EditorUiCanvasGrid.SnapPosition(unsnappedPosition);
+                        var snappedPosition =
+                            EditorUiCanvasGrid.SnapPosition(unsnappedPosition);
 
-                    var correction = RotatePoint(
-                        snappedPosition - unsnappedPosition,
-                        Vector2.Zero,
-                        -_dragParentRotationDegrees);
+                        var correction = RotatePoint(
+                            snappedPosition - unsnappedPosition,
+                            Vector2.Zero,
+                            -_dragParentRotationDegrees);
 
-                    localDelta += correction;
+                        localDelta += correction;
+                    }
 
                     _dragLayout = _dragStartLayout with
                     {
@@ -176,6 +180,56 @@ internal sealed class EditorUiCanvasTransformTool
                         screenDelta,
                         Vector2.Zero,
                         -_dragTotalRotationDegrees);
+
+                    if (SnapEnabled)
+                    {
+                        var candidateLayout = CreateResizedLayout(
+                            localDelta.X,
+                            localDelta.Y);
+
+                        var centerDelta = new Vector2(
+                            candidateLayout.Offset.X - _dragStartLayout.Offset.X +
+                            (candidateLayout.Size.X - _dragStartLayout.Size.X) *
+                            (0.5f - _dragStartLayout.Anchor.X),
+
+                            candidateLayout.Offset.Y - _dragStartLayout.Offset.Y +
+                            (candidateLayout.Size.Y - _dragStartLayout.Size.Y) *
+                            (0.5f - _dragStartLayout.Anchor.Y));
+
+                        var documentCenter = _dragStartDocumentCenter +
+                            RotatePoint(
+                                centerDelta,
+                                Vector2.Zero,
+                                _dragParentRotationDegrees);
+
+                        var handleOffset = GetResizeHandleOffset(
+                            candidateLayout.Size);
+
+                        var handlePosition = documentCenter +
+                            RotatePoint(
+                                handleOffset,
+                                Vector2.Zero,
+                                _dragTotalRotationDegrees);
+
+                        var snappedPosition =
+                            EditorUiCanvasGrid.SnapPosition(handlePosition);
+
+                        var correction = RotatePoint(
+                            snappedPosition - handlePosition,
+                            Vector2.Zero,
+                            -_dragTotalRotationDegrees);
+
+                        localDelta = new Vector2(
+                            localDelta.X +
+                            (MovesLeft(_resizeHandle) || MovesRight(_resizeHandle)
+                                ? correction.X
+                                : 0.0f),
+
+                            localDelta.Y +
+                            (MovesTop(_resizeHandle) || MovesBottom(_resizeHandle)
+                                ? correction.Y
+                                : 0.0f));
+                    }
 
                     _dragLayout = CreateResizedLayout(
                         localDelta.X,
@@ -205,6 +259,23 @@ internal sealed class EditorUiCanvasTransformTool
 
         pointer.Handled = true;
         return true;
+    }
+
+    private Vector2 GetResizeHandleOffset(Vector2 size)
+    {
+        var x = MovesLeft(_resizeHandle)
+            ? -size.X * 0.5f
+            : MovesRight(_resizeHandle)
+                ? size.X * 0.5f
+                : 0.0f;
+
+        var y = MovesTop(_resizeHandle)
+            ? -size.Y * 0.5f
+            : MovesBottom(_resizeHandle)
+                ? size.Y * 0.5f
+                : 0.0f;
+
+        return new Vector2(x, y);
     }
 
     public bool HandlePointerUp(
@@ -278,6 +349,7 @@ internal sealed class EditorUiCanvasTransformTool
         _dragTotalRotationDegrees = 0.0f;
         _dragRotationCenter = Vector2.Zero;
         _dragStartPointerAngle = 0.0f;
+        _dragStartDocumentCenter = Vector2.Zero;
     }
 
     private EditorUiLayout CreateResizedLayout(

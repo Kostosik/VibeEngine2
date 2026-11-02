@@ -8,8 +8,6 @@ namespace Engine.Editor.UI.Authoring;
 
 internal sealed class EditorUiCanvasGridRenderer
 {
-    private const float GridStep = EditorUiCanvasGrid.Step;
-    private const float MajorGridStep = GridStep * 5.0f;
     private const float MinimumScreenSpacing = 8.0f;
 
     public void Render(
@@ -26,15 +24,16 @@ internal sealed class EditorUiCanvasGridRenderer
         {
             return;
         }
-
+        var gridStep = EditorUiCanvasGrid.Step;
+        var majorGridStep = gridStep * 5.0f;
         var showMinorGrid =
-            GridStep * scale >= MinimumScreenSpacing;
+            gridStep * scale >= MinimumScreenSpacing;
 
         var showMajorGrid =
-            MajorGridStep * scale >= MinimumScreenSpacing;
+            majorGridStep * scale >= MinimumScreenSpacing;
 
-        var lineCountX = (int)(canvasSize.X / GridStep);
-        var lineCountY = (int)(canvasSize.Y / GridStep);
+        var lineCountX = (int)(canvasSize.X / gridStep);
+        var lineCountY = (int)(canvasSize.Y / gridStep);
 
         for (var i = 1; i <= lineCountX; i++)
         {
@@ -45,7 +44,7 @@ internal sealed class EditorUiCanvasGridRenderer
                 continue;
             }
 
-            var x = canvasRect.X + i * GridStep * scale;
+            var x = canvasRect.X + i * gridStep * scale;
 
             context.DrawRectangle(
                 new UiRect(
@@ -66,7 +65,7 @@ internal sealed class EditorUiCanvasGridRenderer
                 continue;
             }
 
-            var y = canvasRect.Y + i * GridStep * scale;
+            var y = canvasRect.Y + i * gridStep * scale;
 
             context.DrawRectangle(
                 new UiRect(

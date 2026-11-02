@@ -89,12 +89,14 @@ public sealed class EditorUiWorkspaceView :
             new EditorUiHierarchyPanelView(
                 document);
 
-        Preview =
-            new EditorUiCanvasPreviewView(
+        var previewWorkspace =
+            new EditorUiCanvasWorkspaceView(
                 document,
                 assetPreviewTextures,
                 editor,
                 filePreviewTextureManager);
+
+        Preview = previewWorkspace.Preview;
 
         Inspector =
             new EditorUiInspectorPanelView(
@@ -106,8 +108,7 @@ public sealed class EditorUiWorkspaceView :
         _hierarchyHost.AddChild(
             Hierarchy);
 
-        _previewHost.AddChild(
-            Preview);
+        _previewHost.AddChild(previewWorkspace);
 
         _inspectorHost.AddChild(
             Inspector);

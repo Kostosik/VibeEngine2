@@ -22,13 +22,19 @@ public sealed class EditorUiCanvasPreviewView :
     private readonly EditorUiCanvasViewportTransform _viewportTransform =
     new();
     private readonly EditorUiCanvasTransformTool _transformTool;
-
+    public bool ShowGrid { get; set; } = true;
     private enum DragOperation
     {
         None,
         Move,
         Resize,
         Rotate
+    }
+
+    public bool SnapToGrid
+    {
+        get => _transformTool.SnapEnabled;
+        set => _transformTool.SnapEnabled = value;
     }
 
     public EditorUiCanvasPreviewView(
@@ -80,11 +86,16 @@ public sealed class EditorUiCanvasPreviewView :
                 38,
                 255),
             filled: true);
-        _gridRenderer.Render(
-    context,
-    canvasRect,
-    _document.Root.Layout.Size,
-    GetScale());
+
+        if (ShowGrid)
+        {
+            _gridRenderer.Render(
+                context,
+                canvasRect,
+                _document.Root.Layout.Size,
+                GetScale());
+        }
+
         context.DrawRectangle(
             canvasRect,
             new UiColor(
@@ -195,6 +206,11 @@ public sealed class EditorUiCanvasPreviewView :
 
             if (handle != ResizeHandle.None)
             {
+                var documentCenter = _viewportTransform.ScreenToDocument(
+                    selectedTransform.Center,
+                    GetCanvasRect(),
+                    scale);
+
                 _transformTool.BeginResize(
                     selected,
                     handle,
@@ -202,7 +218,8 @@ public sealed class EditorUiCanvasPreviewView :
                     scale,
                     selectedTransform.ParentRotationDegrees,
                     selectedTransform.RotationDegrees,
-                    selectedTransform.Center);
+                    selectedTransform.Center,
+                    documentCenter);
 
                 pointer.Handled = true;
                 return;
@@ -239,10 +256,7 @@ public sealed class EditorUiCanvasPreviewView :
                 scale,
                 out var hitTransform))
         {
-            var documentStartPosition = _viewportTransform.ScreenToDocument(
-                hitTransform.LayoutRect.Position,
-                canvasRect,
-                scale);
+            var documentStartPosition = hitTransform.DocumentOrigin;
 
             _transformTool.BeginMove(
                 hit,

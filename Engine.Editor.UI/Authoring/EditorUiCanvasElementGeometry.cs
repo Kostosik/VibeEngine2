@@ -9,10 +9,12 @@ internal readonly record struct EditorUiCanvasElementScreenTransform(
     UiRect LayoutRect,
     Vector2 Center,
     float RotationDegrees,
-    float ParentRotationDegrees);
+    float ParentRotationDegrees,
+    Vector2 DocumentOrigin);
 
 internal static class EditorUiCanvasElementGeometry
 {
+
     public static bool TryGetScreenTransform(
         EditorUiDocument document,
         EditorUiElement element,
@@ -42,13 +44,20 @@ internal static class EditorUiCanvasElementGeometry
 
         path.Reverse();
 
+        if (path.Count == 0)
+        {
+            transform = default;
+            return false;
+        }
+
+        var rotationCenters = new List<Vector2>(path.Count);
+        var rotations = new List<float>(path.Count);
+
         var parentSize = document.Root.Layout.Size;
         var parentOrigin = Vector2.Zero;
 
-        var elementRect = default(UiRect);
-        var center = Vector2.Zero;
-        var totalRotation = 0.0f;
-        var parentRotation = 0.0f;
+        var elementOrigin = Vector2.Zero;
+        var elementSize = Vector2.Zero;
 
         for (var i = 0; i < path.Count; i++)
         {
@@ -67,21 +76,19 @@ internal static class EditorUiCanvasElementGeometry
                 parentOrigin.X + localRect.X,
                 parentOrigin.Y + localRect.Y);
 
-            elementRect = new UiRect(
-                canvasRect.X + origin.X * scale,
-                canvasRect.Y + origin.Y * scale,
-                localRect.Width * scale,
-                localRect.Height * scale);
+            var center = new Vector2(
+                origin.X + localRect.Width * 0.5f,
+                origin.Y + localRect.Height * 0.5f);
 
-            center = new Vector2(
-                elementRect.X + elementRect.Width * 0.5f,
-                elementRect.Y + elementRect.Height * 0.5f);
+            rotationCenters.Add(center);
+            rotations.Add(layout.RotationDegrees);
 
-            totalRotation += layout.RotationDegrees;
-
-            if (i < path.Count - 1)
+            if (i == path.Count - 1)
             {
-                parentRotation += layout.RotationDegrees;
+                elementOrigin = origin;
+                elementSize = new Vector2(
+                    localRect.Width,
+                    localRect.Height);
             }
 
             parentOrigin = origin;
@@ -90,14 +97,52 @@ internal static class EditorUiCanvasElementGeometry
                 localRect.Height);
         }
 
+        var documentCenter = rotationCenters[^1];
+        var parentRotation = 0.0f;
+
+        // Применяем вращение родителей от ближайшего
+        // родителя к корню, как это делает UiRenderContext.
+        for (var i = path.Count - 2; i >= 0; i--)
+        {
+            documentCenter = RotatePoint(
+                documentCenter,
+                rotationCenters[i],
+                rotations[i]);
+
+            elementOrigin = RotatePoint(
+                elementOrigin,
+                rotationCenters[i],
+                rotations[i]);
+
+            parentRotation += rotations[i];
+        }
+
+        var totalRotation =
+            parentRotation + rotations[^1];
+
+        var screenCenter = new Vector2(
+            canvasRect.X + documentCenter.X * scale,
+            canvasRect.Y + documentCenter.Y * scale);
+
+        var screenWidth = elementSize.X * scale;
+        var screenHeight = elementSize.Y * scale;
+
+        var screenRect = new UiRect(
+            screenCenter.X - screenWidth * 0.5f,
+            screenCenter.Y - screenHeight * 0.5f,
+            screenWidth,
+            screenHeight);
+
         transform = new EditorUiCanvasElementScreenTransform(
-            elementRect,
-            center,
+            screenRect,
+            screenCenter,
             totalRotation,
-            parentRotation);
+            parentRotation,
+            elementOrigin);
 
         return true;
     }
+
 
     public static Vector2 RotatePoint(
     Vector2 point,

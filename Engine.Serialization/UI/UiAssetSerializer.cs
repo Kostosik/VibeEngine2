@@ -115,6 +115,8 @@ public sealed class UiAssetSerializer :
     element.PreserveAspectRatio);
             writer.WriteSingle(
     element.SliderValue);
+            writer.WriteSingle(
+    element.ProgressBarValue);
         }
     }
 
@@ -278,6 +280,7 @@ public sealed class UiAssetSerializer :
                 toggleValue =
                     reader.ReadBoolean();
 
+
                 placeholder =
                     reader.ReadString()
                     ?? string.Empty;
@@ -316,9 +319,14 @@ public sealed class UiAssetSerializer :
             }
 
             var sliderValue =
-    version >= 6
-        ? reader.ReadSingle()
-        : 0.0f;
+                version >= 6
+                ? reader.ReadSingle()
+                : 0.0f;
+
+            var progressBarValue =
+                version >= 7
+                ? reader.ReadSingle()
+                : 0.0f;
 
             elements.Add(
                 new UiAssetElement(

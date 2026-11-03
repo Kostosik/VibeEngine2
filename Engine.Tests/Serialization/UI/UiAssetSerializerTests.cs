@@ -10,6 +10,56 @@ namespace Engine.Tests.Serialization.UI;
 public sealed class UiAssetSerializerTests
 {
     [Fact]
+    public void SerializeDeserialize_PreservesProgressBarValue()
+    {
+        var rootId = Guid.NewGuid();
+        var progressBarId = Guid.NewGuid();
+
+        var asset = new UiAsset(
+            "ProgressBarTest",
+            new Vector2(1280.0f, 720.0f),
+            new[]
+            {
+            new UiAssetElement(
+                rootId,
+                Guid.Empty,
+                UiAssetElementType.Root,
+                "Root",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(1280.0f, 720.0f))),
+
+            new UiAssetElement(
+                progressBarId,
+                rootId,
+                UiAssetElementType.ProgressBar,
+                "Loading",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(300.0f, 24.0f)),
+                progressBarValue: 0.75f)
+            });
+
+        var serializer = new UiAssetSerializer();
+
+        var data = BinarySerializer.Serialize(
+            asset,
+            serializer);
+
+        var restored = BinarySerializer.Deserialize(
+            data,
+            serializer);
+
+        var progressBar = Assert.Single(
+            restored.Elements.Where(
+                element => element.Type == UiAssetElementType.ProgressBar));
+
+        Assert.Equal(0.75f, progressBar.ProgressBarValue);
+    }
+
+    [Fact]
     public void SerializeDeserialize_PreservesSliderValue()
     {
         var rootId = Guid.NewGuid();

@@ -104,6 +104,60 @@ internal sealed class EditorUiCanvasElementRenderer
                     filled: false,
                     layer: 1);
 
+                if (element.Type == EditorUiElementType.Slider)
+                {
+                    var trackHeight = MathF.Max(
+                        2.0f,
+                        rect.Height * 0.25f);
+
+                    var knobWidth = MathF.Max(
+                        6.0f,
+                        rect.Height * 0.5f);
+
+                    var value = Math.Clamp(
+                        element.SliderValue,
+                        0.0f,
+                        1.0f);
+
+                    var trackY = rect.Y +
+                        (rect.Height - trackHeight) / 2.0f;
+
+                    context.DrawRectangle(
+                        new UiRect(
+                            rect.X,
+                            trackY,
+                            rect.Width,
+                            trackHeight),
+                        new UiColor(45, 45, 45, 255),
+                        filled: true,
+                        layer: 2);
+
+                    var fillWidth = rect.Width * value;
+
+                    if (fillWidth > 0.0f)
+                    {
+                        context.DrawRectangle(
+                            new UiRect(
+                                rect.X,
+                                trackY,
+                                fillWidth,
+                                trackHeight),
+                            new UiColor(90, 160, 220, 255),
+                            filled: true,
+                            layer: 3);
+                    }
+
+                    context.DrawRectangle(
+                        new UiRect(
+                            rect.X + fillWidth - knobWidth / 2.0f,
+                            rect.Y,
+                            knobWidth,
+                            rect.Height),
+                        new UiColor(220, 220, 220, 255),
+                        filled: true,
+                        layer: 4);
+                }
+
                 if (ShouldDrawText(element) &&
                     !string.IsNullOrEmpty(element.Text))
                 {
@@ -125,7 +179,8 @@ internal sealed class EditorUiCanvasElementRenderer
                         layer: 2);
                 }
 
-                if (element.Type != EditorUiElementType.Image &&
+                if (element.Type is not EditorUiElementType.Image
+                    and not EditorUiElementType.Slider &&
                     string.IsNullOrEmpty(element.Text) &&
                     rect.Width >= 80.0f &&
                     rect.Height >= 26.0f)

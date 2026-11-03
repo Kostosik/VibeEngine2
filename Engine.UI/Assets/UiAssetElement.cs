@@ -21,7 +21,7 @@ public sealed class UiAssetElement
         bool visible = true,
         bool enabled = true,
         int zIndex = 0,
-        bool preserveAspectRatio = true, float sliderValue = 0.0f)
+        bool preserveAspectRatio = true, float sliderValue = 0.0f, float progressBarValue = 0.0f)
     {
         if (id == Guid.Empty)
         {
@@ -64,6 +64,23 @@ public sealed class UiAssetElement
             throw new ArgumentException(
                 "Slider value is only valid for slider elements.",
                 nameof(sliderValue));
+        }
+
+        if (type == UiAssetElementType.ProgressBar)
+        {
+            if (!float.IsFinite(progressBarValue) ||
+                progressBarValue < 0.0f ||
+                progressBarValue > 1.0f)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(progressBarValue));
+            }
+        }
+        else if (progressBarValue != 0.0f)
+        {
+            throw new ArgumentException(
+                "Progress bar value is only valid for progress bar elements.",
+                nameof(progressBarValue));
         }
 
         var options =
@@ -131,10 +148,11 @@ public sealed class UiAssetElement
         SliderValue = sliderValue;
         ZIndex =
             zIndex;
+        ProgressBarValue = progressBarValue;
     }
     public float SliderValue { get; }
     public bool Visible { get; }
-
+    public float ProgressBarValue { get; }
     public bool Enabled { get; }
 
     public int ZIndex { get; }

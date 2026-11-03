@@ -49,7 +49,8 @@ public sealed class EditorUiInspector
     EditorUiElementType.Button or
     EditorUiElementType.TextBox or
     EditorUiElementType.Toggle or
-    EditorUiElementType.Dropdown)
+    EditorUiElementType.Dropdown or
+    EditorUiElementType.Expander)
         {
             properties.Add(
                 new EditorProperty(
@@ -62,8 +63,27 @@ public sealed class EditorUiInspector
                             value as string
                             ?? string.Empty;
                     },
-                    displayName: "Text",
+                    displayName:
+                        element.Type == EditorUiElementType.Expander
+                            ? "Header Text"
+                            : "Text",
                     order: 20));
+        }
+
+        if (element.Type == EditorUiElementType.Expander)
+        {
+            properties.Add(
+                new EditorProperty(
+                    "ExpanderIsExpanded",
+                    typeof(bool),
+                    () => element.ExpanderIsExpanded,
+                    value =>
+                    {
+                        element.ExpanderIsExpanded =
+                            Convert.ToBoolean(value);
+                    },
+                    displayName: "Expanded",
+                    order: 21));
         }
 
         if (element.Type is
@@ -132,20 +152,22 @@ public sealed class EditorUiInspector
             properties.Add(
                 new EditorProperty(
                     "SeparatorOrientation",
-                    typeof(string),
-                    () => element.SeparatorOrientation.ToString(),
+                    typeof(EditorUiSeparatorOrientation),
+                    () => element.SeparatorOrientation,
                     value =>
                     {
-                        var orientation = value as string switch
+                        if (value is not EditorUiSeparatorOrientation orientation)
                         {
-                            "Horizontal" =>
-                                EditorUiSeparatorOrientation.Horizontal,
+                            throw new ArgumentException(
+                                "Invalid separator orientation.",
+                                nameof(value));
+                        }
 
-                            "Vertical" =>
-                                EditorUiSeparatorOrientation.Vertical,
-
-                            _ => element.SeparatorOrientation
-                        };
+                        if (!Enum.IsDefined(orientation))
+                        {
+                            throw new ArgumentOutOfRangeException(
+                                nameof(value));
+                        }
 
                         if (orientation == element.SeparatorOrientation)
                             return;

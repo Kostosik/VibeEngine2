@@ -10,7 +10,7 @@ public sealed class EditorUiElement
     Array.Empty<string>();
 
     public int SelectedIndex { get; internal set; } = -1;
-
+    public bool ExpanderIsExpanded { get; set; }
     public bool ToggleValue { get; internal set; }
     public float SliderValue { get; set; }
     public float ProgressBarValue { get; set; }

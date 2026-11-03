@@ -14,7 +14,36 @@ internal readonly record struct EditorUiCanvasElementScreenTransform(
 
 internal static class EditorUiCanvasElementGeometry
 {
+    internal static (Vector2 Offset, Vector2 Size) GetChildContentArea(
+    EditorUiElement element,
+    Vector2 elementSize)
+    {
+        ArgumentNullException.ThrowIfNull(element);
 
+        if (element.Type != EditorUiElementType.Expander)
+        {
+            return (Vector2.Zero, elementSize);
+        }
+
+        const float horizontalPadding = 8.0f;
+        const float headerHeight = 32.0f;
+        const float contentSpacing = 4.0f;
+        const float verticalPadding = 8.0f;
+
+        return (
+            new Vector2(
+                horizontalPadding,
+                headerHeight + contentSpacing + verticalPadding),
+
+            new Vector2(
+                MathF.Max(0.0f, elementSize.X - horizontalPadding * 2.0f),
+                MathF.Max(
+                    0.0f,
+                    elementSize.Y -
+                    headerHeight -
+                    contentSpacing -
+                    verticalPadding * 2.0f)));
+    }
     public static bool TryGetScreenTransform(
         EditorUiDocument document,
         EditorUiElement element,
@@ -91,10 +120,14 @@ internal static class EditorUiCanvasElementGeometry
                     localRect.Height);
             }
 
-            parentOrigin = origin;
-            parentSize = new Vector2(
-                localRect.Width,
-                localRect.Height);
+            var contentArea = GetChildContentArea(
+                current,
+                new Vector2(
+                    localRect.Width,
+                    localRect.Height));
+
+            parentOrigin = origin + contentArea.Origin;
+            parentSize = contentArea.Size;
         }
 
         var documentCenter = rotationCenters[^1];
@@ -143,7 +176,34 @@ internal static class EditorUiCanvasElementGeometry
         return true;
     }
 
+    internal static (Vector2 Origin, Vector2 Size) GetChildContentArea(
+    EditorUiElement element,
+    Vector2 elementSize)
+    {
+        if (element.Type != EditorUiElementType.Expander)
+        {
+            return (Vector2.Zero, elementSize);
+        }
 
+        const float horizontalPadding = 8.0f;
+        const float headerHeight = 32.0f;
+        const float contentSpacing = 4.0f;
+        const float contentPadding = 8.0f;
+
+        return (
+            new Vector2(
+                horizontalPadding,
+                headerHeight + contentSpacing + contentPadding),
+
+            new Vector2(
+                MathF.Max(0.0f, elementSize.X - horizontalPadding * 2.0f),
+                MathF.Max(
+                    0.0f,
+                    elementSize.Y -
+                    headerHeight -
+                    contentSpacing -
+                    contentPadding * 2.0f)));
+    }
     public static Vector2 RotatePoint(
     Vector2 point,
     Vector2 origin,

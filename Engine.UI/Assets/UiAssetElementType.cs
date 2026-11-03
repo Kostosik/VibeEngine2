@@ -13,5 +13,6 @@ public enum UiAssetElementType
     ScrollView,
     Slider,
     ProgressBar,
-    Separator
+    Separator,
+    Expander
 }

@@ -220,12 +220,79 @@ public sealed class EditorUiInspectorPanelView :
             return;
         }
 
+        if (property.PropertyType.IsEnum)
+        {
+            _content.AddChild(
+                CreateEnumProperty(property));
+
+            return;
+        }
+
         _content.AddChild(
             new UiLabel(
                 $"{property.DisplayName}: unsupported")
             {
                 FontSize = 12.0f
             });
+    }
+
+    private UiWidget CreateEnumProperty(
+    EditorProperty property)
+    {
+        var container = new UiStackPanel
+        {
+            Orientation = UiOrientation.Vertical,
+            Spacing = 4.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        container.AddChild(
+            new UiLabel(property.DisplayName)
+            {
+                FontSize = 12.0f
+            });
+
+        var values = Enum.GetValues(
+            property.PropertyType);
+
+        var dropdown = new UiDropdown();
+
+        foreach (var value in values)
+        {
+            dropdown.AddOption(value.ToString()!);
+        }
+
+        var currentValue = property.GetValue();
+
+        if (currentValue is not null)
+        {
+            var index = Array.IndexOf(values, currentValue);
+
+            if (index >= 0)
+            {
+                dropdown.SetSelectedIndex(index);
+            }
+        }
+
+        dropdown.SelectionChanged += (index, _) =>
+        {
+            if (index < 0 || index >= values.Length)
+            {
+                return;
+            }
+
+            _document.Execute(
+                new SetEditorPropertyCommand(
+                    property,
+                    values.GetValue(index)));
+
+            Refresh();
+        };
+
+        container.AddChild(dropdown);
+
+        return container;
     }
 
     private UiWidget CreateAnchorPresetProperty(

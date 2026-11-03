@@ -8,6 +8,97 @@ namespace Engine.Tests.Editor.Authoring;
 public sealed class EditorUiAssetConverterTests
 {
     [Fact]
+    public void ConvertToDocument_PreservesSeparatorOrientation()
+    {
+        var document = new EditorUiDocument("SeparatorTest");
+
+        var separator = document.AddElement(
+            EditorUiElementType.Separator,
+            document.Root.Id,
+            "Divider");
+
+        Assert.Equal(
+            new Vector2(200.0f, 1.0f),
+            separator.Layout.Size);
+
+        separator.SeparatorOrientation =
+            EditorUiSeparatorOrientation.Vertical;
+
+        var clone = EditorUiElementCloner.Clone(separator);
+
+        Assert.Equal(
+            EditorUiSeparatorOrientation.Vertical,
+            clone.SeparatorOrientation);
+
+        var asset = EditorUiAssetConverter.Convert(document);
+
+        var assetSeparator = Assert.Single(
+            asset.Elements.Where(
+                element => element.Type == UiAssetElementType.Separator));
+
+        Assert.Equal(
+            UiAssetSeparatorOrientation.Vertical,
+            assetSeparator.SeparatorOrientation);
+
+        var restored = EditorUiAssetConverter.ConvertToDocument(asset);
+
+        Assert.Equal(
+            EditorUiSeparatorOrientation.Vertical,
+            restored.GetElement(separator.Id).SeparatorOrientation);
+    }
+
+    [Fact]
+    public void Expander_PreservesStateAndContentThroughConversionAndCloning()
+    {
+        var document = new EditorUiDocument("ExpanderTest");
+
+        var expander = document.AddElement(
+            EditorUiElementType.Expander,
+            document.Root.Id,
+            "Details");
+
+        expander.ExpanderIsExpanded = true;
+
+        var content = document.AddElement(
+            EditorUiElementType.Panel,
+            expander.Id,
+            "Content");
+
+        Assert.Equal(
+            new Vector2(200.0f, 132.0f),
+            expander.Layout.Size);
+
+        Assert.Equal(
+            new Vector2(184.0f, 80.0f),
+            content.Layout.Size);
+
+        Assert.Throws<InvalidOperationException>(
+            () => document.AddElement(
+                EditorUiElementType.Label,
+                expander.Id));
+
+        var clone = EditorUiElementCloner.Clone(expander);
+
+        Assert.True(clone.ExpanderIsExpanded);
+        Assert.Single(clone.Children);
+
+        var asset = EditorUiAssetConverter.Convert(document);
+
+        var assetExpander = Assert.Single(
+            asset.Elements.Where(
+                e => e.Type == UiAssetElementType.Expander));
+
+        Assert.True(assetExpander.ExpanderIsExpanded);
+
+        var restored = EditorUiAssetConverter.ConvertToDocument(asset);
+
+        var restoredExpander = restored.GetElement(expander.Id);
+
+        Assert.True(restoredExpander.ExpanderIsExpanded);
+        Assert.Single(restoredExpander.Children);
+    }
+
+    [Fact]
     public void ConvertToDocument_PreservesProgressBarValue()
     {
         var document = new EditorUiDocument("ProgressBarTest");

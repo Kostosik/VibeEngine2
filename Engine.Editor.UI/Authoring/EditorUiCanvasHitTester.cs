@@ -54,6 +54,16 @@ public static class EditorUiCanvasHitTester
             elementCenter,
             -layout.RotationDegrees);
 
+        var contentArea =
+    EditorUiCanvasElementGeometry.GetChildContentArea(
+        element,
+        new Vector2(
+            localRect.Width,
+            localRect.Height));
+
+        var childParentOrigin =
+            elementOrigin + contentArea.Origin;
+
         foreach (var child in element.Children
                      .OrderByDescending(
                          static child => child.ZIndex))
@@ -61,10 +71,8 @@ public static class EditorUiCanvasHitTester
             var hit = FindElementAt(
                 child,
                 unrotatedPoint,
-                elementOrigin,
-                new Vector2(
-                    localRect.Width,
-                    localRect.Height),
+                childParentOrigin,
+                contentArea.Size,
                 layoutResolver);
 
             if (hit is not null)

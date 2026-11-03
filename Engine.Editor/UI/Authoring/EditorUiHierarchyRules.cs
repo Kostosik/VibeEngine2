@@ -8,7 +8,8 @@ internal static class EditorUiHierarchyRules
         return type is
             EditorUiElementType.Root or
             EditorUiElementType.Panel or
-            EditorUiElementType.ScrollView;
+            EditorUiElementType.ScrollView or
+        EditorUiElementType.Expander;
     }
 
     public static bool CanAcceptChild(
@@ -23,7 +24,9 @@ internal static class EditorUiHierarchyRules
             return false;
         }
 
-        if (parent.Type == EditorUiElementType.ScrollView &&
+        if (parent.Type is
+                EditorUiElementType.ScrollView or
+                EditorUiElementType.Expander &&
             parent.Children.Count > 0)
         {
             return false;

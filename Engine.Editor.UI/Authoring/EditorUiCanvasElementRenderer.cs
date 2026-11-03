@@ -181,7 +181,7 @@ internal sealed class EditorUiCanvasElementRenderer
 
                 if (element.Type is not EditorUiElementType.Image
                     and not EditorUiElementType.Slider
-                    and not EditorUiElementType.ProgressBar &&
+                    and not EditorUiElementType.ProgressBar and not EditorUiElementType.Separator and not EditorUiElementType.Expander &&
                     string.IsNullOrEmpty(element.Text) &&
                     rect.Width >= 80.0f &&
                     rect.Height >= 26.0f)
@@ -204,6 +204,50 @@ internal sealed class EditorUiCanvasElementRenderer
                         11.0f,
                         new UiColor(190, 190, 190, 255),
                         layer: 2);
+                }
+
+                if (element.Type == EditorUiElementType.Expander)
+                {
+                    var headerHeight = MathF.Min(
+                        32.0f * scale,
+                        rect.Height);
+
+                    var headerRect = new UiRect(
+                        rect.X,
+                        rect.Y,
+                        rect.Width,
+                        headerHeight);
+
+                    context.DrawRectangle(
+                        headerRect,
+                        new UiColor(75, 90, 110, 255),
+                        filled: true,
+                        layer: 2);
+
+                    var headerText =
+                        (element.ExpanderIsExpanded ? "[-] " : "[+] ") +
+                        element.Text;
+
+                    var fontSize = MathF.Max(1.0f, 12.0f * scale);
+
+                    var textSize = context.MeasureText(
+                        headerText,
+                        fontSize);
+
+                    var textPosition = UiTextLayout.CalculatePosition(
+                        headerRect,
+                        textSize,
+                        UiTextHorizontalAlignment.Left,
+                        UiTextVerticalAlignment.Center);
+
+                    context.DrawText(
+                        headerText,
+                        new Vector2(
+                            textPosition.X + 8.0f * scale,
+                            textPosition.Y),
+                        fontSize,
+                        new UiColor(235, 235, 235, 255),
+                        layer: 3);
                 }
 
                 if (element.Type == EditorUiElementType.ProgressBar)
@@ -236,6 +280,16 @@ internal sealed class EditorUiCanvasElementRenderer
                 }
             }
 
+            var contentArea =
+                EditorUiCanvasElementGeometry.GetChildContentArea(
+                    element,
+                    new Vector2(
+                        localRect.Width,
+                        localRect.Height));
+
+            var childOrigin =
+                elementOrigin + contentArea.Origin;
+
             foreach (var child in element.Children.OrderBy(
                          static child => child.ZIndex))
             {
@@ -243,10 +297,8 @@ internal sealed class EditorUiCanvasElementRenderer
                     context,
                     document,
                     child,
-                    elementOrigin,
-                    new Vector2(
-                        localRect.Width,
-                        localRect.Height),
+                    childOrigin,
+                    contentArea.Size,
                     canvasOrigin,
                     scale,
                     layoutResolver);
@@ -308,6 +360,10 @@ internal sealed class EditorUiCanvasElementRenderer
             EditorUiElementType.ScrollView =>
                 new UiColor(55, 75, 85, 255),
 
+            EditorUiElementType.Separator =>
+                new UiColor(120, 120, 120, 255),
+            EditorUiElementType.Expander =>
+                new UiColor(55, 70, 85, 255),
             _ => new UiColor(60, 60, 60, 255)
         };
     }

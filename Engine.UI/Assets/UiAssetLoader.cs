@@ -122,10 +122,17 @@ public sealed class UiAssetLoader
 
             UiAssetElementType.ScrollView =>
                 new UiScrollView(),
+
             UiAssetElementType.Slider =>
                 CreateSlider(element),
+
             UiAssetElementType.ProgressBar =>
                 CreateProgressBar(element),
+
+            UiAssetElementType.Separator =>
+                CreateSeparator(element),
+            UiAssetElementType.Expander =>
+                CreateExpander(element),
             UiAssetElementType.Root =>
                 throw new InvalidDataException(
                     "The root UI element cannot be created as a child."),
@@ -133,6 +140,46 @@ public sealed class UiAssetLoader
             _ =>
                 throw new InvalidDataException(
                     $"Unsupported UI asset element type '{element.Type}'.")
+        };
+    }
+
+    private static UiSeparator CreateSeparator(
+    UiAssetElement element)
+    {
+        var orientation =
+            element.SeparatorOrientation switch
+            {
+                UiAssetSeparatorOrientation.Horizontal =>
+                    UiSeparatorOrientation.Horizontal,
+
+                UiAssetSeparatorOrientation.Vertical =>
+                    UiSeparatorOrientation.Vertical,
+
+                _ => throw new InvalidDataException(
+                    $"Unsupported separator orientation '{element.SeparatorOrientation}'.")
+            };
+
+        var horizontal =
+            orientation == UiSeparatorOrientation.Horizontal;
+
+        return new UiSeparator(orientation)
+        {
+            Length = horizontal
+                ? element.Layout.Size.X
+                : element.Layout.Size.Y,
+
+            Thickness = horizontal
+                ? element.Layout.Size.Y
+                : element.Layout.Size.X
+        };
+    }
+
+    private static UiExpander CreateExpander(
+    UiAssetElement element)
+    {
+        return new UiExpander(element.Text)
+        {
+            IsExpanded = element.ExpanderIsExpanded
         };
     }
 
@@ -269,7 +316,9 @@ public sealed class UiAssetLoader
             element.Layout.Size.X;
 
         widget.Height =
-            element.Layout.Size.Y;
+            widget is UiExpander
+                ? null
+                : element.Layout.Size.Y;
     }
 
     private static void ApplyProperties(
@@ -300,6 +349,18 @@ public sealed class UiAssetLoader
             scrollView.SetContent(
                 child);
 
+            return;
+        }
+
+        if (parent is UiExpander expander)
+        {
+            if (expander.Content is not null)
+            {
+                throw new InvalidDataException(
+                    "An Expander can have only one direct content element.");
+            }
+
+            expander.SetContent(child);
             return;
         }
 
@@ -335,6 +396,15 @@ public sealed class UiAssetLoader
 
         switch (widget)
         {
+            case UiExpander expander:
+                expander.ExpandedChanged +=
+                    value => InvokeAction(
+                        action,
+                        element,
+                        UiActionTrigger.ValueChanged,
+                        value);
+
+                return;
             case UiButton button:
                 button.Clicked +=
                     () => InvokeAction(

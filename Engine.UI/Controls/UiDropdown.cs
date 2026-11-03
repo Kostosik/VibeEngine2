@@ -243,6 +243,38 @@ public sealed class UiDropdown : UiContainer
         ResolveFocusManager()?.EnterScope(_popup);
     }
 
+    internal void ClosePopupIfPointerOutside(
+    UiWidget? target)
+    {
+        if (!_popup.Visible ||
+            IsInside(target, this) ||
+            IsInside(target, _popup))
+        {
+            return;
+        }
+
+        ClosePopup();
+    }
+
+    private static bool IsInside(
+        UiWidget? widget,
+        UiWidget ancestor)
+    {
+        while (widget is not null)
+        {
+            if (ReferenceEquals(
+                    widget,
+                    ancestor))
+            {
+                return true;
+            }
+
+            widget = widget.Parent;
+        }
+
+        return false;
+    }
+
     private void ClosePopup()
     {
         _popup.Visible = false;

@@ -11,6 +11,85 @@ namespace Engine.Tests.UI.Controls;
 
 public sealed class UiDropdownTests
 {
+    [Fact]
+    public void Popup_ClickingOutsideDropdown_ClosesPopupAndKeepsPointerClick()
+    {
+        var root = new UiRoot();
+
+        var overlay = new UiOverlayLayer();
+        root.AddChild(overlay);
+
+        var content = new UiCanvas();
+        root.AddChild(content);
+
+        var dropdown = new UiDropdown();
+        dropdown.AddOption("First");
+
+        content.AddChild(dropdown);
+        content.SetPosition(dropdown, Vector2.Zero);
+
+        var otherButton = new UiButton("Other")
+        {
+            Width = 120.0f,
+            Height = 40.0f
+        };
+
+        var clickCount = 0;
+
+        otherButton.Clicked +=
+            () => clickCount++;
+
+        content.AddChild(otherButton);
+
+        content.SetPosition(
+            otherButton,
+            new Vector2(0.0f, 230.0f));
+
+        var layoutContext = new UiLayoutContext(
+            new TestFontManager(),
+            new UiTheme());
+
+        var viewportSize = new Vector2(400.0f, 300.0f);
+
+        var pointer = new TestPointerInput();
+
+        var router = new UiInputRouter(
+            root,
+            pointer,
+            new EmptyTextInput(),
+            new UiFocusManager());
+
+        root.Measure(layoutContext, viewportSize);
+
+        root.Arrange(new UiRect(
+            0.0f,
+            0.0f,
+            viewportSize.X,
+            viewportSize.Y));
+
+        Click(
+            router,
+            pointer,
+            new Vector2(20.0f, 20.0f));
+
+        Assert.True(dropdown.IsOpen);
+
+        root.Measure(layoutContext, viewportSize);
+
+        root.Arrange(new UiRect(
+            0.0f,
+            0.0f,
+            viewportSize.X,
+            viewportSize.Y));
+
+        Click(
+            router,
+            pointer,
+            new Vector2(20.0f, 250.0f));
+
+        Assert.False(dropdown.IsOpen);
+        Assert.Equal(1, clickCount);
+    }
 
     [Fact]
     public void ClearChildren_WhenDropdownPopupIsOpen_ClosesPopup()

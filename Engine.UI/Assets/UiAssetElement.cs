@@ -25,7 +25,7 @@ public sealed class UiAssetElement
         bool preserveAspectRatio = true, 
         float sliderValue = 0.0f, 
         float progressBarValue = 0.0f, 
-        UiAssetSeparatorOrientation separatorOrientation = UiAssetSeparatorOrientation.Horizontal)
+        UiAssetSeparatorOrientation separatorOrientation = UiAssetSeparatorOrientation.Horizontal, bool expanderIsExpanded = false)
     {
         if (id == Guid.Empty)
         {
@@ -103,6 +103,14 @@ public sealed class UiAssetElement
                 nameof(separatorOrientation));
         }
 
+        if (type != UiAssetElementType.Expander &&
+    expanderIsExpanded)
+        {
+            throw new ArgumentException(
+                "Expanded state is only valid for expander elements.",
+                nameof(expanderIsExpanded));
+        }
+
         var options =
             dropdownOptions?.ToArray()
             ?? Array.Empty<string>();
@@ -151,7 +159,7 @@ public sealed class UiAssetElement
         SeparatorOrientation = separatorOrientation;
         SelectedIndex =
             selectedIndex;
-
+        ExpanderIsExpanded = expanderIsExpanded;
         ToggleValue =
             toggleValue;
 
@@ -196,7 +204,7 @@ public sealed class UiAssetElement
     public IReadOnlyList<string> DropdownOptions { get; }
 
     public int SelectedIndex { get; }
-
+    public bool ExpanderIsExpanded { get; }
     public bool ToggleValue { get; }
 
     public string Placeholder { get; }

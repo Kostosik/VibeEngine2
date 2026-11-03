@@ -53,7 +53,9 @@ public static class EditorUiAssetConverter
             element.MaxLength,
             element.Visible,
             element.Enabled,
-            element.ZIndex, element.PreserveAspectRatio, element.SliderValue, element.ProgressBarValue);
+            element.ZIndex, element.PreserveAspectRatio, element.SliderValue,
+            element.ProgressBarValue,
+            ConvertSeparatorOrientation(element.SeparatorOrientation), element.ExpanderIsExpanded);
     }
 
     public static EditorUiDocument ConvertToDocument(
@@ -138,6 +140,10 @@ public static class EditorUiAssetConverter
                     SliderValue =
     descriptor.SliderValue,
                     ProgressBarValue = descriptor.ProgressBarValue,
+                    SeparatorOrientation =
+    ConvertSeparatorOrientation(descriptor.SeparatorOrientation),
+                    ExpanderIsExpanded =
+    descriptor.ExpanderIsExpanded,
                 };
 
             elements.Add(
@@ -203,6 +209,10 @@ public static class EditorUiAssetConverter
                 EditorUiElementType.Slider,
             UiAssetElementType.ProgressBar =>
                 EditorUiElementType.ProgressBar,
+            UiAssetElementType.Separator =>
+                EditorUiElementType.Separator,
+            UiAssetElementType.Expander =>
+                EditorUiElementType.Expander,
             _ =>
                 throw new ArgumentOutOfRangeException(
                     nameof(type),
@@ -293,12 +303,47 @@ public static class EditorUiAssetConverter
                 UiAssetElementType.Slider,
             EditorUiElementType.ProgressBar =>
                 UiAssetElementType.ProgressBar,
+            EditorUiElementType.Separator =>
+                UiAssetElementType.Separator,
+
+            EditorUiElementType.Expander =>
+                UiAssetElementType.Expander,
 
             _ =>
                 throw new ArgumentOutOfRangeException(
                     nameof(type),
                     type,
                     "Unsupported editor UI element type.")
+        };
+    }
+
+    private static UiAssetSeparatorOrientation ConvertSeparatorOrientation(
+    EditorUiSeparatorOrientation orientation)
+    {
+        return orientation switch
+        {
+            EditorUiSeparatorOrientation.Horizontal =>
+                UiAssetSeparatorOrientation.Horizontal,
+
+            EditorUiSeparatorOrientation.Vertical =>
+                UiAssetSeparatorOrientation.Vertical,
+
+            _ => throw new ArgumentOutOfRangeException(nameof(orientation))
+        };
+    }
+
+    private static EditorUiSeparatorOrientation ConvertSeparatorOrientation(
+        UiAssetSeparatorOrientation orientation)
+    {
+        return orientation switch
+        {
+            UiAssetSeparatorOrientation.Horizontal =>
+                EditorUiSeparatorOrientation.Horizontal,
+
+            UiAssetSeparatorOrientation.Vertical =>
+                EditorUiSeparatorOrientation.Vertical,
+
+            _ => throw new ArgumentOutOfRangeException(nameof(orientation))
         };
     }
 }

@@ -1,5 +1,6 @@
 ﻿using Engine.Input;
 using Engine.Input.Cursors;
+using Engine.UI.Controls;
 using Engine.UI.Core;
 
 namespace Engine.UI.Input;
@@ -90,6 +91,7 @@ public sealed class UiInputRouter
         if (_pointer.IsPressed(
                 InputMouseButton.Left))
         {
+            CloseDropdownsOutsideTarget(hovered);
             var pointerEvent =
                 new UiPointerEvent(
                     position,
@@ -494,6 +496,36 @@ public sealed class UiInputRouter
             _capturedWidget.IsPressed = false;
             _capturedWidget = null;
             _capturedButton = null;
+        }
+    }
+
+    private void CloseDropdownsOutsideTarget(
+    UiWidget? target)
+    {
+        CloseDropdownsOutsideTarget(
+            _root,
+            target);
+    }
+
+    private static void CloseDropdownsOutsideTarget(
+        UiWidget current,
+        UiWidget? target)
+    {
+        if (current is UiDropdown dropdown)
+        {
+            dropdown.ClosePopupIfPointerOutside(target);
+        }
+
+        if (current is not UiContainer container)
+        {
+            return;
+        }
+
+        for (var i = 0; i < container.Children.Count; i++)
+        {
+            CloseDropdownsOutsideTarget(
+                container.Children[i],
+                target);
         }
     }
 

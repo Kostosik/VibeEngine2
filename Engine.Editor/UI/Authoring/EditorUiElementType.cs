@@ -13,5 +13,6 @@ public enum EditorUiElementType
     ScrollView,
     Slider,
     ProgressBar,
-    Separator
+    Separator,
+    Expander
 }

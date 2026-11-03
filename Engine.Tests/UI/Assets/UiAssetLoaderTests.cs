@@ -51,6 +51,199 @@ public sealed class UiAssetLoaderTests
     }
 
     [Fact]
+    public void Load_Separator_RestoresOrientationAndDimensions()
+    {
+        var rootId = Guid.NewGuid();
+        var separatorId = Guid.NewGuid();
+
+        var asset = new UiAsset(
+            "SeparatorTest",
+            new Vector2(1280.0f, 720.0f),
+            new[]
+            {
+            new UiAssetElement(
+                rootId,
+                Guid.Empty,
+                UiAssetElementType.Root,
+                "Root",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(1280.0f, 720.0f))),
+
+            new UiAssetElement(
+                separatorId,
+                rootId,
+                UiAssetElementType.Separator,
+                "Divider",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(1.0f, 200.0f)),
+                separatorOrientation:
+                    UiAssetSeparatorOrientation.Vertical)
+            });
+
+        var instance = new UiAssetLoader().Load(asset);
+
+        var separator = Assert.IsType<UiSeparator>(
+            instance.Get(separatorId));
+
+        Assert.Equal(
+            UiSeparatorOrientation.Vertical,
+            separator.Orientation);
+
+        Assert.Equal(200.0f, separator.Length);
+        Assert.Equal(1.0f, separator.Thickness);
+    }
+
+    [Fact]
+    public void Load_ExpanderRestoresContentStateAndInvokesAction()
+    {
+        var rootId = Guid.NewGuid();
+        var expanderId = Guid.NewGuid();
+        var contentId = Guid.NewGuid();
+
+        var invoked = false;
+        var receivedValue = false;
+        var receivedTrigger = UiActionTrigger.Click;
+
+        var actions = new UiActionRegistry();
+
+        actions.Register(
+            "DetailsChanged",
+            context =>
+            {
+                invoked = true;
+                receivedValue = Assert.IsType<bool>(context.Value);
+                receivedTrigger = context.Trigger;
+            });
+
+        var asset = new UiAsset(
+            "ExpanderTest",
+            new Vector2(1280.0f, 720.0f),
+            new[]
+            {
+            new UiAssetElement(
+                rootId,
+                Guid.Empty,
+                UiAssetElementType.Root,
+                "Root",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(1280.0f, 720.0f))),
+
+            new UiAssetElement(
+                expanderId,
+                rootId,
+                UiAssetElementType.Expander,
+                "Details",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(200.0f, 132.0f)),
+                text: "Details",
+                action: "DetailsChanged",
+                expanderIsExpanded: false),
+
+            new UiAssetElement(
+                contentId,
+                expanderId,
+                UiAssetElementType.Panel,
+                "Content",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(184.0f, 80.0f)))
+            });
+
+        var instance = new UiAssetLoader(
+            actions: actions).Load(asset);
+
+        var expander = Assert.IsType<UiExpander>(
+            instance.Get(expanderId));
+
+        Assert.Equal("Details", expander.HeaderText);
+        Assert.False(expander.IsExpanded);
+        Assert.Null(expander.Height);
+
+        Assert.IsType<UiPanel>(expander.Content);
+        Assert.Same(
+            expander.Content,
+            instance.Get(contentId));
+
+        expander.IsExpanded = true;
+
+        Assert.True(invoked);
+        Assert.True(receivedValue);
+
+        Assert.Equal(
+            UiActionTrigger.ValueChanged,
+            receivedTrigger);
+    }
+
+    [Fact]
+    public void Load_ExpanderRejectsMultipleDirectChildren()
+    {
+        var rootId = Guid.NewGuid();
+        var expanderId = Guid.NewGuid();
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+
+        var rootLayout = new UiAssetLayout(
+            UiAnchor.TopLeft,
+            Vector2.Zero,
+            new Vector2(1280.0f, 720.0f));
+
+        var asset = new UiAsset(
+            "InvalidExpander",
+            new Vector2(1280.0f, 720.0f),
+            new[]
+            {
+            new UiAssetElement(
+                rootId,
+                Guid.Empty,
+                UiAssetElementType.Root,
+                "Root",
+                rootLayout),
+
+            new UiAssetElement(
+                expanderId,
+                rootId,
+                UiAssetElementType.Expander,
+                "Details",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(200.0f, 132.0f))),
+
+            new UiAssetElement(
+                firstId,
+                expanderId,
+                UiAssetElementType.Panel,
+                "First",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(184.0f, 80.0f))),
+
+            new UiAssetElement(
+                secondId,
+                expanderId,
+                UiAssetElementType.Label,
+                "Second",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(100.0f, 30.0f)))
+            });
+
+        Assert.Throws<InvalidDataException>(
+            () => new UiAssetLoader().Load(asset));
+    }
+
+    [Fact]
     public void Load_Slider_RestoresValueAndInvokesValueChangedAction()
     {
         var rootId = Guid.NewGuid();

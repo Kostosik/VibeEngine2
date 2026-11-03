@@ -63,6 +63,58 @@ public sealed class UiAssetSerializerTests
     }
 
     [Fact]
+    public void SerializeDeserialize_PreservesExpanderState()
+    {
+        var rootId = Guid.NewGuid();
+        var expanderId = Guid.NewGuid();
+
+        var asset = new UiAsset(
+            "ExpanderTest",
+            new Vector2(1280.0f, 720.0f),
+            new[]
+            {
+            new UiAssetElement(
+                rootId,
+                Guid.Empty,
+                UiAssetElementType.Root,
+                "Root",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(1280.0f, 720.0f))),
+
+            new UiAssetElement(
+                expanderId,
+                rootId,
+                UiAssetElementType.Expander,
+                "Details",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(200.0f, 132.0f)),
+                text: "Details",
+                expanderIsExpanded: true)
+            });
+
+        var serializer = new UiAssetSerializer();
+
+        var data = BinarySerializer.Serialize(
+            asset,
+            serializer);
+
+        var restored = BinarySerializer.Deserialize(
+            data,
+            serializer);
+
+        var expander = Assert.Single(
+            restored.Elements.Where(
+                e => e.Type == UiAssetElementType.Expander));
+
+        Assert.True(expander.ExpanderIsExpanded);
+        Assert.Equal("Details", expander.Text);
+    }
+
+    [Fact]
     public void SerializeDeserialize_PreservesProgressBarValue()
     {
         var rootId = Guid.NewGuid();

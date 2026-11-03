@@ -47,7 +47,7 @@ public sealed class EditorUiHierarchyPanelView :
             _contextMenu.AddItem(
                 "Duplicate",
                 DuplicateSelected,
-                HasSingleEditableSelection);
+                CanDuplicateSelection);
 
             _contextMenu.AddItem(
                 "Copy",
@@ -396,7 +396,7 @@ public sealed class EditorUiHierarchyPanelView :
             types[index];
 
         var parentId =
-            GetSelectedParentId();
+            GetSelectedParentId(type);
 
         var element =
             _document.AddElement(
@@ -417,6 +417,8 @@ public sealed class EditorUiHierarchyPanelView :
 
         Refresh();
     }
+
+
 
     public void ReleaseResources()
     {
@@ -520,17 +522,12 @@ public sealed class EditorUiHierarchyPanelView :
 
     private void DuplicateSelected()
     {
-        if (_document.Selection.Count != 1)
+        if (!CanDuplicateSelection())
         {
             return;
         }
 
         var selectedId = _document.Selection.Items.First();
-
-        if (selectedId == _document.Root.Id)
-        {
-            return;
-        }
 
         var command = new DuplicateEditorUiElementCommand(
             _document,
@@ -544,6 +541,28 @@ public sealed class EditorUiHierarchyPanelView :
         Refresh();
     }
 
+    private bool CanDuplicateSelection()
+    {
+        if (_document.Selection.Count != 1)
+        {
+            return false;
+        }
+
+        var id = _document.Selection.Items.First();
+
+        if (!_document.TryGetElement(id, out var element) ||
+            element is null ||
+            ReferenceEquals(element, _document.Root) ||
+            element.Parent is not { } parent)
+        {
+            return false;
+        }
+
+        return _document.CanAcceptChild(
+            parent.Id,
+            element.Type);
+    }
+
     private void UpdateDeleteState()
     {
         _deleteButton.Enabled =
@@ -551,24 +570,37 @@ public sealed class EditorUiHierarchyPanelView :
             _document.Selection.Items.First() !=
             _document.Root.Id;
         _duplicateButton.Enabled =
-            _document.Selection.Count == 1 &&
-            _document.Selection.Items.First() != _document.Root.Id;
+            CanDuplicateSelection();
     }
 
-    private Guid GetSelectedParentId()
+    private Guid GetSelectedParentId(
+        EditorUiElementType childType)
     {
-        if (_document.Selection.Count != 1)
+        if (_document.Selection.Count == 1)
         {
-            return _document.Root.Id;
+            var selectedId =
+                _document.Selection.Items.First();
+
+            if (_document.TryGetElement(
+                    selectedId,
+                    out var selected) &&
+                selected is not null)
+            {
+                for (EditorUiElement? current = selected;
+                     current is not null;
+                     current = current.Parent)
+                {
+                    if (_document.CanAcceptChild(
+                            current.Id,
+                            childType))
+                    {
+                        return current.Id;
+                    }
+                }
+            }
         }
 
-        var selectedId =
-            _document.Selection.Items.First();
-
-        return _document.ContainsElement(
-                selectedId)
-            ? selectedId
-            : _document.Root.Id;
+        return _document.Root.Id;
     }
 
     private static string GetElementLabel(
@@ -606,7 +638,8 @@ public sealed class EditorUiHierarchyPanelView :
             EditorUiElementType.Dropdown,
             EditorUiElementType.ScrollView,
             EditorUiElementType.Slider,
-            EditorUiElementType.ProgressBar
+            EditorUiElementType.ProgressBar,
+            EditorUiElementType.Separator,EditorUiElementType.Expander
         };
     }
 }

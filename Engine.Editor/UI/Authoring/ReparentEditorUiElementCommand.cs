@@ -80,25 +80,28 @@ public sealed class ReparentEditorUiElementCommand : IEditorCommand
             document,
             _newParent);
 
+        var contentArea = GetChildContentArea(
+            _newParent,
+            _newParent.Layout.Size);
+
         var relativePosition = Rotate(
             new Vector2(
-                elementTransform.Origin.X - parentTransform.Center.X,
-                elementTransform.Origin.Y - parentTransform.Center.Y),
+                elementTransform.Origin.X - parentTransform.Origin.X,
+                elementTransform.Origin.Y - parentTransform.Origin.Y),
             -parentTransform.RotationDegrees);
 
-        var localOrigin = new Vector2(
-            _newParent.Layout.Size.X * 0.5f + relativePosition.X,
-            _newParent.Layout.Size.Y * 0.5f + relativePosition.Y);
+        var localOrigin =
+            relativePosition - contentArea.Origin;
 
         var anchor = _oldLayout.Anchor;
 
         var offset = new Vector2(
             localOrigin.X -
-                _newParent.Layout.Size.X * anchor.X +
+                contentArea.Size.X * anchor.X +
                 _oldLayout.Size.X * anchor.X,
 
             localOrigin.Y -
-                _newParent.Layout.Size.Y * anchor.Y +
+                contentArea.Size.Y * anchor.Y +
                 _oldLayout.Size.Y * anchor.Y);
 
         _newLayout = _oldLayout with
@@ -133,6 +136,35 @@ public sealed class ReparentEditorUiElementCommand : IEditorCommand
             _newIndex);
 
         _element.Layout = _newLayout;
+    }
+
+    internal static (Vector2 Origin, Vector2 Size) GetChildContentArea(
+    EditorUiElement element,
+    Vector2 elementSize)
+    {
+        if (element.Type != EditorUiElementType.Expander)
+        {
+            return (Vector2.Zero, elementSize);
+        }
+
+        const float horizontalPadding = 8.0f;
+        const float headerHeight = 32.0f;
+        const float contentSpacing = 4.0f;
+        const float contentPadding = 8.0f;
+
+        return (
+            new Vector2(
+                horizontalPadding,
+                headerHeight + contentSpacing + contentPadding),
+
+            new Vector2(
+                MathF.Max(0.0f, elementSize.X - horizontalPadding * 2.0f),
+                MathF.Max(
+                    0.0f,
+                    elementSize.Y -
+                    headerHeight -
+                    contentSpacing -
+                    contentPadding * 2.0f)));
     }
 
     public void Undo()
@@ -205,8 +237,14 @@ public sealed class ReparentEditorUiElementCommand : IEditorCommand
             centers.Add(center);
             rotations.Add(layout.RotationDegrees);
 
-            parentOrigin = origin;
-            parentSize = layout.Size;
+            var contentArea = GetChildContentArea(
+                current,
+                new Vector2(
+                    rect.Width,
+                    rect.Height));
+
+            parentOrigin = origin + contentArea.Origin;
+            parentSize = contentArea.Size;
         }
 
         var worldOrigin = origin;
@@ -235,6 +273,7 @@ public sealed class ReparentEditorUiElementCommand : IEditorCommand
             worldCenter,
             totalRotation);
     }
+
 
     private static Vector2 RotateAround(
         Vector2 point,

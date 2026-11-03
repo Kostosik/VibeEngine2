@@ -66,6 +66,80 @@ public sealed class EditorUiDocumentTests
     }
 
     [Fact]
+    public void Reparent_IntoRotatedExpander_PreservesLocalTransform()
+    {
+        var document = new EditorUiDocument();
+
+        var source = document.AddElement(
+            EditorUiElementType.Panel,
+            document.Root.Id);
+
+        var expander = document.AddElement(
+            EditorUiElementType.Expander,
+            document.Root.Id);
+
+        var button = document.AddElement(
+            EditorUiElementType.Button,
+            source.Id);
+
+        document.Execute(
+            new SetEditorUiLayoutCommand(
+                document,
+                source.Id,
+                source.Layout,
+                new EditorUiLayout(300, 100, 200, 200)));
+
+        document.Execute(
+            new SetEditorUiLayoutCommand(
+                document,
+                button.Id,
+                button.Layout,
+                new EditorUiLayout(20, 30, 40, 20)));
+
+        document.Execute(
+            new SetEditorUiLayoutCommand(
+                document,
+                expander.Id,
+                expander.Layout,
+                new EditorUiLayout(
+                    Vector2.Zero,
+                    new Vector2(100, 100),
+                    new Vector2(200, 132),
+                    90.0f)));
+
+        var originalLayout = button.Layout;
+
+        document.Execute(
+            new ReparentEditorUiElementCommand(
+                document,
+                button.Id,
+                expander.Id));
+
+        Assert.Same(expander, button.Parent);
+
+        AssertVector2Near(
+            new Vector2(56, -98),
+            button.Layout.Offset);
+
+        Assert.Equal(
+            -90.0f,
+            button.Layout.RotationDegrees);
+
+        document.Undo();
+
+        Assert.Same(source, button.Parent);
+        Assert.Equal(originalLayout, button.Layout);
+
+        document.Redo();
+
+        Assert.Same(expander, button.Parent);
+
+        AssertVector2Near(
+            new Vector2(56, -98),
+            button.Layout.Offset);
+    }
+
+    [Fact]
     public void Reparent_ScrollViewRejectsSecondChild()
     {
         var document = new EditorUiDocument();
@@ -364,5 +438,21 @@ public sealed class EditorUiDocumentTests
 
         Assert.False(
             document.IsDirty);
+    }
+
+    private static void AssertVector2Near(
+    Vector2 expected,
+    Vector2 actual,
+    float tolerance = 0.001f)
+    {
+        Assert.InRange(
+            MathF.Abs(expected.X - actual.X),
+            0.0f,
+            tolerance);
+
+        Assert.InRange(
+            MathF.Abs(expected.Y - actual.Y),
+            0.0f,
+            tolerance);
     }
 }

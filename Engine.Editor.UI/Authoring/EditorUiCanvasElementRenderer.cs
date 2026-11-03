@@ -228,7 +228,7 @@ internal sealed class EditorUiCanvasElementRenderer
                         (element.ExpanderIsExpanded ? "[-] " : "[+] ") +
                         element.Text;
 
-                    var fontSize = MathF.Max(1.0f, 12.0f * scale);
+                    const float fontSize = 12.0f;
 
                     var textSize = context.MeasureText(
                         headerText,
@@ -243,7 +243,7 @@ internal sealed class EditorUiCanvasElementRenderer
                     context.DrawText(
                         headerText,
                         new Vector2(
-                            textPosition.X + 8.0f * scale,
+                            textPosition.X + 8.0f,
                             textPosition.Y),
                         fontSize,
                         new UiColor(235, 235, 235, 255),

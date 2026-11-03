@@ -86,12 +86,18 @@ public sealed class ReparentEditorUiElementCommand : IEditorCommand
 
         var relativePosition = Rotate(
             new Vector2(
-                elementTransform.Origin.X - parentTransform.Origin.X,
-                elementTransform.Origin.Y - parentTransform.Origin.Y),
+                elementTransform.Origin.X - parentTransform.Center.X,
+                elementTransform.Origin.Y - parentTransform.Center.Y),
             -parentTransform.RotationDegrees);
 
-        var localOrigin =
-            relativePosition - contentArea.Origin;
+        var localOrigin = new Vector2(
+            _newParent.Layout.Size.X * 0.5f +
+                relativePosition.X -
+                contentArea.Origin.X,
+
+            _newParent.Layout.Size.Y * 0.5f +
+                relativePosition.Y -
+                contentArea.Origin.Y);
 
         var anchor = _oldLayout.Anchor;
 

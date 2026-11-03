@@ -137,6 +137,44 @@ public sealed class EditorUiCanvasHitTesterTests
     }
 
     [Fact]
+    public void HitTest_UsesExpanderContentAreaForChildren()
+    {
+        var document = new EditorUiDocument();
+
+        var expander = document.AddElement(
+            EditorUiElementType.Expander,
+            document.Root.Id);
+
+        var button = document.AddElement(
+            EditorUiElementType.Button,
+            expander.Id);
+
+        SetLayout(
+            document,
+            expander,
+            new EditorUiLayout(
+                100, 100, 200, 132));
+
+        SetLayout(
+            document,
+            button,
+            new EditorUiLayout(
+                0, 0, 80, 40));
+
+        var childHit = EditorUiCanvasHitTester.HitTest(
+            document,
+            new Vector2(128, 164));
+
+        Assert.Same(button, childHit);
+
+        var headerHit = EditorUiCanvasHitTester.HitTest(
+            document,
+            new Vector2(120, 115));
+
+        Assert.Same(expander, headerHit);
+    }
+
+    [Fact]
     public void HitTest_UsesProvidedLayoutResolver()
     {
         var document = new EditorUiDocument();

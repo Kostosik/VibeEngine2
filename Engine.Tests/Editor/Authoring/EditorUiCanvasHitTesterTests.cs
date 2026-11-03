@@ -137,6 +137,79 @@ public sealed class EditorUiCanvasHitTesterTests
     }
 
     [Fact]
+    public void HitTest_UsesVerticalLayoutForListChildren()
+    {
+        var document = new EditorUiDocument();
+
+        var list = document.AddElement(
+            EditorUiElementType.List,
+            document.Root.Id);
+
+        var first = document.AddElement(
+            EditorUiElementType.Button,
+            list.Id);
+
+        var second = document.AddElement(
+            EditorUiElementType.Button,
+            list.Id);
+
+        SetLayout(
+            document,
+            list,
+            new EditorUiLayout(100, 100, 220, 100));
+
+        SetLayout(
+            document,
+            first,
+            new EditorUiLayout(0, 0, 200, 40));
+
+        SetLayout(
+            document,
+            second,
+            new EditorUiLayout(0, 0, 200, 40));
+
+        var firstHit = EditorUiCanvasHitTester.HitTest(
+            document,
+            new Vector2(120, 120));
+
+        var secondHit = EditorUiCanvasHitTester.HitTest(
+            document,
+            new Vector2(120, 150));
+
+        Assert.Same(first, firstHit);
+        Assert.Same(second, secondHit);
+    }
+
+    [Fact]
+    public void HitTest_DoesNotHitListChildrenOutsideViewport()
+    {
+        var document = new EditorUiDocument();
+
+        var list = document.AddElement(
+            EditorUiElementType.List,
+            document.Root.Id);
+
+        document.AddElement(
+            EditorUiElementType.Button,
+            list.Id);
+
+        document.AddElement(
+            EditorUiElementType.Button,
+            list.Id);
+
+        SetLayout(
+            document,
+            list,
+            new EditorUiLayout(100, 100, 220, 60));
+
+        var hit = EditorUiCanvasHitTester.HitTest(
+            document,
+            new Vector2(120, 170));
+
+        Assert.Same(document.Root, hit);
+    }
+
+    [Fact]
     public void HitTest_UsesExpanderContentAreaForChildren()
     {
         var document = new EditorUiDocument();

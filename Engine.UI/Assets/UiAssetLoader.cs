@@ -133,6 +133,16 @@ public sealed class UiAssetLoader
                 CreateSeparator(element),
             UiAssetElementType.Expander =>
                 CreateExpander(element),
+
+            UiAssetElementType.List =>
+                new UiList(),
+
+            UiAssetElementType.PickerField =>
+                CreatePickerField(element),
+
+            UiAssetElementType.Spacer =>
+                new UiSpacer(),
+
             UiAssetElementType.Root =>
                 throw new InvalidDataException(
                     "The root UI element cannot be created as a child."),
@@ -140,6 +150,21 @@ public sealed class UiAssetLoader
             _ =>
                 throw new InvalidDataException(
                     $"Unsupported UI asset element type '{element.Type}'.")
+        };
+    }
+
+    private static UiPickerField CreatePickerField(
+    UiAssetElement element)
+    {
+        return new UiPickerField(
+            string.IsNullOrEmpty(element.Text)
+                ? null
+                : element.Text)
+        {
+            Placeholder =
+                string.IsNullOrEmpty(element.Placeholder)
+                    ? "Select..."
+                    : element.Placeholder
         };
     }
 
@@ -363,7 +388,11 @@ public sealed class UiAssetLoader
             expander.SetContent(child);
             return;
         }
-
+        if (parent is UiList list)
+        {
+            list.AddItem(child);
+            return;
+        }
         if (parent is UiContainer container)
         {
             container.AddChild(
@@ -396,6 +425,14 @@ public sealed class UiAssetLoader
 
         switch (widget)
         {
+            case UiPickerField pickerField:
+                pickerField.SelectionRequested +=
+                    () => InvokeAction(
+                        action,
+                        element,
+                        UiActionTrigger.Click);
+
+                return;
             case UiExpander expander:
                 expander.ExpandedChanged +=
                     value => InvokeAction(

@@ -50,7 +50,7 @@ public sealed class EditorUiInspector
     EditorUiElementType.TextBox or
     EditorUiElementType.Toggle or
     EditorUiElementType.Dropdown or
-    EditorUiElementType.Expander)
+    EditorUiElementType.Expander or EditorUiElementType.PickerField)
         {
             properties.Add(
                 new EditorProperty(
@@ -66,7 +66,9 @@ public sealed class EditorUiInspector
                     displayName:
                         element.Type == EditorUiElementType.Expander
                             ? "Header Text"
-                            : "Text",
+                            : element.Type == EditorUiElementType.PickerField
+                                ? "Selected Text"
+                                : "Text",
                     order: 20));
         }
 
@@ -91,7 +93,7 @@ public sealed class EditorUiInspector
             EditorUiElementType.Toggle or
             EditorUiElementType.Dropdown or
             EditorUiElementType.TextBox or
-            EditorUiElementType.Slider)
+            EditorUiElementType.Slider or EditorUiElementType.PickerField)
         {
             properties.Add(
                 new EditorProperty(
@@ -145,6 +147,24 @@ public sealed class EditorUiInspector
                     },
                     displayName: "Value",
                     order: 20));
+        }
+
+        if (element.Type is
+    EditorUiElementType.TextBox or
+    EditorUiElementType.PickerField)
+        {
+            properties.Add(
+                new EditorProperty(
+                    "Placeholder",
+                    typeof(string),
+                    () => element.Placeholder,
+                    value =>
+                    {
+                        element.Placeholder =
+                            value as string ?? string.Empty;
+                    },
+                    displayName: "Placeholder",
+                    order: 22));
         }
 
         if (element.Type == EditorUiElementType.Separator)

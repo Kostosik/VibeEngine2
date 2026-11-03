@@ -639,7 +639,11 @@ public sealed class EditorUiHierarchyPanelView :
             EditorUiElementType.ScrollView,
             EditorUiElementType.Slider,
             EditorUiElementType.ProgressBar,
-            EditorUiElementType.Separator,EditorUiElementType.Expander
+            EditorUiElementType.Separator,
+            EditorUiElementType.Expander,
+            EditorUiElementType.List,
+            EditorUiElementType.PickerField,
+            EditorUiElementType.Spacer
         };
     }
 }

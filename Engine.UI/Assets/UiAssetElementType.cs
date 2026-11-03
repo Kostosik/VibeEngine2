@@ -14,5 +14,8 @@ public enum UiAssetElementType
     Slider,
     ProgressBar,
     Separator,
-    Expander
+    Expander,
+    List,
+    PickerField,
+    Spacer
 }

@@ -140,6 +140,76 @@ public sealed class EditorUiDocumentTests
     }
 
     [Fact]
+    public void Reparent_IntoList_PreservesPositionAndUndoRedo()
+    {
+        var document = new EditorUiDocument();
+
+        var source = document.AddElement(
+            EditorUiElementType.Panel,
+            document.Root.Id);
+
+        var list = document.AddElement(
+            EditorUiElementType.List,
+            document.Root.Id);
+
+        var first = document.AddElement(
+            EditorUiElementType.Button,
+            list.Id);
+
+        var button = document.AddElement(
+            EditorUiElementType.Button,
+            source.Id);
+
+        document.Execute(
+            new SetEditorUiLayoutCommand(
+                document,
+                source.Id,
+                source.Layout,
+                new EditorUiLayout(100, 100, 200, 200)));
+
+        document.Execute(
+            new SetEditorUiLayoutCommand(
+                document,
+                list.Id,
+                list.Layout,
+                new EditorUiLayout(300, 100, 220, 100)));
+
+        document.Execute(
+            new SetEditorUiLayoutCommand(
+                document,
+                button.Id,
+                button.Layout,
+                new EditorUiLayout(220, 60, 40, 20)));
+
+        var originalLayout = button.Layout;
+
+        document.Execute(
+            new ReparentEditorUiElementCommand(
+                document,
+                button.Id,
+                list.Id));
+
+        Assert.Same(list, button.Parent);
+
+        AssertVector2Near(
+            new Vector2(20, 16),
+            button.Layout.Offset);
+
+        document.Undo();
+
+        Assert.Same(source, button.Parent);
+        Assert.Equal(originalLayout, button.Layout);
+
+        document.Redo();
+
+        Assert.Same(list, button.Parent);
+
+        AssertVector2Near(
+            new Vector2(20, 16),
+            button.Layout.Offset);
+    }
+
+    [Fact]
     public void Reparent_ScrollViewRejectsSecondChild()
     {
         var document = new EditorUiDocument();

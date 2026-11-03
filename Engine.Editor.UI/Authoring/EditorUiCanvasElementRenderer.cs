@@ -35,7 +35,7 @@ internal sealed class EditorUiCanvasElementRenderer
         RenderElement(
             context,
             document,
-            document.Root,
+            document.Root,null,
             Vector2.Zero,
             layoutResolver(document.Root).Size,
             canvasOrigin,
@@ -46,7 +46,7 @@ internal sealed class EditorUiCanvasElementRenderer
     private void RenderElement(
         UiRenderContext context,
         EditorUiDocument document,
-        EditorUiElement element,
+        EditorUiElement element, EditorUiElement? parentElement,
         Vector2 parentOrigin,
         Vector2 parentSize,
         Vector2 canvasOrigin,
@@ -59,7 +59,13 @@ internal sealed class EditorUiCanvasElementRenderer
         }
 
         var layout = layoutResolver(element);
-        var localRect = layout.Resolve(parentSize);
+
+        var localRect =
+            EditorUiCanvasElementGeometry.ResolveElementRect(
+                element,
+                layout,
+                parentElement,
+                parentSize);
 
         var elementOrigin = new Vector2(
             parentOrigin.X + localRect.X,
@@ -179,9 +185,113 @@ internal sealed class EditorUiCanvasElementRenderer
                         layer: 2);
                 }
 
+                if (element.Type == EditorUiElementType.PickerField)
+                {
+                    var displayText =
+                        string.IsNullOrEmpty(element.Text)
+                            ? element.Placeholder
+                            : element.Text;
+
+                    var isPlaceholder =
+                        string.IsNullOrEmpty(element.Text);
+
+                    var fontSize = 12.0f * scale;
+                    var padding = 8.0f * scale;
+
+                    const string indicator = "...";
+
+                    var indicatorSize = context.MeasureText(
+                        indicator,
+                        fontSize);
+
+                    var textBounds = new UiRect(
+                        rect.X + padding,
+                        rect.Y,
+                        MathF.Max(
+                            0.0f,
+                            rect.Width -
+                            padding * 2.0f -
+                            indicatorSize.X -
+                            4.0f * scale),
+                        rect.Height);
+
+                    context.PushClip(textBounds);
+
+                    var textSize = context.MeasureText(
+                        displayText,
+                        fontSize);
+
+                    var textPosition = UiTextLayout.CalculatePosition(
+                        textBounds,
+                        textSize,
+                        UiTextHorizontalAlignment.Left,
+                        UiTextVerticalAlignment.Center);
+
+                    context.DrawText(
+                        displayText,
+                        textPosition,
+                        fontSize,
+                        isPlaceholder
+                            ? new UiColor(155, 155, 155, 255)
+                            : new UiColor(235, 235, 235, 255),
+                        layer: 2);
+
+                    context.PopClip();
+
+                    var indicatorPosition = UiTextLayout.CalculatePosition(
+                        new UiRect(
+                            rect.X,
+                            rect.Y,
+                            rect.Width - padding,
+                            rect.Height),
+                        indicatorSize,
+                        UiTextHorizontalAlignment.Right,
+                        UiTextVerticalAlignment.Center);
+
+                    context.DrawText(
+                        indicator,
+                        indicatorPosition,
+                        fontSize,
+                        new UiColor(220, 220, 220, 255),
+                        layer: 2);
+                }
+
+                if (element.Type == EditorUiElementType.Spacer)
+                {
+                    context.DrawRectangle(
+                        rect,
+                        new UiColor(90, 145, 175, 45),
+                        filled: true,
+                        layer: 2);
+
+                    var label = element.Name;
+
+                    var fontSize = 10.0f * scale;
+                    var textSize = context.MeasureText(
+                        label,
+                        fontSize);
+
+                    var textPosition = UiTextLayout.CalculatePosition(
+                        rect,
+                        textSize,
+                        UiTextHorizontalAlignment.Center,
+                        UiTextVerticalAlignment.Center);
+
+                    context.DrawText(
+                        label,
+                        textPosition,
+                        fontSize,
+                        new UiColor(175, 205, 220, 255),
+                        layer: 2);
+                }
+
                 if (element.Type is not EditorUiElementType.Image
                     and not EditorUiElementType.Slider
-                    and not EditorUiElementType.ProgressBar and not EditorUiElementType.Separator and not EditorUiElementType.Expander &&
+                    and not EditorUiElementType.ProgressBar 
+                    and not EditorUiElementType.Separator 
+                    and not EditorUiElementType.Expander 
+                    and not EditorUiElementType.Spacer
+                    and not EditorUiElementType.PickerField &&
                     string.IsNullOrEmpty(element.Text) &&
                     rect.Width >= 80.0f &&
                     rect.Height >= 26.0f)
@@ -228,7 +338,7 @@ internal sealed class EditorUiCanvasElementRenderer
                         (element.ExpanderIsExpanded ? "[-] " : "[+] ") +
                         element.Text;
 
-                    const float fontSize = 12.0f;
+                    var fontSize = 12.0f * scale;
 
                     var textSize = context.MeasureText(
                         headerText,
@@ -243,7 +353,7 @@ internal sealed class EditorUiCanvasElementRenderer
                     context.DrawText(
                         headerText,
                         new Vector2(
-                            textPosition.X + 8.0f,
+                            textPosition.X + 8.0f * scale,
                             textPosition.Y),
                         fontSize,
                         new UiColor(235, 235, 235, 255),
@@ -290,18 +400,37 @@ internal sealed class EditorUiCanvasElementRenderer
             var childOrigin =
                 elementOrigin + contentArea.Origin;
 
-            foreach (var child in element.Children.OrderBy(
-                         static child => child.ZIndex))
+            var clipChildren =
+                element.Type == EditorUiElementType.List;
+
+            if (clipChildren)
             {
-                RenderElement(
-                    context,
-                    document,
-                    child,
-                    childOrigin,
-                    contentArea.Size,
-                    canvasOrigin,
-                    scale,
-                    layoutResolver);
+                context.PushClip(rect);
+            }
+
+            try
+            {
+                foreach (var child in element.Children.OrderBy(
+                             static child => child.ZIndex))
+                {
+                    RenderElement(
+                        context,
+                        document,
+                        child,
+                        element,
+                        childOrigin,
+                        contentArea.Size,
+                        canvasOrigin,
+                        scale,
+                        layoutResolver);
+                }
+            }
+            finally
+            {
+                if (clipChildren)
+                {
+                    context.PopClip();
+                }
             }
         }
         finally
@@ -364,6 +493,16 @@ internal sealed class EditorUiCanvasElementRenderer
                 new UiColor(120, 120, 120, 255),
             EditorUiElementType.Expander =>
                 new UiColor(55, 70, 85, 255),
+
+            EditorUiElementType.List =>
+                new UiColor(45, 65, 80, 255),
+
+            EditorUiElementType.PickerField =>
+                new UiColor(65, 85, 105, 255),
+
+            EditorUiElementType.Spacer =>
+                new UiColor(90, 145, 175, 45),
+
             _ => new UiColor(60, 60, 60, 255)
         };
     }

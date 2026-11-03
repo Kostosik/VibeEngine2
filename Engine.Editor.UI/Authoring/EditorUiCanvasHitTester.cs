@@ -17,6 +17,7 @@ public static class EditorUiCanvasHitTester
 
         return FindElementAt(
             document.Root,
+            null,
             documentPosition,
             Vector2.Zero,
             rootSize,
@@ -25,6 +26,7 @@ public static class EditorUiCanvasHitTester
 
     private static EditorUiElement? FindElementAt(
         EditorUiElement element,
+        EditorUiElement? parentElement,
         Vector2 point,
         Vector2 parentOrigin,
         Vector2 parentSize,
@@ -39,7 +41,12 @@ public static class EditorUiCanvasHitTester
             layoutResolver?.Invoke(element)
             ?? element.Layout;
 
-        var localRect = layout.Resolve(parentSize);
+        var localRect =
+            EditorUiCanvasElementGeometry.ResolveElementRect(
+                element,
+                layout,
+                parentElement,
+                parentSize);
 
         var elementOrigin = new Vector2(
             parentOrigin.X + localRect.X,
@@ -64,20 +71,31 @@ public static class EditorUiCanvasHitTester
         var childParentOrigin =
             elementOrigin + contentArea.Origin;
 
-        foreach (var child in element.Children
-                     .OrderByDescending(
-                         static child => child.ZIndex))
-        {
-            var hit = FindElementAt(
-                child,
-                unrotatedPoint,
-                childParentOrigin,
-                contentArea.Size,
-                layoutResolver);
+        var canHitChildren =
+            element.Type != EditorUiElementType.List ||
+            (unrotatedPoint.X >= elementOrigin.X &&
+             unrotatedPoint.Y >= elementOrigin.Y &&
+             unrotatedPoint.X <= elementOrigin.X + localRect.Width &&
+             unrotatedPoint.Y <= elementOrigin.Y + localRect.Height);
 
-            if (hit is not null)
+        if (canHitChildren)
+        {
+            foreach (var child in element.Children
+                         .OrderByDescending(
+                             static child => child.ZIndex))
             {
-                return hit;
+                var hit = FindElementAt(
+                    child,
+                    element,
+                    unrotatedPoint,
+                    childParentOrigin,
+                    contentArea.Size,
+                    layoutResolver);
+
+                if (hit is not null)
+                {
+                    return hit;
+                }
             }
         }
 

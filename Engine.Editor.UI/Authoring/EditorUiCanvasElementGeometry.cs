@@ -69,7 +69,16 @@ internal static class EditorUiCanvasElementGeometry
             }
 
             var layout = layoutResolver(current);
-            var localRect = layout.Resolve(parentSize);
+
+            var parentElement = i > 0
+                ? path[i - 1]
+                : null;
+
+            var localRect = ResolveElementRect(
+                current,
+                layout,
+                parentElement,
+                parentSize);
 
             var origin = new Vector2(
                 parentOrigin.X + localRect.X,
@@ -146,6 +155,78 @@ internal static class EditorUiCanvasElementGeometry
         return true;
     }
 
+    private const float ListItemSpacing = 4.0f;
+
+    internal static Rectangle ResolveElementRect(
+        EditorUiElement element,
+        EditorUiLayout layout,
+        EditorUiElement? parent,
+        Vector2 parentSize)
+    {
+        if (parent?.Type != EditorUiElementType.List)
+        {
+            return layout.Resolve(parentSize);
+        }
+
+        var rowOffset = 0.0f;
+
+        foreach (var sibling in parent.Children)
+        {
+            if (ReferenceEquals(sibling, element))
+            {
+                break;
+            }
+
+            rowOffset += GetListItemHeight(sibling) +
+                         ListItemSpacing;
+        }
+
+        var x =
+            parentSize.X * layout.Anchor.X +
+            layout.Offset.X -
+            layout.Size.X * layout.Anchor.X;
+
+        var y = rowOffset + layout.Offset.Y;
+
+        return new Rectangle(
+            x,
+            y,
+            layout.Size.X,
+            GetListItemHeight(element, layout));
+    }
+
+    private static float GetListItemHeight(
+        EditorUiElement element)
+    {
+        return GetListItemHeight(
+            element,
+            element.Layout);
+    }
+
+    private static float GetListItemHeight(
+        EditorUiElement element,
+        EditorUiLayout layout)
+    {
+        if (element.Type != EditorUiElementType.Expander)
+        {
+            return layout.Size.Y;
+        }
+
+        const float headerHeight = 32.0f;
+        const float contentSpacing = 4.0f;
+        const float contentPadding = 16.0f;
+
+        if (!element.ExpanderIsExpanded ||
+            element.Children.Count == 0)
+        {
+            return headerHeight;
+        }
+
+        return headerHeight +
+               contentSpacing +
+               contentPadding +
+               GetListItemHeight(element.Children[0]);
+    }
     internal static (Vector2 Origin, Vector2 Size) GetChildContentArea(
     EditorUiElement element,
     Vector2 elementSize)

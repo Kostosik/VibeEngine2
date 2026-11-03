@@ -213,6 +213,16 @@ public static class EditorUiAssetConverter
                 EditorUiElementType.Separator,
             UiAssetElementType.Expander =>
                 EditorUiElementType.Expander,
+
+            UiAssetElementType.List =>
+                EditorUiElementType.List,
+
+            UiAssetElementType.PickerField =>
+                EditorUiElementType.PickerField,
+
+            UiAssetElementType.Spacer =>
+                EditorUiElementType.Spacer,
+
             _ =>
                 throw new ArgumentOutOfRangeException(
                     nameof(type),
@@ -308,6 +318,15 @@ public static class EditorUiAssetConverter
 
             EditorUiElementType.Expander =>
                 UiAssetElementType.Expander,
+
+            EditorUiElementType.List =>
+                UiAssetElementType.List,
+
+            EditorUiElementType.PickerField =>
+                UiAssetElementType.PickerField,
+
+            EditorUiElementType.Spacer =>
+                UiAssetElementType.Spacer,
 
             _ =>
                 throw new ArgumentOutOfRangeException(

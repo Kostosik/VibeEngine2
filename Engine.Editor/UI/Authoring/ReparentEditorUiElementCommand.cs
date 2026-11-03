@@ -99,16 +99,25 @@ public sealed class ReparentEditorUiElementCommand : IEditorCommand
                 relativePosition.Y -
                 contentArea.Origin.Y);
 
+        var listInsertionOffset =
+    _newParent.Type == EditorUiElementType.List
+        ? GetListInsertionOffset(
+            _newParent,
+            _newIndex)
+        : 0.0f;
+
         var anchor = _oldLayout.Anchor;
 
         var offset = new Vector2(
-            localOrigin.X -
-                contentArea.Size.X * anchor.X +
-                _oldLayout.Size.X * anchor.X,
+    localOrigin.X -
+        contentArea.Size.X * anchor.X +
+        _oldLayout.Size.X * anchor.X,
 
-            localOrigin.Y -
-                contentArea.Size.Y * anchor.Y +
-                _oldLayout.Size.Y * anchor.Y);
+    _newParent.Type == EditorUiElementType.List
+        ? localOrigin.Y - listInsertionOffset
+        : localOrigin.Y -
+          contentArea.Size.Y * anchor.Y +
+          _oldLayout.Size.Y * anchor.Y);
 
         _newLayout = _oldLayout with
         {
@@ -117,6 +126,70 @@ public sealed class ReparentEditorUiElementCommand : IEditorCommand
                 elementTransform.RotationDegrees -
                 parentTransform.RotationDegrees
         };
+    }
+
+    private const float ListItemSpacing = 4.0f;
+
+    private static float GetListInsertionOffset(
+        EditorUiElement list,
+        int index)
+    {
+        var offset = 0.0f;
+
+        for (var i = 0; i < index; i++)
+        {
+            offset += GetListItemHeight(list.Children[i]) +
+                      ListItemSpacing;
+        }
+
+        return offset;
+    }
+
+    private static float GetListItemHeight(
+        EditorUiElement element)
+    {
+        if (element.Type != EditorUiElementType.Expander)
+        {
+            return element.Layout.Size.Y;
+        }
+
+        if (!element.ExpanderIsExpanded ||
+            element.Children.Count == 0)
+        {
+            return 32.0f;
+        }
+
+        return 32.0f +
+               4.0f +
+               16.0f +
+               GetListItemHeight(element.Children[0]);
+    }
+
+    private static Rectangle ResolveElementRect(
+        EditorUiElement element,
+        EditorUiElement? parent,
+        Vector2 parentSize)
+    {
+        if (parent?.Type != EditorUiElementType.List)
+        {
+            return element.Layout.Resolve(parentSize);
+        }
+
+        var rowOffset = GetListInsertionOffset(
+            parent,
+            parent.IndexOf(element));
+
+        var layout = element.Layout;
+
+        return new Rectangle(
+            parentSize.X * layout.Anchor.X +
+            layout.Offset.X -
+            layout.Size.X * layout.Anchor.X,
+
+            rowOffset + layout.Offset.Y,
+
+            layout.Size.X,
+            GetListItemHeight(element));
     }
 
     public void Execute()
@@ -227,10 +300,18 @@ public sealed class ReparentEditorUiElementCommand : IEditorCommand
         var origin = Vector2.Zero;
         var center = Vector2.Zero;
 
-        foreach (var current in path)
+        for (var i = 0; i < path.Count; i++)
         {
-            var layout = current.Layout;
-            var rect = layout.Resolve(parentSize);
+            var current = path[i];
+
+            var parentElement = i > 0
+                ? path[i - 1]
+                : null;
+
+            var rect = ResolveElementRect(
+                current,
+                parentElement,
+                parentSize);
 
             origin = new Vector2(
                 parentOrigin.X + rect.X,
@@ -241,7 +322,7 @@ public sealed class ReparentEditorUiElementCommand : IEditorCommand
                 origin.Y + rect.Height * 0.5f);
 
             centers.Add(center);
-            rotations.Add(layout.RotationDegrees);
+            rotations.Add(current.Layout.RotationDegrees);
 
             var contentArea = GetChildContentArea(
                 current,

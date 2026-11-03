@@ -9,7 +9,8 @@ internal static class EditorUiHierarchyRules
             EditorUiElementType.Root or
             EditorUiElementType.Panel or
             EditorUiElementType.ScrollView or
-        EditorUiElementType.Expander;
+            EditorUiElementType.Expander or
+            EditorUiElementType.List;
     }
 
     public static bool CanAcceptChild(

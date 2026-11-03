@@ -68,6 +68,14 @@ public sealed class CreateEditorUiElementCommand :
                         EditorUiElementType.Expander =>
                             new EditorUiLayout(
                                 0.0f, 0.0f, 200.0f, 132.0f),
+                        EditorUiElementType.List =>
+                            new EditorUiLayout(0.0f, 0.0f, 220.0f, 180.0f),
+
+                        EditorUiElementType.PickerField =>
+                            new EditorUiLayout(0.0f, 0.0f, 240.0f, 42.0f),
+
+                        EditorUiElementType.Spacer =>
+                            new EditorUiLayout(0.0f, 0.0f, 100.0f, 12.0f),
 
                         _ => EditorUiLayout.Default
                     };
@@ -82,7 +90,10 @@ public sealed class CreateEditorUiElementCommand :
             {
                 _element.Text = _name;
             }
-
+            if (_type == EditorUiElementType.PickerField)
+            {
+                _element.Placeholder = "Select...";
+            }
             _index =
                 parent.Children.Count;
         }

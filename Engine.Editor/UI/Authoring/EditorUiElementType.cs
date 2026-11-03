@@ -14,5 +14,8 @@ public enum EditorUiElementType
     Slider,
     ProgressBar,
     Separator,
-    Expander
+    Expander,
+    List,
+    PickerField,
+    Spacer
 }

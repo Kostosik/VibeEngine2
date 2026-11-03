@@ -123,7 +123,9 @@ public sealed class UiAssetLoader
             UiAssetElementType.ScrollView =>
                 new UiScrollView(),
             UiAssetElementType.Slider =>
-CreateSlider(element),
+                CreateSlider(element),
+            UiAssetElementType.ProgressBar =>
+                CreateProgressBar(element),
             UiAssetElementType.Root =>
                 throw new InvalidDataException(
                     "The root UI element cannot be created as a child."),
@@ -131,6 +133,15 @@ CreateSlider(element),
             _ =>
                 throw new InvalidDataException(
                     $"Unsupported UI asset element type '{element.Type}'.")
+        };
+    }
+
+    private static UiProgressBar CreateProgressBar(
+    UiAssetElement element)
+    {
+        return new UiProgressBar
+        {
+            Value = element.ProgressBarValue
         };
     }
 

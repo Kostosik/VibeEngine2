@@ -1,4 +1,5 @@
 ﻿using Engine.Core.Assets;
+using Engine.UI.Controls;
 
 namespace Engine.UI.Assets;
 
@@ -21,7 +22,10 @@ public sealed class UiAssetElement
         bool visible = true,
         bool enabled = true,
         int zIndex = 0,
-        bool preserveAspectRatio = true, float sliderValue = 0.0f, float progressBarValue = 0.0f)
+        bool preserveAspectRatio = true, 
+        float sliderValue = 0.0f, 
+        float progressBarValue = 0.0f, 
+        UiAssetSeparatorOrientation separatorOrientation = UiAssetSeparatorOrientation.Horizontal)
     {
         if (id == Guid.Empty)
         {
@@ -83,6 +87,22 @@ public sealed class UiAssetElement
                 nameof(progressBarValue));
         }
 
+        if (type == UiAssetElementType.Separator)
+        {
+            if (!Enum.IsDefined(separatorOrientation))
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(separatorOrientation));
+            }
+        }
+        else if (separatorOrientation !=
+                 UiAssetSeparatorOrientation.Horizontal)
+        {
+            throw new ArgumentException(
+                "Separator orientation is only valid for separator elements.",
+                nameof(separatorOrientation));
+        }
+
         var options =
             dropdownOptions?.ToArray()
             ?? Array.Empty<string>();
@@ -128,7 +148,7 @@ public sealed class UiAssetElement
         PreserveAspectRatio = preserveAspectRatio;
         DropdownOptions =
             options;
-
+        SeparatorOrientation = separatorOrientation;
         SelectedIndex =
             selectedIndex;
 
@@ -160,7 +180,7 @@ public sealed class UiAssetElement
     public Guid Id { get; }
 
     public Guid ParentId { get; }
-
+    public UiAssetSeparatorOrientation SeparatorOrientation { get; }
     public UiAssetElementType Type { get; }
 
     public string Name { get; }

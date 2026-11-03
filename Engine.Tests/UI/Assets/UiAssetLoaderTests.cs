@@ -10,6 +10,47 @@ namespace Engine.Tests.UI.Assets;
 public sealed class UiAssetLoaderTests
 {
     [Fact]
+    public void Load_ProgressBar_RestoresValue()
+    {
+        var rootId = Guid.NewGuid();
+        var progressBarId = Guid.NewGuid();
+
+        var asset = new UiAsset(
+            "ProgressBarTest",
+            new Vector2(1280.0f, 720.0f),
+            new[]
+            {
+            new UiAssetElement(
+                rootId,
+                Guid.Empty,
+                UiAssetElementType.Root,
+                "Root",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(1280.0f, 720.0f))),
+
+            new UiAssetElement(
+                progressBarId,
+                rootId,
+                UiAssetElementType.ProgressBar,
+                "Loading",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(300.0f, 24.0f)),
+                progressBarValue: 0.65f)
+            });
+
+        var instance = new UiAssetLoader().Load(asset);
+
+        var progressBar = Assert.IsType<UiProgressBar>(
+            instance.Get(progressBarId));
+
+        Assert.Equal(0.65f, progressBar.Value);
+    }
+
+    [Fact]
     public void Load_Slider_RestoresValueAndInvokesValueChangedAction()
     {
         var rootId = Guid.NewGuid();

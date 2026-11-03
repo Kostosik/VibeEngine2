@@ -10,6 +10,59 @@ namespace Engine.Tests.Serialization.UI;
 public sealed class UiAssetSerializerTests
 {
     [Fact]
+    public void SerializeDeserialize_PreservesSeparatorOrientation()
+    {
+        var rootId = Guid.NewGuid();
+        var separatorId = Guid.NewGuid();
+
+        var asset = new UiAsset(
+            "SeparatorTest",
+            new Vector2(1280.0f, 720.0f),
+            new[]
+            {
+            new UiAssetElement(
+                rootId,
+                Guid.Empty,
+                UiAssetElementType.Root,
+                "Root",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(1280.0f, 720.0f))),
+
+            new UiAssetElement(
+                separatorId,
+                rootId,
+                UiAssetElementType.Separator,
+                "VerticalSeparator",
+                new UiAssetLayout(
+                    UiAnchor.TopLeft,
+                    Vector2.Zero,
+                    new Vector2(2.0f, 200.0f)),
+                separatorOrientation:
+                    UiAssetSeparatorOrientation.Vertical)
+            });
+
+        var serializer = new UiAssetSerializer();
+
+        var data = BinarySerializer.Serialize(
+            asset,
+            serializer);
+
+        var restored = BinarySerializer.Deserialize(
+            data,
+            serializer);
+
+        var separator = Assert.Single(
+            restored.Elements.Where(
+                element => element.Type == UiAssetElementType.Separator));
+
+        Assert.Equal(
+            UiAssetSeparatorOrientation.Vertical,
+            separator.SeparatorOrientation);
+    }
+
+    [Fact]
     public void SerializeDeserialize_PreservesProgressBarValue()
     {
         var rootId = Guid.NewGuid();

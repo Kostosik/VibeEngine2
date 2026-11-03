@@ -13,6 +13,9 @@ public sealed class EditorUiElement
 
     public bool ToggleValue { get; internal set; }
     public float SliderValue { get; set; }
+    public float ProgressBarValue { get; set; }
+    public EditorUiSeparatorOrientation SeparatorOrientation { get; set; } =
+    EditorUiSeparatorOrientation.Horizontal;
     public string Placeholder { get; internal set; } =
         string.Empty;
 

@@ -117,6 +117,8 @@ public sealed class UiAssetSerializer :
     element.SliderValue);
             writer.WriteSingle(
     element.ProgressBarValue);
+            writer.WriteInt32(
+    (int)element.SeparatorOrientation);
         }
     }
 
@@ -327,7 +329,10 @@ public sealed class UiAssetSerializer :
                 version >= 7
                 ? reader.ReadSingle()
                 : 0.0f;
-
+            var separatorOrientation =
+    version >= 8
+        ? (UiAssetSeparatorOrientation)reader.ReadInt32()
+        : UiAssetSeparatorOrientation.Horizontal;
             elements.Add(
                 new UiAssetElement(
                     id,
@@ -345,7 +350,9 @@ public sealed class UiAssetSerializer :
                     visible,
                     enabled,
                     zIndex, preserveAspectRatio,
-                    sliderValue));
+                    sliderValue,
+                    progressBarValue,
+                    separatorOrientation));
         }
 
         return new UiAsset(

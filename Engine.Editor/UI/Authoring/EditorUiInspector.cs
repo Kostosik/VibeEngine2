@@ -100,22 +100,66 @@ public sealed class EditorUiInspector
                     () => element.SliderValue,
                     value =>
                     {
-                        var sliderValue = Convert.ToSingle(
+                        element.SliderValue = ConvertAndClamp(
                             value,
-                            System.Globalization.CultureInfo.InvariantCulture);
-
-                        if (!float.IsFinite(sliderValue) ||
-                            sliderValue < 0.0f ||
-                            sliderValue > 1.0f)
-                        {
-                            throw new ArgumentOutOfRangeException(
-                                nameof(value),
-                                "Slider value must be between 0 and 1.");
-                        }
-
-                        element.SliderValue = sliderValue;
+                            0.0f,
+                            1.0f);
                     },
                     displayName: "Value",
+                    order: 20));
+        }
+
+        if (element.Type == EditorUiElementType.ProgressBar)
+        {
+            properties.Add(
+                new EditorProperty(
+                    "ProgressBarValue",
+                    typeof(float),
+                    () => element.ProgressBarValue,
+                    value =>
+                    {
+                        element.ProgressBarValue = ConvertAndClamp(
+                            value,
+                            0.0f,
+                            1.0f);
+                    },
+                    displayName: "Value",
+                    order: 20));
+        }
+
+        if (element.Type == EditorUiElementType.Separator)
+        {
+            properties.Add(
+                new EditorProperty(
+                    "SeparatorOrientation",
+                    typeof(string),
+                    () => element.SeparatorOrientation.ToString(),
+                    value =>
+                    {
+                        var orientation = value as string switch
+                        {
+                            "Horizontal" =>
+                                EditorUiSeparatorOrientation.Horizontal,
+
+                            "Vertical" =>
+                                EditorUiSeparatorOrientation.Vertical,
+
+                            _ => element.SeparatorOrientation
+                        };
+
+                        if (orientation == element.SeparatorOrientation)
+                            return;
+
+                        var size = element.Layout.Size;
+
+                        element.Layout = element.Layout with
+                        {
+                            Size = new Vector2(size.Y, size.X)
+                        };
+
+                        element.SeparatorOrientation = orientation;
+                    },
+                    displayName: "Orientation",
                     order: 20));
         }
 
@@ -229,30 +273,17 @@ public sealed class EditorUiInspector
                "AnchorX",
                typeof(float),
                () => element.Layout.Anchor.X,
-               value =>
-               {
-                   var x =
-                       Convert.ToSingle(
-                           value,
-                           System.Globalization.CultureInfo.InvariantCulture);
+                value =>
+                {
+                    var x = ConvertAndClamp(value, 0.0f, 1.0f);
 
-                   if (x < 0.0f ||
-                       x > 1.0f)
-                   {
-                       throw new ArgumentOutOfRangeException(
-                           nameof(value),
-                           "Anchor must be between 0 and 1.");
-                   }
-
-                   element.Layout =
-                       element.Layout with
-                       {
-                           Anchor =
-                               new Vector2(
-                                   x,
-                                   element.Layout.Anchor.Y)
-                       };
-               },
+                    element.Layout = element.Layout with
+                    {
+                        Anchor = new Vector2(
+                            x,
+                            element.Layout.Anchor.Y)
+                    };
+                },
                displayName: "Anchor X",
                order: 10));
 
@@ -263,27 +294,14 @@ public sealed class EditorUiInspector
                 () => element.Layout.Anchor.Y,
                 value =>
                 {
-                    var y =
-                        Convert.ToSingle(
-                            value,
-                            System.Globalization.CultureInfo.InvariantCulture);
+                    var y = ConvertAndClamp(value, 0.0f, 1.0f);
 
-                    if (y < 0.0f ||
-                        y > 1.0f)
+                    element.Layout = element.Layout with
                     {
-                        throw new ArgumentOutOfRangeException(
-                            nameof(value),
-                            "Anchor must be between 0 and 1.");
-                    }
-
-                    element.Layout =
-                        element.Layout with
-                        {
-                            Anchor =
-                                new Vector2(
-                                    element.Layout.Anchor.X,
-                                    y)
-                        };
+                        Anchor = new Vector2(
+                            element.Layout.Anchor.X,
+                            y)
+                    };
                 },
                 displayName: "Anchor Y",
                 order: 11));
@@ -343,26 +361,17 @@ public sealed class EditorUiInspector
                 () => element.Layout.Size.X,
                 value =>
                 {
-                    var width =
-                        Convert.ToSingle(
-                            value,
-                            System.Globalization.CultureInfo.InvariantCulture);
+                    var width = ConvertAndClamp(
+                        value,
+                        0.0f,
+                        float.MaxValue);
 
-                    if (width < 0.0f)
+                    element.Layout = element.Layout with
                     {
-                        throw new ArgumentOutOfRangeException(
-                            nameof(value),
-                            "UI element width cannot be negative.");
-                    }
-
-                    element.Layout =
-                        element.Layout with
-                        {
-                            Size =
-                                new Vector2(
-                                    width,
-                                    element.Layout.Size.Y)
-                        };
+                        Size = new Vector2(
+                            width,
+                            element.Layout.Size.Y)
+                    };
                 },
                 displayName: "Width",
                 order: 14));
@@ -374,26 +383,17 @@ public sealed class EditorUiInspector
                 () => element.Layout.Size.Y,
                 value =>
                 {
-                    var height =
-                        Convert.ToSingle(
-                            value,
-                            System.Globalization.CultureInfo.InvariantCulture);
+                    var height = ConvertAndClamp(
+                        value,
+                        0.0f,
+                        float.MaxValue);
 
-                    if (height < 0.0f)
+                    element.Layout = element.Layout with
                     {
-                        throw new ArgumentOutOfRangeException(
-                            nameof(value),
-                            "UI element height cannot be negative.");
-                    }
-
-                    element.Layout =
-                        element.Layout with
-                        {
-                            Size =
-                                new Vector2(
-                                    element.Layout.Size.X,
-                                    height)
-                        };
+                        Size = new Vector2(
+                            element.Layout.Size.X,
+                            height)
+                    };
                 },
                 displayName: "Height",
                 order: 15));
@@ -470,6 +470,21 @@ public sealed class EditorUiInspector
             .OrderBy(
                 static property => property.Order)
             .ToArray();
+    }
+
+    private static float ConvertAndClamp(
+    object? value,
+    float min,
+    float max)
+    {
+        var converted = Convert.ToSingle(
+            value,
+            System.Globalization.CultureInfo.InvariantCulture);
+
+        if (float.IsNaN(converted))
+            return min;
+
+        return Math.Clamp(converted, min, max);
     }
 
     private static string GetAnchorPreset(Vector2 anchor)

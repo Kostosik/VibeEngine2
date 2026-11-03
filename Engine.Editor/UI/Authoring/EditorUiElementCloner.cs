@@ -55,6 +55,7 @@ public static class EditorUiElementCloner
             Placeholder = source.Placeholder,
             MaxLength = source.MaxLength,
             SliderValue = source.SliderValue,
+            ProgressBarValue = source.ProgressBarValue,
         };
 
         foreach (var child in source.Children)

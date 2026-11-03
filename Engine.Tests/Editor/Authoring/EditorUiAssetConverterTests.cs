@@ -8,6 +8,33 @@ namespace Engine.Tests.Editor.Authoring;
 public sealed class EditorUiAssetConverterTests
 {
     [Fact]
+    public void ConvertToDocument_PreservesProgressBarValue()
+    {
+        var document = new EditorUiDocument("ProgressBarTest");
+
+        var progressBar = document.AddElement(
+            EditorUiElementType.ProgressBar,
+            document.Root.Id,
+            "Loading");
+
+        progressBar.ProgressBarValue = 0.65f;
+
+        var asset = EditorUiAssetConverter.Convert(document);
+
+        var assetProgressBar = Assert.Single(
+            asset.Elements.Where(
+                element => element.Type == UiAssetElementType.ProgressBar));
+
+        Assert.Equal(0.65f, assetProgressBar.ProgressBarValue);
+
+        var restored = EditorUiAssetConverter.ConvertToDocument(asset);
+
+        Assert.Equal(
+            0.65f,
+            restored.GetElement(progressBar.Id).ProgressBarValue);
+    }
+
+    [Fact]
     public void ConvertToDocument_PreservesSliderValue()
     {
         var document = new EditorUiDocument("SliderTest");

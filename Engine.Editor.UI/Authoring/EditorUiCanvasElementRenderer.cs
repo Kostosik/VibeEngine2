@@ -180,7 +180,8 @@ internal sealed class EditorUiCanvasElementRenderer
                 }
 
                 if (element.Type is not EditorUiElementType.Image
-                    and not EditorUiElementType.Slider &&
+                    and not EditorUiElementType.Slider
+                    and not EditorUiElementType.ProgressBar &&
                     string.IsNullOrEmpty(element.Text) &&
                     rect.Width >= 80.0f &&
                     rect.Height >= 26.0f)
@@ -203,6 +204,35 @@ internal sealed class EditorUiCanvasElementRenderer
                         11.0f,
                         new UiColor(190, 190, 190, 255),
                         layer: 2);
+                }
+
+                if (element.Type == EditorUiElementType.ProgressBar)
+                {
+                    var value = Math.Clamp(
+                        element.ProgressBarValue,
+                        0.0f,
+                        1.0f);
+
+                    context.DrawRectangle(
+                        rect,
+                        new UiColor(35, 35, 35, 230),
+                        filled: true,
+                        layer: 2);
+
+                    var fillWidth = rect.Width * value;
+
+                    if (fillWidth > 0.0f)
+                    {
+                        context.DrawRectangle(
+                            new UiRect(
+                                rect.X,
+                                rect.Y,
+                                fillWidth,
+                                rect.Height),
+                            new UiColor(80, 200, 100, 255),
+                            filled: true,
+                            layer: 3);
+                    }
                 }
             }
 

@@ -11,5 +11,7 @@ public enum UiAssetElementType
     Toggle,
     Dropdown,
     ScrollView,
-    Slider, ProgressBar
+    Slider,
+    ProgressBar,
+    Separator
 }

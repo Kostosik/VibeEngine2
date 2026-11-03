@@ -605,7 +605,8 @@ public sealed class EditorUiHierarchyPanelView :
             EditorUiElementType.Toggle,
             EditorUiElementType.Dropdown,
             EditorUiElementType.ScrollView,
-            EditorUiElementType.Slider
+            EditorUiElementType.Slider,
+            EditorUiElementType.ProgressBar
         };
     }
 }

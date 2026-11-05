@@ -83,7 +83,9 @@ public sealed class EditorMainShell :
         EditorDocument document =>
             document.CommandHistory.CanUndo,
         TilemapDocument document =>
-    document.CanUndo,
+            document.CanUndo,
+        PrefabDocument document =>
+            document.CommandHistory.CanUndo,
         _ => false
     };
 
@@ -96,7 +98,9 @@ public sealed class EditorMainShell :
             EditorDocument document =>
                 document.CommandHistory.CanRedo,
             TilemapDocument document =>
-    document.CanRedo,
+                document.CanRedo,
+            PrefabDocument document =>
+                document.CommandHistory.CanRedo,
             _ => false
         };
 
@@ -439,7 +443,10 @@ elementId =>
             return;
         }
 
-        _prefabDocumentView = new PrefabDocumentView(document);
+        _prefabDocumentView = new PrefabDocumentView(
+            document,
+            Editor.ComponentTypes,
+            Editor.ComponentDependencies);
     }
 
     private void BindSpriteAnimationDocument(
@@ -1133,6 +1140,10 @@ view,
             case TilemapDocument tilemapDocument:
                 tilemapDocument.Undo();
                 break;
+            case PrefabDocument prefabDocument:
+                prefabDocument.Undo();
+                _prefabDocumentView?.Refresh();
+                break;
         }
 
         Refresh();
@@ -1153,6 +1164,10 @@ view,
                 break;
             case TilemapDocument tilemapDocument:
                 tilemapDocument.Redo();
+                break;
+            case PrefabDocument prefabDocument:
+                prefabDocument.Redo();
+                _prefabDocumentView?.Refresh();
                 break;
         }
 

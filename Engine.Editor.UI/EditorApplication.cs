@@ -27,6 +27,8 @@ namespace Engine.Editor.UI;
 public sealed class EditorApplication :
     IApplication
 {
+    private readonly HashSet<PrefabDocument>
+    _subscribedPrefabDocuments = new();
     public InspectorPropertyEditorRegistry PropertyEditors { get; }
     private readonly ITextInput? _textInput;
     private readonly EditorNewProjectDialog _newProjectDialog;
@@ -1069,7 +1071,8 @@ SaveAllDocuments;
                 SubscribeSpriteAnimationDocument(
                     spriteAnimationDocument);
                 break;
-            case PrefabDocument:
+            case PrefabDocument prefabDocument:
+                SubscribePrefabDocument(prefabDocument);
                 break;
             case AnimationClipDocument animationClipDocument:
                 SubscribeAnimationClipDocument(
@@ -1082,6 +1085,17 @@ SaveAllDocuments;
                     $"'{document.DocumentTypeId}'.");
         }
     }
+
+    private void SubscribePrefabDocument(PrefabDocument document)
+    {
+        if (!_subscribedPrefabDocuments.Add(document))
+        {
+            return;
+        }
+
+        document.CommandHistory.Changed += MarkUiDirty;
+    }
+
     private void SubscribeTilemapDocument(
     TilemapDocument document)
     {
@@ -2235,6 +2249,17 @@ SaveAllDocuments;
                     particleEffectDocument))
             {
                 particleEffectDocument.Changed -= MarkUiDirty;
+            }
+
+            MarkUiDirty();
+            return;
+        }
+
+        if (document is PrefabDocument prefabDocument)
+        {
+            if (_subscribedPrefabDocuments.Remove(prefabDocument))
+            {
+                prefabDocument.CommandHistory.Changed -= MarkUiDirty;
             }
 
             MarkUiDirty();

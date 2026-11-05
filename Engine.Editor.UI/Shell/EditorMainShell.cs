@@ -21,6 +21,7 @@ namespace Engine.Editor.UI.Shell;
 public sealed class EditorMainShell :
     UiPanel
 {
+    private readonly InspectorPropertyEditorRegistry? _propertyEditors;
     private AnimationClipEditorPanelView? _animationClipWorkspaceView;
     private SpriteAnimationEditorPanelView?
     _spriteAnimationWorkspaceView;
@@ -141,7 +142,7 @@ public sealed class EditorMainShell :
                 24,
                 24,
                 255);
-
+        _propertyEditors = propertyEditors;
         HorizontalAlignment =
             UiHorizontalAlignment.Stretch;
 
@@ -435,6 +436,7 @@ elementId =>
             RestoreViewportIfCurrent(
                 _prefabDocumentView);
 
+            _prefabDocumentView.ReleaseResources();
             _prefabDocumentView = null;
         }
 
@@ -446,7 +448,10 @@ elementId =>
         _prefabDocumentView = new PrefabDocumentView(
             document,
             Editor.ComponentTypes,
-            Editor.ComponentDependencies);
+            Editor.ComponentDependencies,
+            _propertyEditors,
+            Editor,
+            _filePreviewTextureManager);
     }
 
     private void BindSpriteAnimationDocument(

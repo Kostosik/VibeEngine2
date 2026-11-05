@@ -1,5 +1,6 @@
 ﻿using Engine.Editor.Documents;
 using Engine.Editor.Inspection;
+using Engine.Editor.UI.Workspace;
 using Engine.UI.Controls;
 using Engine.UI.Core;
 
@@ -7,6 +8,11 @@ namespace Engine.Editor.UI.Inspection;
 
 public sealed class InspectorPropertyEditorRegistry
 {
+    private readonly List<IPrefabInspectorPropertyEditor> _prefabEditors =
+    new();
+
+    public IReadOnlyList<IPrefabInspectorPropertyEditor> PrefabEditors =>
+        _prefabEditors;
     private readonly List<IInspectorPropertyEditor> _editors =
         new();
 
@@ -65,6 +71,78 @@ public sealed class InspectorPropertyEditorRegistry
         ArgumentNullException.ThrowIfNull(editor);
 
         return _editors.Remove(editor);
+    }
+
+    public void RegisterPrefabEditor(
+    IPrefabInspectorPropertyEditor editor)
+    {
+        ArgumentNullException.ThrowIfNull(editor);
+
+        if (_prefabEditors.Contains(editor))
+        {
+            throw new InvalidOperationException(
+                "Prefab inspector property editor is already registered.");
+        }
+
+        _prefabEditors.Add(editor);
+    }
+
+    public bool UnregisterPrefabEditor(
+        IPrefabInspectorPropertyEditor editor)
+    {
+        ArgumentNullException.ThrowIfNull(editor);
+
+        return _prefabEditors.Remove(editor);
+    }
+
+    public bool TryGetPrefabEditor(
+    Type propertyType,
+    out IPrefabInspectorPropertyEditor? editor)
+    {
+        ArgumentNullException.ThrowIfNull(propertyType);
+
+        propertyType =
+            Nullable.GetUnderlyingType(propertyType)
+            ?? propertyType;
+
+        editor = null;
+
+        foreach (var candidate in _prefabEditors)
+        {
+            if (!candidate.CanEdit(propertyType))
+            {
+                continue;
+            }
+
+            if (editor is null ||
+                candidate.Priority >= editor.Priority)
+            {
+                editor = candidate;
+            }
+        }
+
+        return editor is not null;
+    }
+
+    public UiWidget CreatePrefabEditor(
+    PrefabDocument document,
+    EditorProperty property)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(property);
+
+        if (TryGetPrefabEditor(
+                property.PropertyType,
+                out var editor) &&
+            editor is not null)
+        {
+            return editor.Create(
+                document,
+                property);
+        }
+
+        return PrefabInspectorPropertyEditorFactory.Create(
+            property);
     }
 
     public bool TryGetEditor(

@@ -1,8 +1,12 @@
-﻿using Engine.ECS.Prefabs;
+﻿using Engine.ECS.Components;
+using Engine.ECS.Prefabs;
+using Engine.Editor.Commands;
 using Engine.Editor.Components;
 using Engine.Editor.Documents;
 using Engine.Editor.Inspection;
+using Engine.Editor.UI.Inspection;
 using Engine.Graphics.Commands;
+using Engine.Graphics.Resources;
 using Engine.UI.Controls;
 using Engine.UI.Layout;
 using Engine.Worlds.Spatial;
@@ -12,14 +16,52 @@ namespace Engine.Editor.UI.Workspace;
 
 public sealed class PrefabDocumentView : UiPanel
 {
+    private UiLabel? _hierarchyErrorLabel;
+    private readonly HashSet<PrefabEntityId> _expandedEntities = new();
     private readonly UiStackPanel _content;
     private PrefabEntityId _selectedEntityId;
     private readonly EditorComponentTypeRegistry _componentTypes;
     private readonly EditorComponentDependencyRegistry _componentDependencies;
+    private readonly InspectorPropertyEditorRegistry? _propertyEditors;
+    private readonly UiStackPanel _hierarchyContent;
+    private readonly PrefabPreviewView _preview;
+
     public PrefabDocumentView(
     PrefabDocument document,
     EditorComponentTypeRegistry componentTypes,
     EditorComponentDependencyRegistry componentDependencies)
+    : this(
+        document,
+        componentTypes,
+        componentDependencies,
+        null,
+        null,
+        null)
+    {
+    }
+
+    public PrefabDocumentView(
+        PrefabDocument document,
+        EditorComponentTypeRegistry componentTypes,
+        EditorComponentDependencyRegistry componentDependencies,
+        InspectorPropertyEditorRegistry? propertyEditors)
+        : this(
+            document,
+            componentTypes,
+            componentDependencies,
+            propertyEditors,
+            null,
+            null)
+    {
+    }
+
+    public PrefabDocumentView(
+        PrefabDocument document,
+        EditorComponentTypeRegistry componentTypes,
+        EditorComponentDependencyRegistry componentDependencies,
+        InspectorPropertyEditorRegistry? propertyEditors,
+        EditorContext? editor,
+        ITextureManager? previewTextureManager)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(componentTypes);
@@ -28,20 +70,90 @@ public sealed class PrefabDocumentView : UiPanel
         Document = document;
         _componentTypes = componentTypes;
         _componentDependencies = componentDependencies;
+        _propertyEditors = propertyEditors;
 
         _selectedEntityId = document.Asset.RootEntity;
 
         Background = new UiColor(30, 30, 30, 255);
         Padding = new UiThickness(8.0f);
 
-        _content = new UiStackPanel
+        _hierarchyContent = CreateContent();
+        _content = CreateContent();
+
+        _preview = new PrefabPreviewView(
+            document,
+            editor,
+            previewTextureManager);
+
+        var hierarchyScroll = CreateScrollView(
+            _hierarchyContent);
+
+        var inspectorScroll = CreateScrollView(
+            _content);
+
+        var hierarchyHost = new UiPanel
+        {
+            Width = 235.0f,
+            Padding = new UiThickness(6.0f),
+            Background = new UiColor(28, 28, 28, 255),
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Stretch
+        };
+
+        hierarchyHost.AddChild(hierarchyScroll);
+
+        var previewHost = new UiPanel
+        {
+            Padding = new UiThickness(4.0f),
+            Background = new UiColor(22, 22, 22, 255),
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Stretch
+        };
+
+        previewHost.AddChild(_preview);
+
+        var inspectorHost = new UiPanel
+        {
+            Width = 320.0f,
+            Padding = new UiThickness(6.0f),
+            Background = new UiColor(28, 28, 28, 255),
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Stretch
+        };
+
+        inspectorHost.AddChild(inspectorScroll);
+
+        var workspace = new UiStackPanel
+        {
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 6.0f,
+            HorizontalAlignment = UiHorizontalAlignment.Stretch,
+            VerticalAlignment = UiVerticalAlignment.Stretch
+        };
+
+        workspace.AddChild(hierarchyHost);
+        workspace.AddChild(previewHost);
+        workspace.AddChild(inspectorHost);
+
+        AddChild(workspace);
+
+        Refresh();
+    }
+
+    private static UiStackPanel CreateContent()
+    {
+        return new UiStackPanel
         {
             Orientation = UiOrientation.Vertical,
             Spacing = 5.0f,
             HorizontalAlignment = UiHorizontalAlignment.Stretch,
             VerticalAlignment = UiVerticalAlignment.Top
         };
+    }
 
+    private static UiScrollView CreateScrollView(
+        UiStackPanel content)
+    {
         var scrollView = new UiScrollView
         {
             VerticalScrolling = true,
@@ -53,10 +165,9 @@ public sealed class PrefabDocumentView : UiPanel
             VerticalAlignment = UiVerticalAlignment.Stretch
         };
 
-        scrollView.SetContent(_content);
-        AddChild(scrollView);
+        scrollView.SetContent(content);
 
-        Refresh();
+        return scrollView;
     }
 
     public PrefabDocument Document { get; }
@@ -65,7 +176,10 @@ public sealed class PrefabDocumentView : UiPanel
     {
         var asset = Document.Asset;
 
+        _hierarchyContent.ClearChildren();
         _content.ClearChildren();
+
+        _preview.SelectedEntityId = _selectedEntityId;
 
         _content.AddChild(new UiLabel(asset.Name)
         {
@@ -73,51 +187,86 @@ public sealed class PrefabDocumentView : UiPanel
             Color = UiColor.White
         });
 
-        _content.AddChild(new UiLabel(
+        _hierarchyContent.AddChild(new UiLabel(asset.Name)
+        {
+            FontSize = 20.0f,
+            Color = UiColor.White
+        });
+
+        _hierarchyContent.AddChild(new UiLabel(
             $"Entities: {asset.Entities.Count}")
         {
             FontSize = 13.0f,
             Color = new UiColor(170, 170, 170, 255)
         });
 
-        _content.AddChild(new UiLabel(
+        _hierarchyContent.AddChild(new UiLabel(
             $"Root: Entity {asset.RootEntity.Value}")
         {
             FontSize = 13.0f,
             Color = new UiColor(170, 170, 170, 255)
         });
 
-        _content.AddChild(new UiLabel("Hierarchy")
+        _hierarchyContent.AddChild(new UiLabel("Hierarchy")
         {
             FontSize = 16.0f,
             Color = UiColor.White
         });
 
+        _hierarchyErrorLabel = new UiLabel(string.Empty)
+        {
+            FontSize = 11.0f,
+            Color = new UiColor(230, 130, 130, 255)
+        };
+
+        _content.AddChild(_hierarchyErrorLabel);
+
+        var validEntityIds = asset.Entities
+    .Select(entity => entity.Id)
+    .ToHashSet();
+
+        _expandedEntities.RemoveWhere(
+            id => !validEntityIds.Contains(id));
+
+        var children = BuildChildren(asset);
+        var roots = GetHierarchyRoots(asset, children);
+
+        var reachable = new HashSet<PrefabEntityId>();
+
+        foreach (var root in roots)
+        {
+            MarkReachable(root, children, reachable);
+        }
+
+        var rendered = new HashSet<PrefabEntityId>();
+
+        foreach (var root in roots)
+        {
+            AddHierarchyNode(
+                root,
+                0,
+                children,
+                rendered);
+        }
+
+        // Не теряем Entity из некорректных или циклических иерархий.
         foreach (var entity in asset.Entities)
         {
-            var isRoot = entity.Id == asset.RootEntity;
-            var isSelected = entity.Id == _selectedEntityId;
-
-            var prefix = isSelected ? "> " : "  ";
-            var rootSuffix = isRoot ? " [Root]" : string.Empty;
-
-            var button = new UiButton(
-                $"{prefix}Entity {entity.Id.Value}{rootSuffix}")
+            if (reachable.Contains(entity.Id))
             {
-                Height = 30.0f,
-                FontSize = 13.0f,
-                HorizontalAlignment = UiHorizontalAlignment.Stretch
-            };
+                continue;
+            }
 
-            var entityId = entity.Id;
+            AddHierarchyNode(
+                entity,
+                0,
+                children,
+                rendered);
 
-            button.Clicked += () =>
-            {
-                _selectedEntityId = entityId;
-                Refresh();
-            };
-
-            _content.AddChild(button);
+            MarkReachable(
+                entity,
+                children,
+                reachable);
         }
 
         _content.AddChild(new UiLabel("Selected Entity")
@@ -178,6 +327,228 @@ public sealed class PrefabDocumentView : UiPanel
                 Color = new UiColor(140, 140, 140, 255)
             });
         }
+    }
+
+    private static Dictionary<PrefabEntityId, List<PrefabEntity>>
+    BuildChildren(PrefabAsset asset)
+    {
+        var children = asset.Entities.ToDictionary(
+            entity => entity.Id,
+            _ => new List<PrefabEntity>());
+
+        foreach (var entity in asset.Entities)
+        {
+            // Root всегда остаётся корнем prefab.
+            if (entity.Id == asset.RootEntity)
+            {
+                continue;
+            }
+
+            if (!TryGetParentId(entity, out var parentId))
+            {
+                continue;
+            }
+
+            if (children.TryGetValue(parentId, out var list))
+            {
+                // Порядок соответствует порядку Entity в документе.
+                list.Add(entity);
+            }
+        }
+
+        return children;
+    }
+
+    private static List<PrefabEntity> GetHierarchyRoots(
+        PrefabAsset asset,
+        IReadOnlyDictionary<PrefabEntityId, List<PrefabEntity>> children)
+    {
+        var roots = new List<PrefabEntity>
+    {
+        asset.Entities.Single(
+            entity => entity.Id == asset.RootEntity)
+    };
+
+        foreach (var entity in asset.Entities)
+        {
+            if (entity.Id == asset.RootEntity)
+            {
+                continue;
+            }
+
+            if (!TryGetParentId(entity, out var parentId) ||
+                !children.ContainsKey(parentId))
+            {
+                roots.Add(entity);
+            }
+        }
+
+        return roots;
+    }
+
+    private static bool TryGetParentId(
+        PrefabEntity entity,
+        out PrefabEntityId parentId)
+    {
+        var parentComponent = entity.Components
+            .OfType<PrefabComponent<TransformParent2D>>()
+            .FirstOrDefault();
+
+        if (parentComponent is null)
+        {
+            parentId = PrefabEntityId.Invalid;
+            return false;
+        }
+
+        var parent = parentComponent.Component.Parent;
+
+        // В prefab допустимы только локальные ссылки.
+        if (!parent.IsValid || parent.Generation != 0)
+        {
+            parentId = PrefabEntityId.Invalid;
+            return false;
+        }
+
+        parentId = new PrefabEntityId(parent.Index);
+        return true;
+    }
+
+    private static void MarkReachable(
+        PrefabEntity entity,
+        IReadOnlyDictionary<PrefabEntityId, List<PrefabEntity>> children,
+        HashSet<PrefabEntityId> reachable)
+    {
+        if (!reachable.Add(entity.Id))
+        {
+            return;
+        }
+
+        if (!children.TryGetValue(entity.Id, out var childEntities))
+        {
+            return;
+        }
+
+        foreach (var child in childEntities)
+        {
+            MarkReachable(
+                child,
+                children,
+                reachable);
+        }
+    }
+
+    private void AddHierarchyNode(
+        PrefabEntity entity,
+        int depth,
+        IReadOnlyDictionary<PrefabEntityId, List<PrefabEntity>> children,
+        HashSet<PrefabEntityId> rendered)
+    {
+        // Защита от циклических ссылок.
+        if (!rendered.Add(entity.Id))
+        {
+            return;
+        }
+
+        children.TryGetValue(
+            entity.Id,
+            out var childEntities);
+
+        var hasChildren = childEntities is { Count: > 0 };
+
+        var isExpanded =
+            hasChildren &&
+            _expandedEntities.Contains(entity.Id);
+
+        var isRoot =
+            entity.Id == Document.Asset.RootEntity;
+
+        var isSelected =
+            entity.Id == _selectedEntityId;
+
+        var displayName = GetEntityDisplayName(entity);
+
+        var rootSuffix = isRoot
+            ? " [Root]"
+            : string.Empty;
+
+        var row = new PrefabHierarchyEntityRow(
+            Document,
+            entity.Id,
+            $"{(isSelected ? "● " : "  ")}{displayName}{rootSuffix}",
+            depth,
+            isRoot,
+            hasChildren,
+            isExpanded,
+
+            toggleExpansion: () =>
+            {
+                if (!_expandedEntities.Remove(entity.Id))
+                {
+                    _expandedEntities.Add(entity.Id);
+                }
+
+                Refresh();
+            },
+
+            selectEntity: () =>
+            {
+                _selectedEntityId = entity.Id;
+                Refresh();
+            },
+
+            onDropped: (movedId, newParentId) =>
+            {
+                _expandedEntities.Add(newParentId);
+                _selectedEntityId = movedId;
+
+                Refresh();
+            },
+
+            onDropRejected: message =>
+            {
+                if (_hierarchyErrorLabel is not null)
+                {
+                    _hierarchyErrorLabel.Text = message;
+                }
+            });
+        _hierarchyContent.AddChild(row);
+        _content.AddChild(row);
+
+        // Рекурсивно добавляем раскрытых потомков.
+        if (!isExpanded || childEntities is null)
+        {
+            return;
+        }
+
+        foreach (var child in childEntities)
+        {
+            AddHierarchyNode(
+                child,
+                depth + 1,
+                children,
+                rendered);
+        }
+    }
+
+    private static string GetEntityDisplayName(
+        PrefabEntity entity)
+    {
+        var nameComponent = entity.Components
+            .OfType<PrefabComponent<EntityName>>()
+            .FirstOrDefault();
+
+        if (nameComponent is not null &&
+            nameComponent.Component.IsValid)
+        {
+            return nameComponent.Component.Value;
+        }
+
+        return $"Entity {entity.Id.Value}";
+    }
+
+    public void ReleaseResources()
+    {
+        _preview.ReleaseResources();
     }
 
     private void AddComponentSection(
@@ -247,9 +618,14 @@ public sealed class PrefabDocumentView : UiPanel
                 metadata?.DisplayName,
                 metadata?.Order ?? 0);
 
-            section.AddChild(
-                PrefabInspectorPropertyEditorFactory.Create(
-                    editorProperty));
+            var propertyEditor = _propertyEditors is not null
+                ? _propertyEditors.CreatePrefabEditor(
+                    Document,
+                    editorProperty)
+                : PrefabInspectorPropertyEditorFactory.Create(
+                    editorProperty);
+
+            section.AddChild(propertyEditor);
         }
 
         if (properties.Length == 0)
@@ -460,8 +836,13 @@ public sealed class PrefabDocumentView : UiPanel
         {
             try
             {
-                _selectedEntityId =
+                var childId =
                     Document.CreateChildEntity(selectedEntity.Id);
+
+                // Новый дочерний элемент сразу будет виден в дереве.
+                _expandedEntities.Add(selectedEntity.Id);
+
+                _selectedEntityId = childId;
 
                 Refresh();
             }
@@ -475,6 +856,42 @@ public sealed class PrefabDocumentView : UiPanel
 
         if (selectedEntity.Id != Document.Asset.RootEntity)
         {
+            var duplicateButton = new UiButton("Duplicate + Children")
+            {
+                Width = 150.0f,
+                Height = 30.0f
+            };
+
+            duplicateButton.Clicked += () =>
+            {
+                try
+                {
+                    var command = new DuplicatePrefabEntityCommand(
+                        Document,
+                        selectedEntity.Id);
+
+                    Document.CommandHistory.Execute(command);
+
+                    // Копия находится у того же родителя.
+                    if (TryGetParentId(
+                            selectedEntity,
+                            out var parentId))
+                    {
+                        _expandedEntities.Add(parentId);
+                    }
+
+                    _selectedEntityId = command.DuplicatedRootId;
+
+                    Refresh();
+                }
+                catch (Exception exception)
+                {
+                    errorLabel.Text = exception.Message;
+                }
+            };
+
+            actions.AddChild(duplicateButton);
+
             var deleteButton = new UiButton("Delete Entity + Children")
             {
                 Width = 180.0f,

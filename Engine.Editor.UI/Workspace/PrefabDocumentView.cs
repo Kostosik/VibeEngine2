@@ -1,13 +1,17 @@
 ﻿using Engine.ECS.Components;
 using Engine.ECS.Prefabs;
+using Engine.Editor.Assets;
 using Engine.Editor.Commands;
 using Engine.Editor.Components;
 using Engine.Editor.Documents;
 using Engine.Editor.Inspection;
+using Engine.Editor.UI.Dialogs;
 using Engine.Editor.UI.Inspection;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Resources;
+using Engine.Graphics2D.Sprites;
 using Engine.UI.Controls;
+using Engine.UI.Core;
 using Engine.UI.Layout;
 using Engine.Worlds.Spatial;
 using System.Reflection;
@@ -25,7 +29,7 @@ public sealed class PrefabDocumentView : UiPanel
     private readonly InspectorPropertyEditorRegistry? _propertyEditors;
     private readonly UiStackPanel _hierarchyContent;
     private readonly PrefabPreviewView _preview;
-
+    private readonly EditorAssetPickerDialog? _assetPickerDialog;
     public PrefabDocumentView(
     PrefabDocument document,
     EditorComponentTypeRegistry componentTypes,
@@ -62,6 +66,25 @@ public sealed class PrefabDocumentView : UiPanel
         InspectorPropertyEditorRegistry? propertyEditors,
         EditorContext? editor,
         ITextureManager? previewTextureManager)
+        : this(
+            document,
+            componentTypes,
+            componentDependencies,
+            propertyEditors,
+            editor,
+            previewTextureManager,
+            null)
+    {
+    }
+
+    public PrefabDocumentView(
+        PrefabDocument document,
+        EditorComponentTypeRegistry componentTypes,
+        EditorComponentDependencyRegistry componentDependencies,
+        InspectorPropertyEditorRegistry? propertyEditors,
+        EditorContext? editor,
+        ITextureManager? previewTextureManager,
+        EditorAssetPickerDialog? assetPickerDialog)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(componentTypes);
@@ -123,19 +146,17 @@ public sealed class PrefabDocumentView : UiPanel
 
         inspectorHost.AddChild(inspectorScroll);
 
-        var workspace = new UiStackPanel
-        {
-            Orientation = UiOrientation.Horizontal,
-            Spacing = 6.0f,
-            HorizontalAlignment = UiHorizontalAlignment.Stretch,
-            VerticalAlignment = UiVerticalAlignment.Stretch
-        };
-
-        workspace.AddChild(hierarchyHost);
-        workspace.AddChild(previewHost);
-        workspace.AddChild(inspectorHost);
+        var workspace = new PrefabWorkspaceLayout(
+            hierarchyHost,
+            inspectorHost,
+            previewHost);
 
         AddChild(workspace);
+
+        foreach (var entity in document.Asset.Entities)
+        {
+            _expandedEntities.Add(entity.Id);
+        }
 
         Refresh();
     }
@@ -512,7 +533,6 @@ public sealed class PrefabDocumentView : UiPanel
                 }
             });
         _hierarchyContent.AddChild(row);
-        _content.AddChild(row);
 
         // Рекурсивно добавляем раскрытых потомков.
         if (!isExpanded || childEntities is null)
@@ -618,12 +638,19 @@ public sealed class PrefabDocumentView : UiPanel
                 metadata?.DisplayName,
                 metadata?.Order ?? 0);
 
-            var propertyEditor = _propertyEditors is not null
-                ? _propertyEditors.CreatePrefabEditor(
-                    Document,
-                    editorProperty)
-                : PrefabInspectorPropertyEditorFactory.Create(
-                    editorProperty);
+            var isSpriteTexturePath =
+                componentType == typeof(SpriteComponent) &&
+                propertyInfo.Name == nameof(SpriteComponent.TexturePath);
+
+            var propertyEditor =
+                isSpriteTexturePath && _assetPickerDialog is not null
+                    ? CreateTexturePathEditor(editorProperty)
+                    : _propertyEditors is not null
+                        ? _propertyEditors.CreatePrefabEditor(
+                            Document,
+                            editorProperty)
+                        : PrefabInspectorPropertyEditorFactory.Create(
+                            editorProperty);
 
             section.AddChild(propertyEditor);
         }
@@ -680,6 +707,85 @@ public sealed class PrefabDocumentView : UiPanel
 
         expander.SetContent(section);
         _content.AddChild(expander);
+    }
+
+    private UiWidget CreateTexturePathEditor(
+    EditorProperty property)
+    {
+        if (property.IsReadOnly)
+        {
+            return PrefabInspectorPropertyEditorFactory.Create(property);
+        }
+
+        var row = new UiStackPanel
+        {
+            Orientation = UiOrientation.Horizontal,
+            Spacing = 6.0f,
+            VerticalAlignment = UiVerticalAlignment.Top
+        };
+
+        row.AddChild(new UiLabel(property.DisplayName)
+        {
+            Width = 90.0f,
+            FontSize = 12.0f
+        });
+
+        var picker = new UiPickerField
+        {
+            Width = 190.0f,
+            Height = 32.0f,
+            FontSize = 12.0f,
+            Placeholder = "Select texture",
+            SelectedText = property.GetValue() as string
+        };
+
+        picker.SelectionRequested += () =>
+        {
+            if (_assetPickerDialog is null)
+            {
+                return;
+            }
+
+            var opened = _assetPickerDialog.Show(
+                "Select sprite texture",
+                IsTextureAsset,
+                path =>
+                {
+                    property.SetValue(path);
+                    picker.SelectedText = path;
+
+                    if (_hierarchyErrorLabel is not null)
+                    {
+                        _hierarchyErrorLabel.Text = string.Empty;
+                    }
+                });
+
+            if (!opened && _hierarchyErrorLabel is not null)
+            {
+                _hierarchyErrorLabel.Text =
+                    "Open a game project to select textures.";
+            }
+        };
+
+        row.AddChild(picker);
+
+        return row;
+    }
+
+    private static bool IsTextureAsset(EditorAssetEntry entry)
+    {
+        if (entry.IsDirectory)
+        {
+            return false;
+        }
+
+        var extension = Path.GetExtension(entry.Name);
+
+        return extension.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".bmp", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".tga", StringComparison.OrdinalIgnoreCase);
     }
 
     private void AddAddComponentSection(

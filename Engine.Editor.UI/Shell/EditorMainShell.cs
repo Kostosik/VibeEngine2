@@ -451,7 +451,8 @@ elementId =>
             Editor.ComponentDependencies,
             _propertyEditors,
             Editor,
-            _filePreviewTextureManager);
+            _filePreviewTextureManager,
+            _assetPickerDialog);
     }
 
     private void BindSpriteAnimationDocument(

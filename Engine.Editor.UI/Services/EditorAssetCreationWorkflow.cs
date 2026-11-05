@@ -88,40 +88,22 @@ internal sealed class EditorAssetCreationWorkflow
     string name,
     string path)
     {
-        var document = _editor.ActiveDocument
-            ?? throw new InvalidOperationException(
-                "Open a World document before creating a Prefab.");
-
-        if (document.EntitySelection.Count != 1)
-        {
-            throw new InvalidOperationException(
-                "Select exactly one root entity in the Hierarchy.");
-        }
-
-        var root = document.EntitySelection.Items.First();
-        var world = document.World.EcsWorld;
-
-        if (!world.Exists(root))
-        {
-            throw new InvalidOperationException(
-                "The selected entity no longer exists.");
-        }
-
-        if (world.Has<TransformParent2D>(root))
-        {
-            throw new InvalidOperationException(
-                "Select a root entity without a parent.");
-        }
-
         var persistence =
             _documentPersistence as BinaryEditorDocumentPersistence
             ?? throw new InvalidOperationException(
                 "Binary document persistence is required to create Prefabs.");
 
-        var prefab = PrefabAssetCapture.Create(
+        var rootEntity = new PrefabEntityId(1);
+
+        var prefab = new PrefabAsset(
             name,
-            world,
-            root);
+            rootEntity,
+            new[]
+            {
+            new PrefabEntity(
+                rootEntity,
+                Array.Empty<PrefabComponent>())
+            });
 
         var saveLoad =
             persistence.CreatePrefabAssetSaveLoadService();

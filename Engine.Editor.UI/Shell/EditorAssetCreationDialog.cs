@@ -186,8 +186,7 @@ public sealed class EditorAssetCreationDialog : UiModal
         _detailsLabel.Text = definition.Id switch
         {
             "prefab" =>
-                "Captures the selected root entity and all its descendants. " +
-                "Select one root entity in Hierarchy first.",
+                "Creates a prefab with one empty root entity.",
 
             _ => definition.Kind == EditorAssetCreationKind.Directory
                 ? "Creates a folder at the selected location."

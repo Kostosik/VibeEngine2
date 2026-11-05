@@ -1,4 +1,5 @@
 ﻿using Engine.Serialization.SaveLoad.Ecs;
+using Engine.Serialization.SaveLoad.Prefabs;
 using Engine.Serialization.SaveLoad.Worlds;
 using Engine.Worlds;
 
@@ -8,16 +9,20 @@ public sealed class BinaryEditorDocumentPersistence :
     IEditorDocumentPersistence
 {
     private readonly WorldSaveLoadService _worlds;
-
+    private readonly EcsComponentSerializerRegistry _registry;
     public BinaryEditorDocumentPersistence(
         EcsComponentSerializerRegistry registry)
     {
         ArgumentNullException.ThrowIfNull(
             registry);
+        _registry = registry;
 
-        _worlds =
-            new WorldSaveLoadService(
-                registry);
+        _worlds = new WorldSaveLoadService(registry);
+    }
+
+    public PrefabAssetSaveLoadService CreatePrefabAssetSaveLoadService()
+    {
+        return new PrefabAssetSaveLoadService(_registry);
     }
 
     public void Save(

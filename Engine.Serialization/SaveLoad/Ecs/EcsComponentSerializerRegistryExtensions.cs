@@ -47,15 +47,19 @@ public static class EcsComponentSerializerRegistryExtensions
             new EntityNameSerializer());
 
         registry.Register(
-    "engine.audio.source",
-    new AudioSourceComponentSerializer());
+            "engine.audio.source",
+            new AudioSourceComponentSerializer());
 
         registry.Register(
             "engine.audio.listener",
             new AudioListenerComponentSerializer());
 
         registry.Register(
-    "engine.particles.effect",
-    new ParticleEffectComponentSerializer());
+            "engine.particles.effect",
+            new ParticleEffectComponentSerializer());
+
+        registry.Register(
+            "engine.transform.parent2d",
+            new TransformParent2DSerializer());
     }
 }

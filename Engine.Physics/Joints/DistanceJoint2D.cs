@@ -1,11 +1,13 @@
 ﻿using Engine.Core.Determinism;
 using Engine.Core.Math;
 using Engine.ECS.Entities;
+using Engine.ECS.Prefabs;
 
 namespace Engine.Physics.Joints;
 
 public struct DistanceJoint2D :
-    IDeterministicState
+    IDeterministicState,
+    IPrefabEntityReferenceRemappable
 {
     public DistanceJoint2D(
         EntityId first,
@@ -74,5 +76,21 @@ public struct DistanceJoint2D :
 
         hasher.AddBool(
             Enabled);
+    }
+
+    public object RemapPrefabEntityReferences(
+    Func<EntityId, EntityId> remap)
+    {
+        ArgumentNullException.ThrowIfNull(remap);
+
+        var enabled = Enabled;
+
+        return new DistanceJoint2D(
+            remap(First),
+            remap(Second),
+            Length)
+        {
+            Enabled = enabled
+        };
     }
 }

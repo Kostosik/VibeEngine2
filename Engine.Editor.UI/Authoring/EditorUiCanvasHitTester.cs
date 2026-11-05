@@ -4,16 +4,37 @@ namespace Engine.Editor.UI.Authoring;
 
 public static class EditorUiCanvasHitTester
 {
+    private const float DefaultMinimumHitSize = 16.0f;
     public static EditorUiElement? HitTest(
         EditorUiDocument document,
         Vector2 documentPosition,
         Func<EditorUiElement, EditorUiLayout>? layoutResolver = null)
     {
+        return HitTest(
+            document,
+            documentPosition,
+            DefaultMinimumHitSize,
+            layoutResolver);
+    }
+
+    internal static EditorUiElement? HitTest(
+        EditorUiDocument document,
+        Vector2 documentPosition,
+        float minimumHitSize,
+        Func<EditorUiElement, EditorUiLayout>? layoutResolver = null)
+    {
         ArgumentNullException.ThrowIfNull(document);
 
+        if (!float.IsFinite(minimumHitSize) ||
+            minimumHitSize < 0.0f)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(minimumHitSize));
+        }
+
         var rootSize =
-    layoutResolver?.Invoke(document.Root).Size
-    ?? document.Root.Layout.Size;
+            layoutResolver?.Invoke(document.Root).Size
+            ?? document.Root.Layout.Size;
 
         return FindElementAt(
             document.Root,
@@ -21,6 +42,7 @@ public static class EditorUiCanvasHitTester
             documentPosition,
             Vector2.Zero,
             rootSize,
+            minimumHitSize,
             layoutResolver);
     }
 
@@ -29,7 +51,7 @@ public static class EditorUiCanvasHitTester
         EditorUiElement? parentElement,
         Vector2 point,
         Vector2 parentOrigin,
-        Vector2 parentSize,
+        Vector2 parentSize, float minimumHitSize,
         Func<EditorUiElement, EditorUiLayout>? layoutResolver)
     {
         if (!element.Visible)
@@ -89,7 +111,7 @@ public static class EditorUiCanvasHitTester
                     element,
                     unrotatedPoint,
                     childParentOrigin,
-                    contentArea.Size,
+                    contentArea.Size, minimumHitSize,
                     layoutResolver);
 
                 if (hit is not null)
@@ -99,15 +121,47 @@ public static class EditorUiCanvasHitTester
             }
         }
 
-        if (unrotatedPoint.X >= elementOrigin.X &&
-            unrotatedPoint.Y >= elementOrigin.Y &&
-            unrotatedPoint.X <= elementOrigin.X + localRect.Width &&
-            unrotatedPoint.Y <= elementOrigin.Y + localRect.Height)
+        if (ContainsElement(
+                element,
+                unrotatedPoint,
+                elementOrigin,
+                localRect,
+                minimumHitSize))
         {
             return element;
         }
 
         return null;
+    }
+
+    private static bool ContainsElement(
+    EditorUiElement element,
+    Vector2 point,
+    Vector2 origin,
+    Rectangle rect,
+    float minimumHitSize)
+    {
+        var hitWidth = rect.Width;
+        var hitHeight = rect.Height;
+
+        if (element.Type is
+            EditorUiElementType.Spacer or
+            EditorUiElementType.Separator)
+        {
+            hitWidth = MathF.Max(hitWidth, minimumHitSize);
+            hitHeight = MathF.Max(hitHeight, minimumHitSize);
+        }
+
+        var hitX =
+            origin.X + (rect.Width - hitWidth) * 0.5f;
+
+        var hitY =
+            origin.Y + (rect.Height - hitHeight) * 0.5f;
+
+        return point.X >= hitX &&
+               point.Y >= hitY &&
+               point.X <= hitX + hitWidth &&
+               point.Y <= hitY + hitHeight;
     }
 
     internal static Vector2 RotatePoint(

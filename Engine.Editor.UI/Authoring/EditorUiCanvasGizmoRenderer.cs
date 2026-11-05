@@ -13,16 +13,33 @@ internal sealed class EditorUiCanvasGizmoRenderer
     private const float HandleSize = 8.0f;
     private const float HandleHitRadius = 7.0f;
     private const float RotateHandleOffset = 22.0f;
-
+    private const float MinimumSmallElementGizmoSize = 24.0f;
     public UiRect CreateGizmoRect(
         UiRect sourceRect,
-        Vector2 center)
+        Vector2 center,
+        EditorUiElementType elementType)
     {
+        var width = sourceRect.Width;
+        var height = sourceRect.Height;
+
+        if (elementType is
+            EditorUiElementType.Spacer or
+            EditorUiElementType.Separator)
+        {
+            width = MathF.Max(
+                width,
+                MinimumSmallElementGizmoSize);
+
+            height = MathF.Max(
+                height,
+                MinimumSmallElementGizmoSize);
+        }
+
         return new UiRect(
-            center.X - sourceRect.Width * 0.5f,
-            center.Y - sourceRect.Height * 0.5f,
-            sourceRect.Width,
-            sourceRect.Height);
+            center.X - width * 0.5f,
+            center.Y - height * 0.5f,
+            width,
+            height);
     }
 
     public bool HitTestRotateHandle(
@@ -59,9 +76,12 @@ internal sealed class EditorUiCanvasGizmoRenderer
         UiRenderContext context,
         UiRect elementRect,
         Vector2 center,
-        float rotationDegrees)
+        float rotationDegrees, EditorUiElementType elementType)
     {
-        var rect = CreateGizmoRect(elementRect, center);
+        var rect = CreateGizmoRect(
+            elementRect,
+            center,
+            elementType);
 
         context.PushRotation(center, rotationDegrees);
 

@@ -1,10 +1,12 @@
 ﻿using Engine.Core.Determinism;
 using Engine.ECS.Entities;
+using Engine.ECS.Prefabs;
 
 namespace Engine.ECS.Components;
 
 public struct TransformParent2D :
-    IDeterministicState
+    IDeterministicState,
+    IPrefabEntityReferenceRemappable
 {
     public TransformParent2D(
         EntityId parent)
@@ -12,6 +14,15 @@ public struct TransformParent2D :
         ValidateParent(parent);
 
         Parent = parent;
+    }
+
+    public object RemapPrefabEntityReferences(
+    Func<EntityId, EntityId> remap)
+    {
+        ArgumentNullException.ThrowIfNull(remap);
+
+        return new TransformParent2D(
+            remap(Parent));
     }
 
     public EntityId Parent

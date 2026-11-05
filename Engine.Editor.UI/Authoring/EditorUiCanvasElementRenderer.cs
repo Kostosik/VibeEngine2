@@ -187,16 +187,21 @@ internal sealed class EditorUiCanvasElementRenderer
 
                 if (element.Type == EditorUiElementType.PickerField)
                 {
+                    var placeholder =
+                        string.IsNullOrEmpty(element.Placeholder)
+                            ? "Select..."
+                            : element.Placeholder;
+
                     var displayText =
                         string.IsNullOrEmpty(element.Text)
-                            ? element.Placeholder
+                            ? placeholder
                             : element.Text;
 
                     var isPlaceholder =
                         string.IsNullOrEmpty(element.Text);
 
-                    var fontSize = 12.0f * scale;
-                    var padding = 8.0f * scale;
+                    var fontSize = 16.0f * scale;
+                    var padding = 12.0f * scale;
 
                     const string indicator = "...";
 
@@ -212,7 +217,7 @@ internal sealed class EditorUiCanvasElementRenderer
                             rect.Width -
                             padding * 2.0f -
                             indicatorSize.X -
-                            4.0f * scale),
+                            8.0f * scale),
                         rect.Height);
 
                     context.PushClip(textBounds);
@@ -258,12 +263,6 @@ internal sealed class EditorUiCanvasElementRenderer
 
                 if (element.Type == EditorUiElementType.Spacer)
                 {
-                    context.DrawRectangle(
-                        rect,
-                        new UiColor(90, 145, 175, 45),
-                        filled: true,
-                        layer: 2);
-
                     var label = element.Name;
 
                     var fontSize = 10.0f * scale;
@@ -290,7 +289,7 @@ internal sealed class EditorUiCanvasElementRenderer
                     and not EditorUiElementType.ProgressBar 
                     and not EditorUiElementType.Separator 
                     and not EditorUiElementType.Expander 
-                    and not EditorUiElementType.Spacer
+                    and not EditorUiElementType.Spacer and not EditorUiElementType.List
                     and not EditorUiElementType.PickerField &&
                     string.IsNullOrEmpty(element.Text) &&
                     rect.Width >= 80.0f &&

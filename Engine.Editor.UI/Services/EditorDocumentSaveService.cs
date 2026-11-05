@@ -32,7 +32,8 @@ internal sealed class EditorDocumentSaveService
             AnimationClipDocument or
             ScriptDefinitionDocument or
             EditorUiDocument or
-            EditorDocument;
+            EditorDocument or
+            PrefabDocument;
     }
 
     public bool TrySave(IEditorDocument document)
@@ -50,7 +51,9 @@ internal sealed class EditorDocumentSaveService
             case SpriteAnimationDocument spriteAnimation:
                 spriteAnimation.Save();
                 return true;
-
+            case PrefabDocument prefab:
+                prefab.Save();
+                return true;
             case ParticleEffectDocument particleEffect:
                 particleEffect.Save();
                 return true;

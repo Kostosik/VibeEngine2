@@ -1,5 +1,8 @@
 ﻿using Engine.Core.Application;
 using Engine.Core.Time;
+using Engine.ECS.Components;
+using Engine.ECS.Entities;
+using Engine.ECS.Prefabs;
 using Engine.Editor.Assets;
 using Engine.Editor.Documents;
 using Engine.Editor.Documents.Persistence;
@@ -10,6 +13,7 @@ using Engine.Editor.UI.Dialogs;
 using Engine.Editor.UI.Inspection;
 using Engine.Editor.UI.Services;
 using Engine.Editor.UI.Shell;
+using Engine.Editor.UI.Workspace;
 using Engine.Graphics.Resources;
 using Engine.Input;
 using Engine.Tooling.Debugging;
@@ -281,7 +285,7 @@ public sealed class EditorApplication :
                 debugConsole,
                 PropertyEditors,
                 filePreviewTextureManager, ui.Focus);
-
+        RegisterPrefabHierarchyAction();
         _keyboardShortcutHandler =
     new EditorKeyboardShortcutHandler(
         Input,
@@ -359,10 +363,14 @@ SaveAllDocuments;
             new EditorDocumentSaveService(
                 _documentFiles,
                 _fileDialogs);
-        _documentOpenService =
-            new EditorDocumentOpenService(
-                Editor,
-                _documentFiles);
+        var prefabSaveLoad =
+            (_documentPersistence as BinaryEditorDocumentPersistence)
+                ?.CreatePrefabAssetSaveLoadService();
+
+        _documentOpenService = new EditorDocumentOpenService(
+            Editor,
+            _documentFiles,
+            prefabSaveLoad);
     }
 
     private void OnActiveGameProjectChanged(GameProject? project)
@@ -574,7 +582,10 @@ SaveAllDocuments;
                     _debugConsole?.WriteLine(
                         $"Saved sprite animation: {spriteAnimation.FilePath}");
                     break;
-
+                case PrefabDocument prefab:
+                    _debugConsole?.WriteLine(
+                        $"Saved Prefab: {prefab.FilePath}");
+                    break;
                 case AnimationClipDocument animationClip:
                     _debugConsole?.WriteLine(
                         $"Saved animation clip: {animationClip.FilePath}");
@@ -1058,7 +1069,8 @@ SaveAllDocuments;
                 SubscribeSpriteAnimationDocument(
                     spriteAnimationDocument);
                 break;
-
+            case PrefabDocument:
+                break;
             case AnimationClipDocument animationClipDocument:
                 SubscribeAnimationClipDocument(
                     animationClipDocument);
@@ -1558,6 +1570,127 @@ SaveAllDocuments;
         _uiDirty = false;
 
         MainShell.Refresh();
+    }
+
+    private void RegisterPrefabHierarchyAction()
+    {
+        MainShell.Hierarchy.Actions.Register(
+            new EditorHierarchyActionDefinition(
+                id: "hierarchy.entity.create-prefab",
+                label: "Create Prefab",
+                surfaces:
+                    EditorHierarchyActionSurface.EntityContextMenu,
+                canExecute: CanCreatePrefab,
+                execute: CreatePrefabFromHierarchy,
+                section: "Assets",
+                order: 50));
+    }
+
+    private bool CanCreatePrefab(
+        EditorHierarchyActionContext context)
+    {
+        if (context.Document is not { } document ||
+            context.TargetEntity is not EntityId entity)
+        {
+            return false;
+        }
+
+        var world = document.World.EcsWorld;
+
+        return ReferenceEquals(
+                   Editor.ActiveDocument,
+                   document) &&
+               world.Exists(entity) &&
+               !world.Has<TransformParent2D>(entity) &&
+               Editor.ActiveGameProject is not null &&
+               Editor.AssetBrowser is not null &&
+               _documentPersistence is BinaryEditorDocumentPersistence;
+    }
+
+    private void CreatePrefabFromHierarchy(
+        EditorHierarchyActionContext context)
+    {
+        if (!CanCreatePrefab(context) ||
+            context.Document is not { } document ||
+            context.TargetEntity is not EntityId root)
+        {
+            return;
+        }
+
+        try
+        {
+            var world = document.World.EcsWorld;
+
+            var name = world.Has<EntityName>(root) &&
+                       world.Get<EntityName>(root).IsValid
+                ? world.Get<EntityName>(root).Value
+                : $"Entity {root.Index}";
+
+            var prefab = PrefabAssetCapture.Create(
+                name,
+                world,
+                root);
+
+            var browser = Editor.AssetBrowser!;
+
+            var persistence =
+                (BinaryEditorDocumentPersistence)_documentPersistence!;
+
+            var prefabSaveLoad =
+                persistence.CreatePrefabAssetSaveLoadService();
+
+            var assetCreation =
+                new EditorAssetCreationService(browser);
+
+            var fileName = SanitizePrefabFileName(name);
+
+            var path = assetCreation.CreateGeneratedFile(
+                fileName,
+                ".prefab",
+                filePath => prefabSaveLoad.Save(
+                    filePath,
+                    prefab));
+
+            _debugConsole?.WriteLine(
+                $"Created Prefab: {Path.GetRelativePath(browser.RootPath, path)}");
+
+            MainShell.Refresh();
+            MarkUiDirty();
+        }
+        catch (Exception exception)
+        {
+            _debugConsole?.WriteException(
+                exception,
+                "Failed to create prefab.");
+
+            _errorDialog.ShowError(exception.Message);
+        }
+    }
+
+    private static string SanitizePrefabFileName(string name)
+    {
+        var invalidCharacters = new HashSet<char>(
+            Path.GetInvalidFileNameChars());
+
+        foreach (var character in "<>:\"/\\|?*")
+        {
+            invalidCharacters.Add(character);
+        }
+
+        var result = new string(
+            name.Select(character =>
+                char.IsControl(character) ||
+                invalidCharacters.Contains(character)
+                    ? '_'
+                    : character)
+                .ToArray())
+            .Trim()
+            .TrimEnd('.', ' ');
+
+        return string.IsNullOrWhiteSpace(result) ||
+               result is "." or ".."
+            ? "Prefab"
+            : result;
     }
 
     private void RequestCloseActiveDocument()

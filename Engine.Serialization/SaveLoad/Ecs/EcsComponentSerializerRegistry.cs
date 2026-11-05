@@ -99,6 +99,13 @@ public sealed class EcsComponentSerializerRegistry
             ref SerializationReader reader,
             int count,
             SerializationContext context);
+
+        public abstract void SerializeValue(
+    ref SerializationWriter writer,
+    object value);
+
+        public abstract object DeserializeValue(
+            ref SerializationReader reader);
     }
 
     private sealed class Entry<T> :
@@ -182,6 +189,29 @@ public sealed class EcsComponentSerializerRegistry
             return new WorldComponentState<T>(
                 entities,
                 components);
+        }
+
+        public override void SerializeValue(
+    ref SerializationWriter writer,
+    object value)
+        {
+            if (value is not T typedValue)
+            {
+                throw new InvalidOperationException(
+                    $"Component value type '{value.GetType().FullName}' " +
+                    $"does not match registered type '{typeof(T).FullName}'.");
+            }
+
+            _serializer.Serialize(
+                ref writer,
+                typedValue);
+        }
+
+        public override object DeserializeValue(
+            ref SerializationReader reader)
+        {
+            return _serializer.Deserialize(
+                ref reader);
         }
     }
 }

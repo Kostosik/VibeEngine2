@@ -196,7 +196,8 @@ public sealed class EditorUiCanvasPreviewView :
         {
             var gizmoRect = _gizmoRenderer.CreateGizmoRect(
                 selectedTransform.LayoutRect,
-                selectedTransform.Center);
+                selectedTransform.Center,
+                selected.Type);
 
             var gizmoPoint = EditorUiCanvasElementGeometry.RotatePoint(
                 pointer.Position,
@@ -260,6 +261,7 @@ public sealed class EditorUiCanvasPreviewView :
         var hit = EditorUiCanvasHitTester.HitTest(
             _document,
             documentPosition,
+            16.0f / scale,
             GetEffectiveLayout);
 
         if (hit is null)
@@ -525,10 +527,10 @@ public sealed class EditorUiCanvasPreviewView :
         }
 
         _gizmoRenderer.Render(
-            context,
+            context,    
             transform.LayoutRect,
             transform.Center,
-            transform.RotationDegrees);
+            transform.RotationDegrees,selected.Type);
     }
 
     

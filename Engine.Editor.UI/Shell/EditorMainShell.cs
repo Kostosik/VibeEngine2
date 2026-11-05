@@ -61,11 +61,12 @@ public sealed class EditorMainShell :
     private EditorUiDocument? _uiElementClipboardSourceDocument;
     private Guid _uiElementClipboardParentId;
     private int _uiElementPasteCount;
+    private PrefabDocumentView? _prefabDocumentView;
     public bool CanPasteUiElement =>
     IsUiMode && _uiElementClipboard is not null;
     public UiWidget ConsoleOutputWidget =>
     _workspaceView.Console.ConsoleOutputWidget;
-
+    public HierarchyPanelView Hierarchy => _workspaceView.Hierarchy;
     public string ConsoleSelectedText =>
         _workspaceView.Console.SelectedText;
 
@@ -416,6 +417,31 @@ elementId =>
         }
     }
 
+    private void BindPrefabDocument(PrefabDocument? document)
+    {
+        if (ReferenceEquals(
+                _prefabDocumentView?.Document,
+                document))
+        {
+            return;
+        }
+
+        if (_prefabDocumentView is not null)
+        {
+            RestoreViewportIfCurrent(
+                _prefabDocumentView);
+
+            _prefabDocumentView = null;
+        }
+
+        if (document is null)
+        {
+            return;
+        }
+
+        _prefabDocumentView = new PrefabDocumentView(document);
+    }
+
     private void BindSpriteAnimationDocument(
     SpriteAnimationDocument? document)
     {
@@ -639,6 +665,7 @@ elementId =>
         BindScriptDefinitionDocument(null);
         BindSpriteAnimationDocument(null);
         BindAnimationClipDocument(null);
+        BindPrefabDocument(null);
         _workspaceView.ReleaseResources();
         _uiWorkspaceView.ReleaseResources();
         BindParticleEffectDocument(null);
@@ -648,11 +675,15 @@ elementId =>
     {
         var activeDocument =
             Editor.Session.ActiveEditorDocument;
-        var tileSetDocument =
-    activeDocument as TileSetDocument;
+
+        var prefabDocument =
+    activeDocument as PrefabDocument;
+
+        BindPrefabDocument(prefabDocument);
+
+        var tileSetDocument = activeDocument as TileSetDocument;
         BindTileSetDocument(tileSetDocument);
-        var tilemapDocument =
-    activeDocument as TilemapDocument;
+        var tilemapDocument = activeDocument as TilemapDocument;
 
         BindTilemapDocument(tilemapDocument);
         var worldDocument =
@@ -703,7 +734,9 @@ elementId =>
             AnimationClipDocument
                 when _animationClipWorkspaceView is { } view =>
                 view,
-
+            PrefabDocument
+                when _prefabDocumentView is { } view =>
+                view,
             SpriteAnimationDocument
                 when _spriteAnimationWorkspaceView is { } view =>
                 view,
@@ -750,6 +783,11 @@ view,
         {
             _spriteAnimationWorkspaceView.Visible =
                 spriteAnimationDocument is not null;
+        }
+        if (_prefabDocumentView is not null)
+        {
+            _prefabDocumentView.Visible =
+                prefabDocument is not null;
         }
         _validateButton.Enabled =
             worldDocument is not null;

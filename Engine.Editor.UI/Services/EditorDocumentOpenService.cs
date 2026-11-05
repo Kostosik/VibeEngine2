@@ -2,6 +2,7 @@
 using Engine.Editor.Documents;
 using Engine.Editor.Documents.Persistence;
 using Engine.Editor.UI.Authoring;
+using Engine.Serialization.SaveLoad.Prefabs;
 
 namespace Engine.Editor.UI.Services;
 
@@ -10,14 +11,18 @@ internal sealed class EditorDocumentOpenService
     private readonly EditorContext _editor;
     private readonly IEditorDocumentFileService? _documentFiles;
 
+    private readonly PrefabAssetSaveLoadService? _prefabSaveLoad;
+
     public EditorDocumentOpenService(
         EditorContext editor,
-        IEditorDocumentFileService? documentFiles)
+        IEditorDocumentFileService? documentFiles,
+        PrefabAssetSaveLoadService? prefabSaveLoad = null)
     {
         ArgumentNullException.ThrowIfNull(editor);
 
         _editor = editor;
         _documentFiles = documentFiles;
+        _prefabSaveLoad = prefabSaveLoad;
     }
 
     public static bool IsSupportedPath(string path)
@@ -53,6 +58,7 @@ internal sealed class EditorDocumentOpenService
         {
             ".world" => true,
             ".ui" => true,
+            ".prefab" => true,
             _ => false
         };
     }
@@ -133,6 +139,19 @@ internal sealed class EditorDocumentOpenService
                         return _editor.OpenDocument(
                             files,
                             normalizedPath);
+                    }
+
+                case ".prefab":
+                    {
+                        var saveLoad = _prefabSaveLoad
+                            ?? throw new InvalidOperationException(
+                                "Prefab serialization is not configured.");
+
+                        document = PrefabDocument.Open(
+                            normalizedPath,
+                            saveLoad);
+
+                        break;
                     }
 
                 case ".ui":

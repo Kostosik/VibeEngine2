@@ -1,4 +1,6 @@
 ﻿
+using Engine.ECS.Components;
+using Engine.ECS.Prefabs;
 using Engine.Editor;
 using Engine.Editor.Assets;
 using Engine.Editor.Documents;
@@ -55,6 +57,9 @@ internal sealed class EditorAssetCreationWorkflow
                 "ui-document" => path =>
                     WriteUiDocumentAsset(name, path),
 
+                "prefab" => path =>
+                    WritePrefabAsset(name, path),
+
                 _ => null
             };
 
@@ -70,12 +75,58 @@ internal sealed class EditorAssetCreationWorkflow
                 "ui-document" or
                 "animation-clip" or
                 "sprite-animation" or
-                "tile-set";
+                "tile-set" or
+                "prefab";
 
         return new EditorAssetCreationResult(
             path,
             browser.RootPath,
             openDocument);
+    }
+
+    private void WritePrefabAsset(
+    string name,
+    string path)
+    {
+        var document = _editor.ActiveDocument
+            ?? throw new InvalidOperationException(
+                "Open a World document before creating a Prefab.");
+
+        if (document.EntitySelection.Count != 1)
+        {
+            throw new InvalidOperationException(
+                "Select exactly one root entity in the Hierarchy.");
+        }
+
+        var root = document.EntitySelection.Items.First();
+        var world = document.World.EcsWorld;
+
+        if (!world.Exists(root))
+        {
+            throw new InvalidOperationException(
+                "The selected entity no longer exists.");
+        }
+
+        if (world.Has<TransformParent2D>(root))
+        {
+            throw new InvalidOperationException(
+                "Select a root entity without a parent.");
+        }
+
+        var persistence =
+            _documentPersistence as BinaryEditorDocumentPersistence
+            ?? throw new InvalidOperationException(
+                "Binary document persistence is required to create Prefabs.");
+
+        var prefab = PrefabAssetCapture.Create(
+            name,
+            world,
+            root);
+
+        var saveLoad =
+            persistence.CreatePrefabAssetSaveLoadService();
+
+        saveLoad.Save(path, prefab);
     }
 
     private void WriteEmptyWorldAsset(string path)

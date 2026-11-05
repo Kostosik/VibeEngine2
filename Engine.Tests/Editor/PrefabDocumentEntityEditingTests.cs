@@ -107,24 +107,53 @@ public sealed class PrefabDocumentEntityEditingTests
     [Fact]
     public void DeleteEntity_RootEntity_Throws()
     {
-        var rootId = new PrefabEntityId(1);
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            Guid.NewGuid().ToString("N"));
 
-        var asset = new PrefabAsset(
-            "Test",
-            rootId,
-            new[]
-            {
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(directory, "Test.prefab");
+
+        try
+        {
+            var registry = new EcsComponentSerializerRegistry();
+            var saveLoad = new PrefabAssetSaveLoadService(registry);
+
+            var rootId = new PrefabEntityId(1);
+
+            var asset = new PrefabAsset(
+                "Test",
+                rootId,
+                new[]
+                {
                 new PrefabEntity(
                     rootId,
                     Array.Empty<PrefabComponent>())
-            });
+                });
 
-        // Для этого теста достаточно проверить саму модель:
-        // корневая сущность должна оставаться обязательной.
-        Assert.Throws<ArgumentException>(
-            () => new PrefabAsset(
-                "Test",
-                new PrefabEntityId(2),
-                asset.Entities));
+            saveLoad.Save(path, asset);
+
+            var document = PrefabDocument.Open(path, saveLoad);
+            var originalAsset = document.Asset;
+
+            var exception = Assert.Throws<InvalidOperationException>(
+                () => document.DeleteEntity(rootId));
+
+            Assert.Equal(
+                "The root entity cannot be deleted.",
+                exception.Message);
+
+            Assert.Same(originalAsset, document.Asset);
+            Assert.Single(document.Asset.Entities);
+            Assert.False(document.IsDirty);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
     }
 }

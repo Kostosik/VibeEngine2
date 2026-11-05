@@ -2057,7 +2057,17 @@ SaveAllDocuments;
                     }
 
                     break;
+                case PrefabDocument prefabDocument:
+                    if (continueApplicationClose)
+                    {
+                        prefabDocument.MarkSaved();
+                    }
+                    else
+                    {
+                        Editor.Session.Discard(prefabDocument);
+                    }
 
+                    break;
                 case EditorDocument worldDocument:
                     Editor.CloseDocument(
                         worldDocument,

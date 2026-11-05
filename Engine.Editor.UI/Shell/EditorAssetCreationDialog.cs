@@ -183,10 +183,16 @@ public sealed class EditorAssetCreationDialog : UiModal
     private void UpdateDetails(
         EditorAssetCreationDefinition definition)
     {
-        _detailsLabel.Text =
-            definition.Kind == EditorAssetCreationKind.Directory
+        _detailsLabel.Text = definition.Id switch
+        {
+            "prefab" =>
+                "Captures the selected root entity and all its descendants. " +
+                "Select one root entity in Hierarchy first.",
+
+            _ => definition.Kind == EditorAssetCreationKind.Directory
                 ? "Creates a folder at the selected location."
-                : $"Extension: {definition.Extension}";
+                : $"Extension: {definition.Extension}"
+        };
     }
 
     private void Submit()

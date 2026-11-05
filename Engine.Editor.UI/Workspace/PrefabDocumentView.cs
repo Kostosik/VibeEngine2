@@ -228,8 +228,6 @@ public sealed class PrefabDocumentView : UiPanel
                         entityId,
                         componentType,
                         boxedComponent);
-
-                    Refresh();
                 };
             }
 

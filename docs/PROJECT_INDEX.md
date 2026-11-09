@@ -14,6 +14,7 @@
 ## Проекты по алфавиту
 
 | Проект | Файл проекта | Назначение и основные ориентиры | Прямые зависимости |
+| **Engine.AI** | `Engine.AI/Engine.AI.csproj` | AI-агенты, планирование обновлений, Behavior Trees, Utility AI, Perception и Memory. Основные типы: `AISystem`, `AIComponent`, `AIContext`, `BehaviorTree`, `UtilityAIBehavior`, `AIMemory`. | `Engine.Core`, `Engine.ECS` |
 |---|---|---|---|
 | **Editor.Sandbox** | `Editor.Sandbox/Editor.Sandbox.csproj` | Исполняемая оболочка редактора. `Program.cs`, `WindowsClipboardService`, `WindowsFileDialogService`. Целевой TFM: `net8.0-windows`. | `Engine.Content`, `Engine.Core`, `Engine.ECS`, `Engine.Editor`, `Engine.Editor.UI`, `Engine.Graphics`, `Engine.Graphics.OpenGL`, `Engine.Input`, `Engine.Networking.Replication`, `Engine.Physics`, `Engine.Serialization`, `Engine.Tooling`, `Engine.UI`, `Engine.Worlds` |
 | **Engine.Animation** | `Engine.Animation/Engine.Animation.csproj` | Анимационные клипы, дорожки и ключевые кадры, интерполяторы и воспроизведение. Типы: `AnimationClip`, `AnimationPlayer`, `AnimationTrack`; файловая и JSON-сериализация клипов. | `Engine.Core` |

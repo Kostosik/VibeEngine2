@@ -145,7 +145,9 @@ public sealed class SandboxState
             Radius = 0.35f,
             Softness = 0.25f
         };
-
+        grayscale.Enabled = false;
+        tint.Enabled = false;
+        vignette.Enabled = false;
         _graphics.Pipeline.PostProcessing.Add(grayscale);
         _graphics.Pipeline.PostProcessing.Add(tint);
         _graphics.Pipeline.PostProcessing.Add(vignette);

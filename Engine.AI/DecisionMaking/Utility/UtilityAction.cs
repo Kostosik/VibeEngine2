@@ -1,16 +1,19 @@
-﻿using Engine.AI.Core;
+﻿using Engine.AI.BehaviorTrees;
+using Engine.AI.Core;
 using Engine.Core.Time;
 
 namespace Engine.AI.DecisionMaking.Utility;
 
 public delegate void UtilityActionHandler(
     in AIContext context);
-
+public delegate void UtilityActionLifecycleHandler(
+    in AIContext context);
 public sealed class UtilityAction
 {
     private readonly List<UtilityConsideration>
         _considerations = new();
-
+    private UtilityActionLifecycleHandler? _onEnter;
+    private UtilityActionLifecycleHandler? _onExit;
     private readonly UtilityActionHandler _handler;
 
     private float _minimumScore = 0.01f;
@@ -84,6 +87,48 @@ public sealed class UtilityAction
             consideration,
             weight,
             curve);
+    }
+
+    public static UtilityAction FromBehaviorTree(
+    string name,
+    BehaviorTree tree)
+    {
+        ArgumentNullException.ThrowIfNull(tree);
+
+        return new UtilityAction(
+            name,
+            (in AIContext context) =>
+                tree.Update(in context))
+            .OnExit((in AIContext context) =>
+                tree.Abort(context.AgentState));
+    }
+
+    public UtilityAction OnEnter(
+    UtilityActionLifecycleHandler handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+
+        _onEnter = handler;
+        return this;
+    }
+
+    public UtilityAction OnExit(
+        UtilityActionLifecycleHandler handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+
+        _onExit = handler;
+        return this;
+    }
+
+    internal void Enter(in AIContext context)
+    {
+        _onEnter?.Invoke(in context);
+    }
+
+    internal void Exit(in AIContext context)
+    {
+        _onExit?.Invoke(in context);
     }
 
     public UtilityAction AddConsideration(

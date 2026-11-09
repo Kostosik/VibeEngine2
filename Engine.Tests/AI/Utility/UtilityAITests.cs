@@ -1,4 +1,7 @@
-﻿using Engine.AI.Core;
+﻿using Engine.AI.BehaviorTrees;
+using Engine.AI.BehaviorTrees.Core;
+using Engine.AI.BehaviorTrees.Nodes;
+using Engine.AI.Core;
 using Engine.AI.DecisionMaking.Utility;
 using Engine.AI.Systems;
 using Engine.Core.Time;
@@ -309,6 +312,163 @@ public sealed class UtilityAITests
 
         Assert.Null(debug.SelectedAction);
         Assert.Equal(0f, debug.SelectedScore);
+    }
+
+    [Fact]
+    public void UtilityAI_NotifiesActionTransitionsAndExitOnDetach()
+    {
+        using var world = new World();
+        using var ai = new AISystem(world);
+
+        var entity = AITestHelpers.CreateAgent(world);
+
+        float attackScore = 0.8f;
+        float fleeScore = 0.2f;
+
+        var transitions = new List<string>();
+
+        var attack = new UtilityAction(
+                "Attack",
+                (in AIContext context) => { })
+            .OnEnter((in AIContext context) =>
+                transitions.Add("Attack.Enter"))
+            .OnExit((in AIContext context) =>
+                transitions.Add("Attack.Exit"));
+
+        attack.AddConsideration(
+            "AttackScore",
+            new DelegateUtilityConsideration(
+                "AttackScore",
+                (in AIContext context) => attackScore));
+
+        var flee = new UtilityAction(
+                "Flee",
+                (in AIContext context) => { })
+            .OnEnter((in AIContext context) =>
+                transitions.Add("Flee.Enter"))
+            .OnExit((in AIContext context) =>
+                transitions.Add("Flee.Exit"));
+
+        flee.AddConsideration(
+            "FleeScore",
+            new DelegateUtilityConsideration(
+                "FleeScore",
+                (in AIContext context) => fleeScore));
+
+        var behavior = new UtilityAIBehavior();
+
+        behavior.AddAction(attack);
+        behavior.AddAction(flee);
+
+        ai.SetBehavior(entity, behavior);
+
+        AITestHelpers.Update(ai, 0.0, 0);
+
+        Assert.Equal(
+            new[] { "Attack.Enter" },
+            transitions);
+
+        attackScore = 0.1f;
+        fleeScore = 0.9f;
+
+        AITestHelpers.Update(ai, 0.1, 1);
+
+        Assert.Equal(
+            new[]
+            {
+            "Attack.Enter",
+            "Attack.Exit",
+            "Flee.Enter"
+            },
+            transitions);
+
+        Assert.True(ai.RemoveBehavior(entity));
+
+        Assert.Equal(
+            new[]
+            {
+            "Attack.Enter",
+            "Attack.Exit",
+            "Flee.Enter",
+            "Flee.Exit"
+            },
+            transitions);
+    }
+
+    [Fact]
+    public void UtilityAI_BehaviorTreeAction_TicksAndAbortsOnSwitch()
+    {
+        using var world = new World();
+        using var ai = new AISystem(world);
+
+        var entity = AITestHelpers.CreateAgent(world);
+
+        float attackScore = 1f;
+        float idleScore = 0f;
+
+        int attackTicks = 0;
+        int attackAborts = 0;
+
+        var tree = new BehaviorTree(
+            "AttackTree",
+            new ActionNode(
+                "Attack",
+                (in BehaviorTreeContext context) =>
+                {
+                    attackTicks++;
+                    return BehaviorStatus.Running;
+                },
+                abort: (in BehaviorTreeContext context) =>
+                {
+                    attackAborts++;
+                }));
+
+        var attack = UtilityAction.FromBehaviorTree(
+            "Attack",
+            tree);
+
+        attack.AddConsideration(
+            "AttackScore",
+            new DelegateUtilityConsideration(
+                "AttackScore",
+                (in AIContext context) => attackScore));
+
+        var idle = new UtilityAction(
+            "Idle",
+            (in AIContext context) => { });
+
+        idle.AddConsideration(
+            "IdleScore",
+            new DelegateUtilityConsideration(
+                "IdleScore",
+                (in AIContext context) => idleScore));
+
+        var behavior = new UtilityAIBehavior();
+
+        behavior.AddAction(attack);
+        behavior.AddAction(idle);
+
+        ai.SetBehavior(entity, behavior);
+
+        AITestHelpers.Update(ai, 0.0, 0);
+
+        Assert.Equal(1, attackTicks);
+        Assert.Equal(0, attackAborts);
+
+        attackScore = 0.1f;
+        idleScore = 1f;
+
+        AITestHelpers.Update(ai, 0.1, 1);
+
+        Assert.Equal(1, attackTicks);
+        Assert.Equal(1, attackAborts);
+
+        Assert.True(
+            ai.TryGetAgentState(entity, out var state));
+
+        Assert.Equal(
+            "Idle",
+            behavior.GetCurrentAction(state!)?.Name);
     }
 
     private static void AddScoredAction(

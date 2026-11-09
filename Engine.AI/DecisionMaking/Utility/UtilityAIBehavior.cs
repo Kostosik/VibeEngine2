@@ -3,7 +3,9 @@ using Engine.AI.Core;
 
 namespace Engine.AI.DecisionMaking.Utility;
 
-public sealed class UtilityAIBehavior : IAIBehavior
+public sealed class UtilityAIBehavior :
+    IAIBehavior,
+    IAIBehaviorLifecycle
 {
     private readonly List<UtilityAction> _actions = new();
 
@@ -25,6 +27,9 @@ public sealed class UtilityAIBehavior : IAIBehavior
         public float CurrentScore;
 
         public UtilityDecisionDebugInfo? LastDebugInfo;
+        public AIContext LastContext;
+
+        public bool HasContext;
     }
 
     public IReadOnlyList<UtilityAction> Actions => _actions;
@@ -123,7 +128,8 @@ public sealed class UtilityAIBehavior : IAIBehavior
         var state = context.AgentState.GetOrCreate(
             this,
             static () => new AgentRuntimeState());
-
+        state.LastContext = context;
+        state.HasContext = true;
         TimeSpan now = context.Time.Elapsed.Value;
 
         UtilityAction? bestAction = null;
@@ -213,7 +219,17 @@ public sealed class UtilityAIBehavior : IAIBehavior
             selectedScore = bestScore;
         }
 
-        state.CurrentAction = selectedAction;
+        if (!ReferenceEquals(
+                state.CurrentAction,
+                selectedAction))
+        {
+            state.CurrentAction?.Exit(in context);
+
+            state.CurrentAction = selectedAction;
+
+            state.CurrentAction?.Enter(in context);
+        }
+
         state.CurrentScore = selectedScore;
 
         if (EnableDebugInformation)
@@ -270,6 +286,31 @@ public sealed class UtilityAIBehavior : IAIBehavior
         else
         {
             state.Cooldowns.Remove(selectedAction);
+        }
+    }
+
+    public void OnDetached(AIAgentState agentState)
+    {
+        ArgumentNullException.ThrowIfNull(agentState);
+
+        if (!agentState.TryGet(
+                this,
+                out AgentRuntimeState? state))
+        {
+            return;
+        }
+
+        try
+        {
+            if (state.HasContext)
+            {
+                state.CurrentAction?.Exit(
+                    in state.LastContext);
+            }
+        }
+        finally
+        {
+            agentState.Remove(this);
         }
     }
 

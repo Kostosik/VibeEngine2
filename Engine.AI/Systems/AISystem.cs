@@ -372,15 +372,19 @@ public sealed class AISystem :
 
     private void OnEntityDestroyed(EntityId entity)
     {
+        RemoveDestroyedTargetFromMemories(entity);
+
         bool hasBehavior = _behaviors.Remove(
             entity,
             out var behavior);
 
         Scheduler.Unregister(entity);
+
         if (_memories.Remove(entity, out var memory))
         {
             memory.Clear();
         }
+
         if (!_agentStates.Remove(
                 entity,
                 out var state))
@@ -400,6 +404,23 @@ public sealed class AISystem :
         finally
         {
             state.Clear();
+        }
+    }
+
+    private void RemoveDestroyedTargetFromMemories(
+        EntityId target)
+    {
+        foreach (var memory in _memories.Values)
+        {
+            if (!memory.TryGet(
+                    AIMemoryKeys.LastKnownTargets,
+                    TimeSpan.Zero,
+                    out var lastKnownTargets))
+            {
+                continue;
+            }
+
+            lastKnownTargets.Remove(target);
         }
     }
 

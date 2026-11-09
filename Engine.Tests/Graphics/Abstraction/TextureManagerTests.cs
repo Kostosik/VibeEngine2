@@ -5,6 +5,45 @@ namespace Engine.Tests.Graphics.Abstraction;
 public sealed class TextureManagerTests
 {
     [Fact]
+    public void TextureDescription_UsesDefaultSamplerWhenNotSpecified()
+    {
+        var description = new TextureDescription(
+            128,
+            64,
+            TextureFormat.Rgba8);
+
+        Assert.Equal(
+            TextureSamplerDescription.Default,
+            description.EffectiveSampler);
+    }
+
+    [Fact]
+    public void TextureManager_PreservesCustomSamplerDescription()
+    {
+        ITextureManager manager = new TestTextureManager();
+
+        var sampler = new TextureSamplerDescription(
+            TextureFilter.Linear,
+            TextureFilter.Nearest,
+            TextureWrapMode.Repeat,
+            TextureWrapMode.MirroredRepeat);
+
+        var description = new TextureDescription(
+            128,
+            64,
+            TextureFormat.Rgba8)
+        {
+            Sampler = sampler
+        };
+
+        var texture = manager.Create(description);
+
+        Assert.Equal(
+            sampler,
+            manager.GetDescription(texture).EffectiveSampler);
+    }
+
+    [Fact]
     public void TextureManager_CanCreateAndQueryTexture()
     {
         ITextureManager manager =

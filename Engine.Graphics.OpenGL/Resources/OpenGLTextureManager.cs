@@ -35,7 +35,7 @@ public sealed class OpenGLTextureManager
                 TextureTarget.Texture2D,
                 handle);
 
-            ConfigureTexture();
+            ConfigureTexture(description.EffectiveSampler);
 
             unsafe
             {
@@ -112,7 +112,7 @@ public sealed class OpenGLTextureManager
                 TextureTarget.Texture2D,
                 handle);
 
-            ConfigureTexture();
+            ConfigureTexture(data.Description.EffectiveSampler);
 
             var pixels = data.Pixels.Span;
 
@@ -230,27 +230,70 @@ public sealed class OpenGLTextureManager
         }
     }
 
-    private void ConfigureTexture()
+    private void ConfigureTexture(TextureSamplerDescription sampler)
     {
         _gl.TexParameter(
             TextureTarget.Texture2D,
             TextureParameterName.TextureMinFilter,
-            (int)GLEnum.Nearest);
+            ToOpenGlFilter(sampler.Minification));
 
         _gl.TexParameter(
             TextureTarget.Texture2D,
             TextureParameterName.TextureMagFilter,
-            (int)GLEnum.Nearest);
+            ToOpenGlFilter(sampler.Magnification));
 
         _gl.TexParameter(
             TextureTarget.Texture2D,
             TextureParameterName.TextureWrapS,
-            (int)GLEnum.ClampToEdge);
+            ToOpenGlWrapMode(sampler.WrapS));
 
         _gl.TexParameter(
             TextureTarget.Texture2D,
             TextureParameterName.TextureWrapT,
-            (int)GLEnum.ClampToEdge);
+            ToOpenGlWrapMode(sampler.WrapT));
+    }
+
+    private static int ToOpenGlFilter(TextureFilter filter)
+    {
+        return filter switch
+        {
+            TextureFilter.Nearest => (int)GLEnum.Nearest,
+            TextureFilter.Linear => (int)GLEnum.Linear,
+            _ => throw new ArgumentOutOfRangeException(nameof(filter))
+        };
+    }
+
+    private static int ToOpenGlWrapMode(
+        Engine.Graphics.Resources.TextureWrapMode mode)
+    {
+        return mode switch
+        {
+            Engine.Graphics.Resources.TextureWrapMode.ClampToEdge =>
+                (int)GLEnum.ClampToEdge,
+
+            Engine.Graphics.Resources.TextureWrapMode.Repeat =>
+                (int)GLEnum.Repeat,
+
+            Engine.Graphics.Resources.TextureWrapMode.MirroredRepeat =>
+                (int)GLEnum.MirroredRepeat,
+
+            _ => throw new ArgumentOutOfRangeException(nameof(mode))
+        };
+    }
+
+    private static void ValidateSampler(TextureSamplerDescription sampler)
+    {
+        if (!Enum.IsDefined(sampler.Minification))
+            throw new ArgumentOutOfRangeException(nameof(sampler));
+
+        if (!Enum.IsDefined(sampler.Magnification))
+            throw new ArgumentOutOfRangeException(nameof(sampler));
+
+        if (!Enum.IsDefined(sampler.WrapS))
+            throw new ArgumentOutOfRangeException(nameof(sampler));
+
+        if (!Enum.IsDefined(sampler.WrapT))
+            throw new ArgumentOutOfRangeException(nameof(sampler));
     }
 
     private static void Validate(
@@ -274,5 +317,6 @@ public sealed class OpenGLTextureManager
                 description.Format,
                 "Unsupported texture format.");
         }
+        ValidateSampler(description.EffectiveSampler);
     }
 }

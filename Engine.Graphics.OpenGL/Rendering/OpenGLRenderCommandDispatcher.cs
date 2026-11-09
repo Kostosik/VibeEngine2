@@ -81,52 +81,39 @@ internal sealed class OpenGLRenderCommandDispatcher
         _activeRenderer = RendererKind.None;
     }
 
-    public void Execute(
-        IRenderCommand command)
+    public void Execute(IRenderCommand command)
     {
-        ArgumentNullException.ThrowIfNull(
-            command);
+        ArgumentNullException.ThrowIfNull(command);
 
         switch (command)
         {
             case DrawTextureCommand drawTexture:
 
+                if (!_textureManager.Exists(drawTexture.Texture))
+                    return;
+
                 BeginTextureRenderer();
 
-                if (!_textureManager.Exists(
-                        drawTexture.Texture))
-                {
-                    return;
-                }
-
-                _textureRenderer.Draw(
-                    drawTexture);
-
+                _textureRenderer.Draw(drawTexture);
                 return;
 
             case DrawRenderTargetCommand drawRenderTarget:
 
-                BeginTextureRenderer();
-
-                if (!_renderTargetManager.Exists(
-                        drawRenderTarget.Target))
-                {
+                if (!_renderTargetManager.Exists(drawRenderTarget.Target))
                     return;
-                }
 
-                var texture =
+                var renderTargetTexture =
                     _renderTargetManager.GetColorTexture(
                         drawRenderTarget.Target);
 
-                if (!_textureManager.Exists(
-                        texture))
-                {
+                if (!_textureManager.Exists(renderTargetTexture))
                     return;
-                }
+
+                BeginTextureRenderer();
 
                 _textureRenderer.Draw(
                     new DrawTextureCommand(
-                        texture,
+                        renderTargetTexture,
                         drawRenderTarget.Position,
                         drawRenderTarget.Size,
                         drawRenderTarget.UV,
@@ -136,86 +123,64 @@ internal sealed class OpenGLRenderCommandDispatcher
 
             case DrawUiTextureCommand drawUiTexture:
 
+                if (!_textureManager.Exists(drawUiTexture.Texture))
+                    return;
+
                 BeginTextureRenderer();
 
-                if (!_textureManager.Exists(
-                        drawUiTexture.Texture))
-                {
-                    return;
-                }
-
-                _textureRenderer.Draw(
-                    drawUiTexture);
-
+                _textureRenderer.Draw(drawUiTexture);
                 return;
 
             case DrawUiTextCommand drawUiText:
 
                 BeginFontRenderer();
 
-                _fontRenderer.Draw(
-                    drawUiText);
-
+                _fontRenderer.Draw(drawUiText);
                 return;
 
             case DrawUiRectangleCommand drawUiRectangle:
 
                 BeginDebugRenderer();
 
-                _debugRenderer.Draw(
-                    drawUiRectangle);
-
+                _debugRenderer.Draw(drawUiRectangle);
                 return;
 
             case DrawDebugTextCommand drawDebugText:
 
                 BeginDebugRenderer();
 
-                _debugRenderer.Draw(
-                    drawDebugText);
-
+                _debugRenderer.Draw(drawDebugText);
                 return;
 
             case DrawWorldTextureCommand drawWorldTexture:
 
+                if (!_textureManager.Exists(drawWorldTexture.Texture))
+                    return;
+
                 BeginTextureRenderer();
 
-                if (!_textureManager.Exists(
-                        drawWorldTexture.Texture))
-                {
-                    return;
-                }
-
-                _textureRenderer.DrawWorld(
-                    drawWorldTexture);
-
+                _textureRenderer.DrawWorld(drawWorldTexture);
                 return;
 
             case DrawDebugLineCommand debugLine:
 
                 BeginDebugRenderer();
 
-                _debugRenderer.Draw(
-                    debugLine);
-
+                _debugRenderer.Draw(debugLine);
                 return;
 
             case DrawDebugRectangleCommand debugRectangle:
 
                 BeginDebugRenderer();
 
-                _debugRenderer.Draw(
-                    debugRectangle);
-
+                _debugRenderer.Draw(debugRectangle);
                 return;
 
             case DrawDebugCircleCommand debugCircle:
 
                 BeginDebugRenderer();
 
-                _debugRenderer.Draw(
-                    debugCircle);
-
+                _debugRenderer.Draw(debugCircle);
                 return;
 
             default:
@@ -225,15 +190,12 @@ internal sealed class OpenGLRenderCommandDispatcher
         }
     }
 
-    public void Execute(
-    DrawWorldTextureData command)
+    public void Execute(DrawWorldTextureData command)
     {
-        BeginTextureRenderer();
-
         if (!_textureManager.Exists(command.Texture))
-        {
             return;
-        }
+
+        BeginTextureRenderer();
 
         _textureRenderer.DrawWorld(command);
     }

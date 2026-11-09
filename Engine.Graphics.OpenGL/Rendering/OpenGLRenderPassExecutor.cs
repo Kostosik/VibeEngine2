@@ -1,4 +1,5 @@
-﻿using Engine.Graphics.Commands;
+﻿
+using Engine.Graphics.Commands;
 using Engine.Graphics.Rendering;
 using Silk.NET.OpenGL;
 
@@ -11,44 +12,67 @@ internal sealed class OpenGLRenderPassExecutor :
     private readonly OpenGLRenderTargetManager _renderTargets;
     private readonly OpenGLRenderCommandDispatcher _dispatcher;
 
-    private int _backBufferWidth;
-    private int _backBufferHeight;
+    // Логический размер backbuffer.
+    private int _backBufferRenderWidth;
+    private int _backBufferRenderHeight;
+
+    // Физический размер framebuffer.
+    private int _backBufferFramebufferWidth;
+    private int _backBufferFramebufferHeight;
 
     public OpenGLRenderPassExecutor(
         GL gl,
         OpenGLRenderTargetManager renderTargets,
         OpenGLRenderCommandDispatcher dispatcher,
-        int width,
-        int height)
+        int renderWidth,
+        int renderHeight,
+        int framebufferWidth,
+        int framebufferHeight)
     {
+        ArgumentNullException.ThrowIfNull(gl);
+        ArgumentNullException.ThrowIfNull(renderTargets);
+        ArgumentNullException.ThrowIfNull(dispatcher);
+
+        ValidateSize(renderWidth, renderHeight);
+        ValidateSize(framebufferWidth, framebufferHeight);
+
         _gl = gl;
         _renderTargets = renderTargets;
         _dispatcher = dispatcher;
 
-        _backBufferWidth = width;
-        _backBufferHeight = height;
+        _backBufferRenderWidth = renderWidth;
+        _backBufferRenderHeight = renderHeight;
+
+        _backBufferFramebufferWidth = framebufferWidth;
+        _backBufferFramebufferHeight = framebufferHeight;
     }
 
-    public void Begin(
-    RenderPassContext context)
+    public void Begin(RenderPassContext context)
     {
         var framebuffer = 0;
 
-        var width = _backBufferWidth;
-        var height = _backBufferHeight;
+        // По умолчанию используем размеры главного окна.
+        var viewportWidth = _backBufferFramebufferWidth;
+        var viewportHeight = _backBufferFramebufferHeight;
 
+        var renderWidth = _backBufferRenderWidth;
+        var renderHeight = _backBufferRenderHeight;
+
+        // Для отдельного RenderTarget размеры совпадают
+        // с его собственным разрешением.
         if (context.Target.IsValid)
         {
-            framebuffer =
-                (int)_renderTargets.GetFramebuffer(
-                    context.Target);
+            framebuffer = (int)_renderTargets.GetFramebuffer(
+                context.Target);
 
-            var description =
-                _renderTargets.GetDescription(
-                    context.Target);
+            var description = _renderTargets.GetDescription(
+                context.Target);
 
-            width = description.Width;
-            height = description.Height;
+            viewportWidth = description.Width;
+            viewportHeight = description.Height;
+
+            renderWidth = description.Width;
+            renderHeight = description.Height;
         }
 
         var frameStarted = false;
@@ -59,15 +83,17 @@ internal sealed class OpenGLRenderPassExecutor :
                 FramebufferTarget.Framebuffer,
                 (uint)framebuffer);
 
+            // Viewport всегда использует реальные пиксели.
             _gl.Viewport(
                 0,
                 0,
-                (uint)width,
-                (uint)height);
+                (uint)viewportWidth,
+                (uint)viewportHeight);
 
+            // Координаты шейдеров используют логический размер.
             _dispatcher.SetRenderSize(
-                width,
-                height);
+                renderWidth,
+                renderHeight);
 
             if (context.ClearColor)
             {
@@ -78,8 +104,7 @@ internal sealed class OpenGLRenderPassExecutor :
             _dispatcher.BeginFrame();
             frameStarted = true;
 
-            _dispatcher.ApplyState(
-                context.State);
+            _dispatcher.ApplyState(context.State);
         }
         catch
         {
@@ -110,18 +135,14 @@ internal sealed class OpenGLRenderPassExecutor :
         }
     }
 
-    public void Execute(
-        IRenderCommand command)
+    public void Execute(IRenderCommand command)
     {
-        _dispatcher.Execute(
-            command);
+        _dispatcher.Execute(command);
     }
 
-    public void Execute(
-    DrawWorldTextureData command)
+    public void Execute(DrawWorldTextureData command)
     {
-        _dispatcher.Execute(
-            command);
+        _dispatcher.Execute(command);
     }
 
     public void End()
@@ -139,18 +160,24 @@ internal sealed class OpenGLRenderPassExecutor :
     }
 
     public void Resize(
-        int width,
-        int height)
+        int renderWidth,
+        int renderHeight,
+        int framebufferWidth,
+        int framebufferHeight)
     {
-        if (width <= 0)
-            throw new ArgumentOutOfRangeException(
-                nameof(width));
+        ValidateSize(renderWidth, renderHeight);
+        ValidateSize(framebufferWidth, framebufferHeight);
 
-        if (height <= 0)
-            throw new ArgumentOutOfRangeException(
-                nameof(height));
+        _backBufferRenderWidth = renderWidth;
+        _backBufferRenderHeight = renderHeight;
 
-        _backBufferWidth = width;
-        _backBufferHeight = height;
+        _backBufferFramebufferWidth = framebufferWidth;
+        _backBufferFramebufferHeight = framebufferHeight;
+    }
+
+    private static void ValidateSize(int width, int height)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
     }
 }

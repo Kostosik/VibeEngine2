@@ -16,7 +16,7 @@ internal sealed class OpenGLTextureRenderer : IDisposable
     private readonly GL _gl;
     private readonly Camera2D _camera;
     private readonly OpenGLShaderProgram _shader;
-
+    private readonly UiPolygonClipWorkspace _clipWorkspace = new();
     private readonly uint _vao;
     private readonly uint _vbo;
 
@@ -244,57 +244,56 @@ internal sealed class OpenGLTextureRenderer : IDisposable
             x + width * 0.5f,
             y + height * 0.5f);
 
-        var quad = new[]
+
+        Span<UiClipVertex> quad = stackalloc UiClipVertex[4]
         {
-        new UiClipVertex(
-            UiPolygonClipper.RotatePoint(
-                new Vector2(x, y),
-                origin,
-                rotationDegrees),
-            new Vector2(uv.X, uv.Y)),
+    new UiClipVertex(
+        UiPolygonClipper.RotatePoint(
+            new Vector2(x, y),
+            origin,
+            rotationDegrees),
+        new Vector2(uv.X, uv.Y)),
 
-        new UiClipVertex(
-            UiPolygonClipper.RotatePoint(
-                new Vector2(x + width, y),
-                origin,
-                rotationDegrees),
-            new Vector2(uv.X + uv.Width, uv.Y)),
+    new UiClipVertex(
+        UiPolygonClipper.RotatePoint(
+            new Vector2(x + width, y),
+            origin,
+            rotationDegrees),
+        new Vector2(uv.X + uv.Width, uv.Y)),
 
-        new UiClipVertex(
-            UiPolygonClipper.RotatePoint(
-                new Vector2(x + width, y + height),
-                origin,
-                rotationDegrees),
-            new Vector2(
-                uv.X + uv.Width,
-                uv.Y + uv.Height)),
+    new UiClipVertex(
+        UiPolygonClipper.RotatePoint(
+            new Vector2(x + width, y + height),
+            origin,
+            rotationDegrees),
+        new Vector2(
+            uv.X + uv.Width,
+            uv.Y + uv.Height)),
 
-        new UiClipVertex(
-            UiPolygonClipper.RotatePoint(
-                new Vector2(x, y + height),
-                origin,
-                rotationDegrees),
-            new Vector2(uv.X, uv.Y + uv.Height))
-    };
+    new UiClipVertex(
+        UiPolygonClipper.RotatePoint(
+            new Vector2(x, y + height),
+            origin,
+            rotationDegrees),
+        new Vector2(uv.X, uv.Y + uv.Height))
+};
 
-        var clipped =
-            UiPolygonClipper.ClipPolygon(
-                quad,
-                region);
+        var clipped = _clipWorkspace.ClipPolygon(
+            quad,
+            region);
+
 
         if (clipped.Count < 3)
         {
             return;
         }
-
+        if (!PrepareTextureBatch(texture))
+        {
+            return;
+        }
         // Разбиваем выпуклый многоугольник на треугольники.
         for (var i = 1; i < clipped.Count - 1; i++)
         {
-            if (!PrepareTextureBatch(texture))
-            {
-                return;
-            }
-
             AddVertex(
                 clipped[0].Position.X,
                 clipped[0].Position.Y,
@@ -316,16 +315,10 @@ internal sealed class OpenGLTextureRenderer : IDisposable
     }
 
 
-    public void Draw(
-    DrawUiTextureCommand command)
+    public void Draw(DrawUiTextureCommand command)
     {
         ThrowIfDisposed();
         EnsureFrameActive();
-
-        if (!PrepareTextureBatch(command.Texture))
-        {
-            return;
-        }
 
         if (command.ClipRegion is not null)
         {
@@ -349,6 +342,7 @@ internal sealed class OpenGLTextureRenderer : IDisposable
         if (command.ClipRect.HasValue)
         {
             AddClippedQuad(
+                command.Texture,
                 command.Position.X,
                 command.Position.Y,
                 command.Size.X,
@@ -360,24 +354,24 @@ internal sealed class OpenGLTextureRenderer : IDisposable
             return;
         }
 
-        AddQuad(
-            command.Position.X,
-            command.Position.Y,
-            command.Size.X,
-            command.Size.Y,
+        DrawQuad(
+            command.Texture,
+            command.Position,
+            command.Size,
             command.UV,
             command.RotationDegrees);
     }
 
     private void AddClippedQuad(
-    float x,
-    float y,
-    float width,
-    float height,
-    Rectangle uv,
-    Rectangle clip,
-    float rotationDegrees = 0.0f,
-    Vector2? rotationOrigin = null)
+        TextureHandle texture,
+        float x,
+        float y,
+        float width,
+        float height,
+        Rectangle uv,
+        Rectangle clip,
+        float rotationDegrees = 0.0f,
+        Vector2? rotationOrigin = null)
     {
         if (width <= 0.0f ||
             height <= 0.0f ||
@@ -420,6 +414,11 @@ internal sealed class OpenGLTextureRenderer : IDisposable
             uv.Y + uv.Height * topRatio,
             uv.Width * (rightRatio - leftRatio),
             uv.Height * (bottomRatio - topRatio));
+
+        if (!PrepareTextureBatch(texture))
+        {
+            return;
+        }
 
         AddQuad(
             left,
@@ -560,12 +559,6 @@ internal sealed class OpenGLTextureRenderer : IDisposable
 
         _width = width;
         _height = height;
-
-        _gl.Viewport(
-            0,
-            0,
-            (uint)width,
-            (uint)height);
     }
 
     public void Dispose()

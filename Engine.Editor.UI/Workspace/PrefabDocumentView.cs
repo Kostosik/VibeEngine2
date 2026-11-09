@@ -94,7 +94,7 @@ public sealed class PrefabDocumentView : UiPanel
         _componentTypes = componentTypes;
         _componentDependencies = componentDependencies;
         _propertyEditors = propertyEditors;
-
+        _assetPickerDialog = assetPickerDialog;
         _selectedEntityId = document.Asset.RootEntity;
 
         Background = new UiColor(30, 30, 30, 255);

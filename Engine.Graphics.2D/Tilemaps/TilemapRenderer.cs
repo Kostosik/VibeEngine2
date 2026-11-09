@@ -61,6 +61,7 @@ public sealed class TilemapRenderer
                 command.RotationDegrees));
     }
 
+
     public void RenderChunk(
         int chunkX,
         int chunkY,
@@ -70,101 +71,87 @@ public sealed class TilemapRenderer
     {
         if (width <= 0)
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(width));
+            throw new ArgumentOutOfRangeException(nameof(width));
         }
 
         if (height <= 0)
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(height));
+            throw new ArgumentOutOfRangeException(nameof(height));
         }
 
-        var expectedCount =
-            checked(width * height);
+        var expectedCount = checked(width * height);
 
         if (tiles.Length != expectedCount)
         {
             throw new ArgumentException(
-                $"Expected {expectedCount} tiles, " +
-                $"but received {tiles.Length}.",
+                $"Expected {expectedCount} tiles, but received {tiles.Length}.",
                 nameof(tiles));
         }
 
-        var bounds =
-            _camera.WorldBounds;
+        // Размеры чанка в мировых координатах.
+        var chunkWorldX = (float)chunkX * width * _tileSize;
+        var chunkWorldY = (float)chunkY * height * _tileSize;
 
-        var chunkWorldX =
-            chunkX * width;
+        var chunkWorldWidth = width * _tileSize;
+        var chunkWorldHeight = height * _tileSize;
 
-        var chunkWorldY =
-            chunkY * height;
+        if (!float.IsFinite(chunkWorldX) ||
+            !float.IsFinite(chunkWorldY) ||
+            !float.IsFinite(chunkWorldWidth) ||
+            !float.IsFinite(chunkWorldHeight))
+        {
+            return;
+        }
 
+        var bounds = _camera.WorldBounds;
+
+        // Проверяем пересечение чанка с камерой.
         if (!Intersects(
                 chunkWorldX,
                 chunkWorldY,
-                width,
-                height,
+                chunkWorldWidth,
+                chunkWorldHeight,
                 bounds))
         {
             return;
         }
 
-        var startX =
-            Math.Max(
-                0,
-                (int)MathF.Floor(
-                    bounds.X -
-                    chunkWorldX));
+        // Переводим границы видимой области
+        // из мировых координат в индексы тайлов.
+        var startX = Math.Max(
+            0,
+            (int)MathF.Floor(
+                (bounds.X - chunkWorldX) / _tileSize));
 
-        var endX =
-            Math.Min(
-                width - 1,
-                (int)MathF.Ceiling(
-                    bounds.X +
-                    bounds.Width -
-                    chunkWorldX) - 1);
+        var endX = Math.Min(
+            width - 1,
+            (int)MathF.Ceiling(
+                (bounds.X + bounds.Width - chunkWorldX) / _tileSize) - 1);
 
-        var startY =
-            Math.Max(
-                0,
-                (int)MathF.Floor(
-                    bounds.Y -
-                    chunkWorldY));
+        var startY = Math.Max(
+            0,
+            (int)MathF.Floor(
+                (bounds.Y - chunkWorldY) / _tileSize));
 
-        var endY =
-            Math.Min(
-                height - 1,
-                (int)MathF.Ceiling(
-                    bounds.Y +
-                    bounds.Height -
-                    chunkWorldY) - 1);
+        var endY = Math.Min(
+            height - 1,
+            (int)MathF.Ceiling(
+                (bounds.Y + bounds.Height - chunkWorldY) / _tileSize) - 1);
 
-        if (startX > endX ||
-            startY > endY)
+        if (startX > endX || startY > endY)
         {
             return;
         }
 
-        for (var y = startY;
-     y <= endY;
-     y++)
+        for (var y = startY; y <= endY; y++)
         {
-            for (var x = startX;
-                 x <= endX;
-                 x++)
+            for (var x = startX; x <= endX; x++)
             {
-                var index =
-                    y * width +
-                    x;
-
-                var tileValue =
-                    tiles[index];
+                var index = y * width + x;
+                var tileValue = tiles[index];
 
                 if (tileValue == 0 ||
-                    !_tileSet.TryGet(
-                        tileValue,
-                        out var visual))
+                    !_tileSet.TryGet(tileValue, out var visual))
                 {
                     continue;
                 }
@@ -173,15 +160,14 @@ public sealed class TilemapRenderer
                     new DrawWorldTextureData(
                         visual.Texture,
                         new Vector2(
-                            chunkWorldX + x,
-                            chunkWorldY + y),
-                        new Vector2(
-                            _tileSize,
-                            _tileSize),
+                            chunkWorldX + x * _tileSize,
+                            chunkWorldY + y * _tileSize),
+                        new Vector2(_tileSize, _tileSize),
                         visual.UV));
             }
         }
     }
+
 
     public void RenderMap(
     TilemapDefinition definition,
@@ -413,11 +399,12 @@ public sealed class TilemapRenderer
         return startX <= endX && startY <= endY;
     }
 
+
     private static bool Intersects(
-        int x,
-        int y,
-        int width,
-        int height,
+        float x,
+        float y,
+        float width,
+        float height,
         Rectangle bounds)
     {
         return
@@ -426,4 +413,5 @@ public sealed class TilemapRenderer
             y < bounds.Y + bounds.Height &&
             y + height > bounds.Y;
     }
+
 }

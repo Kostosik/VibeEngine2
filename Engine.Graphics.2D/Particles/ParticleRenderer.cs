@@ -15,9 +15,11 @@ public sealed class ParticleRenderer : IDisposable
 {
     private readonly Camera2D _camera;
     private readonly SpriteRenderer _renderer;
-    private readonly TextureResourceManager _resources;
+    private readonly ITextureResourceManager _resources;
+    private readonly bool _ownsResources;
 
     private bool _disposed;
+
 
     public ParticleRenderer(
         IGraphicsDevice graphics,
@@ -29,13 +31,31 @@ public sealed class ParticleRenderer : IDisposable
         ArgumentNullException.ThrowIfNull(camera);
 
         _camera = camera;
-
         _renderer = new SpriteRenderer(graphics);
 
         _resources = new TextureResourceManager(
             content,
             graphics.Textures);
+
+        _ownsResources = true;
     }
+
+    public ParticleRenderer(
+        IGraphicsDevice graphics,
+        ITextureResourceManager resources,
+        Camera2D camera)
+    {
+        ArgumentNullException.ThrowIfNull(graphics);
+        ArgumentNullException.ThrowIfNull(resources);
+        ArgumentNullException.ThrowIfNull(camera);
+
+        _camera = camera;
+        _renderer = new SpriteRenderer(graphics);
+
+        _resources = resources;
+        _ownsResources = false;
+    }
+
 
     public void Render(
         ParticleSystem particleSystem,
@@ -98,7 +118,10 @@ public sealed class ParticleRenderer : IDisposable
             return;
         }
 
-        _resources.Dispose();
+        if (_ownsResources)
+        {
+            _resources.Dispose();
+        }
 
         _disposed = true;
     }

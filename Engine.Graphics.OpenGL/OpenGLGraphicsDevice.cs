@@ -57,8 +57,31 @@ public sealed class OpenGLGraphicsDevice
         int width,
         int height,
         Camera2D camera)
+        : this(
+            gl,
+            width,
+            height,
+            width,
+            height,
+            camera)
     {
+    }
+
+    public OpenGLGraphicsDevice(
+        GL gl,
+        int logicalWidth,
+        int logicalHeight,
+        int framebufferWidth,
+        int framebufferHeight,
+        Camera2D camera)
+    {
+        ArgumentNullException.ThrowIfNull(gl);
         ArgumentNullException.ThrowIfNull(camera);
+
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(logicalWidth);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(logicalHeight);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(framebufferWidth);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(framebufferHeight);
 
         _gl = gl;
 
@@ -79,15 +102,15 @@ public sealed class OpenGLGraphicsDevice
             _textureRenderer =
                 new OpenGLTextureRenderer(
                     gl,
-                    width,
-                    height,
+                    logicalWidth,
+                    logicalHeight,
                     camera);
 
             _debugRenderer =
                 new OpenGLDebugRenderer(
                     gl,
-                    width,
-                    height,
+                    logicalWidth,
+                    logicalHeight,
                     camera);
 
             _fontManager =
@@ -97,8 +120,8 @@ public sealed class OpenGLGraphicsDevice
             _fontRenderer =
                 new OpenGLFontRenderer(
                     gl,
-                    width,
-                    height,
+                    logicalWidth,
+                    logicalHeight,
                     _fontManager);
 
             _renderTargetManager =
@@ -120,8 +143,10 @@ public sealed class OpenGLGraphicsDevice
                     gl,
                     _renderTargetManager,
                     _dispatcher,
-                    width,
-                    height);
+                    logicalWidth,
+                    logicalHeight,
+                    framebufferWidth,
+                    framebufferHeight);
 
             _renderPipeline =
                 new RenderPipeline();
@@ -200,14 +225,28 @@ public sealed class OpenGLGraphicsDevice
             _passExecutor);
     }
 
-    public void Resize(
-        int width,
-        int height)
+    public void Resize(int width, int height)
     {
-        ThrowIfDisposed();
-        _passExecutor.Resize(
+        Resize(
+            width,
+            height,
             width,
             height);
+    }
+
+    public void Resize(
+        int logicalWidth,
+        int logicalHeight,
+        int framebufferWidth,
+        int framebufferHeight)
+    {
+        ThrowIfDisposed();
+
+        _passExecutor.Resize(
+            logicalWidth,
+            logicalHeight,
+            framebufferWidth,
+            framebufferHeight);
     }
 
     private void ThrowIfDisposed()

@@ -243,6 +243,9 @@ public sealed class SpriteRenderSystemTests
                 new FixedVector2(
                     Fixed32.FromFloat(10.0f),
                     Fixed32.FromFloat(12.0f))));
+        runtime.EcsWorld.Add(
+            entity,
+            new SpriteComponent("Textures/test.png"));
 
         var emitter = runtime.Particles.CreateEmitter(
             entity,
@@ -276,9 +279,14 @@ public sealed class SpriteRenderSystemTests
 
             game.Render(0.0);
 
-            var command =
-                Assert.IsType<DrawWorldTextureCommand>(
-                    Assert.Single(graphics.Commands));
+            var commands = graphics.Commands
+                .OfType<DrawWorldTextureCommand>()
+                .ToArray();
+
+            Assert.Equal(2, commands.Length);
+
+            var command = Assert.Single(
+                commands.Where(item => item.Layer == 25));
 
             Assert.Equal(
                 new Vector2(8.0f, 10.0f),

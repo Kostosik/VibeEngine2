@@ -4,6 +4,7 @@ using Engine.Graphics.Fonts;
 using Engine.Graphics.OpenGL.Rendering;
 using Engine.Graphics.Rendering;
 using Silk.NET.OpenGL;
+using System.Runtime.InteropServices;
 
 namespace Engine.Graphics.OpenGL.Fonts;
 
@@ -13,7 +14,7 @@ internal sealed class OpenGLFontRenderer :
     private readonly GL _gl;
     private readonly IFontManager _fonts;
     private readonly OpenGLShaderProgram _shader;
-
+    private readonly UiPolygonClipWorkspace _clipWorkspace = new();
     private readonly uint _vao;
     private readonly uint _vbo;
     private uint _fontSampler;
@@ -244,7 +245,7 @@ internal sealed class OpenGLFontRenderer :
             return;
         }
 
-        var quad = new[]
+        Span<UiClipVertex> quad = stackalloc UiClipVertex[4]
         {
         new UiClipVertex(
             UiPolygonClipper.RotatePoint(
@@ -277,10 +278,9 @@ internal sealed class OpenGLFontRenderer :
             new Vector2(uv.X, uv.Y + uv.Height))
     };
 
-        var clipped =
-            UiPolygonClipper.ClipPolygon(
-                quad,
-                region);
+        var clipped = _clipWorkspace.ClipPolygon(
+            quad,
+            region);
 
         if (clipped.Count < 3)
         {
@@ -351,6 +351,15 @@ internal sealed class OpenGLFontRenderer :
         var x =
             command.Position.X;
 
+        ClipRegion? clipRegion = null;
+
+        if (command.ClipRegion is not null)
+        {
+            clipRegion = UiPolygonClipper.Combine(
+                command.ClipRegion,
+                command.ClipRect);
+        }
+
         foreach (var rune in command.Text.EnumerateRunes())
         {
             if (rune.Value == '\n')
@@ -401,20 +410,15 @@ internal sealed class OpenGLFontRenderer :
                 var glyphHeight =
                     glyph.Size.Y * scale;
 
-                if (command.ClipRegion is not null)
+                if (clipRegion is not null)
                 {
-                    var region =
-                        UiPolygonClipper.Combine(
-                            command.ClipRegion,
-                            command.ClipRect);
-
                     AddRegionClippedGlyph(
                         glyphX,
                         glyphY,
                         glyphWidth,
                         glyphHeight,
                         glyph.UV,
-                        region,
+                        clipRegion,
                         command.RotationDegrees,
                         command.Position);
                 }
@@ -640,6 +644,7 @@ internal sealed class OpenGLFontRenderer :
         _vertices.Add(v);
     }
 
+
     private void Flush()
     {
         if (_vertices.Count == 0 ||
@@ -656,23 +661,32 @@ internal sealed class OpenGLFontRenderer :
             BufferTargetARB.ArrayBuffer,
             _vbo);
 
-        _gl.BufferData<float>(
-            BufferTargetARB.ArrayBuffer,
-            _vertices.ToArray(),
-            BufferUsageARB.DynamicDraw);
+        try
+        {
+            // Используем существующий буфер List без ToArray().
+            var vertexData = CollectionsMarshal.AsSpan(_vertices);
 
-        _gl.DrawArrays(
-            PrimitiveType.Triangles,
-            0,
-            (uint)(_vertices.Count / 4));
+            _gl.BufferData<float>(
+                BufferTargetARB.ArrayBuffer,
+                vertexData,
+                BufferUsageARB.DynamicDraw);
 
-        _gl.BindBuffer(
-            BufferTargetARB.ArrayBuffer,
-            0);
+            _gl.DrawArrays(
+                PrimitiveType.Triangles,
+                0,
+                (uint)(_vertices.Count / 4));
+        }
+        finally
+        {
+            _gl.BindBuffer(
+                BufferTargetARB.ArrayBuffer,
+                0);
 
-        _vertices.Clear();
-        _currentTexture = 0;
+            _vertices.Clear();
+            _currentTexture = 0;
+        }
     }
+
 
     private (uint Vao, uint Vbo) CreateBuffer()
     {

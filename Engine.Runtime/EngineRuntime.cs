@@ -8,6 +8,7 @@ using Engine.Core.Systems;
 using Engine.Core.Time;
 using Engine.ECS.Components;
 using Engine.ECS.Systems;
+using Engine.Graphics.Resources;
 using Engine.Graphics.Sprites;
 using Engine.Graphics.Tilemaps;
 using Engine.Graphics2D.Sprites;
@@ -38,6 +39,7 @@ public sealed class EngineRuntime :
     public DebugVisualizationRenderer? DebugVisualizationRenderer { get; private set; }
     private SpriteRenderSystem? _spriteRenderSystem;
     private TilemapRenderSystem? _tilemapRenderSystem;
+    private ITextureResourceManager? _textureResources;
     public ScriptRegistry ScriptRegistry { get; }
     private AudioEcsSystem? _audioEcsSystem;
     public ScriptRuntime Scripts { get; }
@@ -320,7 +322,8 @@ Services.Graphics;
                     EcsWorld,
                     Services.Graphics,
                     Services.Content,
-                    Services.Camera);
+                    Services.Camera,
+                    GetTextureResources());
         }
     }
 
@@ -380,6 +383,23 @@ Services.Graphics;
         Simulation.Initialize();
     }
 
+
+    private ITextureResourceManager GetTextureResources()
+    {
+        return _textureResources ??= new TextureResourceManager(
+            Services.Content,
+            Services.Graphics.Textures);
+    }
+
+    private void DisposeTextureResources()
+    {
+        var resources = _textureResources;
+        _textureResources = null;
+
+        resources?.Dispose();
+    }
+
+
     public void Update(SystemContext context)
     {
         EnsureNotDisposed();
@@ -396,7 +416,8 @@ Services.Graphics;
                 EcsWorld,
                 Services.Graphics,
                 Services.Content,
-                Services.Camera);
+                Services.Camera,
+                GetTextureResources());
         }
 
         _particleRuntime?.Update(
@@ -429,7 +450,8 @@ Services.Graphics;
             EcsWorld,
             Services.Graphics,
             Services.Content,
-            Services.Camera);
+            Services.Camera,
+            GetTextureResources());
 
         _tilemapRenderSystem.Render();
     }
@@ -453,7 +475,8 @@ Services.Graphics;
                 EcsWorld,
                 Services.Graphics,
                 Services.Content,
-                Services.Camera);
+                Services.Camera,
+                GetTextureResources());
 
         _spriteRenderSystem.Render();
     }
@@ -629,7 +652,7 @@ Services.Graphics;
         TryCleanup(DisposeAudioEcsSystem);
         TryCleanup(DisposeSpriteRenderSystem);
         TryCleanup(DisposeParticleRuntime);
-
+        TryCleanup(DisposeTextureResources);
         if (errors.Count == 1)
         {
             ExceptionDispatchInfo
@@ -696,6 +719,7 @@ Services.Graphics;
         TryCleanup(DisposeSpriteRenderSystem);
         TryCleanup(DisposeParticleRuntime);
         TryCleanup(DisposeTilemapRenderSystem);
+        TryCleanup(DisposeTextureResources);
         TryCleanup(() => EngineConsole?.Dispose());
         TryCleanup(() => Console?.Dispose());
         TryCleanup(() => SchedulerProfiler?.Dispose());

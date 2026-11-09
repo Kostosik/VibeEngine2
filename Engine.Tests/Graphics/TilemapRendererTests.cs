@@ -11,6 +11,61 @@ namespace Engine.Tests.Graphics;
 
 public sealed class TilemapRendererTests
 {
+
+    [Fact]
+    public void RenderChunkUsesTileSizeForWorldPositionsAndCulling()
+    {
+        var graphics = new TestGraphicsDevice();
+
+        var atlas = new TextureAtlas(
+            new TextureHandle(1),
+            new TextureDescription(
+                64,
+                32,
+                TextureFormat.Rgba8),
+            32,
+            32);
+
+        var tileSet = new TileSet();
+        tileSet.Set(1u, atlas, 0);
+        tileSet.Set(2u, atlas, 1);
+
+        var camera = new Camera2D(
+            new Engine.Core.Math.Vector2(16, 16));
+
+        camera.Position = new Engine.Core.Math.Vector2(56, 8);
+
+        var renderer = new TilemapRenderer(
+            graphics,
+            camera,
+            tileSet,
+            16.0f);
+
+        uint[] tiles =
+        {
+        1, 2
+    };
+
+        renderer.RenderChunk(
+            1,
+            0,
+            2,
+            1,
+            tiles);
+
+        var command = Assert.IsType<DrawWorldTextureCommand>(
+            Assert.Single(graphics.Commands));
+
+        Assert.Equal(
+            new Engine.Core.Math.Vector2(48, 0),
+            command.Position);
+
+        Assert.Equal(
+            new Engine.Core.Math.Vector2(16, 16),
+            command.Size);
+    }
+
+
     [Fact]
     public void RenderChunkSubmitsCommandsForNonEmptyTiles()
     {

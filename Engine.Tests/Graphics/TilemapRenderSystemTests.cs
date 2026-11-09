@@ -14,6 +14,7 @@ using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Engine.Graphics.Tilemaps;
 using Engine.Graphics2D.Commands;
+using Engine.Graphics2D.Sprites;
 using Engine.Input;
 using Engine.Runtime;
 using Engine.Runtime.Tilemaps;
@@ -66,14 +67,16 @@ public sealed class TilemapRenderSystemTests
         runtime.EcsWorld.Add(
             entity,
             new TilemapComponent(MapPath, layer: 17));
-
+        runtime.EcsWorld.Add(
+            entity,
+            new SpriteComponent(TexturePath));
         var game = new TestGame(runtime);
 
         game.Initialize();
         game.Render(0.0);
 
         Assert.Equal(
-            2,
+            3,
             graphics.Commands.OfType<DrawWorldTextureCommand>().Count());
 
         game.Shutdown();

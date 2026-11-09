@@ -53,7 +53,7 @@ internal static class UiPolygonClipper
             return new List<UiClipVertex>();
         }
 
-        var clipVertices = region.Vertices.ToArray();
+        var clipVertices = region.Vertices;
         var orientation = MathF.Sign(SignedArea(clipVertices));
 
         if (orientation == 0.0f)
@@ -164,7 +164,7 @@ internal static class UiPolygonClipper
             return false;
         }
 
-        var clipVertices = region.Vertices.ToArray();
+        var clipVertices = region.Vertices;
         var orientation = MathF.Sign(SignedArea(clipVertices));
 
         if (orientation == 0.0f)
@@ -175,9 +175,9 @@ internal static class UiPolygonClipper
         var firstT = 0.0f;
         var lastT = 1.0f;
 
-        foreach (var pointIndex in Enumerable.Range(
-                     0,
-                     clipVertices.Length))
+        for (var pointIndex = 0;
+             pointIndex < clipVertices.Length;
+             pointIndex++)
         {
             var edgeStart = clipVertices[pointIndex];
             var edgeEnd =
@@ -277,14 +277,14 @@ internal static class UiPolygonClipper
     }
 
     private static float SignedArea(
-        IReadOnlyList<Vector2> vertices)
+        ReadOnlySpan<Vector2> vertices)
     {
         double area = 0.0;
 
-        for (var i = 0; i < vertices.Count; i++)
+        for (var i = 0; i < vertices.Length; i++)
         {
             var current = vertices[i];
-            var next = vertices[(i + 1) % vertices.Count];
+            var next = vertices[(i + 1) % vertices.Length];
 
             area +=
                 (double)current.X * next.Y -

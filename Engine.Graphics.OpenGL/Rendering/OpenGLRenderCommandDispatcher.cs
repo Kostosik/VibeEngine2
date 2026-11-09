@@ -76,10 +76,9 @@ internal sealed class OpenGLRenderCommandDispatcher
 
     public void BeginFrame()
     {
-        _textureRenderer.Begin();
-
-        _activeRenderer =
-            RendererKind.Texture;
+        // Рендерер будет запущен только при первой
+        // команде соответствующего типа.
+        _activeRenderer = RendererKind.None;
     }
 
     public void Execute(

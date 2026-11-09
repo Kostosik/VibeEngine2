@@ -8,11 +8,12 @@ using Engine.ECS.Components;
 using Engine.ECS.Entities;
 using Engine.Graphics;
 using Engine.Graphics.Rendering;
+using Engine.Graphics.Resources;
 using Engine.Graphics2D.Particles;
 using Engine.Particles;
-using Engine.Particles.Particles;
 using Engine.Particles.Emission;
 using Engine.Particles.Initialization;
+using Engine.Particles.Particles;
 
 namespace Engine.Runtime.Particles;
 
@@ -21,7 +22,8 @@ public sealed class ParticleRuntime : IDisposable
     private readonly World _ecsWorld;
     private readonly ParticleRenderer _renderer;
     private readonly List<ParticleEmitterInstance> _emitters = [];
-
+    private readonly ITextureResourceManager _textureResources;
+    private readonly bool _ownsTextureResources;
     private readonly IContentManager _content;
 
     private readonly Dictionary<EntityId, ComponentEmitterBinding>
@@ -29,25 +31,62 @@ public sealed class ParticleRuntime : IDisposable
 
     private bool _disposed;
 
+
     public ParticleRuntime(
         World ecsWorld,
         IGraphicsDevice graphics,
         IContentManager content,
         Camera2D camera)
     {
-        ArgumentNullException.ThrowIfNull(content);
-        
         ArgumentNullException.ThrowIfNull(ecsWorld);
+        ArgumentNullException.ThrowIfNull(graphics);
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(camera);
+
         _content = content;
         _ecsWorld = ecsWorld;
 
+        _textureResources = new TextureResourceManager(
+            content,
+            graphics.Textures);
+
+        _ownsTextureResources = true;
+
         _renderer = new ParticleRenderer(
             graphics,
-            content,
+            _textureResources,
             camera);
 
         _ecsWorld.EntityDestroyed += OnEntityDestroyed;
     }
+
+    public ParticleRuntime(
+        World ecsWorld,
+        IGraphicsDevice graphics,
+        IContentManager content,
+        Camera2D camera,
+        ITextureResourceManager textureResources)
+    {
+        ArgumentNullException.ThrowIfNull(ecsWorld);
+        ArgumentNullException.ThrowIfNull(graphics);
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(camera);
+        ArgumentNullException.ThrowIfNull(textureResources);
+
+        _content = content;
+        _ecsWorld = ecsWorld;
+
+        _textureResources = textureResources;
+        _ownsTextureResources = false;
+
+        _renderer = new ParticleRenderer(
+            graphics,
+            textureResources,
+            camera);
+
+        _ecsWorld.EntityDestroyed += OnEntityDestroyed;
+    }
+
 
     public int EmitterCount => _emitters.Count;
 
@@ -188,7 +227,10 @@ public sealed class ParticleRuntime : IDisposable
 
         _emitters.Clear();
 
-        _renderer.Dispose();
+        if (_ownsTextureResources)
+        {
+            _textureResources.Dispose();
+        }
 
         _disposed = true;
     }

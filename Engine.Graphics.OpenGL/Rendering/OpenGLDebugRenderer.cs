@@ -4,6 +4,7 @@ using Engine.Graphics.Commands;
 using Engine.Graphics.DebugGraphics;
 using Engine.Graphics.Rendering;
 using Silk.NET.OpenGL;
+using System.Runtime.InteropServices;
 
 namespace Engine.Graphics.OpenGL.Rendering;
 
@@ -13,10 +14,12 @@ internal sealed class OpenGLDebugRenderer :
     private readonly GL _gl;
     private readonly Camera2D _camera;
     private readonly OpenGLShaderProgram _shader;
-
+    private readonly List<float> _textVertices = new(4096);
     private readonly uint _vao;
     private readonly uint _vbo;
+    private readonly UiPolygonClipWorkspace _clipWorkspace = new();
 
+    private readonly List<UiClipVertex> _unclippedUiPolygon = new(4);
     private readonly int _resolutionLocation;
 
     private bool _frameActive;
@@ -253,6 +256,9 @@ internal sealed class OpenGLDebugRenderer :
             return;
         }
 
+        // Сначала строим исходный прямоугольник
+        // и поворачиваем его вершины.
+
         var position = command.Position;
         var size = command.Size;
 
@@ -260,45 +266,41 @@ internal sealed class OpenGLDebugRenderer :
             position.X + size.X * 0.5f,
             position.Y + size.Y * 0.5f);
 
-        // Сначала строим исходный прямоугольник
-        // и поворачиваем его вершины.
-        var quad = new[]
+        Span<UiClipVertex> quad = stackalloc UiClipVertex[4]
         {
-        new UiClipVertex(
-            RotatePoint(
-                position,
-                rotationOrigin,
-                command.RotationDegrees),
-            Vector2.Zero),
+    new UiClipVertex(
+        RotatePoint(
+            position,
+            rotationOrigin,
+            command.RotationDegrees),
+        Vector2.Zero),
 
-        new UiClipVertex(
-            RotatePoint(
-                new Vector2(
-                    position.X + size.X,
-                    position.Y),
-                rotationOrigin,
-                command.RotationDegrees),
-            Vector2.Zero),
+    new UiClipVertex(
+        RotatePoint(
+            new Vector2(
+                position.X + size.X,
+                position.Y),
+            rotationOrigin,
+            command.RotationDegrees),
+        Vector2.Zero),
 
-        new UiClipVertex(
-            RotatePoint(
-                position + size,
-                rotationOrigin,
-                command.RotationDegrees),
-            Vector2.Zero),
+    new UiClipVertex(
+        RotatePoint(
+            position + size,
+            rotationOrigin,
+            command.RotationDegrees),
+        Vector2.Zero),
 
-        new UiClipVertex(
-            RotatePoint(
-                new Vector2(
-                    position.X,
-                    position.Y + size.Y),
-                rotationOrigin,
-                command.RotationDegrees),
-            Vector2.Zero)
-    };
+    new UiClipVertex(
+        RotatePoint(
+            new Vector2(
+                position.X,
+                position.Y + size.Y),
+            rotationOrigin,
+            command.RotationDegrees),
+        Vector2.Zero)
+};
 
-        // Учитываем как полигональную область clipping,
-        // так и дополнительный прямоугольный clip.
         ClipRegion? clipRegion = command.ClipRegion;
 
         if (clipRegion is not null)
@@ -313,40 +315,34 @@ internal sealed class OpenGLDebugRenderer :
                 command.ClipRect.Value);
         }
 
-        IReadOnlyList<Vector2> points;
+        List<UiClipVertex> points;
 
         if (clipRegion is not null)
         {
-            var clipped = UiPolygonClipper.ClipPolygon(
+            points = _clipWorkspace.ClipPolygon(
                 quad,
                 clipRegion);
 
-            if (clipped.Count < 3)
-            {
+            if (points.Count < 3)
                 return;
-            }
-
-            points = clipped
-                .Select(static vertex => vertex.Position)
-                .ToArray();
         }
         else
         {
-            points = quad
-                .Select(static vertex => vertex.Position)
-                .ToArray();
+            points = _unclippedUiPolygon;
+            points.Clear();
+
+            for (var i = 0; i < quad.Length; i++)
+                points.Add(quad[i]);
         }
 
         if (command.Filled)
         {
-            // После clipping может получиться многоугольник
-            // более чем с четырьмя вершинами.
             for (var i = 1; i < points.Count - 1; i++)
             {
                 DrawTriangle(
-                    points[0],
-                    points[i],
-                    points[i + 1],
+                    points[0].Position,
+                    points[i].Position,
+                    points[i + 1].Position,
                     command.Color);
             }
 
@@ -358,10 +354,11 @@ internal sealed class OpenGLDebugRenderer :
             var next = (i + 1) % points.Count;
 
             DrawLine(
-                points[i],
-                points[next],
+                points[i].Position,
+                points[next].Position,
                 command.Color);
         }
+
     }
 
     private static Vector2 RotatePoint(
@@ -469,13 +466,8 @@ internal sealed class OpenGLDebugRenderer :
         const float GlyphHeight = 7.0f;
         const float GlyphSpacing = 1.0f;
 
-        var vertices =
-            new List<float>(
-                text.Length *
-                5 *
-                7 *
-                6 *
-                6);
+        var vertices = _textVertices;
+        vertices.Clear();
 
         foreach (var character in text)
         {
@@ -526,31 +518,7 @@ internal sealed class OpenGLDebugRenderer :
                 scale;
         }
 
-        if (vertices.Count == 0)
-        {
-            return;
-        }
-
-        _gl.BindBuffer(
-            BufferTargetARB.ArrayBuffer,
-            _vbo);
-
-        var vertexData =
-            vertices.ToArray();
-
-        _gl.BufferData<float>(
-            BufferTargetARB.ArrayBuffer,
-            vertexData,
-            BufferUsageARB.DynamicDraw);
-
-        _gl.DrawArrays(
-            PrimitiveType.Triangles,
-            0,
-            (uint)(vertexData.Length / 6));
-
-        _gl.BindBuffer(
-            BufferTargetARB.ArrayBuffer,
-            0);
+        FlushTextVertices();
     }
 
     private void DrawText(
@@ -574,13 +542,8 @@ internal sealed class OpenGLDebugRenderer :
         const float GlyphHeight = 7.0f;
         const float GlyphSpacing = 1.0f;
 
-        var vertices =
-            new List<float>(
-                command.Text.Length *
-                5 *
-                7 *
-                6 *
-                6);
+        var vertices = _textVertices;
+        vertices.Clear();
 
         foreach (var character in command.Text)
         {
@@ -637,7 +600,13 @@ internal sealed class OpenGLDebugRenderer :
                 scale;
         }
 
-        if (vertices.Count == 0)
+        FlushTextVertices();
+    }
+
+
+    private void FlushTextVertices()
+    {
+        if (_textVertices.Count == 0)
         {
             return;
         }
@@ -646,23 +615,31 @@ internal sealed class OpenGLDebugRenderer :
             BufferTargetARB.ArrayBuffer,
             _vbo);
 
-        var vertexData =
-            vertices.ToArray();
+        try
+        {
+            var vertexData =
+                CollectionsMarshal.AsSpan(_textVertices);
 
-        _gl.BufferData<float>(
-            BufferTargetARB.ArrayBuffer,
-            vertexData,
-            BufferUsageARB.DynamicDraw);
+            _gl.BufferData<float>(
+                BufferTargetARB.ArrayBuffer,
+                vertexData,
+                BufferUsageARB.DynamicDraw);
 
-        _gl.DrawArrays(
-            PrimitiveType.Triangles,
-            0,
-            (uint)(vertexData.Length / 6));
+            _gl.DrawArrays(
+                PrimitiveType.Triangles,
+                0,
+                (uint)(_textVertices.Count / 6));
+        }
+        finally
+        {
+            _gl.BindBuffer(
+                BufferTargetARB.ArrayBuffer,
+                0);
 
-        _gl.BindBuffer(
-            BufferTargetARB.ArrayBuffer,
-            0);
+            _textVertices.Clear();
+        }
     }
+
 
     private void AddTextQuad(
     List<float> vertices,
@@ -846,8 +823,8 @@ internal sealed class OpenGLDebugRenderer :
             color);
     }
 
-    private static byte[] GetGlyph(
-    char character)
+    private static ReadOnlySpan<byte> GetGlyph(
+        char character)
     {
         character =
             char.ToUpperInvariant(
@@ -1003,30 +980,29 @@ internal sealed class OpenGLDebugRenderer :
             : position;
     }
 
+
     private void DrawLine(
         Vector2 start,
         Vector2 end,
         DebugColor color)
     {
+        var r = ToFloat(color.R);
+        var g = ToFloat(color.G);
+        var b = ToFloat(color.B);
+        var a = ToFloat(color.A);
+
+        Span<float> vertices = stackalloc float[12]
+        {
+        start.X, start.Y, r, g, b, a,
+        end.X, end.Y, r, g, b, a
+    };
+
         DrawVertices(
             PrimitiveType.Lines,
-            new[]
-            {
-                start.X,
-                start.Y,
-                ToFloat(color.R),
-                ToFloat(color.G),
-                ToFloat(color.B),
-                ToFloat(color.A),
-
-                end.X,
-                end.Y,
-                ToFloat(color.R),
-                ToFloat(color.G),
-                ToFloat(color.B),
-                ToFloat(color.A)
-            });
+            vertices);
     }
+
+
 
     private void DrawTriangle(
         Vector2 first,
@@ -1034,36 +1010,27 @@ internal sealed class OpenGLDebugRenderer :
         Vector2 third,
         DebugColor color)
     {
+        var r = ToFloat(color.R);
+        var g = ToFloat(color.G);
+        var b = ToFloat(color.B);
+        var a = ToFloat(color.A);
+
+        Span<float> vertices = stackalloc float[18]
+        {
+        first.X, first.Y, r, g, b, a,
+        second.X, second.Y, r, g, b, a,
+        third.X, third.Y, r, g, b, a
+    };
+
         DrawVertices(
             PrimitiveType.Triangles,
-            new[]
-            {
-                first.X,
-                first.Y,
-                ToFloat(color.R),
-                ToFloat(color.G),
-                ToFloat(color.B),
-                ToFloat(color.A),
-
-                second.X,
-                second.Y,
-                ToFloat(color.R),
-                ToFloat(color.G),
-                ToFloat(color.B),
-                ToFloat(color.A),
-
-                third.X,
-                third.Y,
-                ToFloat(color.R),
-                ToFloat(color.G),
-                ToFloat(color.B),
-                ToFloat(color.A)
-            });
+            vertices);
     }
+
 
     private void DrawVertices(
         PrimitiveType primitiveType,
-        float[] vertices)
+        ReadOnlySpan<float> vertices)
     {
         _gl.BindBuffer(
             BufferTargetARB.ArrayBuffer,

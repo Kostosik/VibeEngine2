@@ -14,9 +14,11 @@ public sealed class SpriteRenderSystem : IDisposable
     private readonly World _world;
     private readonly Camera2D _camera;
     private readonly SpriteRenderer _renderer;
-    private readonly TextureResourceManager _resources;
+    private readonly ITextureResourceManager _resources;
+    private readonly bool _ownsResources;
 
     private bool _disposed;
+
 
     public SpriteRenderSystem(
         World world,
@@ -31,13 +33,36 @@ public sealed class SpriteRenderSystem : IDisposable
 
         _world = world;
         _camera = camera;
-
         _renderer = new SpriteRenderer(graphics);
 
         _resources = new TextureResourceManager(
             content,
             graphics.Textures);
+
+        _ownsResources = true;
     }
+
+    public SpriteRenderSystem(
+        World world,
+        IGraphicsDevice graphics,
+        IContentManager content,
+        Camera2D camera,
+        ITextureResourceManager resources)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        ArgumentNullException.ThrowIfNull(graphics);
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(camera);
+        ArgumentNullException.ThrowIfNull(resources);
+
+        _world = world;
+        _camera = camera;
+        _renderer = new SpriteRenderer(graphics);
+
+        _resources = resources;
+        _ownsResources = false;
+    }
+
 
     public void Render()
     {
@@ -137,7 +162,11 @@ public sealed class SpriteRenderSystem : IDisposable
             return;
         }
 
-        _resources.Dispose();
+        if (_ownsResources)
+        {
+            _resources.Dispose();
+        }
+
         _disposed = true;
     }
 }

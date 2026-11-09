@@ -38,12 +38,25 @@ public sealed class OpenGLWindow : IDisposable
 
     public int Height => _window.Size.Y;
 
+    public int FramebufferWidth =>
+    _window.FramebufferSize.X;
+
+    public int FramebufferHeight =>
+        _window.FramebufferSize.Y;
+
     public bool IsFullscreen
     {
         get => _isBorderlessFullscreen;
 
         set
         {
+            // Не выполняем повторное переключение,
+            // если состояние уже соответствует запросу.
+            if (value == _isBorderlessFullscreen)
+            {
+                return;
+            }
+
             if (value)
             {
                 EnterBorderlessFullscreen();
@@ -108,7 +121,7 @@ public sealed class OpenGLWindow : IDisposable
 
         _window.Resize +=
             OnResize;
-
+        _window.FramebufferResize += OnFramebufferResize;
         _window.Closing +=
             OnClosing;
     }
@@ -201,9 +214,37 @@ public sealed class OpenGLWindow : IDisposable
         int width,
         int height)
     {
+        // Повторный выход из обычного окна не нужен.
+        if (!_isBorderlessFullscreen)
+        {
+            return;
+        }
+
+        // Если размеры не переданы, восстанавливаем
+        // последние сохранённые размеры окна.
+        if (width <= 0)
+        {
+            width = _windowedSize.X;
+        }
+
+        if (height <= 0)
+        {
+            height = _windowedSize.Y;
+        }
+
+        if (width <= 0 || height <= 0)
+        {
+            throw new InvalidOperationException(
+                "Cannot restore window: saved window size is invalid.");
+        }
+
+        // Восстанавливаем оформление окна.
         _window.WindowBorder = _windowedBorder;
+
+        // Восстанавливаем положение.
         _window.Position = _windowedPosition;
 
+        // Восстанавливаем размеры.
         _window.Size = new Vector2D<int>(
             width,
             height);
@@ -267,19 +308,41 @@ public sealed class OpenGLWindow : IDisposable
 
     private void OnLoad()
     {
-        _gl =
-            GL.GetApi(_window);
+        _gl = GL.GetApi(_window);
 
-        _graphicsDevice =
-            new OpenGLGraphicsDevice(
-                _gl,
-                _window.Size.X,
-                _window.Size.Y,
-                Camera);
+        var windowSize = _window.Size;
+        var framebufferSize = _window.FramebufferSize;
 
-        _inputBackend =
-            new SilkNetInputBackend(
-                _window.CreateInput());
+        if (windowSize.X <= 0 || windowSize.Y <= 0)
+        {
+            throw new InvalidOperationException(
+                "Window has an invalid initial size.");
+        }
+
+        // Некоторые платформы могут ещё не сообщить
+        // размер framebuffer на момент загрузки.
+        if (framebufferSize.X <= 0 ||
+            framebufferSize.Y <= 0)
+        {
+            framebufferSize = windowSize;
+        }
+
+        Camera.SetViewportSize(
+            new Engine.Core.Math.Vector2(
+                windowSize.X,
+                windowSize.Y));
+
+        _graphicsDevice = new OpenGLGraphicsDevice(
+            _gl,
+            windowSize.X,
+            windowSize.Y,
+            framebufferSize.X,
+            framebufferSize.Y,
+            Camera);
+
+        _inputBackend = new SilkNetInputBackend(
+            _window.CreateInput());
+
         _inputBackend.SetFocused(_hasFocus);
     }
 
@@ -288,28 +351,56 @@ public sealed class OpenGLWindow : IDisposable
         _hasFocus = focused;
         _inputBackend?.SetFocused(focused);
     }
-    private void OnResize(
-        Vector2D<int> size)
+    private void OnResize(Vector2D<int> size)
     {
-        // При сворачивании окна платформа может
-        // сообщить нулевой размер клиентской области.
-        // Сохраняем последний допустимый размер.
-        if (size.X <= 0 ||
-            size.Y <= 0)
+        // Логические размеры окна.
+        if (size.X <= 0 || size.Y <= 0)
         {
             return;
         }
-
-        _graphicsDevice?.Resize(
-            size.X,
-            size.Y);
 
         Camera.SetViewportSize(
             new Engine.Core.Math.Vector2(
                 size.X,
                 size.Y));
 
-        Resized?.Invoke(
+        var framebufferSize = _window.FramebufferSize;
+
+        if (framebufferSize.X > 0 &&
+            framebufferSize.Y > 0)
+        {
+            _graphicsDevice?.Resize(
+                size.X,
+                size.Y,
+                framebufferSize.X,
+                framebufferSize.Y);
+        }
+
+        // Это событие продолжает передавать
+        // именно логические размеры окна.
+        Resized?.Invoke(size.X, size.Y);
+    }
+
+    private void OnFramebufferResize(Vector2D<int> size)
+    {
+        // Событие может прийти с нулевыми размерами,
+        // например, во время сворачивания окна.
+        if (size.X <= 0 || size.Y <= 0)
+        {
+            return;
+        }
+
+        var windowSize = _window.Size;
+
+        if (windowSize.X <= 0 ||
+            windowSize.Y <= 0)
+        {
+            return;
+        }
+
+        _graphicsDevice?.Resize(
+            windowSize.X,
+            windowSize.Y,
             size.X,
             size.Y);
     }
@@ -428,6 +519,10 @@ public sealed class OpenGLWindow : IDisposable
         finally
         {
             _window.FocusChanged -= OnFocusChanged;
+            _window.Resize -= OnResize;
+            _window.FramebufferResize -= OnFramebufferResize;
+            _window.Load -= OnLoad;
+            _window.Closing -= OnClosing;
             _window.Dispose();
         }
     }

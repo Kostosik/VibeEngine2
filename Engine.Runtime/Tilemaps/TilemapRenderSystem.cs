@@ -16,7 +16,8 @@ public sealed class TilemapRenderSystem : IDisposable
     private readonly IGraphicsDevice _graphics;
     private readonly IContentManager _content;
     private readonly Camera2D _camera;
-    private readonly TextureResourceManager _textureResources;
+    private readonly ITextureResourceManager _textureResources;
+    private readonly bool _ownsTextureResources;
 
     private readonly Dictionary<AssetPath, TilemapDefinition> _tilemaps =
         new();
@@ -31,6 +32,7 @@ public sealed class TilemapRenderSystem : IDisposable
         new();
 
     private bool _disposed;
+
 
     public TilemapRenderSystem(
         World world,
@@ -51,7 +53,32 @@ public sealed class TilemapRenderSystem : IDisposable
         _textureResources = new TextureResourceManager(
             content,
             graphics.Textures);
+
+        _ownsTextureResources = true;
     }
+
+    public TilemapRenderSystem(
+        World world,
+        IGraphicsDevice graphics,
+        IContentManager content,
+        Camera2D camera,
+        ITextureResourceManager textureResources)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        ArgumentNullException.ThrowIfNull(graphics);
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(camera);
+        ArgumentNullException.ThrowIfNull(textureResources);
+
+        _world = world;
+        _graphics = graphics;
+        _content = content;
+        _camera = camera;
+
+        _textureResources = textureResources;
+        _ownsTextureResources = false;
+    }
+
 
     public void Render()
     {
@@ -207,7 +234,10 @@ public sealed class TilemapRenderSystem : IDisposable
             }
         }
 
-        TryCleanup(_textureResources.Dispose);
+        if (_ownsTextureResources)
+        {
+            TryCleanup(_textureResources.Dispose);
+        }
 
         foreach (var path in _loadedTilemapPaths)
         {

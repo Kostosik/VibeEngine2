@@ -174,11 +174,11 @@ public sealed class FieldOfViewSensor<TComponent> : IPerceptionSensor
             {
                 continue;
             }
-
             results.Add(
                 item.Entity,
                 confidence,
-                distanceSquared);
+                distanceSquared,
+                targetPosition: target);
         }
     }
 

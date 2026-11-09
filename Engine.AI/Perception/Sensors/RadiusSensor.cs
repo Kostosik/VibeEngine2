@@ -145,7 +145,8 @@ public sealed class RadiusSensor<TComponent> : IPerceptionSensor
             results.Add(
                 item.Entity,
                 confidence,
-                distanceSquared);
+                distanceSquared,
+                targetPosition: target);
         }
     }
 

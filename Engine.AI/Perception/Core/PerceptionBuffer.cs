@@ -1,5 +1,5 @@
 ﻿using Engine.ECS.Entities;
-
+using Engine.Core.Math;
 namespace Engine.AI.Perception.Core;
 
 public sealed class PerceptionBuffer
@@ -27,10 +27,12 @@ public sealed class PerceptionBuffer
         _observedAt = observedAt;
     }
 
+
     public void Add(
         EntityId target,
         float confidence = 1f,
-        float distanceSquared = 0f)
+        float distanceSquared = 0f,
+        Vector2? targetPosition = null)
     {
         if (!target.IsValid)
         {
@@ -54,12 +56,24 @@ public sealed class PerceptionBuffer
                 nameof(distanceSquared));
         }
 
+        if (targetPosition is Vector2 position &&
+            (!float.IsFinite(position.X) ||
+             !float.IsFinite(position.Y)))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(targetPosition));
+        }
+
         _state.AddPending(
             new PerceptionObservation(
                 target,
                 _sensorName,
                 confidence,
                 distanceSquared,
-                _observedAt));
+                _observedAt)
+            {
+                TargetPosition = targetPosition
+            });
     }
+
 }

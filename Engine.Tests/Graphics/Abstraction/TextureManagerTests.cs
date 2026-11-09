@@ -18,6 +18,84 @@ public sealed class TextureManagerTests
     }
 
     [Fact]
+    public void TextureDescription_DisablesMipmapsByDefault()
+    {
+        var description = new TextureDescription(
+            128,
+            64,
+            TextureFormat.Rgba8);
+
+        Assert.False(description.GenerateMipmaps);
+    }
+
+    [Fact]
+    public void TextureDescription_CanEnableMipmaps()
+    {
+        var description = new TextureDescription(
+            128,
+            64,
+            TextureFormat.Rgba8)
+        {
+            GenerateMipmaps = true
+        };
+
+        Assert.True(description.GenerateMipmaps);
+    }
+
+    [Fact]
+    public void TextureSampler_DefaultAnisotropyIsOne()
+    {
+        var sampler = TextureSamplerDescription.Default;
+
+        Assert.Equal(1.0f, sampler.Anisotropy);
+    }
+
+    [Theory]
+    [InlineData(1.0f)]
+    [InlineData(2.0f)]
+    [InlineData(4.0f)]
+    [InlineData(8.0f)]
+    [InlineData(16.0f)]
+    public void TextureSampler_CanConfigureAnisotropy(float anisotropy)
+    {
+        var sampler = new TextureSamplerDescription(
+            TextureFilter.Linear,
+            TextureFilter.Linear,
+            TextureWrapMode.ClampToEdge,
+            TextureWrapMode.ClampToEdge,
+            anisotropy);
+
+        Assert.Equal(anisotropy, sampler.Anisotropy);
+    }
+
+    [Theory]
+    [InlineData(0.0f)]
+    [InlineData(-1.0f)]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    public void TextureSampler_RejectsInvalidAnisotropy(float anisotropy)
+    {
+        var sampler = new TextureSamplerDescription(
+            TextureFilter.Linear,
+            TextureFilter.Linear,
+            TextureWrapMode.ClampToEdge,
+            TextureWrapMode.ClampToEdge,
+            anisotropy);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => ValidateSamplerForTest(sampler));
+    }
+
+    [Fact]
+    public void TextureFilter_ContainsMipmapFilteringModes()
+    {
+        Assert.True(Enum.IsDefined(TextureFilter.NearestMipmapNearest));
+        Assert.True(Enum.IsDefined(TextureFilter.LinearMipmapNearest));
+        Assert.True(Enum.IsDefined(TextureFilter.NearestMipmapLinear));
+        Assert.True(Enum.IsDefined(TextureFilter.LinearMipmapLinear));
+    }
+
+    [Fact]
     public void TextureManager_PreservesCustomSamplerDescription()
     {
         ITextureManager manager = new TestTextureManager();
@@ -87,7 +165,15 @@ public sealed class TextureManagerTests
         Assert.Throws<KeyNotFoundException>(
             () => manager.GetDescription(texture));
     }
-
+    private static void ValidateSamplerForTest(
+TextureSamplerDescription sampler)
+    {
+        if (!float.IsFinite(sampler.Anisotropy) ||
+            sampler.Anisotropy < 1.0f)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sampler));
+        }
+    }
     private sealed class TestTextureManager
         : ITextureManager
     {
@@ -110,6 +196,8 @@ public sealed class TextureManagerTests
 
             return handle;
         }
+
+
 
         public TextureHandle Create(
             TextureData data)

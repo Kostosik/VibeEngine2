@@ -118,6 +118,21 @@ public ref struct DeterministicStateHasher
         AddFixed32(value.Y);
     }
 
+    public void AddFixedVector3(FixedVector3 value)
+    {
+        AddFixed32(value.X);
+        AddFixed32(value.Y);
+        AddFixed32(value.Z);
+    }
+
+    public void AddFixedQuaternion(FixedQuaternion value)
+    {
+        AddFixed32(value.X);
+        AddFixed32(value.Y);
+        AddFixed32(value.Z);
+        AddFixed32(value.W);
+    }
+
     public void AddString(
     string value)
     {

@@ -2,11 +2,13 @@
 
 public sealed class TextureData
 {
-    public int Width { get; }
+    public TextureDescription Description { get; }
 
-    public int Height { get; }
+    public int Width => Description.Width;
 
-    public TextureFormat Format { get; }
+    public int Height => Description.Height;
+
+    public TextureFormat Format => Description.Format;
 
     public ReadOnlyMemory<byte> Pixels { get; }
 
@@ -15,24 +17,34 @@ public sealed class TextureData
         int height,
         TextureFormat format,
         ReadOnlyMemory<byte> pixels)
+        : this(
+            new TextureDescription(width, height, format),
+            pixels)
     {
-        if (width <= 0)
-            throw new ArgumentOutOfRangeException(nameof(width));
+    }
 
-        if (height <= 0)
-            throw new ArgumentOutOfRangeException(nameof(height));
+    public TextureData(
+        TextureDescription description,
+        ReadOnlyMemory<byte> pixels)
+    {
+        if (description.Width <= 0)
+            throw new ArgumentOutOfRangeException(nameof(description));
 
-        var bytesPerPixel = format switch
+        if (description.Height <= 0)
+            throw new ArgumentOutOfRangeException(nameof(description));
+
+        var bytesPerPixel = description.Format switch
         {
             TextureFormat.Rgba8 => 4,
             _ => throw new ArgumentOutOfRangeException(
-                nameof(format),
-                format,
+                nameof(description),
                 "Unsupported texture format.")
         };
 
         var expectedSize =
-            (long)width * height * bytesPerPixel;
+            (long)description.Width *
+            description.Height *
+            bytesPerPixel;
 
         if (pixels.Length != expectedSize)
         {
@@ -42,15 +54,7 @@ public sealed class TextureData
                 nameof(pixels));
         }
 
-        Width = width;
-        Height = height;
-        Format = format;
+        Description = description;
         Pixels = pixels;
     }
-
-    public TextureDescription Description =>
-        new(
-            Width,
-            Height,
-            Format);
 }

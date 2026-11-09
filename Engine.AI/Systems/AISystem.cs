@@ -35,6 +35,7 @@ public sealed class AISystem :
         ArgumentNullException.ThrowIfNull(world);
 
         _world = world;
+
         _world.EntityDestroyed += OnEntityDestroyed;
     }
 
@@ -59,12 +60,19 @@ public sealed class AISystem :
                 "Entity does not have an AIComponent.");
         }
 
-        if (_behaviors.TryGetValue(entity, out var previous))
+        if (_behaviors.Remove(entity, out var previous))
         {
-            _agentStates[entity].Remove(previous);
+            if (_agentStates.TryGetValue(
+                    entity,
+                    out var previousState))
+            {
+                DetachBehavior(
+                    previous,
+                    previousState);
+            }
         }
 
-        _behaviors[entity] = behavior;
+        _behaviors.Add(entity, behavior);
 
         if (!_agentStates.ContainsKey(entity))
         {
@@ -78,12 +86,27 @@ public sealed class AISystem :
     {
         EnsureNotDisposed();
 
-        if (!_behaviors.Remove(entity, out var behavior))
-            return false;
-
-        if (_agentStates.TryGetValue(entity, out var state))
+        if (!_behaviors.Remove(
+                entity,
+                out var behavior))
         {
-            state.Remove(behavior);
+            return false;
+        }
+
+        if (_agentStates.Remove(
+                entity,
+                out var state))
+        {
+            try
+            {
+                DetachBehavior(
+                    behavior,
+                    state);
+            }
+            finally
+            {
+                state.Clear();
+            }
         }
 
         return true;
@@ -98,6 +121,17 @@ public sealed class AISystem :
         return _behaviors.TryGetValue(
             entity,
             out behavior);
+    }
+
+    public bool TryGetAgentState(
+        EntityId entity,
+        out AIAgentState? state)
+    {
+        EnsureNotDisposed();
+
+        return _agentStates.TryGetValue(
+            entity,
+            out state);
     }
 
     public void Update(SystemContext context)
@@ -139,13 +173,30 @@ public sealed class AISystem :
 
         foreach (var entity in _staleAgents)
         {
-            if (_behaviors.Remove(entity, out var behavior) &&
-                _agentStates.TryGetValue(entity, out var state))
+            bool hasBehavior = _behaviors.Remove(
+                entity,
+                out var behavior);
+
+            if (!_agentStates.Remove(
+                    entity,
+                    out var state))
             {
-                state.Remove(behavior);
+                continue;
             }
 
-            _agentStates.Remove(entity);
+            try
+            {
+                if (hasBehavior)
+                {
+                    DetachBehavior(
+                        behavior!,
+                        state);
+                }
+            }
+            finally
+            {
+                state.Clear();
+            }
         }
     }
 
@@ -174,8 +225,12 @@ public sealed class AISystem :
             if (!_world.Exists(entity))
                 continue;
 
-            if (!_behaviors.TryGetValue(entity, out var behavior))
+            if (!_behaviors.TryGetValue(
+                    entity,
+                    out var behavior))
+            {
                 continue;
+            }
 
             if (!_world.Has<AIComponent>(entity))
                 continue;
@@ -186,9 +241,12 @@ public sealed class AISystem :
             if (!ai.Enabled)
                 continue;
 
-            if (!_agentStates.TryGetValue(entity, out var state))
+            if (!_agentStates.TryGetValue(
+                    entity,
+                    out var state))
             {
                 state = new AIAgentState();
+
                 _agentStates.Add(entity, state);
             }
 
@@ -204,28 +262,54 @@ public sealed class AISystem :
 
     private void OnEntityDestroyed(EntityId entity)
     {
-        _behaviors.Remove(entity);
+        bool hasBehavior = _behaviors.Remove(
+            entity,
+            out var behavior);
 
-        if (_agentStates.Remove(entity, out var state))
+        if (!_agentStates.Remove(
+                entity,
+                out var state))
+        {
+            return;
+        }
+
+        try
+        {
+            if (hasBehavior)
+            {
+                DetachBehavior(
+                    behavior!,
+                    state);
+            }
+        }
+        finally
         {
             state.Clear();
         }
     }
 
-    private void EnsureNotDisposed()
+    private static void DetachBehavior(
+        IAIBehavior behavior,
+        AIAgentState state)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        try
+        {
+            if (behavior is IAIBehaviorLifecycle lifecycle)
+            {
+                lifecycle.OnDetached(state);
+            }
+        }
+        finally
+        {
+            state.Remove(behavior);
+        }
     }
 
-    public bool TryGetAgentState(
-    EntityId entity,
-    out AIAgentState? state)
+    private void EnsureNotDisposed()
     {
-        EnsureNotDisposed();
-
-        return _agentStates.TryGetValue(
-            entity,
-            out state);
+        ObjectDisposedException.ThrowIf(
+            _disposed,
+            this);
     }
 
     public void Dispose()
@@ -240,6 +324,18 @@ public sealed class AISystem :
         }
 
         _world.EntityDestroyed -= OnEntityDestroyed;
+
+        foreach (var pair in _behaviors)
+        {
+            if (_agentStates.TryGetValue(
+                    pair.Key,
+                    out var state))
+            {
+                DetachBehavior(
+                    pair.Value,
+                    state);
+            }
+        }
 
         foreach (var state in _agentStates.Values)
         {

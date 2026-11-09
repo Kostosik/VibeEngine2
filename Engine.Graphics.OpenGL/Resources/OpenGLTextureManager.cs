@@ -10,15 +10,46 @@ public sealed class OpenGLTextureManager
     private bool _disposed;
     private readonly HashSet<uint> _textures = new();
     private readonly Dictionary<uint, TextureDescription> _descriptions = new();
+    private const uint TextureMaxAnisotropyExt = 0x84FE;
+    private const uint MaxTextureMaxAnisotropyExt = 0x84FF;
 
+    public bool SupportsAnisotropicFiltering { get; }
+
+    public float MaxAnisotropy { get; }
     public OpenGLTextureManager(GL gl)
     {
         _gl = gl;
+
+        bool supportsExt =
+    _gl.IsExtensionPresent("GL_EXT_texture_filter_anisotropic");
+
+        bool supportsArb =
+            _gl.IsExtensionPresent("GL_ARB_texture_filter_anisotropic");
+
+        SupportsAnisotropicFiltering = supportsExt || supportsArb;
+
+        if (SupportsAnisotropicFiltering)
+        {
+            _gl.GetFloat(
+                (GLEnum)MaxTextureMaxAnisotropyExt,
+                out float maxAnisotropy);
+
+            MaxAnisotropy = MathF.Max(1.0f, maxAnisotropy);
+        }
+        else
+        {
+            MaxAnisotropy = 1.0f;
+        }
     }
 
     public TextureHandle Create(TextureDescription description)
     {
         ThrowIfDisposed();
+        if (description.GenerateMipmaps)
+        {
+            throw new InvalidOperationException(
+                "Mipmaps require pixel data. Use Create(TextureData) instead.");
+        }
         Validate(description);
 
         var handle = _gl.GenTexture();
@@ -132,7 +163,10 @@ public sealed class OpenGLTextureManager
                         ptr);
                 }
             }
-
+            if (data.Description.GenerateMipmaps)
+            {
+                _gl.GenerateMipmap(TextureTarget.Texture2D);
+            }
             _textures.Add(handle);
             _descriptions.Add(handle, data.Description);
 
@@ -251,14 +285,48 @@ public sealed class OpenGLTextureManager
             TextureTarget.Texture2D,
             TextureParameterName.TextureWrapT,
             ToOpenGlWrapMode(sampler.WrapT));
+
+        if (sampler.Anisotropy > 1.0f)
+        {
+            if (!SupportsAnisotropicFiltering)
+            {
+                throw new NotSupportedException(
+                    "Anisotropic filtering is not supported by this OpenGL device.");
+            }
+
+            float anisotropy = MathF.Min(
+                sampler.Anisotropy,
+                MaxAnisotropy);
+
+            _gl.TexParameter(
+                TextureTarget.Texture2D,
+                (TextureParameterName)TextureMaxAnisotropyExt,
+                anisotropy);
+        }
     }
 
     private static int ToOpenGlFilter(TextureFilter filter)
     {
         return filter switch
         {
-            TextureFilter.Nearest => (int)GLEnum.Nearest,
-            TextureFilter.Linear => (int)GLEnum.Linear,
+            TextureFilter.Nearest =>
+                (int)GLEnum.Nearest,
+
+            TextureFilter.Linear =>
+                (int)GLEnum.Linear,
+
+            TextureFilter.NearestMipmapNearest =>
+                (int)GLEnum.NearestMipmapNearest,
+
+            TextureFilter.LinearMipmapNearest =>
+                (int)GLEnum.LinearMipmapNearest,
+
+            TextureFilter.NearestMipmapLinear =>
+                (int)GLEnum.NearestMipmapLinear,
+
+            TextureFilter.LinearMipmapLinear =>
+                (int)GLEnum.LinearMipmapLinear,
+
             _ => throw new ArgumentOutOfRangeException(nameof(filter))
         };
     }
@@ -281,19 +349,47 @@ public sealed class OpenGLTextureManager
         };
     }
 
-    private static void ValidateSampler(TextureSamplerDescription sampler)
+    private static void ValidateSampler(
+        TextureSamplerDescription sampler,
+        bool generateMipmaps)
     {
         if (!Enum.IsDefined(sampler.Minification))
             throw new ArgumentOutOfRangeException(nameof(sampler));
 
-        if (!Enum.IsDefined(sampler.Magnification))
-            throw new ArgumentOutOfRangeException(nameof(sampler));
+        if (!float.IsFinite(sampler.Anisotropy) ||
+    sampler.Anisotropy < 1.0f)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(sampler),
+                "Anisotropy must be a finite value greater than or equal to 1.");
+        }
+
+        if (sampler.Magnification is not TextureFilter.Nearest
+            and not TextureFilter.Linear)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(sampler),
+                "Magnification supports only Nearest and Linear filters.");
+        }
 
         if (!Enum.IsDefined(sampler.WrapS))
             throw new ArgumentOutOfRangeException(nameof(sampler));
 
         if (!Enum.IsDefined(sampler.WrapT))
             throw new ArgumentOutOfRangeException(nameof(sampler));
+
+        var usesMipmaps = sampler.Minification is
+            TextureFilter.NearestMipmapNearest or
+            TextureFilter.LinearMipmapNearest or
+            TextureFilter.NearestMipmapLinear or
+            TextureFilter.LinearMipmapLinear;
+
+        if (usesMipmaps && !generateMipmaps)
+        {
+            throw new ArgumentException(
+                "Mipmap filtering requires GenerateMipmaps to be enabled.",
+                nameof(sampler));
+        }
     }
 
     private static void Validate(
@@ -317,6 +413,8 @@ public sealed class OpenGLTextureManager
                 description.Format,
                 "Unsupported texture format.");
         }
-        ValidateSampler(description.EffectiveSampler);
+        ValidateSampler(
+            description.EffectiveSampler,
+            description.GenerateMipmaps);
     }
 }

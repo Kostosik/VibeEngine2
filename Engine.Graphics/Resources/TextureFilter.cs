@@ -3,5 +3,10 @@
 public enum TextureFilter
 {
     Nearest,
-    Linear
+    Linear,
+
+    NearestMipmapNearest,
+    LinearMipmapNearest,
+    NearestMipmapLinear,
+    LinearMipmapLinear
 }

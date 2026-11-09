@@ -792,6 +792,7 @@ public sealed class World :
         ref DeterministicStateHasher hasher)
     {
         EnsureNotDisposed();
+        EnsureNoActiveJobs();
 
         _entities.AddToHash(
             ref hasher);

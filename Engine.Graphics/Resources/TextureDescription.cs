@@ -7,6 +7,8 @@ public readonly record struct TextureDescription(
 {
     public TextureSamplerDescription? Sampler { get; init; }
 
+    public bool GenerateMipmaps { get; init; }
+
     public TextureSamplerDescription EffectiveSampler =>
         Sampler ?? TextureSamplerDescription.Default;
 }

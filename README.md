@@ -62,6 +62,7 @@ dotnet test .\VibeEngine2.sln --configuration Release
 ## Документация
 
 - [API Guide](docs/API.md) — практическое использование публичного API при разработке игры.
+- [AI Guide](docs/AI.md) — подключение AI, агенты, Behavior Trees, Utility AI, восприятие и память.
 - [Архитектура движка](docs/ENGINE.md) — устройство Engine, Runtime и границы ответственности.
 - [Индекс проектов и типов](docs/PROJECT_INDEX.md) — где искать проекты, типы и зависимости.
 - [Матрица поддержки и ограничений](docs/SUPPORT_MATRIX.md) — подтверждённые сценарии, ограничения и непроверенные области.

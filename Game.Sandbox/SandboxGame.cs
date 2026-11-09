@@ -198,8 +198,7 @@ internal sealed class SandboxGame : EngineGame, IDisposable
                 () => _scriptProbe,
                 _networkRoleOptions);
             ui.Root.AddChild(
-    _mainMenuInstance.Root);
-            _context.Resized += _sandbox.Resize;
+                _mainMenuInstance.Root);
         }
         catch
         {

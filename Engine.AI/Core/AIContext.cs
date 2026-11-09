@@ -9,6 +9,7 @@ namespace Engine.AI.Core;
 
 public readonly struct AIContext
 {
+    public AILastKnownTargetMemory LastKnownTargets { get; }
     public World World { get; }
 
     public EntityId Entity { get; }
@@ -37,5 +38,8 @@ public readonly struct AIContext
         AgentState = agentState;
         Perception = perception;
         Memory = memory;
+        LastKnownTargets = memory.GetOrCreate(
+    AIMemoryKeys.LastKnownTargets,
+    static () => new AILastKnownTargetMemory());
     }
 }

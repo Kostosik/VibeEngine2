@@ -39,8 +39,6 @@ public sealed class SandboxState
     _multiplayerReplicationProbe;
     private readonly SandboxPlayerReplicationProbe _playerReplicationProbe;
     private readonly UiShowcaseWindow _uiShowcase;
-
-    private readonly RenderTargetHandle _renderTarget;
     private readonly SandboxHud _hud;
 
     private readonly SandboxNetworkProbe _networkProbe;
@@ -54,8 +52,6 @@ public sealed class SandboxState
     private SandboxMode _mode =
         SandboxMode.TopDown;
 
-    private int _width = 1280;
-    private int _height = 720;
 
     private readonly GameSaveLoadService _saveLoad;
     private readonly string _savePath;
@@ -115,32 +111,44 @@ public sealed class SandboxState
                 tileAtlas.Texture);
 
         _tileAtlas = tileAtlas;
-        _renderTarget =
-            _graphics.RenderTargets.Create(
-                new RenderTargetDescription(
-                    _width,
-                    _height));
-
         _graphics.Pipeline.Clear();
 
         _graphics.Pipeline.AddPass(
-            new RenderPass(
-                "World",
-                _renderTarget,
-                RenderState.Default,
-                true,
-                new RenderPassLayerRange(
-                    RenderLayers.World,
-                    RenderLayers.Present - 1)));
-
-        _graphics.Pipeline.AddPass(
-            RenderPass2D.Present);
+            RenderPass2D.World);
 
         _graphics.Pipeline.AddPass(
             RenderPass2D.Ui);
 
         _graphics.Pipeline.AddPass(
             RenderPass2D.Debug);
+
+        var grayscaleShader = _graphics.Shaders.Create(
+            GrayscaleEffect.CreateShaderDescription());
+
+        var tintShader = _graphics.Shaders.Create(
+            ColorTintEffect.CreateShaderDescription());
+
+        var vignetteShader = _graphics.Shaders.Create(
+            VignetteEffect.CreateShaderDescription());
+
+        var grayscale = new GrayscaleEffect(grayscaleShader);
+
+        var tint = new ColorTintEffect(tintShader)
+        {
+            Tint = new Vector3(0.45f, 0.7f, 1.0f),
+            Intensity = 0.5f
+        };
+
+        var vignette = new VignetteEffect(vignetteShader)
+        {
+            Intensity = 0.65f,
+            Radius = 0.35f,
+            Softness = 0.25f
+        };
+
+        _graphics.Pipeline.PostProcessing.Add(grayscale);
+        _graphics.Pipeline.PostProcessing.Add(tint);
+        _graphics.Pipeline.PostProcessing.Add(vignette);
 
         _hud =
             new SandboxHud();
@@ -564,21 +572,6 @@ public sealed class SandboxState
                 28.0f;
         }
 
-        _graphics.Submit(
-            new DrawRenderTargetCommand(
-                _renderTarget,
-                new Vector2(
-                    0.0f,
-                    0.0f),
-                new Vector2(
-                    _width,
-                    _height),
-                new Rectangle(
-                    0.0f,
-                    0.0f,
-                    1.0f,
-                    1.0f)));
-
         _runtime.RenderDebugVisualization();
 
         _ui.Render();
@@ -848,25 +841,6 @@ public sealed class SandboxState
             $"EndFrame: {openGlGraphics.LastEndFrameTime.TotalMilliseconds:F2} ms");
     }
 
-    public void Resize(
-        int width,
-        int height)
-    {
-        if (width <= 0 ||
-            height <= 0)
-        {
-            return;
-        }
-
-        _width = width;
-        _height = height;
-
-        _graphics.RenderTargets.Resize(
-            _renderTarget,
-            width,
-            height);
-    }
-
     private static LocalizationManager CreateLocalizationManager()
     {
         var localization =
@@ -977,9 +951,6 @@ public sealed class SandboxState
 
         TryCleanup(failures, () =>
             _ui.Root.RemoveChild(_hud));
-
-        TryCleanup(failures, () =>
-            _graphics.RenderTargets.Destroy(_renderTarget));
 
         if (failures.Count > 0)
         {

@@ -118,6 +118,40 @@ public sealed class AIMemory
         return removed;
     }
 
+    public T GetOrCreate<T>(
+    AIMemoryKey<T> key,
+    Func<T> factory)
+    where T : class
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        ArgumentNullException.ThrowIfNull(factory);
+
+        if (_entries.TryGetValue(key, out var existing))
+        {
+            if (existing.ExpiresAt is not null)
+            {
+                throw new InvalidOperationException(
+                    "GetOrCreate cannot be used with an expiring memory entry.");
+            }
+
+            if (existing.Value is T typed)
+                return typed;
+
+            throw new InvalidOperationException(
+                "AI memory key is already used by another type.");
+        }
+
+        var value = factory();
+
+        ArgumentNullException.ThrowIfNull(value);
+
+        _entries.Add(
+            key,
+            new Entry(value, null));
+
+        return value;
+    }
+
     public void Clear()
     {
         _entries.Clear();

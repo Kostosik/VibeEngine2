@@ -175,7 +175,7 @@ public sealed class AISystem :
             TimeSpan now = context.Time.Elapsed.Value;
 
             RemoveInvalidAgents();
-
+            UpdateLastKnownTargetMemories(now);
             CollectEligibleAgents(now);
 
             UpdateScheduledAgents(context, now);
@@ -183,6 +183,30 @@ public sealed class AISystem :
         finally
         {
             _isUpdating = false;
+        }
+    }
+
+    private void UpdateLastKnownTargetMemories(TimeSpan now)
+    {
+        foreach (var pair in _memories)
+        {
+            var lastKnownTargets = pair.Value.GetOrCreate(
+                AIMemoryKeys.LastKnownTargets,
+                static () => new AILastKnownTargetMemory());
+
+            if (Perception.TryGetState(
+                    pair.Key,
+                    out var perceptionState) &&
+                perceptionState is not null)
+            {
+                lastKnownTargets.Observe(
+                    perceptionState,
+                    now);
+            }
+            else
+            {
+                lastKnownTargets.PruneExpired(now);
+            }
         }
     }
 
@@ -353,7 +377,10 @@ public sealed class AISystem :
             out var behavior);
 
         Scheduler.Unregister(entity);
-
+        if (_memories.Remove(entity, out var memory))
+        {
+            memory.Clear();
+        }
         if (!_agentStates.Remove(
                 entity,
                 out var state))

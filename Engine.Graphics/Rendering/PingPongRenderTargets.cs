@@ -120,15 +120,15 @@ public sealed class PingPongRenderTargets : IDisposable
             return;
         }
 
-        _disposed = true;
-
-        var targetA = _targetA;
-        var targetB = _targetB;
+        // Сначала освобождаем ресурсы.
+        // Если возникла ошибка, объект сохраняет handles
+        // и освобождение можно повторить.
+        DestroyPair(_targetA, _targetB);
 
         _targetA = RenderTargetHandle.Invalid;
         _targetB = RenderTargetHandle.Invalid;
 
-        DestroyPair(targetA, targetB);
+        _disposed = true;
     }
 
     private (RenderTargetHandle A, RenderTargetHandle B) CreatePair(

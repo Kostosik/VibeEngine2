@@ -189,16 +189,16 @@ internal sealed class OpenGLRenderPassExecutor :
                 "Post-processing source render target is not available.");
         }
 
-        var sourceDescription = _renderTargets.GetDescription(
-            _activePostProcessSource);
-
-        EnsurePostProcessTargets(sourceDescription);
-
-        var sourceTexture = _renderTargets.GetColorTexture(
-            _activePostProcessSource);
-
         try
         {
+            var sourceDescription = _renderTargets.GetDescription(
+                _activePostProcessSource);
+
+            EnsurePostProcessTargets(sourceDescription);
+
+            var sourceTexture = _renderTargets.GetColorTexture(
+                _activePostProcessSource);
+
             _dispatcher.ApplyState(FullscreenRenderState);
 
             foreach (var effect in chain.Effects)
@@ -233,14 +233,12 @@ internal sealed class OpenGLRenderPassExecutor :
                     sourceDescription.Width,
                     sourceDescription.Height);
 
-                // Теперь записанный target становится входом
-                // для следующего эффекта.
                 _postProcessTargets.Swap();
 
                 sourceTexture = _postProcessTargets.ReadTexture;
             }
 
-            // Выводим итоговое изображение на экран.
+            // Итоговое изображение отправляем на экран.
             _gl.BindFramebuffer(
                 FramebufferTarget.Framebuffer,
                 0);
@@ -255,17 +253,22 @@ internal sealed class OpenGLRenderPassExecutor :
         }
         finally
         {
-            _gl.BindFramebuffer(
-                FramebufferTarget.Framebuffer,
-                0);
-
-            _gl.Viewport(
-                0,
-                0,
-                (uint)_backBufferFramebufferWidth,
-                (uint)_backBufferFramebufferHeight);
-
             _activePostProcessSource = RenderTargetHandle.Invalid;
+
+            try
+            {
+                _gl.BindFramebuffer(
+                    FramebufferTarget.Framebuffer,
+                    0);
+            }
+            finally
+            {
+                _gl.Viewport(
+                    0,
+                    0,
+                    (uint)_backBufferFramebufferWidth,
+                    (uint)_backBufferFramebufferHeight);
+            }
         }
     }
 
@@ -293,8 +296,19 @@ internal sealed class OpenGLRenderPassExecutor :
     }
 
     private void EnsurePostProcessTargets(
-        RenderTargetDescription sourceDescription)
+    RenderTargetDescription sourceDescription)
     {
+        if (_postProcessTargets is not null)
+        {
+            var current = _postProcessTargets.Description;
+
+            if (current.Format != sourceDescription.Format)
+            {
+                _postProcessTargets.Dispose();
+                _postProcessTargets = null;
+            }
+        }
+
         if (_postProcessTargets is null)
         {
             _postProcessTargets = new PingPongRenderTargets(
@@ -304,21 +318,10 @@ internal sealed class OpenGLRenderPassExecutor :
             return;
         }
 
-        var current = _postProcessTargets.Description;
+        var currentDescription = _postProcessTargets.Description;
 
-        if (current.Format != sourceDescription.Format)
-        {
-            _postProcessTargets.Dispose();
-
-            _postProcessTargets = new PingPongRenderTargets(
-                _renderTargets,
-                sourceDescription);
-
-            return;
-        }
-
-        if (current.Width != sourceDescription.Width ||
-            current.Height != sourceDescription.Height)
+        if (currentDescription.Width != sourceDescription.Width ||
+            currentDescription.Height != sourceDescription.Height)
         {
             _postProcessTargets.Resize(
                 sourceDescription.Width,
@@ -359,12 +362,9 @@ internal sealed class OpenGLRenderPassExecutor :
         ValidateSize(renderWidth, renderHeight);
         ValidateSize(framebufferWidth, framebufferHeight);
 
-        _backBufferRenderWidth = renderWidth;
-        _backBufferRenderHeight = renderHeight;
-
-        _backBufferFramebufferWidth = framebufferWidth;
-        _backBufferFramebufferHeight = framebufferHeight;
-
+        // Сначала обновляем существующую цель.
+        // Если обновление завершится ошибкой, старые размеры
+        // backbuffer останутся действующими.
         if (_sceneTarget.IsValid)
         {
             _renderTargets.Resize(
@@ -372,6 +372,12 @@ internal sealed class OpenGLRenderPassExecutor :
                 renderWidth,
                 renderHeight);
         }
+
+        _backBufferRenderWidth = renderWidth;
+        _backBufferRenderHeight = renderHeight;
+
+        _backBufferFramebufferWidth = framebufferWidth;
+        _backBufferFramebufferHeight = framebufferHeight;
     }
 
     private static void ValidateSize(int width, int height)

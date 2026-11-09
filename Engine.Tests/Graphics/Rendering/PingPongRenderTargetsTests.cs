@@ -41,8 +41,35 @@ public sealed class PingPongRenderTargetsTests
         Assert.False(manager.Exists(finalWrite));
     }
 
+    [Fact]
+    public void Dispose_CanRetryAfterPartialReleaseFailure()
+    {
+        var manager = new TestRenderTargetManager();
+
+        var buffers = new PingPongRenderTargets(
+            manager,
+            new RenderTargetDescription(1280, 720));
+
+        var first = buffers.ReadTarget;
+        var second = buffers.WriteTarget;
+
+        manager.ThrowOnDestroyOnce = second;
+
+        Assert.Throws<AggregateException>(
+            () => buffers.Dispose());
+
+        Assert.False(manager.Exists(first));
+        Assert.True(manager.Exists(second));
+
+        buffers.Dispose();
+
+        Assert.False(manager.Exists(first));
+        Assert.False(manager.Exists(second));
+    }
+
     private sealed class TestRenderTargetManager : IRenderTargetManager
     {
+        public RenderTargetHandle? ThrowOnDestroyOnce { get; set; }
         private readonly Dictionary<
             RenderTargetHandle,
             (RenderTargetDescription Description, TextureHandle Texture)> _targets = new();
@@ -78,6 +105,14 @@ public sealed class PingPongRenderTargetsTests
 
         public void Destroy(RenderTargetHandle target)
         {
+            if (ThrowOnDestroyOnce == target)
+            {
+                ThrowOnDestroyOnce = null;
+
+                throw new InvalidOperationException(
+                    "Simulated render target destruction failure.");
+            }
+
             _targets.Remove(target);
         }
 

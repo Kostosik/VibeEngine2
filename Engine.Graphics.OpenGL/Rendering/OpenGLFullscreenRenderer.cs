@@ -64,11 +64,11 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
     /// expose the uSource sampler uniform.
     /// </summary>
     public void Draw(
-        OpenGLShaderProgram shader,
-        TextureHandle source,
-        IPostProcessEffect? effect = null,
-        int width = 0,
-        int height = 0)
+    OpenGLShaderProgram shader,
+    TextureHandle source,
+    IPostProcessEffect? effect = null,
+    int width = 0,
+    int height = 0)
     {
         ThrowIfDisposed();
 
@@ -81,21 +81,20 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
                 nameof(source));
         }
 
+        if (width < 0 ||
+            height < 0 ||
+            (width == 0) != (height == 0))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(width),
+                "Width and height must both be zero or both be positive.");
+        }
+
         var sourceLocation = shader.GetUniformLocation(
             FullscreenShaderSource.SourceTextureUniform);
 
         var resolutionLocation = shader.GetUniformLocation(
-    FullscreenShaderSource.ResolutionUniform);
-
-        if (resolutionLocation >= 0 &&
-            width > 0 &&
-            height > 0)
-        {
-            _gl.Uniform2(
-                resolutionLocation,
-                (float)width,
-                (float)height);
-        }
+            FullscreenShaderSource.ResolutionUniform);
 
         if (sourceLocation < 0)
         {
@@ -110,6 +109,17 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
         {
             shader.Use();
             shaderStarted = true;
+
+            // Uniform устанавливаем только после активации программы.
+            if (resolutionLocation >= 0 &&
+                width > 0 &&
+                height > 0)
+            {
+                _gl.Uniform2(
+                    resolutionLocation,
+                    (float)width,
+                    (float)height);
+            }
 
             _gl.ActiveTexture(TextureUnit.Texture0);
 

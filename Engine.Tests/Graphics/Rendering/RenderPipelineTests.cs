@@ -9,6 +9,35 @@ namespace Engine.Tests.Graphics.Rendering;
 public sealed class RenderPipelineTests
 {
     [Fact]
+    public void Execute_RunsPostProcessingAfterWorldAndBeforeUi()
+    {
+        var queue = new RenderQueue();
+        queue.Submit(new TestCommand(10));
+
+        var pipeline = new RenderPipeline();
+        pipeline.AddPass(RenderPass2D.World);
+        pipeline.AddPass(RenderPass2D.Ui);
+
+        pipeline.PostProcessing.Add(new TestPostProcessEffect());
+
+        var executor = new PostProcessTestExecutor();
+
+        pipeline.Execute(queue, executor);
+
+        Assert.Equal(
+            new[]
+            {
+            "BeginSource",
+            "Execute",
+            "End",
+            "PostProcess",
+            "Begin",
+            "End"
+            },
+            executor.Events);
+    }
+
+    [Fact]
     public void Execute_EndsPassWhenCommandThrows()
     {
         var queue = new RenderQueue();
@@ -351,7 +380,44 @@ public sealed class RenderPipelineTests
             EndCount++;
         }
     }
+    private sealed class TestPostProcessEffect : IPostProcessEffect
+    {
+        public string Name => "Test";
 
+        public bool Enabled { get; set; } = true;
+
+        public ShaderHandle Shader => ShaderHandle.Invalid;
+    }
+
+    private sealed class PostProcessTestExecutor :
+        IRenderPassExecutor,
+        IPostProcessRenderPassExecutor
+    {
+        public List<string> Events { get; } = new();
+
+        public void Begin(RenderPassContext context)
+        {
+            Events.Add(
+                context.IsPostProcessSource
+                    ? "BeginSource"
+                    : "Begin");
+        }
+
+        public void Execute(IRenderCommand command)
+        {
+            Events.Add("Execute");
+        }
+
+        public void End()
+        {
+            Events.Add("End");
+        }
+
+        public void ExecutePostProcessing(PostProcessChain chain)
+        {
+            Events.Add("PostProcess");
+        }
+    }
     private sealed record TestCommand(
         int Id)
         : IRenderCommand

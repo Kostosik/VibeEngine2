@@ -1,4 +1,5 @@
-﻿using System.Collections.ObjectModel;
+﻿
+using System.Collections.ObjectModel;
 using Engine.ECS.Entities;
 
 namespace Engine.AI.Perception.Core;
@@ -30,9 +31,30 @@ public sealed class PerceptionState
         _pendingView = _pending.AsReadOnly();
     }
 
-    internal void BeginUpdate()
+    internal void BeginUpdate(
+        IReadOnlySet<string> activeSensorNames,
+        IReadOnlySet<string> updatedSensorNames)
     {
         _pending.Clear();
+
+        // Preserve observations from active sensors that
+        // are not scheduled for this update.
+        foreach (var observation in _current)
+        {
+            if (!activeSensorNames.Contains(
+                    observation.SensorName))
+            {
+                continue;
+            }
+
+            if (updatedSensorNames.Contains(
+                    observation.SensorName))
+            {
+                continue;
+            }
+
+            _pending.Add(observation);
+        }
     }
 
     internal void AddPending(
@@ -60,6 +82,28 @@ public sealed class PerceptionState
     internal void AbortUpdate()
     {
         _pending.Clear();
+    }
+
+    internal void RemoveSensor(string sensorName)
+    {
+        int removed = _current.RemoveAll(
+            observation =>
+                string.Equals(
+                    observation.SensorName,
+                    sensorName,
+                    StringComparison.Ordinal));
+
+        _pending.RemoveAll(
+            observation =>
+                string.Equals(
+                    observation.SensorName,
+                    sensorName,
+                    StringComparison.Ordinal));
+
+        if (removed > 0 && Version < ulong.MaxValue)
+        {
+            Version++;
+        }
     }
 
     internal void Clear()

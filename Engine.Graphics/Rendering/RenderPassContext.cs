@@ -5,4 +5,7 @@ namespace Engine.Graphics.Rendering;
 public readonly record struct RenderPassContext(
     RenderTargetHandle Target,
     RenderState State,
-    bool ClearColor);
+    bool ClearColor)
+{
+    public bool IsPostProcessSource { get; init; }
+}

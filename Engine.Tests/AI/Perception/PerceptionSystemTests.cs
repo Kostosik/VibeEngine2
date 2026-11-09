@@ -458,6 +458,249 @@ public sealed class PerceptionSystemTests
         }
     }
 
+
+    [Fact]
+    public void FieldOfViewSensor_DetectsOnlyTargetsInsideCone()
+    {
+        using var world = new World();
+        using var perception = new PerceptionSystem(world);
+
+        var observer = CreateAgent(world, Vector2.Zero);
+
+        var front = CreateTarget(
+            world,
+            new Vector2(5f, 0f));
+
+        var side = CreateTarget(
+            world,
+            new Vector2(0f, 5f));
+
+        var behind = CreateTarget(
+            world,
+            new Vector2(-5f, 0f));
+
+        var sensor = new FieldOfViewSensor<TestPosition>(
+            "Vision",
+            10f,
+            90f,
+            (in PerceptionContext context) =>
+                context.World
+                    .GetReadOnly<TestPosition>(
+                        context.Observer)
+                    .Position,
+            (in PerceptionContext context) =>
+                new Vector2(1f, 0f),
+            (entity, component) => component.Position);
+
+        perception.RegisterSensor(observer, sensor);
+
+        Update(perception, 0.0, 0);
+
+        var state = GetState(perception, observer);
+
+        var observation = Assert.Single(state.Observations);
+
+        Assert.Equal(front, observation.Target);
+        Assert.NotEqual(side, observation.Target);
+        Assert.NotEqual(behind, observation.Target);
+    }
+
+
+    [Fact]
+    public void RadiusSensor_DoesNotDetectTargetsBehindObstacles()
+    {
+        using var world = new World();
+        using var perception = new PerceptionSystem(world);
+
+        var observer = CreateAgent(world, Vector2.Zero);
+
+        var visibleTarget = CreateTarget(
+            world,
+            new Vector2(3, 0));
+
+        var blockedTarget = CreateTarget(
+            world,
+            new Vector2(6, 0));
+
+        var sensor = new RadiusSensor<TestPosition>(
+            "OcclusionRadius",
+            10f,
+            (in PerceptionContext context) =>
+                context.World
+                    .GetReadOnly<TestPosition>(
+                        context.Observer)
+                    .Position,
+            (entity, component) => component.Position,
+            visibilityTest: IsVisible);
+
+        perception.RegisterSensor(observer, sensor);
+
+        Update(perception, 0.0, 0);
+
+        var state = GetState(perception, observer);
+
+        var observation = Assert.Single(state.Observations);
+
+        Assert.Equal(visibleTarget, observation.Target);
+        Assert.NotEqual(blockedTarget, observation.Target);
+
+        static bool IsVisible(
+            in PerceptionContext context,
+            EntityId target,
+            TestPosition component,
+            Vector2 observerPosition,
+            Vector2 targetPosition)
+        {
+            // Временно считаем всё правее X = 5 закрытым препятствием.
+            return targetPosition.X < 5f;
+        }
+    }
+
+
+    [Fact]
+    public void SensorInterval_SkipsUpdatesUntilIntervalExpires()
+    {
+        using var world = new World();
+        using var perception = new PerceptionSystem(world);
+
+        var observer = CreateAgent(world, Vector2.Zero);
+        var target = CreateTarget(world, new Vector2(2, 0));
+
+        var sensor = new CountingSensor("SlowSensor", target);
+
+        perception.RegisterSensor(
+            observer,
+            sensor,
+            new PerceptionSensorSettings(
+                Duration.FromMilliseconds(100)));
+
+        Update(perception, 0.0, 0);
+
+        var state = GetState(perception, observer);
+
+        Assert.Equal(1, sensor.UpdateCount);
+        Assert.Equal(1UL, state.Version);
+
+        Update(perception, 0.05, 1);
+
+        Assert.Equal(1, sensor.UpdateCount);
+        Assert.Equal(1UL, state.Version);
+
+        // The previous observation remains available.
+        Assert.Equal(
+            target,
+            Assert.Single(state.Observations).Target);
+
+        Update(perception, 0.10, 2);
+
+        Assert.Equal(2, sensor.UpdateCount);
+        Assert.Equal(2UL, state.Version);
+    }
+
+    [Fact]
+    public void SensorBudget_DistributesUpdatesWithoutStarvation()
+    {
+        using var world = new World();
+
+        using var perception = new PerceptionSystem(
+            world,
+            new PerceptionSystemOptions
+            {
+                MaxSensorUpdatesPerUpdate = 1
+            });
+
+        var observerA = CreateAgent(world, Vector2.Zero);
+        var observerB = CreateAgent(world, Vector2.Zero);
+
+        var targetA = CreateTarget(world, new Vector2(2, 0));
+        var targetB = CreateTarget(world, new Vector2(3, 0));
+
+        var sensorA = new CountingSensor("SensorA", targetA);
+        var sensorB = new CountingSensor("SensorB", targetB);
+
+        perception.RegisterSensor(observerA, sensorA);
+        perception.RegisterSensor(observerB, sensorB);
+
+        Update(perception, 0.0, 0);
+
+        Assert.Equal(
+            1,
+            sensorA.UpdateCount + sensorB.UpdateCount);
+
+        Update(perception, 0.016, 1);
+
+        Assert.Equal(1, sensorA.UpdateCount);
+        Assert.Equal(1, sensorB.UpdateCount);
+
+        Assert.Equal(
+            2,
+            sensorA.UpdateCount + sensorB.UpdateCount);
+    }
+
+
+    [Fact]
+    public void FieldOfViewSensor_FullCircleDetectsTargetsBehindObserver()
+    {
+        using var world = new World();
+        using var perception = new PerceptionSystem(world);
+
+        var observer = CreateAgent(world, Vector2.Zero);
+
+        var target = CreateTarget(
+            world,
+            new Vector2(-5f, 0f));
+
+        var sensor = new FieldOfViewSensor<TestPosition>(
+            "Omnidirectional",
+            10f,
+            360f,
+            (in PerceptionContext context) =>
+                context.World
+                    .GetReadOnly<TestPosition>(
+                        context.Observer)
+                    .Position,
+            (in PerceptionContext context) =>
+                new Vector2(1f, 0f),
+            (entity, component) => component.Position);
+
+        perception.RegisterSensor(observer, sensor);
+
+        Update(perception, 0.0, 0);
+
+        var observation = Assert.Single(
+            GetState(perception, observer).Observations);
+
+        Assert.Equal(target, observation.Target);
+    }
+
+
+    private sealed class CountingSensor : IPerceptionSensor
+    {
+        private readonly EntityId _target;
+
+        public string Name { get; }
+
+        public int UpdateCount { get; private set; }
+
+        public CountingSensor(
+            string name,
+            EntityId target)
+        {
+            Name = name;
+            _target = target;
+        }
+
+        public void Sense(
+            in PerceptionContext context,
+            PerceptionBuffer results)
+        {
+            UpdateCount++;
+
+            results.Add(_target);
+        }
+    }
+
+
     private sealed class FailingSensor : IPerceptionSensor
     {
         public string Name => "Failing";

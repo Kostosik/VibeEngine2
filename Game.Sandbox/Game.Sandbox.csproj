@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Engine.AI\Engine.AI.csproj" />
     <ProjectReference Include="..\Engine.Animation\Engine.Animation.csproj" />
     <ProjectReference Include="..\Engine.Audio.OpenAL\Engine.Audio.OpenAL.csproj" />
     <ProjectReference Include="..\Engine.Audio\Engine.Audio.csproj" />

@@ -1,12 +1,16 @@
 ﻿
 using Engine.Graphics.Commands;
+using Engine.Graphics.OpenGL.Resources;
 using Engine.Graphics.Rendering;
+using Engine.Graphics.Resources;
 using Silk.NET.OpenGL;
 
 namespace Engine.Graphics.OpenGL.Rendering;
 
 internal sealed class OpenGLRenderPassExecutor :
-    IRenderPassExecutor
+    IRenderPassExecutor,
+    IPostProcessRenderPassExecutor,
+    IDisposable
 {
     private readonly GL _gl;
     private readonly OpenGLRenderTargetManager _renderTargets;
@@ -20,10 +24,27 @@ internal sealed class OpenGLRenderPassExecutor :
     private int _backBufferFramebufferWidth;
     private int _backBufferFramebufferHeight;
 
+    private readonly OpenGLShaderManager _shaderManager;
+    private readonly OpenGLFullscreenRenderer _fullscreenRenderer;
+
+    private RenderTargetHandle _sceneTarget;
+    private RenderTargetHandle _activePostProcessSource;
+
+    private PingPongRenderTargets? _postProcessTargets;
+
+    private bool _disposed;
+
+    private static readonly RenderState FullscreenRenderState = new(
+        RenderBlendMode.Disabled,
+        DepthTestEnabled: false,
+        RenderCullMode.Disabled);
+
     public OpenGLRenderPassExecutor(
         GL gl,
         OpenGLRenderTargetManager renderTargets,
         OpenGLRenderCommandDispatcher dispatcher,
+        OpenGLShaderManager shaderManager,
+        OpenGLFullscreenRenderer fullscreenRenderer,
         int renderWidth,
         int renderHeight,
         int framebufferWidth,
@@ -32,7 +53,11 @@ internal sealed class OpenGLRenderPassExecutor :
         ArgumentNullException.ThrowIfNull(gl);
         ArgumentNullException.ThrowIfNull(renderTargets);
         ArgumentNullException.ThrowIfNull(dispatcher);
+        ArgumentNullException.ThrowIfNull(shaderManager);
+        ArgumentNullException.ThrowIfNull(fullscreenRenderer);
 
+        _shaderManager = shaderManager;
+        _fullscreenRenderer = fullscreenRenderer;
         ValidateSize(renderWidth, renderHeight);
         ValidateSize(framebufferWidth, framebufferHeight);
 
@@ -49,6 +74,24 @@ internal sealed class OpenGLRenderPassExecutor :
 
     public void Begin(RenderPassContext context)
     {
+        ThrowIfDisposed();
+
+        var targetHandle = context.Target;
+
+        if (context.IsPostProcessSource)
+        {
+            if (!targetHandle.IsValid)
+            {
+                EnsureSceneTarget(
+                    _backBufferRenderWidth,
+                    _backBufferRenderHeight);
+
+                targetHandle = _sceneTarget;
+            }
+
+            _activePostProcessSource = targetHandle;
+        }
+
         var framebuffer = 0;
 
         // По умолчанию используем размеры главного окна.
@@ -60,13 +103,13 @@ internal sealed class OpenGLRenderPassExecutor :
 
         // Для отдельного RenderTarget размеры совпадают
         // с его собственным разрешением.
-        if (context.Target.IsValid)
+        if (targetHandle.IsValid)
         {
             framebuffer = (int)_renderTargets.GetFramebuffer(
-                context.Target);
+                targetHandle);
 
             var description = _renderTargets.GetDescription(
-                context.Target);
+                targetHandle);
 
             viewportWidth = description.Width;
             viewportHeight = description.Height;
@@ -135,6 +178,154 @@ internal sealed class OpenGLRenderPassExecutor :
         }
     }
 
+    public void ExecutePostProcessing(PostProcessChain chain)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(chain);
+
+        if (!_activePostProcessSource.IsValid)
+        {
+            throw new InvalidOperationException(
+                "Post-processing source render target is not available.");
+        }
+
+        var sourceDescription = _renderTargets.GetDescription(
+            _activePostProcessSource);
+
+        EnsurePostProcessTargets(sourceDescription);
+
+        var sourceTexture = _renderTargets.GetColorTexture(
+            _activePostProcessSource);
+
+        try
+        {
+            _dispatcher.ApplyState(FullscreenRenderState);
+
+            foreach (var effect in chain.Effects)
+            {
+                if (!effect.Enabled)
+                    continue;
+
+                if (!effect.Shader.IsValid ||
+                    !_shaderManager.Exists(effect.Shader))
+                {
+                    throw new InvalidOperationException(
+                        $"Post-process effect '{effect.Name}' " +
+                        "references an invalid shader.");
+                }
+
+                var writeTarget = _postProcessTargets!.WriteTarget;
+
+                _gl.BindFramebuffer(
+                    FramebufferTarget.Framebuffer,
+                    _renderTargets.GetFramebuffer(writeTarget));
+
+                _gl.Viewport(
+                    0,
+                    0,
+                    (uint)sourceDescription.Width,
+                    (uint)sourceDescription.Height);
+
+                _fullscreenRenderer.Draw(
+                    _shaderManager.GetProgram(effect.Shader),
+                    sourceTexture,
+                    effect,
+                    sourceDescription.Width,
+                    sourceDescription.Height);
+
+                // Теперь записанный target становится входом
+                // для следующего эффекта.
+                _postProcessTargets.Swap();
+
+                sourceTexture = _postProcessTargets.ReadTexture;
+            }
+
+            // Выводим итоговое изображение на экран.
+            _gl.BindFramebuffer(
+                FramebufferTarget.Framebuffer,
+                0);
+
+            _gl.Viewport(
+                0,
+                0,
+                (uint)_backBufferFramebufferWidth,
+                (uint)_backBufferFramebufferHeight);
+
+            _fullscreenRenderer.DrawCopy(sourceTexture);
+        }
+        finally
+        {
+            _gl.BindFramebuffer(
+                FramebufferTarget.Framebuffer,
+                0);
+
+            _gl.Viewport(
+                0,
+                0,
+                (uint)_backBufferFramebufferWidth,
+                (uint)_backBufferFramebufferHeight);
+
+            _activePostProcessSource = RenderTargetHandle.Invalid;
+        }
+    }
+
+    private void EnsureSceneTarget(int width, int height)
+    {
+        if (!_sceneTarget.IsValid)
+        {
+            _sceneTarget = _renderTargets.Create(
+                new RenderTargetDescription(width, height));
+
+            return;
+        }
+
+        var description = _renderTargets.GetDescription(
+            _sceneTarget);
+
+        if (description.Width != width ||
+            description.Height != height)
+        {
+            _renderTargets.Resize(
+                _sceneTarget,
+                width,
+                height);
+        }
+    }
+
+    private void EnsurePostProcessTargets(
+        RenderTargetDescription sourceDescription)
+    {
+        if (_postProcessTargets is null)
+        {
+            _postProcessTargets = new PingPongRenderTargets(
+                _renderTargets,
+                sourceDescription);
+
+            return;
+        }
+
+        var current = _postProcessTargets.Description;
+
+        if (current.Format != sourceDescription.Format)
+        {
+            _postProcessTargets.Dispose();
+
+            _postProcessTargets = new PingPongRenderTargets(
+                _renderTargets,
+                sourceDescription);
+
+            return;
+        }
+
+        if (current.Width != sourceDescription.Width ||
+            current.Height != sourceDescription.Height)
+        {
+            _postProcessTargets.Resize(
+                sourceDescription.Width,
+                sourceDescription.Height);
+        }
+    }
+
     public void Execute(IRenderCommand command)
     {
         _dispatcher.Execute(command);
@@ -173,11 +364,67 @@ internal sealed class OpenGLRenderPassExecutor :
 
         _backBufferFramebufferWidth = framebufferWidth;
         _backBufferFramebufferHeight = framebufferHeight;
+
+        if (_sceneTarget.IsValid)
+        {
+            _renderTargets.Resize(
+                _sceneTarget,
+                renderWidth,
+                renderHeight);
+        }
     }
 
     private static void ValidateSize(int width, int height)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        var errors = new List<Exception>();
+
+        try
+        {
+            _postProcessTargets?.Dispose();
+        }
+        catch (Exception exception)
+        {
+            errors.Add(exception);
+        }
+
+        _postProcessTargets = null;
+
+        if (_sceneTarget.IsValid)
+        {
+            try
+            {
+                _renderTargets.Destroy(_sceneTarget);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+        }
+
+        _sceneTarget = RenderTargetHandle.Invalid;
+        _activePostProcessSource = RenderTargetHandle.Invalid;
+
+        _disposed = true;
+
+        if (errors.Count > 0)
+        {
+            throw new AggregateException(
+                "Post-processing render targets could not be fully released.",
+                errors);
+        }
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
     }
 }

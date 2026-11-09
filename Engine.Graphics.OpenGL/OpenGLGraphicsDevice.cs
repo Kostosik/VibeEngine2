@@ -14,6 +14,7 @@ namespace Engine.Graphics.OpenGL;
 public sealed class OpenGLGraphicsDevice
     : IGraphicsDevice, IWorldTextureDataSubmitter, IDisposable
 {
+    private readonly OpenGLFullscreenRenderer _fullscreenRenderer;
     private readonly GL _gl;
     private bool _disposed;
     private readonly OpenGLDebugRenderer _debugRenderer;
@@ -128,7 +129,8 @@ public sealed class OpenGLGraphicsDevice
                 new OpenGLRenderTargetManager(
                     gl,
                     _textureManager);
-
+            _fullscreenRenderer =
+                new OpenGLFullscreenRenderer(gl);
             _dispatcher =
                 new OpenGLRenderCommandDispatcher(
                     _textureManager,
@@ -136,13 +138,17 @@ public sealed class OpenGLGraphicsDevice
                     _debugRenderer,
                     _fontRenderer,
                     _renderState,
-                    _renderTargetManager);
+                    _renderTargetManager,
+                    _shaderManager,
+                    _fullscreenRenderer);
 
             _passExecutor =
                 new OpenGLRenderPassExecutor(
                     gl,
                     _renderTargetManager,
                     _dispatcher,
+                    _shaderManager,
+                    _fullscreenRenderer,
                     logicalWidth,
                     logicalHeight,
                     framebufferWidth,
@@ -167,7 +173,8 @@ public sealed class OpenGLGraphicsDevice
             TryDispose(_fontRenderer);
             TryDispose(_textureRenderer);
             TryDispose(_debugRenderer);
-
+            TryDispose(_passExecutor);
+            TryDispose(_fullscreenRenderer);
             TryDispose(_fontManager);
             TryDispose(_renderTargetManager);
             TryDispose(_textureManager);
@@ -272,7 +279,8 @@ public sealed class OpenGLGraphicsDevice
         DisposeResource(_debugRenderer, errors);
         DisposeResource(_textureRenderer, errors);
         DisposeResource(_fontRenderer, errors);
-
+        DisposeResource(_passExecutor, errors);
+        DisposeResource(_fullscreenRenderer, errors);
         DisposeResource(_fontManager, errors);
         DisposeResource(_renderTargetManager, errors);
         DisposeResource(_textureManager, errors);

@@ -21,7 +21,10 @@ public static class RenderPass2D
             ClearColor: true,
             Layers: new RenderPassLayerRange(
                 RenderLayers.World,
-                RenderLayers.Present - 1));
+                RenderLayers.Present - 1))
+        {
+            IsPostProcessSource = true
+        };
 
     public static RenderPass Ui =>
         new(

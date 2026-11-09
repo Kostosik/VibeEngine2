@@ -4,14 +4,13 @@ public sealed class RenderPipeline
 {
     private readonly List<RenderPass> _passes = new();
 
-    public IReadOnlyList<RenderPass> Passes =>
-        _passes;
+    public IReadOnlyList<RenderPass> Passes => _passes;
 
-    public int Count =>
-        _passes.Count;
+    public int Count => _passes.Count;
 
-    public void AddPass(
-        RenderPass pass)
+    public PostProcessChain PostProcessing { get; } = new();
+
+    public void AddPass(RenderPass pass)
     {
         _passes.Add(pass);
     }
@@ -22,35 +21,64 @@ public sealed class RenderPipeline
     }
 
     public void Execute(
-    RenderQueue queue,
-    IRenderPassExecutor executor)
+        RenderQueue queue,
+        IRenderPassExecutor executor)
     {
         ArgumentNullException.ThrowIfNull(queue);
         ArgumentNullException.ThrowIfNull(executor);
 
-        if (_passes.Count == 0)
+        var postProcessingEnabled =
+            PostProcessing.HasEnabledEffects;
+
+        IPostProcessRenderPassExecutor? postProcessExecutor = null;
+
+        if (postProcessingEnabled)
         {
-            return;
+            postProcessExecutor =
+                executor as IPostProcessRenderPassExecutor
+                ?? throw new NotSupportedException(
+                    "The render pass executor does not support post-processing.");
+
+            var sourcePassCount = 0;
+
+            foreach (var pass in _passes)
+            {
+                if (pass.IsPostProcessSource)
+                    sourcePassCount++;
+            }
+
+            if (sourcePassCount != 1)
+            {
+                throw new InvalidOperationException(
+                    "An enabled post-process chain requires exactly one " +
+                    "render pass marked as its source.");
+            }
         }
+
+        if (_passes.Count == 0)
+            return;
 
         queue.Sort();
 
         foreach (var pass in _passes)
         {
-            executor.Begin(
-                new RenderPassContext(
-                    pass.Target,
-                    pass.State,
-                    pass.ClearColor));
+            var context = new RenderPassContext(
+                pass.Target,
+                pass.State,
+                pass.ClearColor)
+            {
+                IsPostProcessSource =
+                    postProcessingEnabled && pass.IsPostProcessSource
+            };
+
+            executor.Begin(context);
 
             try
             {
                 foreach (var item in queue.Items)
                 {
                     if (!pass.Layers.Contains(item.Layer))
-                    {
                         continue;
-                    }
 
                     if (item.HasWorldTextureData)
                     {
@@ -67,6 +95,14 @@ public sealed class RenderPipeline
             finally
             {
                 executor.End();
+            }
+
+            // Обрабатываем мир сразу после завершения World Pass.
+            // UI и Debug проходят позже и остаются поверх результата.
+            if (context.IsPostProcessSource)
+            {
+                postProcessExecutor!.ExecutePostProcessing(
+                    PostProcessing);
             }
         }
     }

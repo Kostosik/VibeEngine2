@@ -6,7 +6,8 @@ using Engine.Graphics.Resources;
 using Engine.Hosting.Desktop;
 using Engine.Runtime;
 using Engine.Scripting;
-using Engine.Serialization.Content;
+using Engine.AI.Systems;
+using Engine.Core.Systems;
 using Engine.Serialization.SaveLoad.Ecs;
 using Engine.Serialization.SaveLoad.Game;
 using Engine.Serialization.UI;
@@ -22,6 +23,7 @@ namespace Game.Sandbox;
 
 internal sealed class SandboxGame : EngineGame, IDisposable
 {
+    private AISystem? _aiSystem;
     private readonly DesktopGameHostContext _context;
     private readonly SandboxInputActions _sandboxActions;
     private readonly SandboxNetworkRoleOptions? _networkRoleOptions;
@@ -186,8 +188,10 @@ internal sealed class SandboxGame : EngineGame, IDisposable
 
             _sandbox = new SandboxState(
                 Runtime,
+                _aiSystem ?? throw new InvalidOperationException(
+                    "AI system has not been configured."),
                 ui,
-                tileAtlas,
+                            tileAtlas,
                 _sandboxActions,
                 saveLoad,
                 console,
@@ -203,6 +207,17 @@ internal sealed class SandboxGame : EngineGame, IDisposable
             _resources = null;
             throw;
         }
+    }
+
+    protected override void ConfigureRuntime()
+    {
+        var aiSystem = new AISystem(Runtime.EcsWorld);
+
+        Runtime.Scheduler.Add(
+            aiSystem,
+            SystemPhase.Update);
+
+        _aiSystem = aiSystem;
     }
 
     protected override void OnUpdate(TimeSnapshot time)
@@ -242,6 +257,14 @@ internal sealed class SandboxGame : EngineGame, IDisposable
         }
         finally
         {
+            try
+            {
+                _aiSystem?.Dispose();
+            }
+            finally
+            {
+                _aiSystem = null;
+            }
             _toggleShowcaseSubscription?.Dispose();
             _toggleShowcaseSubscription = null;
 

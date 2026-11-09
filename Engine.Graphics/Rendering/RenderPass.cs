@@ -7,4 +7,13 @@ public readonly record struct RenderPass(
     RenderTargetHandle Target,
     RenderState State,
     bool ClearColor,
-    RenderPassLayerRange Layers);
+    RenderPassLayerRange Layers)
+{
+    /// <summary>
+    /// Indicates that this pass produces the image
+    /// which will be sent through post-processing.
+    /// </summary>
+    public bool IsPostProcessSource { get; init; }
+}
+
+

@@ -1,4 +1,5 @@
-﻿using Engine.AI.Perception.Core;
+﻿
+using Engine.AI.Perception.Core;
 using Engine.Core.Math;
 using Engine.ECS.Entities;
 
@@ -28,6 +29,9 @@ public sealed class RadiusSensor<TComponent> : IPerceptionSensor
     private readonly PerceptionTargetFilter<TComponent>?
         _filter;
 
+    private readonly PerceptionVisibilityTest<TComponent>?
+        _visibilityTest;
+
     private readonly float _range;
 
     private readonly float _rangeSquared;
@@ -41,7 +45,8 @@ public sealed class RadiusSensor<TComponent> : IPerceptionSensor
         float range,
         ObserverPositionProvider observerPosition,
         TargetPositionProvider<TComponent> targetPosition,
-        PerceptionTargetFilter<TComponent>? filter = null)
+        PerceptionTargetFilter<TComponent>? filter = null,
+        PerceptionVisibilityTest<TComponent>? visibilityTest = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
@@ -72,6 +77,7 @@ public sealed class RadiusSensor<TComponent> : IPerceptionSensor
         _observerPosition = observerPosition;
         _targetPosition = targetPosition;
         _filter = filter;
+        _visibilityTest = visibilityTest;
     }
 
     public void Sense(
@@ -114,6 +120,19 @@ public sealed class RadiusSensor<TComponent> : IPerceptionSensor
 
             if (!float.IsFinite(distanceSquared) ||
                 distanceSquared > _rangeSquared)
+            {
+                continue;
+            }
+
+            // Expensive visibility checks happen only after
+            // the target has passed the range check.
+            if (_visibilityTest != null &&
+                !_visibilityTest(
+                    in context,
+                    item.Entity,
+                    component,
+                    origin,
+                    target))
             {
                 continue;
             }

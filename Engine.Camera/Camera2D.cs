@@ -5,6 +5,12 @@ namespace Engine.Camera;
 
 public sealed class Camera2D
 {
+    private Vector2 _shakeOffset;
+    private float _shakeElapsed;
+    private float _shakeDuration;
+    private float _shakeIntensity;
+    private uint _shakeSeed;
+
     private Vector2 _position;
     private Vector2 _viewportSize;
     private Vector2 _followVelocity;
@@ -99,6 +105,145 @@ public sealed class Camera2D
         }
     }
 
+    /// <summary>
+    /// Current camera shake offset in screen pixels.
+    /// </summary>
+    public Vector2 ShakeOffset => _shakeOffset;
+
+    /// <summary>
+    /// Indicates whether the camera is currently shaking.
+    /// </summary>
+    public bool IsShaking =>
+        _shakeDuration > 0.0f &&
+        _shakeElapsed < _shakeDuration;
+
+    /// <summary>
+    /// Starts deterministic camera shake.
+    /// </summary>
+    /// <param name="intensity">Maximum shake displacement in screen pixels.</param>
+    /// <param name="duration">Shake duration in seconds.</param>
+    /// <param name="seed">Seed used to generate deterministic shake.</param>
+    public void StartShake(
+        float intensity,
+        float duration,
+        uint seed = 1)
+    {
+        if (!float.IsFinite(intensity) || intensity < 0.0f)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(intensity),
+                "Shake intensity must be finite and non-negative.");
+        }
+
+        if (!float.IsFinite(duration) || duration < 0.0f)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(duration),
+                "Shake duration must be finite and non-negative.");
+        }
+
+        if (intensity == 0.0f || duration == 0.0f)
+        {
+            StopShake();
+            return;
+        }
+
+        _shakeIntensity = intensity;
+        _shakeDuration = duration;
+        _shakeElapsed = 0.0f;
+        _shakeSeed = seed;
+        _shakeOffset = Vector2.Zero;
+    }
+
+    /// <summary>
+    /// Stops camera shake immediately.
+    /// </summary>
+    public void StopShake()
+    {
+        _shakeOffset = Vector2.Zero;
+        _shakeElapsed = 0.0f;
+        _shakeDuration = 0.0f;
+        _shakeIntensity = 0.0f;
+        _shakeSeed = 0;
+    }
+
+    /// <summary>
+    /// Advances camera shake simulation.
+    /// Call once per frame.
+    /// </summary>
+    public void UpdateShake(float deltaSeconds)
+    {
+        if (!float.IsFinite(deltaSeconds) || deltaSeconds < 0.0f)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(deltaSeconds),
+                "Delta time must be finite and non-negative.");
+        }
+
+        if (!IsShaking)
+        {
+            _shakeOffset = Vector2.Zero;
+            return;
+        }
+
+        _shakeElapsed = Math.Min(
+            _shakeElapsed + deltaSeconds,
+            _shakeDuration);
+
+        if (_shakeElapsed >= _shakeDuration)
+        {
+            StopShake();
+            return;
+        }
+
+        const float sampleInterval = 0.035f;
+
+        var samplePosition = _shakeElapsed / sampleInterval;
+        var sampleIndex = (uint)MathF.Floor(samplePosition);
+
+        var interpolation = samplePosition - MathF.Floor(samplePosition);
+
+        // Smooth interpolation between deterministic samples.
+        interpolation = interpolation * interpolation *
+                        (3.0f - 2.0f * interpolation);
+
+        var x1 = GetShakeNoise(_shakeSeed, sampleIndex);
+        var x2 = GetShakeNoise(_shakeSeed, sampleIndex + 1u);
+
+        var ySeed = _shakeSeed ^ 0xA511E9B3u;
+
+        var y1 = GetShakeNoise(ySeed, sampleIndex);
+        var y2 = GetShakeNoise(ySeed, sampleIndex + 1u);
+
+        var x = x1 + (x2 - x1) * interpolation;
+        var y = y1 + (y2 - y1) * interpolation;
+
+        var fade = 1.0f - (_shakeElapsed / _shakeDuration);
+        var strength = _shakeIntensity * fade;
+
+        _shakeOffset = new Vector2(
+            x * strength,
+            y * strength);
+    }
+
+    private static float GetShakeNoise(uint seed, uint sampleIndex)
+    {
+        unchecked
+        {
+            var value = seed ^ (sampleIndex * 0x9E3779B9u);
+
+            value ^= value >> 16;
+            value *= 0x7FEB352Du;
+
+            value ^= value >> 15;
+            value *= 0x846CA68Bu;
+
+            value ^= value >> 16;
+
+            return (value & 0x00FFFFFFu) / 8388607.5f - 1.0f;
+        }
+    }
+
     public Vector2 ViewportSize => _viewportSize;
 
     public Rectangle WorldBounds
@@ -108,9 +253,12 @@ public sealed class Camera2D
             var width = _viewportSize.X / _zoom;
             var height = _viewportSize.Y / _zoom;
 
+            var centerX = _position.X - _shakeOffset.X / _zoom;
+            var centerY = _position.Y - _shakeOffset.Y / _zoom;
+
             return new Rectangle(
-                _position.X - width * 0.5f,
-                _position.Y - height * 0.5f,
+                centerX - width * 0.5f,
+                centerY - height * 0.5f,
                 width,
                 height);
         }
@@ -129,18 +277,26 @@ public sealed class Camera2D
 
     public Vector2 WorldToScreen(Vector2 worldPosition)
     {
-        var offset = worldPosition - _position;
-
         return new Vector2(
-            offset.X * _zoom + _viewportSize.X * 0.5f,
-            offset.Y * _zoom + _viewportSize.Y * 0.5f);
+            (worldPosition.X - _position.X) * _zoom +
+            _viewportSize.X * 0.5f +
+            _shakeOffset.X,
+
+            (worldPosition.Y - _position.Y) * _zoom +
+            _viewportSize.Y * 0.5f +
+            _shakeOffset.Y);
     }
 
     public Vector2 ScreenToWorld(Vector2 screenPosition)
     {
         return new Vector2(
-            (screenPosition.X - _viewportSize.X * 0.5f) / _zoom + _position.X,
-            (screenPosition.Y - _viewportSize.Y * 0.5f) / _zoom + _position.Y);
+            (screenPosition.X -
+             _viewportSize.X * 0.5f -
+             _shakeOffset.X) / _zoom + _position.X,
+
+            (screenPosition.Y -
+             _viewportSize.Y * 0.5f -
+             _shakeOffset.Y) / _zoom + _position.Y);
     }
 
     public void SetViewportSize(Vector2 viewportSize)
@@ -335,7 +491,14 @@ public sealed class Camera2D
 
     private Vector2 GetFollowTarget(Vector2 targetPosition)
     {
-        var screenPosition = WorldToScreen(targetPosition);
+        // Follow calculations must use logical camera position,
+        // without visual shake offset.
+        var screenPosition = new Vector2(
+            (targetPosition.X - _position.X) * _zoom +
+            _viewportSize.X * 0.5f,
+
+            (targetPosition.Y - _position.Y) * _zoom +
+            _viewportSize.Y * 0.5f);
 
         var centerX = _viewportSize.X * 0.5f;
         var centerY = _viewportSize.Y * 0.5f;

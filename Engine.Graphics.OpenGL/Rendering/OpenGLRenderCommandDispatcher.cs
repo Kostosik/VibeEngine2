@@ -22,14 +22,16 @@ internal sealed class OpenGLRenderCommandDispatcher
     private readonly OpenGLFontRenderer _fontRenderer;
     private readonly OpenGLRenderState _renderState;
     private RendererKind _activeRenderer;
-
+    private readonly OpenGLShaderManager _shaderManager;
+    private readonly OpenGLFullscreenRenderer _fullscreenRenderer;
     public OpenGLRenderCommandDispatcher(
         OpenGLTextureManager textureManager,
         OpenGLTextureRenderer textureRenderer,
         OpenGLDebugRenderer debugRenderer,
         OpenGLFontRenderer fontRenderer,
         OpenGLRenderState renderState,
-        OpenGLRenderTargetManager renderTargetManager)
+        OpenGLRenderTargetManager renderTargetManager, OpenGLShaderManager shaderManager,
+        OpenGLFullscreenRenderer fullscreenRenderer)
     {
         ArgumentNullException.ThrowIfNull(textureManager);
 
@@ -42,7 +44,8 @@ internal sealed class OpenGLRenderCommandDispatcher
         ArgumentNullException.ThrowIfNull(renderState);
         ArgumentNullException.ThrowIfNull(
     renderTargetManager);
-
+        ArgumentNullException.ThrowIfNull(shaderManager);
+        ArgumentNullException.ThrowIfNull(fullscreenRenderer);
         _renderState = renderState;
 
         _textureManager = textureManager;
@@ -55,6 +58,8 @@ internal sealed class OpenGLRenderCommandDispatcher
         _fontRenderer =
             fontRenderer;
         _renderTargetManager = renderTargetManager;
+        _shaderManager = shaderManager;
+        _fullscreenRenderer = fullscreenRenderer;
     }
 
     public void SetRenderSize(
@@ -181,6 +186,23 @@ internal sealed class OpenGLRenderCommandDispatcher
                 BeginDebugRenderer();
 
                 _debugRenderer.Draw(debugCircle);
+                return;
+            case DrawFullscreenCommand fullscreen:
+
+                if (!_textureManager.Exists(fullscreen.Source) ||
+                    !_shaderManager.Exists(fullscreen.Shader))
+                {
+                    return;
+                }
+
+                // Сначала завершаем накопленный batch спрайтов,
+                // затем выполняем полноэкранный draw.
+                EndActiveRenderer();
+
+                _fullscreenRenderer.Draw(
+                    _shaderManager.GetProgram(fullscreen.Shader),
+                    fullscreen.Source);
+
                 return;
 
             default:

@@ -1,6 +1,8 @@
 ﻿using Engine.AI.Behaviors;
 using Engine.AI.Components;
 using Engine.AI.Core;
+using Engine.AI.Memory;
+using Engine.AI.Perception;
 using Engine.AI.Scheduling;
 using Engine.Core.Systems;
 using Engine.ECS;
@@ -20,6 +22,9 @@ public sealed class AISystem :
     private readonly Dictionary<EntityId, AIAgentState>
         _agentStates = new();
 
+    private readonly Dictionary<EntityId, AIMemory>
+        _memories = new();
+
     private readonly List<EntityId>
         _eligibleAgents = new();
 
@@ -30,7 +35,7 @@ public sealed class AISystem :
     private bool _isUpdating;
 
     public AIScheduler Scheduler { get; }
-
+    public PerceptionSystem Perception { get; }
     public int AgentCount => _behaviors.Count;
 
     public AISystem(
@@ -42,7 +47,7 @@ public sealed class AISystem :
         _world = world;
 
         Scheduler = new AIScheduler(schedulerOptions);
-
+        Perception = new PerceptionSystem(world);
         _world.EntityDestroyed += OnEntityDestroyed;
     }
 
@@ -85,7 +90,10 @@ public sealed class AISystem :
                 entity,
                 new AIAgentState());
         }
-
+        if (!_memories.ContainsKey(entity))
+        {
+            _memories.Add(entity, new AIMemory());
+        }
         Scheduler.RegisterOrUpdate(
             entity,
             GetUpdateSettings(entity),
@@ -105,11 +113,23 @@ public sealed class AISystem :
 
         Scheduler.Unregister(entity);
 
-        if (_agentStates.TryGetValue(
-                entity,
-                out var state))
+        try
         {
-            DetachBehavior(behavior, state);
+            if (_agentStates.TryGetValue(
+                    entity,
+                    out var state))
+            {
+                DetachBehavior(behavior, state);
+            }
+        }
+        finally
+        {
+            if (_memories.Remove(
+                    entity,
+                    out var memory))
+            {
+                memory.Clear();
+            }
         }
 
         return true;
@@ -151,6 +171,7 @@ public sealed class AISystem :
 
         try
         {
+            Perception.Update(context);
             TimeSpan now = context.Time.Elapsed.Value;
 
             RemoveInvalidAgents();
@@ -184,7 +205,10 @@ public sealed class AISystem :
 
             if (!ai.Enabled)
                 continue;
-
+            if (_memories.TryGetValue(entity, out var memory))
+            {
+                memory.PruneExpired(now);
+            }
             Scheduler.RegisterOrUpdate(
                 entity,
                 GetUpdateSettings(entity),
@@ -246,11 +270,25 @@ public sealed class AISystem :
                 _agentStates.Add(entity, state);
             }
 
+            Perception.TryGetState(
+                entity,
+                out var perceptionState);
+
+            if (!_memories.TryGetValue(
+                entity,
+                out var memory))
+            {
+                memory = new AIMemory();
+                _memories.Add(entity, memory);
+            }
+
             var aiContext = new AIContext(
                 _world,
                 entity,
                 context.Time,
-                state);
+                state,
+                perceptionState,
+                memory);
 
             behavior.Update(in aiContext);
 
@@ -279,6 +317,11 @@ public sealed class AISystem :
                 out var behavior);
 
             Scheduler.Unregister(entity);
+
+            if (_memories.Remove(entity, out var memory))
+            {
+                memory.Clear();
+            }
 
             if (!_agentStates.Remove(
                     entity,
@@ -388,20 +431,33 @@ public sealed class AISystem :
         }
         finally
         {
-            foreach (var state in _agentStates.Values)
+            try
             {
-                state.Clear();
+                Perception.Dispose();
             }
+            finally
+            {
+                foreach (var state in _agentStates.Values)
+                {
+                    state.Clear();
+                }
 
-            _behaviors.Clear();
-            _agentStates.Clear();
+                _behaviors.Clear();
+                foreach (var memory in _memories.Values)
+                {
+                    memory.Clear();
+                }
 
-            _eligibleAgents.Clear();
-            _staleAgents.Clear();
+                _memories.Clear();
+                _agentStates.Clear();
 
-            Scheduler.Clear();
+                _eligibleAgents.Clear();
+                _staleAgents.Clear();
 
-            _disposed = true;
+                Scheduler.Clear();
+
+                _disposed = true;
+            }
         }
     }
 }

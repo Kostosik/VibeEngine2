@@ -1,4 +1,7 @@
-﻿using Engine.Core.Time;
+﻿
+using Engine.AI.Memory;
+using Engine.AI.Perception.Core;
+using Engine.Core.Time;
 using Engine.ECS;
 using Engine.ECS.Entities;
 
@@ -12,17 +15,27 @@ public readonly struct AIContext
 
     public TimeSnapshot Time { get; }
 
+    public TimeSpan Now => Time.Elapsed.Value;
+
     public AIAgentState AgentState { get; }
+
+    public PerceptionState? Perception { get; }
+
+    public AIMemory Memory { get; }
 
     internal AIContext(
         World world,
         EntityId entity,
         TimeSnapshot time,
-        AIAgentState agentState)
+        AIAgentState agentState,
+        PerceptionState? perception,
+        AIMemory memory)
     {
         World = world;
         Entity = entity;
         Time = time;
         AgentState = agentState;
+        Perception = perception;
+        Memory = memory;
     }
 }

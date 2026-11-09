@@ -1,5 +1,6 @@
 ﻿using Engine.AI.Behaviors;
 using Engine.AI.Core;
+using Engine.AI.Memory;
 using Engine.AI.Systems;
 using Engine.ECS;
 
@@ -112,6 +113,31 @@ public sealed class AISystemTests
             ai.TryGetBehavior(entity, out _));
     }
 
+
+    [Fact]
+    public void AgentMemory_SurvivesBehaviorReplacement()
+    {
+        using var world = new World();
+        using var ai = new AISystem(world);
+
+        var entity = AITestHelpers.CreateAgent(world);
+
+        var writer = new MemoryWriterBehavior();
+
+        ai.SetBehavior(entity, writer);
+
+        AITestHelpers.Update(ai, 0.0);
+
+        var reader = new MemoryReaderBehavior();
+
+        ai.SetBehavior(entity, reader);
+
+        AITestHelpers.Update(ai, 0.0);
+
+        Assert.Equal(42, reader.ReadValue);
+    }
+
+
     private sealed class CounterBehavior : IAIBehavior
     {
         public int UpdateCount { get; private set; }
@@ -137,4 +163,36 @@ public sealed class AISystemTests
             DetachCount++;
         }
     }
+
+
+    private static readonly AIMemoryKey<int> SharedValueKey =
+        new("SharedValue");
+
+    private sealed class MemoryWriterBehavior : IAIBehavior
+    {
+        public void Update(in AIContext context)
+        {
+            context.Memory.Set(
+                SharedValueKey,
+                42,
+                context.Now);
+        }
+    }
+
+    private sealed class MemoryReaderBehavior : IAIBehavior
+    {
+        public int? ReadValue { get; private set; }
+
+        public void Update(in AIContext context)
+        {
+            if (context.Memory.TryGet(
+                    SharedValueKey,
+                    context.Now,
+                    out var value))
+            {
+                ReadValue = value;
+            }
+        }
+    }
+
 }

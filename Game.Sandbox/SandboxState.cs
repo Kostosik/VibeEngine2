@@ -1,4 +1,5 @@
-﻿using Engine.Camera;
+﻿using Engine.AI.Systems;
+using Engine.Camera;
 using Engine.Core.Diagnostics.Metrics;
 using Engine.Core.Math;
 using Engine.Core.Time;
@@ -45,6 +46,7 @@ public sealed class SandboxState
     private readonly SandboxNetworkProbe _networkProbe;
 
     private TopDownScenario? _topDown;
+    private readonly AIPerceptionScenario _aiPerceptionScenario;
     private PhysicsScenario? _physics;
     private readonly Func<SandboxScriptProbe?>? _scriptProbeProvider;
     private readonly Engine.Graphics.Resources.TextureAtlas _tileAtlas;
@@ -66,20 +68,22 @@ public sealed class SandboxState
     private string _serializationStatus =
         "READY";
     public SandboxState(
-    EngineRuntime runtime,
-    UiSystem ui,
-    Engine.Graphics.Resources.TextureAtlas tileAtlas,
-    SandboxInputActions actions,
-    GameSaveLoadService saveLoad,
-    DebugConsoleOverlay? console = null,
-    Func<SandboxScriptProbe?>? scriptProbeProvider = null, SandboxNetworkRoleOptions? networkRoleOptions = null)
+        EngineRuntime runtime,
+        AISystem aiSystem,
+        UiSystem ui,
+        Engine.Graphics.Resources.TextureAtlas tileAtlas,
+        SandboxInputActions actions,
+        GameSaveLoadService saveLoad,
+        DebugConsoleOverlay? console = null,
+        Func<SandboxScriptProbe?>? scriptProbeProvider = null,
+        SandboxNetworkRoleOptions? networkRoleOptions = null)
     {
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(ui);
         ArgumentNullException.ThrowIfNull(tileAtlas);
         ArgumentNullException.ThrowIfNull(actions);
         ArgumentNullException.ThrowIfNull(saveLoad);
-
+        ArgumentNullException.ThrowIfNull(aiSystem);
         _saveLoad =
     saveLoad;
         _scriptProbeProvider = scriptProbeProvider;
@@ -98,6 +102,9 @@ public sealed class SandboxState
                 "sandbox.vbe");
 
         _runtime = runtime;
+        _aiPerceptionScenario = new AIPerceptionScenario(
+    runtime.EcsWorld,
+    aiSystem);
         _input = runtime.Services.Input;
         _ui = ui;
         _console = console;
@@ -264,7 +271,7 @@ public sealed class SandboxState
         TimeSnapshot time)
     {
         _runtime.Profiler?.RecordFrame();
-
+        _aiPerceptionScenario.Update(time);
         using var profiler =
             _runtime.Profiler?.BeginScope(
                 "Sandbox.Update");
@@ -786,7 +793,8 @@ public sealed class SandboxState
 
         _hud.SetStatus(
             $"{status}\n" +
-            $"Save/Load      {_serializationStatus}");
+            $"Save/Load      {_serializationStatus}\n" +
+            $"AI Perception  {_aiPerceptionScenario.Status}");
 
         var navigationText =
     _mode == SandboxMode.TopDown &&
@@ -911,6 +919,9 @@ public sealed class SandboxState
         var failures = new List<Exception>();
 
         TryCleanup(failures, DisposeCurrentScenario);
+        TryCleanup(
+            failures,
+            _aiPerceptionScenario.Dispose);
 
         var multiplayerProbe = _multiplayerProbe;
         if (multiplayerProbe is not null)

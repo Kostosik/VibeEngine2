@@ -47,6 +47,42 @@ public sealed class CameraTests
     }
 
     [Fact]
+    public void Shake_ChangesScreenTransformWithoutMovingCameraAndStopsAfterDuration()
+    {
+        var camera = new Camera2D(new Vector2(1280, 720));
+
+        var worldPosition = new Vector2(100, 50);
+        var originalScreenPosition = camera.WorldToScreen(worldPosition);
+
+        camera.StartShake(
+            intensity: 12.0f,
+            duration: 0.5f,
+            seed: 123);
+
+        camera.UpdateShake(0.1f);
+
+        var shakenScreenPosition = camera.WorldToScreen(worldPosition);
+
+        Assert.NotEqual(
+            originalScreenPosition,
+            shakenScreenPosition);
+
+        // Logical camera position must not change.
+        Assert.Equal(Vector2.Zero, camera.Position);
+
+        Assert.True(camera.IsShaking);
+
+        camera.UpdateShake(0.5f);
+
+        Assert.False(camera.IsShaking);
+        Assert.Equal(Vector2.Zero, camera.ShakeOffset);
+
+        Assert.Equal(
+            originalScreenPosition,
+            camera.WorldToScreen(worldPosition));
+    }
+
+    [Fact]
     public void Follow_DeadZoneKeepsCameraStillUntilTargetLeavesZone()
     {
         var camera = new Camera2D(new Vector2(1280, 720))

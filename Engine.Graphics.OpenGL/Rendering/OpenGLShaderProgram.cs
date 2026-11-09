@@ -1,11 +1,16 @@
-﻿using Silk.NET.OpenGL;
+﻿using Engine.Graphics.Rendering;
+using Engine.Core.Math;
+using Silk.NET.OpenGL;
 
 namespace Engine.Graphics.OpenGL.Rendering;
 
-internal sealed class OpenGLShaderProgram : IDisposable
+internal sealed class OpenGLShaderProgram :
+    IDisposable,
+    IPostProcessParameterWriter
 {
     private readonly GL _gl;
-
+    private readonly Dictionary<string, int> _uniformLocations =
+    new(StringComparer.Ordinal);
     private uint _handle;
     private bool _disposed;
 
@@ -95,15 +100,60 @@ internal sealed class OpenGLShaderProgram : IDisposable
         }
     }
 
-    public int GetUniformLocation(
-        string name)
+    public int GetUniformLocation(string name)
     {
         ThrowIfDisposed();
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        return _gl.GetUniformLocation(
-            _handle,
-            name);
+        if (_uniformLocations.TryGetValue(name, out var location))
+            return location;
+
+        location = _gl.GetUniformLocation(_handle, name);
+        _uniformLocations.Add(name, location);
+
+        return location;
+    }
+
+    public void SetFloat(string name, float value)
+    {
+        if (!float.IsFinite(value))
+        {
+            throw new ArgumentOutOfRangeException(nameof(value));
+        }
+
+        var location = GetUniformLocation(name);
+
+        if (location < 0)
+        {
+            throw new InvalidOperationException(
+                $"Shader uniform '{name}' was not found.");
+        }
+
+        _gl.Uniform1(location, value);
+    }
+
+    public void SetVector3(string name, Vector3 value)
+    {
+        if (!float.IsFinite(value.X) ||
+            !float.IsFinite(value.Y) ||
+            !float.IsFinite(value.Z))
+        {
+            throw new ArgumentOutOfRangeException(nameof(value));
+        }
+
+        var location = GetUniformLocation(name);
+
+        if (location < 0)
+        {
+            throw new InvalidOperationException(
+                $"Shader uniform '{name}' was not found.");
+        }
+
+        _gl.Uniform3(
+            location,
+            value.X,
+            value.Y,
+            value.Z);
     }
 
     public void Use()

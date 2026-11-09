@@ -220,9 +220,11 @@ public sealed class SpriteAnimation
 
     private void RefreshCurrentFrame()
     {
-        _currentFrame = _clip.Sample<int>(
+        var frame = _clip.Sample<int>(
             FrameTrack,
             _player.TimeSeconds);
+
+        SetCurrentFrame(frame);
     }
 
     private static IReadOnlyList<Sprite> CreateSprites(

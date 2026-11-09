@@ -7,6 +7,25 @@ public readonly record struct Vector2(
     public static Vector2 Zero =>
         new(0.0f, 0.0f);
 
+    public float LengthSquared()
+    {
+        return X * X + Y * Y;
+    }
+
+    public float Length()
+    {
+        return MathF.Sqrt(LengthSquared());
+    }
+
+    public Vector2 Normalize()
+    {
+        var length = Length();
+
+        if (length <= 0.0f)
+            return Zero;
+
+        return this / length;
+    }
     public static Vector2 operator +(
         Vector2 left,
         Vector2 right)

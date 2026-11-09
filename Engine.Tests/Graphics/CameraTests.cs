@@ -5,6 +5,105 @@ namespace Engine.Tests.Graphics;
 
 public sealed class CameraTests
 {
+
+    [Fact]
+    public void Position_RejectsNonFiniteValues()
+    {
+        var camera = new Camera2D(new Vector2(1280, 720));
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => camera.Position = new Vector2(float.NaN, 0));
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => camera.Position = new Vector2(0, float.PositiveInfinity));
+
+        Assert.Equal(Vector2.Zero, camera.Position);
+    }
+
+    [Fact]
+    public void Zoom_RejectsValuesThatProduceNonFiniteWorldBounds()
+    {
+        var camera = new Camera2D(new Vector2(1280, 720));
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => camera.Zoom = float.Epsilon);
+
+        Assert.Equal(1.0f, camera.Zoom);
+    }
+
+    [Fact]
+    public void WorldLimit_ClampsCameraPosition()
+    {
+        var camera = new Camera2D(new Vector2(200, 100));
+
+        camera.SetWorldLimit(
+            new Rectangle(0, 0, 1000, 800));
+
+        camera.Position = new Vector2(-100, 900);
+
+        Assert.Equal(
+            new Vector2(100, 750),
+            camera.Position);
+    }
+
+    [Fact]
+    public void Follow_DeadZoneKeepsCameraStillUntilTargetLeavesZone()
+    {
+        var camera = new Camera2D(new Vector2(1280, 720))
+        {
+            DeadZoneSize = new Vector2(200, 100)
+        };
+
+        // Объект находится внутри зоны.
+        camera.Follow(
+            new Vector2(50, 0),
+            1.0f / 60.0f,
+            smoothTime: 0.0f);
+
+        Assert.Equal(Vector2.Zero, camera.Position);
+
+        // Объект выходит за правую границу зоны.
+        camera.Follow(
+            new Vector2(150, 0),
+            1.0f / 60.0f,
+            smoothTime: 0.0f);
+
+        Assert.Equal(new Vector2(50, 0), camera.Position);
+    }
+
+    [Fact]
+    public void WorldLimit_CentersCameraWhenWorldIsSmallerThanViewport()
+    {
+        var camera = new Camera2D(new Vector2(200, 100));
+
+        camera.SetWorldLimit(
+            new Rectangle(0, 0, 100, 50));
+
+        camera.Position = new Vector2(500, 500);
+
+        Assert.Equal(
+            new Vector2(50, 25),
+            camera.Position);
+    }
+
+    [Fact]
+    public void Follow_SmoothlyApproachesTargetWithoutOvershooting()
+    {
+        var camera = new Camera2D(new Vector2(1280, 720));
+
+        var target = new Vector2(100, 50);
+
+        for (var i = 0; i < 60; i++)
+            camera.Follow(target, 1.0f / 60.0f);
+
+        Assert.True(camera.Position.X > 99.0f);
+        Assert.True(camera.Position.X <= target.X);
+
+        Assert.True(camera.Position.Y > 49.0f);
+        Assert.True(camera.Position.Y <= target.Y);
+    }
+
+
     [Fact]
     public void WorldCenterMapsToScreenCenter()
     {

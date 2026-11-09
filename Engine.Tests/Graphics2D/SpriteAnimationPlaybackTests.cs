@@ -147,6 +147,82 @@ public sealed class SpriteAnimationPlaybackTests
     }
 
     [Fact]
+    public void Seek_RaisesFrameChanged()
+    {
+        var animation = CreateAnimation();
+        var changedFrames = new List<int>();
+
+        animation.FrameChanged += changedFrames.Add;
+
+        animation.Seek(0.15);
+
+        Assert.Equal(1, animation.CurrentFrame);
+        Assert.Equal(new[] { 1 }, changedFrames);
+    }
+
+    [Fact]
+    public void Seek_DoesNotRaiseEvent_WhenFrameDoesNotChange()
+    {
+        var animation = CreateAnimation();
+        animation.Seek(0.15);
+
+        var changedFrames = new List<int>();
+        animation.FrameChanged += changedFrames.Add;
+
+        animation.Seek(0.18);
+
+        Assert.Equal(1, animation.CurrentFrame);
+        Assert.Empty(changedFrames);
+    }
+
+    [Fact]
+    public void Stop_RaisesFrameChanged_WhenReturningToFirstFrame()
+    {
+        var animation = CreateAnimation();
+        animation.Seek(0.15);
+
+        var changedFrames = new List<int>();
+        animation.FrameChanged += changedFrames.Add;
+
+        animation.Stop();
+
+        Assert.Equal(0, animation.CurrentFrame);
+        Assert.Equal(new[] { 0 }, changedFrames);
+    }
+
+    [Fact]
+    public void Reset_RaisesFrameChanged_WhenReturningToFirstFrame()
+    {
+        var animation = CreateAnimation();
+        animation.Seek(0.15);
+
+        var changedFrames = new List<int>();
+        animation.FrameChanged += changedFrames.Add;
+
+        animation.Reset();
+
+        Assert.Equal(0, animation.CurrentFrame);
+        Assert.Equal(new[] { 0 }, changedFrames);
+        Assert.True(animation.IsPlaying);
+    }
+
+    [Fact]
+    public void Play_RaisesFrameChanged_WhenRestartingFinishedAnimation()
+    {
+        var animation = CreateAnimation(loop: false);
+        animation.Update(0.25f);
+
+        var changedFrames = new List<int>();
+        animation.FrameChanged += changedFrames.Add;
+
+        animation.Play();
+
+        Assert.Equal(0, animation.CurrentFrame);
+        Assert.Equal(new[] { 0 }, changedFrames);
+        Assert.True(animation.IsPlaying);
+    }
+
+    [Fact]
     public void Update_NegativeSpeed_FromExactFrameBoundary_NotifiesTransition()
     {
         var animation = CreateAnimation();

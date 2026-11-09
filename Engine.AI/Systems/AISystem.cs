@@ -1,6 +1,7 @@
 ﻿using Engine.AI.Behaviors;
 using Engine.AI.Components;
 using Engine.AI.Core;
+using Engine.AI.Scheduling;
 using Engine.Core.Systems;
 using Engine.ECS;
 using Engine.ECS.Entities;
@@ -20,7 +21,7 @@ public sealed class AISystem :
         _agentStates = new();
 
     private readonly List<EntityId>
-        _agentsToUpdate = new();
+        _eligibleAgents = new();
 
     private readonly List<EntityId>
         _staleAgents = new();
@@ -28,13 +29,19 @@ public sealed class AISystem :
     private bool _disposed;
     private bool _isUpdating;
 
+    public AIScheduler Scheduler { get; }
+
     public int AgentCount => _behaviors.Count;
 
-    public AISystem(World world)
+    public AISystem(
+        World world,
+        AISchedulerOptions? schedulerOptions = null)
     {
         ArgumentNullException.ThrowIfNull(world);
 
         _world = world;
+
+        Scheduler = new AIScheduler(schedulerOptions);
 
         _world.EntityDestroyed += OnEntityDestroyed;
     }
@@ -60,19 +67,17 @@ public sealed class AISystem :
                 "Entity does not have an AIComponent.");
         }
 
-        if (_behaviors.Remove(entity, out var previous))
+        if (_behaviors.TryGetValue(entity, out var previous))
         {
             if (_agentStates.TryGetValue(
                     entity,
                     out var previousState))
             {
-                DetachBehavior(
-                    previous,
-                    previousState);
+                DetachBehavior(previous, previousState);
             }
         }
 
-        _behaviors.Add(entity, behavior);
+        _behaviors[entity] = behavior;
 
         if (!_agentStates.ContainsKey(entity))
         {
@@ -80,6 +85,11 @@ public sealed class AISystem :
                 entity,
                 new AIAgentState());
         }
+
+        Scheduler.RegisterOrUpdate(
+            entity,
+            GetUpdateSettings(entity),
+            TimeSpan.Zero);
     }
 
     public bool RemoveBehavior(EntityId entity)
@@ -93,20 +103,13 @@ public sealed class AISystem :
             return false;
         }
 
-        if (_agentStates.Remove(
+        Scheduler.Unregister(entity);
+
+        if (_agentStates.TryGetValue(
                 entity,
                 out var state))
         {
-            try
-            {
-                DetachBehavior(
-                    behavior,
-                    state);
-            }
-            finally
-            {
-                state.Clear();
-            }
+            DetachBehavior(behavior, state);
         }
 
         return true;
@@ -148,9 +151,13 @@ public sealed class AISystem :
 
         try
         {
+            TimeSpan now = context.Time.Elapsed.Value;
+
             RemoveInvalidAgents();
-            CollectAgents();
-            UpdateAgents(context);
+
+            CollectEligibleAgents(now);
+
+            UpdateScheduledAgents(context, now);
         }
         finally
         {
@@ -158,69 +165,58 @@ public sealed class AISystem :
         }
     }
 
-    private void RemoveInvalidAgents()
+    private void CollectEligibleAgents(TimeSpan now)
     {
-        _staleAgents.Clear();
+        _eligibleAgents.Clear();
 
         foreach (var pair in _behaviors)
         {
-            if (!_world.Exists(pair.Key) ||
-                !_world.Has<AIComponent>(pair.Key))
-            {
-                _staleAgents.Add(pair.Key);
-            }
-        }
+            EntityId entity = pair.Key;
 
-        foreach (var entity in _staleAgents)
-        {
-            bool hasBehavior = _behaviors.Remove(
+            if (!_world.Exists(entity))
+                continue;
+
+            if (!_world.Has<AIComponent>(entity))
+                continue;
+
+            ref readonly var ai =
+                ref _world.GetReadOnly<AIComponent>(entity);
+
+            if (!ai.Enabled)
+                continue;
+
+            Scheduler.RegisterOrUpdate(
                 entity,
-                out var behavior);
+                GetUpdateSettings(entity),
+                now);
 
-            if (!_agentStates.Remove(
-                    entity,
-                    out var state))
-            {
-                continue;
-            }
-
-            try
-            {
-                if (hasBehavior)
-                {
-                    DetachBehavior(
-                        behavior!,
-                        state);
-                }
-            }
-            finally
-            {
-                state.Clear();
-            }
+            _eligibleAgents.Add(entity);
         }
     }
 
-    private void CollectAgents()
+    private AIUpdateSettings GetUpdateSettings(
+        EntityId entity)
     {
-        _agentsToUpdate.Clear();
-
-        foreach (var item in _world.Query<AIComponent>())
+        if (_world.Has<AIUpdateSettings>(entity))
         {
-            if (!item.Component.Enabled)
-                continue;
-
-            if (_behaviors.ContainsKey(item.Entity))
-            {
-                _agentsToUpdate.Add(item.Entity);
-            }
+            return _world.GetReadOnly<AIUpdateSettings>(
+                entity);
         }
+
+        return new AIUpdateSettings();
     }
 
-    private void UpdateAgents(SystemContext context)
+    private void UpdateScheduledAgents(
+        SystemContext context,
+        TimeSpan now)
     {
-        for (var i = 0; i < _agentsToUpdate.Count; i++)
+        var dueAgents = Scheduler.CollectDueAgents(
+            now,
+            _eligibleAgents);
+
+        for (int i = 0; i < dueAgents.Count; i++)
         {
-            var entity = _agentsToUpdate[i];
+            EntityId entity = dueAgents[i];
 
             if (!_world.Exists(entity))
                 continue;
@@ -257,6 +253,53 @@ public sealed class AISystem :
                 state);
 
             behavior.Update(in aiContext);
+
+            // Mark only after successful behavior execution.
+            Scheduler.MarkUpdated(entity, now);
+        }
+    }
+
+    private void RemoveInvalidAgents()
+    {
+        _staleAgents.Clear();
+
+        foreach (var pair in _behaviors)
+        {
+            if (!_world.Exists(pair.Key) ||
+                !_world.Has<AIComponent>(pair.Key))
+            {
+                _staleAgents.Add(pair.Key);
+            }
+        }
+
+        foreach (var entity in _staleAgents)
+        {
+            bool hasBehavior = _behaviors.Remove(
+                entity,
+                out var behavior);
+
+            Scheduler.Unregister(entity);
+
+            if (!_agentStates.Remove(
+                    entity,
+                    out var state))
+            {
+                continue;
+            }
+
+            try
+            {
+                if (hasBehavior)
+                {
+                    DetachBehavior(
+                        behavior!,
+                        state);
+                }
+            }
+            finally
+            {
+                state.Clear();
+            }
         }
     }
 
@@ -265,6 +308,8 @@ public sealed class AISystem :
         bool hasBehavior = _behaviors.Remove(
             entity,
             out var behavior);
+
+        Scheduler.Unregister(entity);
 
         if (!_agentStates.Remove(
                 entity,
@@ -325,29 +370,38 @@ public sealed class AISystem :
 
         _world.EntityDestroyed -= OnEntityDestroyed;
 
-        foreach (var pair in _behaviors)
+        var behaviors = _behaviors.ToArray();
+
+        try
         {
-            if (_agentStates.TryGetValue(
-                    pair.Key,
-                    out var state))
+            foreach (var pair in behaviors)
             {
-                DetachBehavior(
-                    pair.Value,
-                    state);
+                if (_agentStates.TryGetValue(
+                        pair.Key,
+                        out var state))
+                {
+                    DetachBehavior(
+                        pair.Value,
+                        state);
+                }
             }
         }
-
-        foreach (var state in _agentStates.Values)
+        finally
         {
-            state.Clear();
+            foreach (var state in _agentStates.Values)
+            {
+                state.Clear();
+            }
+
+            _behaviors.Clear();
+            _agentStates.Clear();
+
+            _eligibleAgents.Clear();
+            _staleAgents.Clear();
+
+            Scheduler.Clear();
+
+            _disposed = true;
         }
-
-        _behaviors.Clear();
-        _agentStates.Clear();
-
-        _agentsToUpdate.Clear();
-        _staleAgents.Clear();
-
-        _disposed = true;
     }
 }

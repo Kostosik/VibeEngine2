@@ -194,65 +194,85 @@ internal sealed class OpenGLRenderPassExecutor :
             var sourceDescription = _renderTargets.GetDescription(
                 _activePostProcessSource);
 
+            // Источник итогового изображения.
+            // При отсутствии эффектов это World RenderTarget.
+            var sourceTarget = _activePostProcessSource;
+
             if (chain.HasEnabledEffects)
             {
                 EnsurePostProcessTargets(sourceDescription);
-            }
 
-            var sourceTexture = _renderTargets.GetColorTexture(
-                _activePostProcessSource);
+                var sourceTexture = _renderTargets.GetColorTexture(
+                    sourceTarget);
 
-            _dispatcher.ApplyState(FullscreenRenderState);
+                _dispatcher.ApplyState(FullscreenRenderState);
 
-            foreach (var effect in chain.Effects)
-            {
-                if (!effect.Enabled)
-                    continue;
-
-                if (!effect.Shader.IsValid ||
-                    !_shaderManager.Exists(effect.Shader))
+                foreach (var effect in chain.Effects)
                 {
-                    throw new InvalidOperationException(
-                        $"Post-process effect '{effect.Name}' " +
-                        "references an invalid shader.");
+                    if (!effect.Enabled)
+                        continue;
+
+                    if (!effect.Shader.IsValid ||
+                        !_shaderManager.Exists(effect.Shader))
+                    {
+                        throw new InvalidOperationException(
+                            $"Post-process effect '{effect.Name}' " +
+                            "references an invalid shader.");
+                    }
+
+                    var writeTarget = _postProcessTargets!.WriteTarget;
+
+                    _gl.BindFramebuffer(
+                        FramebufferTarget.Framebuffer,
+                        _renderTargets.GetFramebuffer(writeTarget));
+
+                    _gl.Viewport(
+                        0,
+                        0,
+                        (uint)sourceDescription.Width,
+                        (uint)sourceDescription.Height);
+
+                    _fullscreenRenderer.Draw(
+                        _shaderManager.GetProgram(effect.Shader),
+                        sourceTexture,
+                        effect,
+                        sourceDescription.Width,
+                        sourceDescription.Height);
+
+                    _postProcessTargets.Swap();
+
+                    sourceTarget = _postProcessTargets.ReadTarget;
+                    sourceTexture = _postProcessTargets.ReadTexture;
                 }
-
-                var writeTarget = _postProcessTargets!.WriteTarget;
-
-                _gl.BindFramebuffer(
-                    FramebufferTarget.Framebuffer,
-                    _renderTargets.GetFramebuffer(writeTarget));
-
-                _gl.Viewport(
-                    0,
-                    0,
-                    (uint)sourceDescription.Width,
-                    (uint)sourceDescription.Height);
-
-                _fullscreenRenderer.Draw(
-                    _shaderManager.GetProgram(effect.Shader),
-                    sourceTexture,
-                    effect,
-                    sourceDescription.Width,
-                    sourceDescription.Height);
-
-                _postProcessTargets.Swap();
-
-                sourceTexture = _postProcessTargets.ReadTexture;
             }
 
-            // Итоговое изображение отправляем на экран.
+            // Получаем framebuffer итогового изображения.
+            var sourceFramebuffer = _renderTargets.GetFramebuffer(
+                sourceTarget);
+
+            // Читаем изображение из RenderTarget,
+            // а выводим непосредственно в framebuffer окна.
             _gl.BindFramebuffer(
-                FramebufferTarget.Framebuffer,
+                FramebufferTarget.ReadFramebuffer,
+                sourceFramebuffer);
+
+            _gl.BindFramebuffer(
+                FramebufferTarget.DrawFramebuffer,
                 0);
 
-            _gl.Viewport(
+            // Сохраняем вертикальное отражение,
+            // которое ранее выполнялось в CopyFragmentShader.
+            _gl.BlitFramebuffer(
+                0,
+                sourceDescription.Height,
+                sourceDescription.Width,
                 0,
                 0,
-                (uint)_backBufferFramebufferWidth,
-                (uint)_backBufferFramebufferHeight);
-
-            _fullscreenRenderer.DrawCopy(sourceTexture);
+                0,
+                _backBufferFramebufferWidth,
+                _backBufferFramebufferHeight,
+                ClearBufferMask.ColorBufferBit,
+                BlitFramebufferFilter.Nearest);
         }
         finally
         {

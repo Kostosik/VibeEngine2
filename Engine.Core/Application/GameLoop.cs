@@ -11,7 +11,7 @@ public sealed class GameLoop : IGameLoopController
 
     private readonly IApplication _application;
     private readonly IClock _clock;
-
+    private bool _shutdownRequested;
     private bool _paused;
     private bool _stepRequested;
 
@@ -230,7 +230,10 @@ public sealed class GameLoop : IGameLoopController
 
         _application.Update(
             frameTime);
-
+        // Не начинаем FixedUpdate, если во время Update
+        // было запрошено завершение приложения.
+        if (_shutdownRequested || _shutdown)
+            return;
         if (_paused)
         {
             if (_stepRequested)
@@ -245,8 +248,9 @@ public sealed class GameLoop : IGameLoopController
 
         var fixedSteps = 0;
 
-        while (_accumulator.Value >=
-               _tickDuration.Value &&
+        while (!_shutdownRequested &&
+               !_shutdown &&
+               _accumulator.Value >= _tickDuration.Value &&
                fixedSteps < _maxFixedStepsPerFrame)
         {
             _accumulator -= _tickDuration;
@@ -273,7 +277,16 @@ public sealed class GameLoop : IGameLoopController
         _application.Render(
             InterpolationAlpha);
     }
+    /// <summary>
+    /// Requests shutdown after the current game-loop update completes.
+    /// </summary>
+    public void RequestShutdown()
+    {
+        if (!_initialized || _shutdown)
+            return;
 
+        _shutdownRequested = true;
+    }
     public void Shutdown()
     {
         if (!_initialized)
@@ -287,7 +300,7 @@ public sealed class GameLoop : IGameLoopController
             throw new InvalidOperationException(
                 "Game loop has already been shut down.");
         }
-
+        _shutdownRequested = true;
         Exception? clockStopException = null;
 
         try

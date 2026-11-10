@@ -41,7 +41,9 @@ public static class EngineRuntimeBuilder
         Path.Combine(
             "Engine.Localization",
             "Engine.Localization.csproj"),
-
+        Path.Combine(
+            "Engine.AI",
+            "Engine.AI.csproj"),
         Path.Combine(
             "Engine.Navigation",
             "Engine.Navigation.csproj")
@@ -49,6 +51,7 @@ public static class EngineRuntimeBuilder
 
         private static readonly string[] s_requiredAssemblies =
         {
+        "Engine.AI.dll",
         "Engine.Animation.dll",
         "Engine.Audio.OpenAL.dll",
         "Engine.Audio.dll",

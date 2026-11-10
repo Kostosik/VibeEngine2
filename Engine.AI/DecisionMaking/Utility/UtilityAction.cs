@@ -15,7 +15,7 @@ public sealed class UtilityAction
     private UtilityActionLifecycleHandler? _onEnter;
     private UtilityActionLifecycleHandler? _onExit;
     private readonly UtilityActionHandler _handler;
-
+    internal BehaviorTree? WrappedBehaviorTree { get; private set; }
     private float _minimumScore = 0.01f;
 
     private Duration _cooldown = Duration.Zero;
@@ -95,12 +95,16 @@ public sealed class UtilityAction
     {
         ArgumentNullException.ThrowIfNull(tree);
 
-        return new UtilityAction(
+        var action = new UtilityAction(
             name,
             (in AIContext context) =>
                 tree.Update(in context))
             .OnExit((in AIContext context) =>
                 tree.Abort(context.AgentState));
+
+        action.WrappedBehaviorTree = tree;
+
+        return action;
     }
 
     public UtilityAction OnEnter(

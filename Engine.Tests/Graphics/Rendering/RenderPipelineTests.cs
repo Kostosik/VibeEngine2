@@ -9,6 +9,40 @@ namespace Engine.Tests.Graphics.Rendering;
 public sealed class RenderPipelineTests
 {
     [Fact]
+    public void Execute_PresentsWorldWhenAllEffectsAreDisabled()
+    {
+        var queue = new RenderQueue();
+        queue.Submit(new TestCommand(10));
+
+        var pipeline = new RenderPipeline();
+
+        pipeline.AddPass(RenderPass2D.World);
+        pipeline.AddPass(RenderPass2D.Ui);
+
+        pipeline.PostProcessing.Add(
+            new TestPostProcessEffect
+            {
+                Enabled = false
+            });
+
+        var executor = new PostProcessTestExecutor();
+
+        pipeline.Execute(queue, executor);
+
+        Assert.Equal(
+            new[]
+            {
+            "BeginSource",
+            "Execute",
+            "End",
+            "PostProcess",
+            "Begin",
+            "End"
+            },
+            executor.Events);
+    }
+
+    [Fact]
     public void Execute_RunsPostProcessingAfterWorldAndBeforeUi()
     {
         var queue = new RenderQueue();

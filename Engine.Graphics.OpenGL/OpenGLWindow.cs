@@ -28,6 +28,8 @@ public sealed class OpenGLWindow : IDisposable
     private SilkNetInputBackend? _inputBackend;
     public event Func<bool>? CloseRequested;
     private bool _closeApproved;
+    private bool _pendingCloseRequest;
+    private bool _insideGameLoopCallback;
     private bool _disposed;
     public ICursorService Cursor =>
     _inputBackend as ICursorService
@@ -265,26 +267,47 @@ public sealed class OpenGLWindow : IDisposable
 
         _gameLoop = gameLoop;
 
-        _window.Update +=
-            _ =>
+        _window.Update += _ =>
+        {
+            if (gameLoop.IsShutdown)
+                return;
+
+            _insideGameLoopCallback = true;
+
+            try
             {
                 gameLoop.Update();
-            };
-
-        _window.Render +=
-            _ =>
+            }
+            finally
             {
-                if (_graphicsDevice is null)
-                {
-                    return;
-                }
+                _insideGameLoopCallback = false;
+            }
 
+            ProcessPendingClose();
+        };
+
+        _window.Render += _ =>
+        {
+            if (_graphicsDevice is null || gameLoop.IsShutdown)
+                return;
+
+            _insideGameLoopCallback = true;
+
+            try
+            {
                 _graphicsDevice.BeginFrame();
 
                 gameLoop.Render();
 
                 _graphicsDevice.EndFrame();
-            };
+            }
+            finally
+            {
+                _insideGameLoopCallback = false;
+            }
+
+            ProcessPendingClose();
+        };
 
         try
         {
@@ -429,8 +452,30 @@ public sealed class OpenGLWindow : IDisposable
         return true;
     }
 
+    private void ProcessPendingClose()
+    {
+        if (!_pendingCloseRequest || _disposed)
+            return;
+
+        _pendingCloseRequest = false;
+
+        _closeApproved = true;
+        _window.Close();
+    }
+
     public void Close()
     {
+        if (_disposed)
+            return;
+
+        // Во время игрового цикла откладываем закрытие.
+        if (_insideGameLoopCallback)
+        {
+            _pendingCloseRequest = true;
+            _gameLoop?.RequestShutdown();
+            return;
+        }
+
         _closeApproved = true;
         _window.Close();
     }
@@ -443,7 +488,15 @@ public sealed class OpenGLWindow : IDisposable
             _window.IsClosing = false;
             return;
         }
-
+        // Даже системный запрос закрытия не должен
+        // останавливать игровой цикл посреди его выполнения.
+        if (_insideGameLoopCallback)
+        {
+            _window.IsClosing = false;
+            _pendingCloseRequest = true;
+            _gameLoop?.RequestShutdown();
+            return;
+        }
         _closeApproved = false;
 
         try

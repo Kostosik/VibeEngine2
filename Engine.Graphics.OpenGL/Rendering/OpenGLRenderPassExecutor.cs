@@ -194,7 +194,10 @@ internal sealed class OpenGLRenderPassExecutor :
             var sourceDescription = _renderTargets.GetDescription(
                 _activePostProcessSource);
 
-            EnsurePostProcessTargets(sourceDescription);
+            if (chain.HasEnabledEffects)
+            {
+                EnsurePostProcessTargets(sourceDescription);
+            }
 
             var sourceTexture = _renderTargets.GetColorTexture(
                 _activePostProcessSource);

@@ -21,8 +21,8 @@ public sealed class RenderPipeline
     }
 
     public void Execute(
-        RenderQueue queue,
-        IRenderPassExecutor executor)
+    RenderQueue queue,
+    IRenderPassExecutor executor)
     {
         ArgumentNullException.ThrowIfNull(queue);
         ArgumentNullException.ThrowIfNull(executor);
@@ -30,29 +30,32 @@ public sealed class RenderPipeline
         var postProcessingEnabled =
             PostProcessing.HasEnabledEffects;
 
+        var sourcePassCount = 0;
+
+        foreach (var pass in _passes)
+        {
+            if (pass.IsPostProcessSource)
+                sourcePassCount++;
+        }
+
+        if (sourcePassCount > 1 ||
+            (postProcessingEnabled && sourcePassCount != 1))
+        {
+            throw new InvalidOperationException(
+                "An enabled post-process chain requires exactly one " +
+                "render pass marked as its source.");
+        }
+
         IPostProcessRenderPassExecutor? postProcessExecutor = null;
 
-        if (postProcessingEnabled)
+        // Source pass теперь нужен не только для эффектов,
+        // но и для правильной презентации RenderTarget.
+        if (sourcePassCount > 0)
         {
             postProcessExecutor =
                 executor as IPostProcessRenderPassExecutor
                 ?? throw new NotSupportedException(
                     "The render pass executor does not support post-processing.");
-
-            var sourcePassCount = 0;
-
-            foreach (var pass in _passes)
-            {
-                if (pass.IsPostProcessSource)
-                    sourcePassCount++;
-            }
-
-            if (sourcePassCount != 1)
-            {
-                throw new InvalidOperationException(
-                    "An enabled post-process chain requires exactly one " +
-                    "render pass marked as its source.");
-            }
         }
 
         if (_passes.Count == 0)
@@ -67,8 +70,7 @@ public sealed class RenderPipeline
                 pass.State,
                 pass.ClearColor)
             {
-                IsPostProcessSource =
-                    postProcessingEnabled && pass.IsPostProcessSource
+                IsPostProcessSource = pass.IsPostProcessSource
             };
 
             executor.Begin(context);
@@ -97,8 +99,8 @@ public sealed class RenderPipeline
                 executor.End();
             }
 
-            // Обрабатываем мир сразу после завершения World Pass.
-            // UI и Debug проходят позже и остаются поверх результата.
+            // Всегда презентуем результат World pass.
+            // Если эффекты отключены, выполняется только копирование.
             if (context.IsPostProcessSource)
             {
                 postProcessExecutor!.ExecutePostProcessing(

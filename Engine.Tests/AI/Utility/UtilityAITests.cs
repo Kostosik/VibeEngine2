@@ -3,6 +3,7 @@ using Engine.AI.BehaviorTrees.Core;
 using Engine.AI.BehaviorTrees.Nodes;
 using Engine.AI.Core;
 using Engine.AI.DecisionMaking.Utility;
+using Engine.AI.Diagnostics;
 using Engine.AI.Systems;
 using Engine.Core.Time;
 using Engine.ECS;
@@ -11,6 +12,66 @@ namespace Engine.Tests.AI.Utility;
 
 public sealed class UtilityAITests
 {
+    [Fact]
+    public void AIDiagnostics_CapturesUtilityAndBehaviorTreeState()
+    {
+        using var world = new World();
+        using var ai = new AISystem(world);
+
+        var entity = AITestHelpers.CreateAgent(world);
+
+        var tree = new BehaviorTree(
+            "AttackTree",
+            new ActionNode(
+                "Attack",
+                (in BehaviorTreeContext context) =>
+                    BehaviorStatus.Running));
+
+        var action = UtilityAction.FromBehaviorTree(
+            "Attack",
+            tree);
+
+        action.AddConsideration(
+            "Available",
+            new DelegateUtilityConsideration(
+                "Available",
+                (in AIContext context) => 0.9f));
+
+        var behavior = new UtilityAIBehavior
+        {
+            EnableDebugInformation = true
+        };
+
+        behavior.AddAction(action);
+
+        ai.SetBehavior(entity, behavior);
+
+        AITestHelpers.Update(ai, 0.0);
+
+        Assert.True(
+            AIDiagnostics.TryCapture(
+                ai,
+                entity,
+                out var snapshot));
+
+        Assert.NotNull(snapshot);
+
+        Assert.Equal(
+            nameof(UtilityAIBehavior),
+            snapshot.BehaviorType);
+
+        Assert.Equal("Attack", snapshot.CurrentUtilityAction);
+        Assert.Equal(0.9f, snapshot.CurrentUtilityScore);
+
+        Assert.Equal("AttackTree", snapshot.BehaviorTreeName);
+        Assert.Equal(
+            BehaviorStatus.Running,
+            snapshot.BehaviorTreeStatus);
+
+        Assert.NotNull(snapshot.UtilityDecision);
+        Assert.Empty(snapshot.Observations);
+    }
+
     [Fact]
     public void UtilityCurves_EvaluateExpectedValues()
     {

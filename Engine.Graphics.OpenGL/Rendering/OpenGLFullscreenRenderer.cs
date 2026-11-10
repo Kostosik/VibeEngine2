@@ -54,7 +54,11 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
 
     void main()
     {
-        FragColor = texture(uSource, vTexCoord);
+        vec2 sourceUv = vec2(
+            vTexCoord.x,
+            1.0 - vTexCoord.y);
+
+        FragColor = texture(uSource, sourceUv);
     }
     """;
 

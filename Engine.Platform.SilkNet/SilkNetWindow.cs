@@ -13,6 +13,10 @@ namespace Engine.Platform.SilkNet;
 public sealed class SilkNetWindow : ISilkNetWindow
 {
     private readonly IWindow _window;
+    public IGLContext OpenGLContext =>
+    _window.GLContext
+    ?? throw new InvalidOperationException(
+        "OpenGL context is not initialized.");
     private readonly PlatformWindowOptions _options;
 
     private SilkNetInputBackend? _inputBackend;

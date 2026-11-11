@@ -7,7 +7,6 @@ using Engine.Input;
 using Engine.Input.Cursors;
 using Engine.Platform;
 using Engine.Platform.SilkNet;
-using Silk.NET.OpenGL;
 using System.Runtime.ExceptionServices;
 
 namespace Engine.Hosting.Desktop;
@@ -17,7 +16,7 @@ public sealed class OpenGLWindow : IDesktopWindow
     private readonly ISilkNetWindow _window;
 
     private readonly IGraphicsDeviceFactory<
-        GL,
+        IOpenGLGraphicsDeviceContext,
         OpenGLGraphicsDeviceOptions> _graphicsDeviceFactory;
 
     private GameLoop? _gameLoop;
@@ -74,7 +73,7 @@ public sealed class OpenGLWindow : IDesktopWindow
         int width,
         int height,
         string title,
-        IGraphicsDeviceFactory<GL, OpenGLGraphicsDeviceOptions> graphicsDeviceFactory,
+        IGraphicsDeviceFactory<IOpenGLGraphicsDeviceContext,OpenGLGraphicsDeviceOptions> graphicsDeviceFactory,
         bool fullscreen = false,
         bool vsync = false)
     {
@@ -199,10 +198,12 @@ public sealed class OpenGLWindow : IDesktopWindow
                 windowWidth,
                 windowHeight));
 
-        var gl = GL.GetApi(_window.NativeWindow);
+        var graphicsContext =
+            new OpenGLGraphicsDeviceContext(
+                _window.OpenGLContext);
 
         _graphicsDevice = _graphicsDeviceFactory.CreateDevice(
-            gl,
+            graphicsContext,
             new OpenGLGraphicsDeviceOptions(
                 windowWidth,
                 windowHeight,

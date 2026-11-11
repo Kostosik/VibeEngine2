@@ -8,7 +8,6 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Silk.NET.OpenGL" Version="2.23.0" />
 		<ProjectReference Include="..\Engine.Platform.SilkNet\Engine.Platform.SilkNet.csproj" />
 		<ProjectReference Include="..\Engine.Audio\Engine.Audio.csproj" />
 		<ProjectReference Include="..\Engine.Audio.OpenAL\Engine.Audio.OpenAL.csproj" />

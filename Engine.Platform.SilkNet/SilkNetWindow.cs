@@ -333,6 +333,12 @@ public sealed class SilkNetWindow : ISilkNetWindow
         Closing?.Invoke();
     }
 
+    public void CancelCloseRequest()
+    {
+        ThrowIfDisposed();
+        _window.IsClosing = false;
+    }
+
     public void Close()
     {
         ThrowIfDisposed();

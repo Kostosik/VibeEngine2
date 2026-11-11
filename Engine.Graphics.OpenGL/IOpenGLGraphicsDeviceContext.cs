@@ -1,9 +1,7 @@
-﻿using Silk.NET.Core.Contexts;
-
-namespace Engine.Graphics.OpenGL;
+﻿namespace Engine.Graphics.OpenGL;
 
 public interface IOpenGLGraphicsDeviceContext
     : IGraphicsDeviceContext
 {
-    IGLContext NativeContext { get; }
+    Func<string, nint> ProcedureAddressResolver { get; }
 }

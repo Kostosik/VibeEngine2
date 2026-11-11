@@ -15,7 +15,7 @@ public sealed class OpenGLGraphicsDeviceFactory
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(options.Camera);
 
-        var gl = GL.GetApi(context.NativeContext);
+        var gl = GL.GetApi(context.ProcedureAddressResolver);
 
         return new OpenGLGraphicsDevice(
             gl,

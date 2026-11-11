@@ -188,7 +188,7 @@ public sealed class OpenGLGraphicsDevice
             TryDispose(_meshManager);
             TryDispose(_bufferManager);
             TryDispose(_shaderManager);
-
+            TryDispose(gl);
             throw;
         }
     }
@@ -294,7 +294,7 @@ public sealed class OpenGLGraphicsDevice
         DisposeResource(_meshManager, errors);
         DisposeResource(_bufferManager, errors);
         DisposeResource(_shaderManager, errors);
-
+        DisposeResource(_gl, errors);
         if (errors.Count > 0)
         {
             throw new AggregateException(

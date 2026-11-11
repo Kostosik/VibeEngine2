@@ -1,6 +1,7 @@
 ﻿using Engine.Content.Loading;
 using Engine.Graphics;
 using Engine.Input;
+using Engine.Platform;
 using Engine.Runtime;
 
 namespace Engine.Hosting.Desktop;
@@ -9,6 +10,8 @@ public sealed class DesktopGameHostOptions
 {
     public GraphicsBackendKind GraphicsBackend { get; init; }
     = GraphicsBackendKind.OpenGL;
+    public PlatformBackendKind PlatformBackend { get; init; }
+    = PlatformBackendKind.SilkNet;
     public string Title { get; init; } = "VibeEngine Game";
     public bool VSync { get; init; } = false;
     public int Width { get; init; } = 1280;

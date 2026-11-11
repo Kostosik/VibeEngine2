@@ -13,7 +13,9 @@ namespace Engine.Hosting.Desktop;
 
 public sealed class OpenGLWindow : IDesktopWindow
 {
-    private readonly ISilkNetWindow _window;
+    private readonly IPlatformWindow _window;
+
+    private readonly Func<IOpenGLGraphicsDeviceContext> _graphicsContextFactory;
 
     private readonly IGraphicsDeviceFactory<
         IOpenGLGraphicsDeviceContext,
@@ -70,32 +72,24 @@ public sealed class OpenGLWindow : IDesktopWindow
     public event Action<int, int>? Resized;
 
     public OpenGLWindow(
-        int width,
-        int height,
-        string title,
-        IGraphicsDeviceFactory<IOpenGLGraphicsDeviceContext,OpenGLGraphicsDeviceOptions> graphicsDeviceFactory,
-        bool fullscreen = false,
-        bool vsync = false)
+    IPlatformWindow platformWindow,
+    Func<IOpenGLGraphicsDeviceContext> graphicsContextFactory,
+    IGraphicsDeviceFactory<
+        IOpenGLGraphicsDeviceContext,
+        OpenGLGraphicsDeviceOptions> graphicsDeviceFactory)
     {
+        ArgumentNullException.ThrowIfNull(platformWindow);
+        ArgumentNullException.ThrowIfNull(graphicsContextFactory);
         ArgumentNullException.ThrowIfNull(graphicsDeviceFactory);
 
+        _window = platformWindow;
+        _graphicsContextFactory = graphicsContextFactory;
         _graphicsDeviceFactory = graphicsDeviceFactory;
 
         Camera = new Camera2D(
-            new Engine.Core.Math.Vector2(width, height));
-
-        // Остальная часть конструктора без изменений.
-
-        _window = new SilkNetWindow(
-            new PlatformWindowOptions
-            {
-                Width = width,
-                Height = height,
-                Title = title,
-                Fullscreen = fullscreen,
-                VSync = vsync,
-                GraphicsContext = GraphicsContextKind.OpenGL
-            });
+            new Engine.Core.Math.Vector2(
+                _window.Width,
+                _window.Height));
 
         _window.Loaded += OnLoad;
         _window.Updating += OnUpdate;
@@ -198,9 +192,9 @@ public sealed class OpenGLWindow : IDesktopWindow
                 windowWidth,
                 windowHeight));
 
-        var graphicsContext =
-            new OpenGLGraphicsDeviceContext(
-                _window.OpenGLContext);
+        var graphicsContext = _graphicsContextFactory()
+            ?? throw new InvalidOperationException(
+                "Graphics context factory returned null.");
 
         _graphicsDevice = _graphicsDeviceFactory.CreateDevice(
             graphicsContext,
@@ -394,13 +388,13 @@ public sealed class OpenGLWindow : IDesktopWindow
     {
         if (!_closeApproved && !CanClose())
         {
-            _window.NativeWindow.IsClosing = false;
+            _window.CancelCloseRequest();
             return;
         }
 
         if (_insideGameLoopCallback)
         {
-            _window.NativeWindow.IsClosing = false;
+            _window.CancelCloseRequest();
 
             _pendingCloseRequest = true;
             _gameLoop?.RequestShutdown();

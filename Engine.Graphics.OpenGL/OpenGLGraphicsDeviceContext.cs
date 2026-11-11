@@ -1,20 +1,18 @@
-﻿using Silk.NET.Core.Contexts;
-
-namespace Engine.Graphics.OpenGL;
+﻿namespace Engine.Graphics.OpenGL;
 
 public sealed class OpenGLGraphicsDeviceContext
     : IOpenGLGraphicsDeviceContext
 {
-    public IGLContext NativeContext { get; }
+    public Func<string, nint> ProcedureAddressResolver { get; }
 
     public GraphicsBackendKind Backend =>
         GraphicsBackendKind.OpenGL;
 
     public OpenGLGraphicsDeviceContext(
-        IGLContext nativeContext)
+        Func<string, nint> procedureAddressResolver)
     {
-        ArgumentNullException.ThrowIfNull(nativeContext);
+        ArgumentNullException.ThrowIfNull(procedureAddressResolver);
 
-        NativeContext = nativeContext;
+        ProcedureAddressResolver = procedureAddressResolver;
     }
 }

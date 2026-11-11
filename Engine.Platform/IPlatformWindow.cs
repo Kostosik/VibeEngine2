@@ -42,6 +42,8 @@ public interface IPlatformWindow : IDisposable
 
     void Run();
 
+    void CancelCloseRequest();
+
     void Close();
 
     void ApplyWindowSettings(

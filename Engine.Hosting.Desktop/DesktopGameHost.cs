@@ -9,6 +9,8 @@ using Engine.Graphics;
 using Engine.Graphics.OpenGL;
 using Engine.Graphics.Resources;
 using Engine.Input;
+using Engine.Platform;
+using Engine.Platform.SilkNet;
 using Engine.Runtime;
 using Engine.Serialization.Content;
 using System.Runtime.ExceptionServices;
@@ -174,17 +176,32 @@ public static class DesktopGameHost
         return options.GraphicsBackend switch
         {
             GraphicsBackendKind.OpenGL =>
-                new OpenGLWindow(
-                    options.Width,
-                    options.Height,
-                    options.Title,
-                    new OpenGLGraphicsDeviceFactory(),
-                    options.Fullscreen,
-                    options.VSync),
+                CreateOpenGLWindow(options),
 
             _ => throw new NotSupportedException(
                 $"Graphics backend '{options.GraphicsBackend}' is not supported.")
         };
+    }
+
+    private static IDesktopWindow CreateOpenGLWindow(
+    DesktopGameHostOptions options)
+    {
+        var platformWindow = new SilkNetWindow(
+            new PlatformWindowOptions
+            {
+                Width = options.Width,
+                Height = options.Height,
+                Title = options.Title,
+                Fullscreen = options.Fullscreen,
+                VSync = options.VSync,
+                GraphicsContext = GraphicsContextKind.OpenGL
+            });
+
+        return new OpenGLWindow(
+            platformWindow,
+            () => new OpenGLGraphicsDeviceContext(
+                platformWindow.OpenGLContext),
+            new OpenGLGraphicsDeviceFactory());
     }
 
     private sealed class HostedApplication :

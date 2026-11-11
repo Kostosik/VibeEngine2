@@ -4,6 +4,73 @@ namespace Engine.Tests.Math;
 
 public sealed class Matrix4x4Tests
 {
+
+    [Fact]
+    public void LookAt_DefaultCameraOrientation_ProducesIdentity()
+    {
+        var result = Matrix4x4.CreateLookAt(
+            Vector3.Zero,
+            -Vector3.UnitZ,
+            Vector3.UnitY);
+
+        Assert.Equal(Matrix4x4.Identity, result);
+    }
+
+    [Fact]
+    public void LookAt_TransformsCameraPositionToOrigin()
+    {
+        var cameraPosition = new Vector3(1, 2, 5);
+        var cameraTarget = new Vector3(1, 2, 4);
+
+        var view = Matrix4x4.CreateLookAt(
+            cameraPosition,
+            cameraTarget,
+            Vector3.UnitY);
+
+        var result = view.TransformPoint(cameraPosition);
+
+        Assert.Equal(Vector3.Zero, result);
+    }
+
+    [Fact]
+    public void LookAt_TransformsForwardDirectionCorrectly()
+    {
+        var view = Matrix4x4.CreateLookAt(
+            Vector3.Zero,
+            Vector3.UnitX,
+            Vector3.UnitY);
+
+        var result = view.TransformPoint(
+            Vector3.UnitX);
+
+        Assert.Equal(
+            new Vector3(0, 0, -1),
+            result);
+    }
+
+    [Fact]
+    public void LookAt_RejectsInvalidDirections()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            Matrix4x4.CreateLookAt(
+                Vector3.Zero,
+                Vector3.Zero,
+                Vector3.UnitY));
+
+        Assert.Throws<ArgumentException>(() =>
+            Matrix4x4.CreateLookAt(
+                Vector3.Zero,
+                -Vector3.UnitZ,
+                Vector3.Zero));
+
+        Assert.Throws<ArgumentException>(() =>
+            Matrix4x4.CreateLookAt(
+                Vector3.Zero,
+                -Vector3.UnitZ,
+                -Vector3.UnitZ));
+    }
+
+
     [Fact]
     public void Identity_DoesNotChangePoint()
     {

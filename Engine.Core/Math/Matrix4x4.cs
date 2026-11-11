@@ -75,6 +75,159 @@ public readonly record struct Matrix4x4(
             0, 0, 0, 1);
     }
 
+
+    /// <summary>
+    /// Creates a right-handed view matrix for a camera
+    /// looking from cameraPosition towards cameraTarget.
+    ///
+    /// Uses row-vector convention:
+    /// world * view * projection.
+    /// </summary>
+    public static Matrix4x4 CreateLookAt(
+        Vector3 cameraPosition,
+        Vector3 cameraTarget,
+        Vector3 cameraUpVector)
+    {
+        ValidateFiniteVector(
+            cameraPosition,
+            nameof(cameraPosition));
+
+        ValidateFiniteVector(
+            cameraTarget,
+            nameof(cameraTarget));
+
+        ValidateFiniteVector(
+            cameraUpVector,
+            nameof(cameraUpVector));
+
+        var forward = NormalizeLookAtVector(
+            (double)cameraTarget.X - cameraPosition.X,
+            (double)cameraTarget.Y - cameraPosition.Y,
+            (double)cameraTarget.Z - cameraPosition.Z,
+            nameof(cameraTarget),
+            "Camera position and target must not be equal.");
+
+        var backward = -forward;
+
+        var referenceUp = NormalizeLookAtVector(
+            cameraUpVector.X,
+            cameraUpVector.Y,
+            cameraUpVector.Z,
+            nameof(cameraUpVector),
+            "Camera up vector must not be zero.");
+
+        var right = Vector3.Cross(
+            referenceUp,
+            backward);
+
+        if (right.LengthSquared() <= 1e-12f)
+        {
+            throw new ArgumentException(
+                "Camera up vector must not be parallel to the viewing direction.",
+                nameof(cameraUpVector));
+        }
+
+        right = NormalizeLookAtVector(
+            right.X,
+            right.Y,
+            right.Z,
+            nameof(cameraUpVector),
+            "Cannot calculate camera right direction.");
+
+        var up = Vector3.Cross(
+            backward,
+            right);
+
+        return new Matrix4x4(
+            right.X, up.X, backward.X, 0,
+            right.Y, up.Y, backward.Y, 0,
+            right.Z, up.Z, backward.Z, 0,
+
+            GetNegatedDot(right, cameraPosition, nameof(cameraPosition)),
+            GetNegatedDot(up, cameraPosition, nameof(cameraPosition)),
+            GetNegatedDot(backward, cameraPosition, nameof(cameraPosition)),
+            1);
+    }
+
+    private static Vector3 NormalizeLookAtVector(
+        double x,
+        double y,
+        double z,
+        string paramName,
+        string errorMessage)
+    {
+        if (!double.IsFinite(x) ||
+            !double.IsFinite(y) ||
+            !double.IsFinite(z))
+        {
+            throw new ArgumentException(
+                errorMessage,
+                paramName);
+        }
+
+        var maxComponent = System.Math.Max(
+            System.Math.Abs(x),
+            System.Math.Max(
+                System.Math.Abs(y),
+                System.Math.Abs(z)));
+
+        if (maxComponent <= 0.0)
+        {
+            throw new ArgumentException(
+                errorMessage,
+                paramName);
+        }
+
+        x /= maxComponent;
+        y /= maxComponent;
+        z /= maxComponent;
+
+        var length = System.Math.Sqrt(
+            x * x + y * y + z * z);
+
+        return new Vector3(
+            (float)(x / length),
+            (float)(y / length),
+            (float)(z / length));
+    }
+
+    private static float GetNegatedDot(
+        Vector3 direction,
+        Vector3 position,
+        string paramName)
+    {
+        var value = -(
+            (double)direction.X * position.X +
+            (double)direction.Y * position.Y +
+            (double)direction.Z * position.Z);
+
+        var result = (float)value;
+
+        if (!float.IsFinite(result))
+        {
+            throw new ArgumentOutOfRangeException(
+                paramName,
+                "Camera position produces a non-finite view matrix.");
+        }
+
+        return result;
+    }
+
+    private static void ValidateFiniteVector(
+        Vector3 value,
+        string paramName)
+    {
+        if (!float.IsFinite(value.X) ||
+            !float.IsFinite(value.Y) ||
+            !float.IsFinite(value.Z))
+        {
+            throw new ArgumentOutOfRangeException(
+                paramName,
+                "Vector components must be finite.");
+        }
+    }
+
+
     public static Matrix4x4 CreatePerspectiveFieldOfView(
         float fieldOfView,
         float aspectRatio,

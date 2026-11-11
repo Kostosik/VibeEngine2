@@ -31,6 +31,7 @@
     <ProjectReference Include="..\Engine.Editor\Engine.Editor.csproj" />
     <ProjectReference Include="..\Engine.Graphics.2D\Engine.Graphics2D.csproj" />
     <ProjectReference Include="..\Engine.Graphics.OpenGL\Engine.Graphics.OpenGL.csproj" />
+    <ProjectReference Include="..\Engine.Graphics3D\Engine.Graphics3D.csproj" />
     <ProjectReference Include="..\Engine.Graphics\Engine.Graphics.csproj" />
     <ProjectReference Include="..\Engine.Input\Engine.Input.csproj" />
     <ProjectReference Include="..\Engine.Jobs\Engine.Jobs.csproj" />

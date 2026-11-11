@@ -16,6 +16,7 @@
 		<ProjectReference Include="..\Engine.Editor.UI\Engine.Editor.UI.csproj" />
 		<ProjectReference Include="..\Engine.Graphics\Engine.Graphics.csproj" />
 		<ProjectReference Include="..\Engine.Graphics.OpenGL\Engine.Graphics.OpenGL.csproj" />
+		<ProjectReference Include="..\Engine.Hosting.Desktop\Engine.Hosting.Desktop.csproj" />
 		<ProjectReference Include="..\Engine.Input\Engine.Input.csproj" />
 		<ProjectReference Include="..\Engine.Networking.Replication\Engine.Networking.Replication.csproj" />
 		<ProjectReference Include="..\Engine.Physics\Engine.Physics.csproj" />

@@ -100,6 +100,76 @@ internal sealed class OpenGLShaderProgram :
         }
     }
 
+    public void SetMatrix4x4(
+    string name,
+    Matrix4x4 value)
+    {
+        if (!float.IsFinite(value.M11) ||
+            !float.IsFinite(value.M12) ||
+            !float.IsFinite(value.M13) ||
+            !float.IsFinite(value.M14) ||
+            !float.IsFinite(value.M21) ||
+            !float.IsFinite(value.M22) ||
+            !float.IsFinite(value.M23) ||
+            !float.IsFinite(value.M24) ||
+            !float.IsFinite(value.M31) ||
+            !float.IsFinite(value.M32) ||
+            !float.IsFinite(value.M33) ||
+            !float.IsFinite(value.M34) ||
+            !float.IsFinite(value.M41) ||
+            !float.IsFinite(value.M42) ||
+            !float.IsFinite(value.M43) ||
+            !float.IsFinite(value.M44))
+        {
+            throw new ArgumentOutOfRangeException(nameof(value));
+        }
+
+        var location = GetUniformLocation(name);
+
+        if (location < 0)
+        {
+            throw new InvalidOperationException(
+                $"Shader uniform '{name}' was not found.");
+        }
+
+        // Данные располагаются построчно.
+        // OpenGL интерпретирует их как столбцы, поэтому
+        // получаем транспонированную матрицу для GLSL.
+        Span<float> values = stackalloc float[16];
+
+        values[0] = value.M11;
+        values[1] = value.M12;
+        values[2] = value.M13;
+        values[3] = value.M14;
+
+        values[4] = value.M21;
+        values[5] = value.M22;
+        values[6] = value.M23;
+        values[7] = value.M24;
+
+        values[8] = value.M31;
+        values[9] = value.M32;
+        values[10] = value.M33;
+        values[11] = value.M34;
+
+        values[12] = value.M41;
+        values[13] = value.M42;
+        values[14] = value.M43;
+        values[15] = value.M44;
+
+        unsafe
+        {
+            fixed (float* pointer = values)
+            {
+                _gl.UniformMatrix4(
+                    location,
+                    1,
+                    false,
+                    pointer);
+            }
+        }
+    }
+
     public int GetUniformLocation(string name)
     {
         ThrowIfDisposed();

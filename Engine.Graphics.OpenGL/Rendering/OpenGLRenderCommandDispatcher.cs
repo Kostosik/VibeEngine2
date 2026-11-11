@@ -1,8 +1,9 @@
 ﻿using Engine.Graphics.Commands;
-using Engine.Graphics2D.Commands;
 using Engine.Graphics.OpenGL.Fonts;
 using Engine.Graphics.OpenGL.Resources;
 using Engine.Graphics.Rendering;
+using Engine.Graphics2D.Commands;
+using Engine.Graphics3D.Commands;
 
 namespace Engine.Graphics.OpenGL.Rendering;
 
@@ -15,6 +16,10 @@ internal sealed class OpenGLRenderCommandDispatcher
         Debug,
         Font
     }
+    private readonly OpenGLMeshRenderer _meshRenderer;
+
+    private RenderState _currentState = RenderState.Default;
+
     private readonly OpenGLRenderTargetManager _renderTargetManager;
     private readonly OpenGLTextureManager _textureManager;
     private readonly OpenGLTextureRenderer _textureRenderer;
@@ -31,7 +36,7 @@ internal sealed class OpenGLRenderCommandDispatcher
         OpenGLFontRenderer fontRenderer,
         OpenGLRenderState renderState,
         OpenGLRenderTargetManager renderTargetManager, OpenGLShaderManager shaderManager,
-        OpenGLFullscreenRenderer fullscreenRenderer)
+        OpenGLFullscreenRenderer fullscreenRenderer, OpenGLMeshRenderer meshRenderer)
     {
         ArgumentNullException.ThrowIfNull(textureManager);
 
@@ -46,6 +51,9 @@ internal sealed class OpenGLRenderCommandDispatcher
     renderTargetManager);
         ArgumentNullException.ThrowIfNull(shaderManager);
         ArgumentNullException.ThrowIfNull(fullscreenRenderer);
+        ArgumentNullException.ThrowIfNull(meshRenderer);
+
+        _meshRenderer = meshRenderer;
         _renderState = renderState;
 
         _textureManager = textureManager;
@@ -187,6 +195,37 @@ internal sealed class OpenGLRenderCommandDispatcher
 
                 _debugRenderer.Draw(debugCircle);
                 return;
+
+            case DrawMeshCommand drawMesh:
+
+                if (!_meshRenderer.Exists(drawMesh.Mesh) ||
+                    !_shaderManager.Exists(drawMesh.Shader))
+                {
+                    return;
+                }
+
+                // Завершаем активную 2D-пакетную отрисовку.
+                EndActiveRenderer();
+
+                try
+                {
+                    // Включаем depth test только на время 3D-команды.
+                    _renderState.Apply(
+                        _currentState with
+                        {
+                            DepthTestEnabled = true
+                        });
+
+                    _meshRenderer.Draw(drawMesh);
+                }
+                finally
+                {
+                    // Возвращаем состояние текущего RenderPass.
+                    _renderState.Apply(_currentState);
+                }
+
+                return;
+
             case DrawFullscreenCommand fullscreen:
 
                 if (!_textureManager.Exists(fullscreen.Source) ||
@@ -315,9 +354,9 @@ internal sealed class OpenGLRenderCommandDispatcher
             RendererKind.None;
     }
 
-    public void ApplyState(
-    RenderState state)
+    public void ApplyState(RenderState state)
     {
         _renderState.Apply(state);
+        _currentState = state;
     }
 }

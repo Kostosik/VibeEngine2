@@ -11,6 +11,7 @@
     <PackageReference Include="StbTrueTypeSharp" Version="1.26.13" />
     <ProjectReference Include="..\Engine.Core\Engine.Core.csproj" />
     <ProjectReference Include="..\Engine.Graphics.2D\Engine.Graphics2D.csproj" />
+    <ProjectReference Include="..\Engine.Graphics3D\Engine.Graphics3D.csproj" />
 	 <ProjectReference Include="..\Engine.Graphics\Engine.Graphics.csproj" />
   </ItemGroup>
 

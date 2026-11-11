@@ -12,12 +12,16 @@ using System.Runtime.ExceptionServices;
 
 namespace Engine.Hosting.Desktop;
 
-public sealed class OpenGLWindow : IDisposable
+public sealed class OpenGLWindow : IDesktopWindow
 {
     private readonly ISilkNetWindow _window;
 
+    private readonly IGraphicsDeviceFactory<
+        GL,
+        OpenGLGraphicsDeviceOptions> _graphicsDeviceFactory;
+
     private GameLoop? _gameLoop;
-    private OpenGLGraphicsDevice? _graphicsDevice;
+    private IGraphicsDevice? _graphicsDevice;
 
     private int _graphicsWindowWidth;
     private int _graphicsWindowHeight;
@@ -70,11 +74,18 @@ public sealed class OpenGLWindow : IDisposable
         int width,
         int height,
         string title,
+        IGraphicsDeviceFactory<GL, OpenGLGraphicsDeviceOptions> graphicsDeviceFactory,
         bool fullscreen = false,
         bool vsync = false)
     {
+        ArgumentNullException.ThrowIfNull(graphicsDeviceFactory);
+
+        _graphicsDeviceFactory = graphicsDeviceFactory;
+
         Camera = new Camera2D(
             new Engine.Core.Math.Vector2(width, height));
+
+        // Остальная часть конструктора без изменений.
 
         _window = new SilkNetWindow(
             new PlatformWindowOptions
@@ -190,13 +201,14 @@ public sealed class OpenGLWindow : IDisposable
 
         var gl = GL.GetApi(_window.NativeWindow);
 
-        _graphicsDevice = new OpenGLGraphicsDevice(
+        _graphicsDevice = _graphicsDeviceFactory.CreateDevice(
             gl,
-            windowWidth,
-            windowHeight,
-            framebufferWidth,
-            framebufferHeight,
-            Camera);
+            new OpenGLGraphicsDeviceOptions(
+                windowWidth,
+                windowHeight,
+                framebufferWidth,
+                framebufferHeight,
+                Camera));
 
         _graphicsWindowWidth = windowWidth;
         _graphicsWindowHeight = windowHeight;

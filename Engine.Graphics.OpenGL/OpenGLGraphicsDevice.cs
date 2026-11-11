@@ -7,12 +7,13 @@ using Engine.Graphics.OpenGL.Resources;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Engine.Graphics2D.Rendering;
+using Engine.Graphics3D.Resources;
 using Silk.NET.OpenGL;
 
 namespace Engine.Graphics.OpenGL;
 
 public sealed class OpenGLGraphicsDevice
-    : IGraphicsDevice, IWorldTextureDataSubmitter, IDisposable
+    : IGraphicsDevice, IWorldTextureDataSubmitter
 {
     private readonly OpenGLFullscreenRenderer _fullscreenRenderer;
     private readonly GL _gl;
@@ -26,7 +27,7 @@ public sealed class OpenGLGraphicsDevice
 
     private readonly OpenGLGraphicsBufferManager _bufferManager;
     private readonly OpenGLShaderManager _shaderManager;
-
+    private readonly OpenGLMeshManager _meshManager;
     private readonly OpenGLRenderState _renderState;
     private readonly OpenGLRenderTargetManager _renderTargetManager;
 
@@ -46,7 +47,7 @@ public sealed class OpenGLGraphicsDevice
 
     public IGraphicsBufferManager Buffers =>
         _bufferManager;
-
+    public IMeshManager Meshes => _meshManager;
     public IShaderManager Shaders =>
         _shaderManager;
 
@@ -96,7 +97,9 @@ public sealed class OpenGLGraphicsDevice
 
             _bufferManager =
                 new OpenGLGraphicsBufferManager(gl);
-
+            _meshManager = new OpenGLMeshManager(
+                gl,
+                _bufferManager);
             _shaderManager =
                 new OpenGLShaderManager(gl);
 
@@ -140,7 +143,11 @@ public sealed class OpenGLGraphicsDevice
                     _renderState,
                     _renderTargetManager,
                     _shaderManager,
-                    _fullscreenRenderer);
+                    _fullscreenRenderer, 
+                    new OpenGLMeshRenderer(
+                        gl,
+                        _meshManager,
+                        _shaderManager));
 
             _passExecutor =
                 new OpenGLRenderPassExecutor(
@@ -178,7 +185,7 @@ public sealed class OpenGLGraphicsDevice
             TryDispose(_fontManager);
             TryDispose(_renderTargetManager);
             TryDispose(_textureManager);
-
+            TryDispose(_meshManager);
             TryDispose(_bufferManager);
             TryDispose(_shaderManager);
 
@@ -284,7 +291,7 @@ public sealed class OpenGLGraphicsDevice
         DisposeResource(_fontManager, errors);
         DisposeResource(_renderTargetManager, errors);
         DisposeResource(_textureManager, errors);
-
+        DisposeResource(_meshManager, errors);
         DisposeResource(_bufferManager, errors);
         DisposeResource(_shaderManager, errors);
 

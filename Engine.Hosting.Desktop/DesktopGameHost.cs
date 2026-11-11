@@ -5,6 +5,7 @@ using Engine.Content.Assets;
 using Engine.Content.Loading;
 using Engine.Core.Application;
 using Engine.Core.Assets;
+using Engine.Graphics;
 using Engine.Graphics.OpenGL;
 using Engine.Graphics.Resources;
 using Engine.Input;
@@ -52,12 +53,7 @@ public static class DesktopGameHost
 
         Directory.CreateDirectory(assetsDirectory);
 
-        using var window = new OpenGLWindow(
-            options.Width,
-            options.Height,
-            options.Title,
-            options.Fullscreen,
-            options.VSync);
+        using IDesktopWindow window = CreateWindow(options);
 
         window.Initialize();
 
@@ -170,6 +166,25 @@ public static class DesktopGameHost
         Run(
             context => createGame(context.Runtime),
             options);
+    }
+
+    private static IDesktopWindow CreateWindow(
+    DesktopGameHostOptions options)
+    {
+        return options.GraphicsBackend switch
+        {
+            GraphicsBackendKind.OpenGL =>
+                new OpenGLWindow(
+                    options.Width,
+                    options.Height,
+                    options.Title,
+                    new OpenGLGraphicsDeviceFactory(),
+                    options.Fullscreen,
+                    options.VSync),
+
+            _ => throw new NotSupportedException(
+                $"Graphics backend '{options.GraphicsBackend}' is not supported.")
+        };
     }
 
     private sealed class HostedApplication :

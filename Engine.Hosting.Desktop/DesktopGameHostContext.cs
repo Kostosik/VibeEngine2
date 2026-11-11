@@ -3,7 +3,6 @@ using Engine.Camera;
 using Engine.Content;
 using Engine.Core.Assets;
 using Engine.Graphics;
-using Engine.Graphics.OpenGL;
 using Engine.Input;
 using Engine.Input.Cursors;
 using Engine.Runtime;
@@ -16,7 +15,7 @@ namespace Engine.Hosting.Desktop;
 /// </summary>
 public sealed class DesktopGameHostContext : IDisposable
 {
-    private readonly OpenGLWindow _window;
+    private readonly IDesktopWindow _window;
     private bool _disposed;
 
     internal DesktopGameHostContext(
@@ -24,7 +23,7 @@ public sealed class DesktopGameHostContext : IDisposable
         IAssetSource assetSource,
         IContentManager content,
         InputActionMap inputActions,
-        OpenGLWindow window)
+        IDesktopWindow window)
     {
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(assetSource);

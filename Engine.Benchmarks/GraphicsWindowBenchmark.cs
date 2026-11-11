@@ -3,7 +3,7 @@ using Engine.Camera;
 using Engine.Core.Application;
 using Engine.Core.Math;
 using Engine.Core.Time;
-using Engine.Graphics.Commands;
+using Engine.Hosting.Desktop;
 using Engine.Graphics.OpenGL;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
@@ -24,7 +24,8 @@ internal static class GraphicsWindowBenchmark
         using var window = new OpenGLWindow(
             1280,
             720,
-            "VibeEngine Graphics Benchmark");
+            "VibeEngine Graphics Benchmark",
+            new OpenGLGraphicsDeviceFactory());
 
         window.Initialize();
 

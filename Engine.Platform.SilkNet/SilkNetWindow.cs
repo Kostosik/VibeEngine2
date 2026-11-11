@@ -154,7 +154,25 @@ public sealed class SilkNetWindow : ISilkNetWindow
                 "Window must be initialized before Run.");
         }
 
-        _window.Run();
+        // Используем перегрузку с callback,
+        // чтобы Silk.NET самостоятельно не вызывал Reset().
+        _window.Run(() =>
+        {
+            _window.DoEvents();
+
+            if (!_window.IsClosing)
+            {
+                _window.DoUpdate();
+            }
+
+            if (!_window.IsClosing)
+            {
+                _window.DoRender();
+            }
+        });
+
+        // Обрабатываем оставшиеся события после выхода из цикла.
+        _window.DoEvents();
     }
 
     public void ApplyWindowSettings(

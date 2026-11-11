@@ -35,7 +35,8 @@ using var window =
     new OpenGLWindow(
         1280,
         720,
-        "VibeEngine Editor");
+        "VibeEngine Editor",
+        new OpenGLGraphicsDeviceFactory());
 
 window.Initialize();
 

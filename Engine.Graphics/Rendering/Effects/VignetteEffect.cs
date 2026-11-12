@@ -82,12 +82,14 @@ public sealed class VignetteEffect : IPostProcessEffect
         writer.SetFloat("uSoftness", _softness);
     }
 
+
     public static ShaderDescription CreateShaderDescription()
     {
-        return new ShaderDescription(
-            FullscreenShaderSource.Vertex,
-            FragmentShaderSource);
+        return FullscreenShaderSource.CreateDescription(
+            FragmentShaderSource,
+            HlslFragmentShaderSource);
     }
+
 
     private static float ValidateRange(
         float value,
@@ -148,4 +150,54 @@ public sealed class VignetteEffect : IPostProcessEffect
                 color.a);
         }
         """;
+
+
+    public const string HlslFragmentShaderSource = """
+    Texture2D uSource : register(t0);
+    SamplerState uSourceSampler : register(s0);
+
+    cbuffer EffectParameters : register(b0)
+    {
+        float2 uResolution;
+        float uIntensity;
+        float uRadius;
+        float uSoftness;
+    };
+
+    struct FullscreenPixelInput
+    {
+        float4 Position : SV_POSITION;
+        float2 TexCoord : TEXCOORD0;
+    };
+
+    float4 PSMain(FullscreenPixelInput input) : SV_TARGET
+    {
+        float4 color = uSource.Sample(
+            uSourceSampler,
+            input.TexCoord);
+
+        float2 centered =
+            (input.TexCoord - float2(0.5f, 0.5f))
+            * uResolution;
+
+        float shortestSide = min(
+            uResolution.x,
+            uResolution.y);
+
+        float distanceFromCenter =
+            length(centered) / shortestSide;
+
+        float vignette = smoothstep(
+            uRadius,
+            uRadius + uSoftness,
+            distanceFromCenter);
+
+        float darkness = vignette * uIntensity;
+
+        return float4(
+            color.rgb * (1.0f - darkness),
+            color.a);
+    }
+    """;
+
 }

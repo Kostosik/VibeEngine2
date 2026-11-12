@@ -54,6 +54,58 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
         
         """;
 
+    private const string HlslVertexShader = """
+    cbuffer TransformParameters : register(b0)
+    {
+        row_major float4x4 uModel;
+        row_major float4x4 uView;
+        row_major float4x4 uProjection;
+    };
+
+    struct MeshVertexInput
+    {
+        float3 Position : POSITION;
+        float3 Normal : NORMAL;
+        float2 TexCoord : TEXCOORD0;
+    };
+
+    struct MeshVertexOutput
+    {
+        float4 Position : SV_POSITION;
+        float3 WorldPosition : TEXCOORD0;
+        float3 Normal : TEXCOORD1;
+    };
+
+    MeshVertexOutput VSMain(MeshVertexInput input)
+    {
+        MeshVertexOutput output;
+
+        float4 worldPosition = mul(
+            float4(input.Position, 1.0f),
+            uModel);
+
+        output.WorldPosition = worldPosition.xyz;
+
+        // Preview uses rigid model transformations.
+        output.Normal = mul(
+            input.Normal,
+            (float3x3)uModel);
+
+        float4 clipPosition = mul(
+            mul(worldPosition, uView),
+            uProjection);
+
+        // Convert OpenGL depth range (-1..1)
+        // to Direct3D depth range (0..1).
+        clipPosition.z =
+            (clipPosition.z + clipPosition.w) * 0.5f;
+
+        output.Position = clipPosition;
+
+        return output;
+    }
+    """;
+
     private const string FragmentShader = """
 
     #version 330 core
@@ -148,6 +200,109 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
 
     """;
 
+    private const string HlslFragmentShader = """
+    #define MAX_POINT_LIGHTS 4
+
+    struct PointLight
+    {
+        float3 position;
+        float positionPadding;
+
+        float3 color;
+        float intensity;
+
+        float range;
+        float3 rangePadding;
+    };
+
+    cbuffer MaterialParameters : register(b1)
+    {
+        float3 uBaseColor;
+        float uAmbientStrength;
+
+        float uDiffuseStrength;
+        float3 materialPadding;
+    };
+
+    cbuffer LightingParameters : register(b2)
+    {
+        float3 uDirectionalLightDirection;
+        float directionPadding;
+
+        float3 uDirectionalLightColor;
+        float uDirectionalLightIntensity;
+
+        PointLight uPointLights[MAX_POINT_LIGHTS];
+    };
+
+    struct MeshPixelInput
+    {
+        float4 Position : SV_POSITION;
+        float3 WorldPosition : TEXCOORD0;
+        float3 Normal : TEXCOORD1;
+    };
+
+    float4 PSMain(MeshPixelInput input) : SV_TARGET
+    {
+        float3 normal = normalize(input.Normal);
+
+        float3 finalColor =
+            uBaseColor * uAmbientStrength;
+
+        float3 direction =
+            normalize(uDirectionalLightDirection);
+
+        float directionalDiffuse = max(
+            dot(normal, direction),
+            0.0f);
+
+        finalColor +=
+            uBaseColor *
+            uDirectionalLightColor *
+            directionalDiffuse *
+            uDiffuseStrength *
+            uDirectionalLightIntensity;
+
+        for (int i = 0; i < MAX_POINT_LIGHTS; i++)
+        {
+            PointLight light = uPointLights[i];
+
+            float3 toLight =
+                light.position - input.WorldPosition;
+
+            float distanceToLight = length(toLight);
+
+            if (distanceToLight <= 0.0001f ||
+                distanceToLight >= light.range)
+            {
+                continue;
+            }
+
+            float3 lightDirection =
+                toLight / distanceToLight;
+
+            float diffuse = max(
+                dot(normal, lightDirection),
+                0.0f);
+
+            float attenuation =
+                1.0f - distanceToLight / light.range;
+
+            attenuation *= attenuation;
+
+            finalColor +=
+                uBaseColor *
+                light.color *
+                diffuse *
+                uDiffuseStrength *
+                light.intensity *
+                attenuation;
+        }
+
+        return float4(finalColor, 1.0f);
+    }
+    """;
+
     private readonly SceneLighting3D _sceneLighting = new(
     new DirectionalLight3D(
         new Vector3(-0.4f, 0.7f, 0.5f),
@@ -210,8 +365,6 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
             Position = new Vector3(0, 0, 7)
         };
 
-
-
         _camera.LookAt(Vector3.Zero);
         _camera.SetViewportSize(
             _context.WindowWidth,
@@ -230,8 +383,17 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
             RenderPass3D.CreateWorld(_sceneLighting));
 
         var shaderDescription = new ShaderDescription(
-            VertexShader,
-            FragmentShader);
+            new ShaderVariant(
+                ShaderLanguage.Glsl,
+                VertexShader,
+                FragmentShader),
+
+            new ShaderVariant(
+                ShaderLanguage.Hlsl,
+                HlslVertexShader,
+                HlslFragmentShader,
+                "VSMain",
+                "PSMain"));
 
         _shader = graphics.Shaders.Create(shaderDescription);
 

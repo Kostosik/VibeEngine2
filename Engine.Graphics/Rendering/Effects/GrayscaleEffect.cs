@@ -47,10 +47,40 @@ public sealed class GrayscaleEffect : IPostProcessEffect
         Shader = shader;
     }
 
+
     public static ShaderDescription CreateShaderDescription()
     {
-        return new ShaderDescription(
-            FullscreenShaderSource.Vertex,
-            FragmentShaderSource);
+        return FullscreenShaderSource.CreateDescription(
+            FragmentShaderSource,
+            HlslFragmentShaderSource);
     }
+
+
+
+    public const string HlslFragmentShaderSource = """
+    Texture2D uSource : register(t0);
+    SamplerState uSourceSampler : register(s0);
+
+    struct FullscreenPixelInput
+    {
+        float4 Position : SV_POSITION;
+        float2 TexCoord : TEXCOORD0;
+    };
+
+    float4 PSMain(FullscreenPixelInput input) : SV_TARGET
+    {
+        float4 color = uSource.Sample(
+            uSourceSampler,
+            input.TexCoord);
+
+        float luminance = dot(
+            color.rgb,
+            float3(0.299f, 0.587f, 0.114f));
+
+        return float4(
+            luminance.xxx,
+            color.a);
+    }
+    """;
+
 }

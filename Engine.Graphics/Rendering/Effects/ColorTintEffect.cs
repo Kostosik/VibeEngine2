@@ -83,12 +83,14 @@ public sealed class ColorTintEffect : IPostProcessEffect
         writer.SetFloat("uIntensity", _intensity);
     }
 
+
     public static ShaderDescription CreateShaderDescription()
     {
-        return new ShaderDescription(
-            FullscreenShaderSource.Vertex,
-            FragmentShaderSource);
+        return FullscreenShaderSource.CreateDescription(
+            FragmentShaderSource,
+            HlslFragmentShaderSource);
     }
+
 
     public const string FragmentShaderSource = """
         #version 330 core
@@ -115,4 +117,39 @@ public sealed class ColorTintEffect : IPostProcessEffect
             FragColor = vec4(result, color.a);
         }
         """;
+
+
+    public const string HlslFragmentShaderSource = """
+    Texture2D uSource : register(t0);
+    SamplerState uSourceSampler : register(s0);
+
+    cbuffer EffectParameters : register(b0)
+    {
+        float3 uTint;
+        float uIntensity;
+    };
+
+    struct FullscreenPixelInput
+    {
+        float4 Position : SV_POSITION;
+        float2 TexCoord : TEXCOORD0;
+    };
+
+    float4 PSMain(FullscreenPixelInput input) : SV_TARGET
+    {
+        float4 color = uSource.Sample(
+            uSourceSampler,
+            input.TexCoord);
+
+        float3 tinted = color.rgb * uTint;
+
+        float3 result = lerp(
+            color.rgb,
+            tinted,
+            uIntensity);
+
+        return float4(result, color.a);
+    }
+    """;
+
 }

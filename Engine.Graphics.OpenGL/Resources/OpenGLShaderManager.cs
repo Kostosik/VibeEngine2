@@ -43,21 +43,37 @@ internal sealed class OpenGLShaderManager :
         _gl = gl;
     }
 
+
     public ShaderHandle Create(
-    ShaderDescription description)
+        ShaderDescription description)
     {
         ThrowIfDisposed();
+
+        var variant = description.GetVariant(
+            ShaderLanguage.Glsl);
+
+        if (!string.Equals(
+                variant.VertexEntryPoint,
+                "main",
+                StringComparison.Ordinal) ||
+            !string.Equals(
+                variant.FragmentEntryPoint,
+                "main",
+                StringComparison.Ordinal))
+        {
+            throw new NotSupportedException(
+                "OpenGL GLSL shaders must use the 'main' entry point.");
+        }
 
         var program =
             new OpenGLShaderProgram(
                 _gl,
-                description.VertexSource,
-                description.FragmentSource);
+                variant.VertexSource,
+                variant.FragmentSource);
 
         try
         {
-            var handle =
-                CreateHandle();
+            var handle = CreateHandle();
 
             _shaders.Add(
                 handle,
@@ -75,6 +91,7 @@ internal sealed class OpenGLShaderManager :
             throw;
         }
     }
+
 
     public bool Exists(
         ShaderHandle shader)

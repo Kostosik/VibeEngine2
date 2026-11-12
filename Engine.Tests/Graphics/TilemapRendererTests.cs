@@ -150,6 +150,9 @@ public sealed class TilemapRendererTests
         public void EndFrame()
         {
         }
+
+        public void Resize(int x, int y, int width, int height) { }
+        public void Dispose() { }
     }
 
     [Fact]

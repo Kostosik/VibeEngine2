@@ -184,24 +184,46 @@ public static class DesktopGameHost
     }
 
     private static IDesktopWindow CreateOpenGLWindow(
-    DesktopGameHostOptions options)
+        DesktopGameHostOptions options)
     {
-        var platformWindow = new SilkNetWindow(
-            new PlatformWindowOptions
-            {
-                Width = options.Width,
-                Height = options.Height,
-                Title = options.Title,
-                Fullscreen = options.Fullscreen,
-                VSync = options.VSync,
-                GraphicsContext = GraphicsContextKind.OpenGL
-            });
+        var platformWindow = CreatePlatformWindow(
+            options,
+            GraphicsContextKind.OpenGL);
+
+        var procedureProvider =
+            platformWindow as IPlatformGraphicsProcedureAddressProvider
+            ?? throw new NotSupportedException(
+                "The selected platform does not provide graphics procedure addresses.");
 
         return new OpenGLWindow(
             platformWindow,
             () => new OpenGLGraphicsDeviceContext(
-                platformWindow.OpenGLContext),
+                procedureProvider.GetProcAddress),
             new OpenGLGraphicsDeviceFactory());
+    }
+
+    private static IPlatformWindow CreatePlatformWindow(
+        DesktopGameHostOptions options,
+    GraphicsContextKind graphicsContext)
+    {
+        var windowOptions = new PlatformWindowOptions
+        {
+            Width = options.Width,
+            Height = options.Height,
+            Title = options.Title,
+            Fullscreen = options.Fullscreen,
+            VSync = options.VSync,
+            GraphicsContext = graphicsContext
+        };
+
+        return options.PlatformBackend switch
+        {
+            PlatformBackendKind.SilkNet =>
+                new SilkNetWindowFactory().Create(windowOptions),
+
+            _ => throw new NotSupportedException(
+                $"Platform backend '{options.PlatformBackend}' is not supported.")
+        };
     }
 
     private sealed class HostedApplication :

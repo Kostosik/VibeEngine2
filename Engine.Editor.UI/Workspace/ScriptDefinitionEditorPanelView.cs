@@ -120,6 +120,15 @@ public sealed class ScriptDefinitionEditorPanelView : UiPanel
 
         layout.AddChild(_implementationLabel);
 
+        _assignButton = new UiButton("Assign Class")
+        {
+            Width = 130.0f,
+            Height = 34.0f,
+            Enabled = false
+        };
+
+        _assignButton.Clicked += AssignSelectedClass;
+
         _classDropdown = new UiDropdown
         {
             Width = 560.0f,
@@ -165,14 +174,7 @@ public sealed class ScriptDefinitionEditorPanelView : UiPanel
 
         _refreshButton.Clicked += RefreshClassList;
 
-        _assignButton = new UiButton("Assign Class")
-        {
-            Width = 130.0f,
-            Height = 34.0f,
-            Enabled = false
-        };
 
-        _assignButton.Clicked += AssignSelectedClass;
 
         _buttons.AddChild(_refreshButton);
         _buttons.AddChild(_assignButton);

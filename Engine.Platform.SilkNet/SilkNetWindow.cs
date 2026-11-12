@@ -10,7 +10,9 @@ using Silk.NET.Windowing.Glfw;
 
 namespace Engine.Platform.SilkNet;
 
-public sealed class SilkNetWindow : ISilkNetWindow
+public sealed class SilkNetWindow :
+    ISilkNetWindow,
+    IPlatformGraphicsProcedureAddressProvider
 {
     private readonly IWindow _window;
     public IGLContext OpenGLContext =>
@@ -82,6 +84,18 @@ public sealed class SilkNetWindow : ISilkNetWindow
     public event Action<int, int>? FramebufferResized;
     public event Func<bool>? CloseRequested;
     public event Action? Closing;
+
+    public nint GetProcAddress(string name)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        var context = _window.GLContext
+            ?? throw new InvalidOperationException(
+                "OpenGL context is not initialized.");
+
+        return context.GetProcAddress(name);
+    }
 
     public SilkNetWindow(PlatformWindowOptions options)
     {

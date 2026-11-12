@@ -3,11 +3,13 @@ using Engine.Camera;
 using Engine.Core.Application;
 using Engine.Core.Math;
 using Engine.Core.Time;
-using Engine.Hosting.Desktop;
 using Engine.Graphics.OpenGL;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Engine.Graphics2D.Sprites;
+using Engine.Hosting.Desktop;
+using Engine.Platform;
+using Engine.Platform.SilkNet;
 using System.Diagnostics;
 
 namespace Engine.Benchmarks;
@@ -21,11 +23,23 @@ internal static class GraphicsWindowBenchmark
         Console.WriteLine("VSync: disabled by OpenGLWindow");
         Console.WriteLine();
 
+
+        var platformWindow = new SilkNetWindow(
+    new PlatformWindowOptions
+    {
+        Width = 1280,
+        Height = 720,
+        Title = "VibeEngine Graphics Benchmark",
+        VSync = true,
+        GraphicsContext = GraphicsContextKind.OpenGL
+    });
+
         using var window = new OpenGLWindow(
-            1280,
-            720,
-            "VibeEngine Graphics Benchmark",
+            platformWindow,
+            () => new OpenGLGraphicsDeviceContext(
+                name => platformWindow.OpenGLContext.GetProcAddress(name)),
             new OpenGLGraphicsDeviceFactory());
+
 
         window.Initialize();
 

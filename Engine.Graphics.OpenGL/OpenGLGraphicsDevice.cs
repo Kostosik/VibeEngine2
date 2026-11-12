@@ -13,7 +13,9 @@ using Silk.NET.OpenGL;
 namespace Engine.Graphics.OpenGL;
 
 public sealed class OpenGLGraphicsDevice
-    : IGraphicsDevice, IWorldTextureDataSubmitter
+    : IGraphicsDevice,
+      IWorldTextureDataSubmitter,
+      IMeshManagerProvider
 {
     private readonly OpenGLFullscreenRenderer _fullscreenRenderer;
     private readonly GL _gl;

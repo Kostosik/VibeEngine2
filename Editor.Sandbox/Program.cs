@@ -15,9 +15,12 @@ using Engine.Editor.UI;
 using Engine.Editor.UI.Authoring;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.OpenGL;
+using Engine.Hosting.Desktop;
 using Engine.Networking.Replication;
 using Engine.Physics.Components;
 using Engine.Physics.Shapes;
+using Engine.Platform;
+using Engine.Platform.SilkNet;
 using Engine.Serialization.SaveLoad.Ecs;
 using Engine.Tooling.Debugging;
 using Engine.Tooling.Inspection;
@@ -28,15 +31,23 @@ using Engine.UI.Layout;
 using Engine.UI.Styling;
 using Engine.Worlds;
 using Engine.Worlds.Spatial;
-using Engine.Hosting.Desktop;
 
 
-using var window =
-    new OpenGLWindow(
-        1280,
-        720,
-        "VibeEngine Editor",
-        new OpenGLGraphicsDeviceFactory());
+var platformWindow = new SilkNetWindow(
+    new PlatformWindowOptions
+    {
+        Width = 1280,
+        Height = 720,
+        Title = "VibeEngine Editor",
+        VSync = true,
+        GraphicsContext = GraphicsContextKind.OpenGL
+    });
+
+using var window = new OpenGLWindow(
+    platformWindow,
+    () => new OpenGLGraphicsDeviceContext(
+        platformWindow.GetProcAddress),
+    new OpenGLGraphicsDeviceFactory());
 
 window.Initialize();
 

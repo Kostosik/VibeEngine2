@@ -1272,5 +1272,8 @@ public sealed class SpriteRenderSystemTests
         public void EndFrame()
         {
         }
+
+        public void Resize(int x, int y, int width, int height) { }
+        public void Dispose() { }
     }
 }

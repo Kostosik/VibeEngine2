@@ -7,6 +7,32 @@ using Game.Sandbox;
 if (args.Any(
         arg => string.Equals(
             arg,
+            "--3d-preview",
+            StringComparison.OrdinalIgnoreCase)))
+{
+    var previewControls = new Sandbox3DPreviewControls();
+
+    DesktopGameHost.Run(
+        (DesktopGameHostContext context) =>
+            new Sandbox3DPreviewGame(
+                context,
+                previewControls),
+
+        new DesktopGameHostOptions
+        {
+            Title = "VibeEngine2 - 3D Preview",
+            Width = 1280,
+            Height = 720,
+            InputActions = previewControls.ActionMap
+        });
+
+    return;
+}
+
+
+if (args.Any(
+        arg => string.Equals(
+            arg,
             "--engine-game-probe",
             StringComparison.OrdinalIgnoreCase)))
 {

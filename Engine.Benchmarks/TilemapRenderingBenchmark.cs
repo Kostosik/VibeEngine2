@@ -171,6 +171,8 @@ internal static class TilemapRenderingBenchmark
         public RenderPipeline Pipeline =>
             throw new NotSupportedException();
 
+        public void Resize(int width, int height,int x,int y) { }
+
         public void BeginFrame()
         {
         }
@@ -178,5 +180,7 @@ internal static class TilemapRenderingBenchmark
         public void EndFrame()
         {
         }
+
+        public void Dispose() { }
     }
 }

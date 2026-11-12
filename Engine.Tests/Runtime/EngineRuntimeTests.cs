@@ -1094,6 +1094,9 @@ public sealed class EngineRuntimeTests
         public void EndFrame()
         {
         }
+
+        public void Resize(int x, int y, int width, int height) { }
+        public void Dispose() { }
     }
 
     private sealed class FakeInput :

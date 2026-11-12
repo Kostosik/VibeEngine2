@@ -1,53 +1,56 @@
 ﻿
-using Engine.Core.Math;
-
-public readonly record struct Material3D
+public sealed class Material3D
 {
-    public Vector3 BaseColor { get; }
+    public MaterialColor BaseColor { get; }
+
+    /// <summary>
+    /// Сила фонового освещения.
+    /// </summary>
     public float AmbientStrength { get; }
+
+    /// <summary>
+    /// Сила направленного освещения.
+    /// </summary>
     public float DiffuseStrength { get; }
 
     public static Material3D Default { get; } = new(
-        new Vector3(0.25f, 0.65f, 1.0f),
+        new MaterialColor(0.25f, 0.65f, 1.0f),
         ambientStrength: 0.2f,
         diffuseStrength: 0.8f);
 
     public Material3D(
-        Vector3 baseColor,
+        MaterialColor baseColor,
         float ambientStrength = 0.2f,
         float diffuseStrength = 0.8f)
     {
-        ValidateColor(baseColor);
+        if (!IsValidColor(baseColor))
+            throw new ArgumentOutOfRangeException(nameof(baseColor));
 
-        ValidateUnitValue(
-            ambientStrength,
-            nameof(ambientStrength));
-
-        ValidateUnitValue(
-            diffuseStrength,
-            nameof(diffuseStrength));
+        ValidateStrength(ambientStrength, nameof(ambientStrength));
+        ValidateStrength(diffuseStrength, nameof(diffuseStrength));
 
         BaseColor = baseColor;
         AmbientStrength = ambientStrength;
         DiffuseStrength = diffuseStrength;
     }
 
-    private static void ValidateColor(Vector3 color)
+    private static bool IsValidColor(MaterialColor color)
     {
-        if (!float.IsFinite(color.X) ||
-            !float.IsFinite(color.Y) ||
-            !float.IsFinite(color.Z) ||
-            color.X < 0f || color.X > 1f ||
-            color.Y < 0f || color.Y > 1f ||
-            color.Z < 0f || color.Z > 1f)
-        {
-            throw new ArgumentOutOfRangeException(nameof(color));
-        }
+        return color.IsFinite &&
+               IsInUnitRange(color.R) &&
+               IsInUnitRange(color.G) &&
+               IsInUnitRange(color.B) &&
+               IsInUnitRange(color.A);
     }
 
-    private static void ValidateUnitValue(float value, string name)
+    private static void ValidateStrength(float value, string name)
     {
-        if (!float.IsFinite(value) || value < 0f || value > 1f)
+        if (!IsInUnitRange(value))
             throw new ArgumentOutOfRangeException(name);
+    }
+
+    private static bool IsInUnitRange(float value)
+    {
+        return float.IsFinite(value) && value >= 0f && value <= 1f;
     }
 }

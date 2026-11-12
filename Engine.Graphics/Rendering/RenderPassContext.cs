@@ -7,5 +7,6 @@ public readonly record struct RenderPassContext(
     RenderState State,
     bool ClearColor)
 {
+    public IRenderPassContextData? ContextData { get; init; }
     public bool IsPostProcessSource { get; init; }
 }

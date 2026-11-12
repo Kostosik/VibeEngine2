@@ -4,6 +4,7 @@ using Engine.Graphics.OpenGL.Resources;
 using Engine.Graphics.Rendering;
 using Engine.Graphics2D.Commands;
 using Engine.Graphics3D.Commands;
+using Engine.Graphics3D.Lighting;
 
 namespace Engine.Graphics.OpenGL.Rendering;
 
@@ -17,7 +18,8 @@ internal sealed class OpenGLRenderCommandDispatcher
         Font
     }
     private readonly OpenGLMeshRenderer _meshRenderer;
-
+    private SceneLighting3D _lighting =
+    SceneLighting3D.Default;
     private RenderState _currentState = RenderState.Default;
 
     private readonly OpenGLRenderTargetManager _renderTargetManager;
@@ -92,6 +94,11 @@ internal sealed class OpenGLRenderCommandDispatcher
         // Рендерер будет запущен только при первой
         // команде соответствующего типа.
         _activeRenderer = RendererKind.None;
+    }
+
+    public void SetLightingContext(SceneLighting3D? lighting)
+    {
+        _lighting = lighting ?? SceneLighting3D.Default;
     }
 
     public void Execute(IRenderCommand command)
@@ -216,7 +223,7 @@ internal sealed class OpenGLRenderCommandDispatcher
                             DepthTestEnabled = true
                         });
 
-                    _meshRenderer.Draw(drawMesh);
+                    _meshRenderer.Draw(drawMesh, _lighting);
                 }
                 finally
                 {

@@ -55,7 +55,22 @@ public static class DesktopGameHost
 
         Directory.CreateDirectory(assetsDirectory);
 
-        using IDesktopWindow window = CreateWindow(options);
+        var graphicsBackends =
+            DesktopGraphicsBackendRegistry.CreateDefault();
+
+        options.ConfigureGraphicsBackends?.Invoke(
+            graphicsBackends);
+
+        var platformBackends =
+            DesktopPlatformBackendRegistry.CreateDefault();
+
+        options.ConfigurePlatformBackends?.Invoke(
+            platformBackends);
+
+        using IDesktopWindow window = CreateWindow(
+            options,
+            graphicsBackends,
+            platformBackends);
 
         window.Initialize();
 
@@ -171,46 +186,68 @@ public static class DesktopGameHost
     }
 
     private static IDesktopWindow CreateWindow(
-    DesktopGameHostOptions options)
+    DesktopGameHostOptions options,
+    DesktopGraphicsBackendRegistry graphicsBackends,
+    DesktopPlatformBackendRegistry platformBackends)
     {
-        return options.GraphicsBackend switch
-        {
-            GraphicsBackendKind.OpenGL =>
-                CreateOpenGLWindow(options),
+        var graphicsBackend = graphicsBackends.Get(
+            options.GraphicsBackend);
 
-            _ => throw new NotSupportedException(
-                $"Graphics backend '{options.GraphicsBackend}' is not supported.")
+        var platformBackend = platformBackends.Get(
+            options.PlatformBackend);
+
+        if (!platformBackend.SupportedGraphicsContexts.Contains(
+            graphicsBackend.ContextKind))
+        {
+            throw new NotSupportedException(
+                $"Platform '{platformBackend.Kind}' does not support " +
+                $"graphics context '{graphicsBackend.ContextKind}'.");
+        }
+
+        var windowOptions = new PlatformWindowOptions
+        {
+            Width = options.Width,
+            Height = options.Height,
+            Title = options.Title,
+            Fullscreen = options.Fullscreen,
+            VSync = options.VSync,
+            GraphicsContext = graphicsBackend.ContextKind
         };
+
+        var platformWindow = platformBackend.WindowFactory.Create(
+            windowOptions);
+
+        try
+        {
+            return new DesktopWindow(
+                platformWindow,
+                platformBackend.GraphicsContextFactory,
+                graphicsBackend.ContextKind,
+                graphicsBackend.DeviceFactory);
+        }
+        catch
+        {
+            platformWindow.Dispose();
+            throw;
+        }
     }
 
     private static IDesktopWindow CreateOpenGLWindow(
-        DesktopGameHostOptions options)
+    DesktopGameHostOptions options)
     {
         var platformWindow = CreatePlatformWindow(
             options,
             GraphicsContextKind.OpenGL);
 
-        return new OpenGLWindow(
+        var contextFactory =
+            CreatePlatformGraphicsContextFactory(
+                options.PlatformBackend);
+
+        return new DesktopWindow(
             platformWindow,
-            () =>
-            {
-                var platformContext =
-                    CreatePlatformGraphicsContext(
-                        options.PlatformBackend,
-                        platformWindow,
-                        GraphicsContextKind.OpenGL);
-
-                if (platformContext is not
-                    IPlatformGraphicsProcedureAddressProvider provider)
-                {
-                    throw new NotSupportedException(
-                        "The platform context does not provide OpenGL procedure addresses.");
-                }
-
-                return new OpenGLGraphicsDeviceContext(
-                    provider.GetProcAddress);
-            },
-            new OpenGLGraphicsDeviceFactory());
+            contextFactory,
+            GraphicsContextKind.OpenGL,
+            new OpenGLDesktopGraphicsDeviceFactory());
     }
 
     private static IPlatformWindow CreatePlatformWindow(
@@ -237,17 +274,14 @@ public static class DesktopGameHost
         };
     }
 
-    private static IPlatformGraphicsContext CreatePlatformGraphicsContext(
-        PlatformBackendKind platformBackend,
-        IPlatformWindow window,
-        GraphicsContextKind graphicsContext)
+    private static IPlatformGraphicsContextFactory
+        CreatePlatformGraphicsContextFactory(
+            PlatformBackendKind platformBackend)
     {
         return platformBackend switch
         {
             PlatformBackendKind.SilkNet =>
-                new SilkNetGraphicsContextFactory().Create(
-                    window,
-                    graphicsContext),
+                new SilkNetGraphicsContextFactory(),
 
             _ => throw new NotSupportedException(
                 $"Platform backend '{platformBackend}' is not supported.")

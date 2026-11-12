@@ -70,7 +70,8 @@ public sealed class RenderPipeline
                 pass.State,
                 pass.ClearColor)
             {
-                IsPostProcessSource = pass.IsPostProcessSource
+                IsPostProcessSource = pass.IsPostProcessSource,
+                ContextData = pass.ContextData
             };
 
             executor.Begin(context);

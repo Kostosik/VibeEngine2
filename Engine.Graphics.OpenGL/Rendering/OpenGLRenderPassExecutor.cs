@@ -3,6 +3,7 @@ using Engine.Graphics.Commands;
 using Engine.Graphics.OpenGL.Resources;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
+using Engine.Graphics3D.Lighting;
 using Silk.NET.OpenGL;
 
 namespace Engine.Graphics.OpenGL.Rendering;
@@ -144,6 +145,9 @@ internal sealed class OpenGLRenderPassExecutor :
                     ClearBufferMask.ColorBufferBit |
                     ClearBufferMask.DepthBufferBit);
             }
+
+            _dispatcher.SetLightingContext(
+    context.ContextData as SceneLighting3D);
 
             _dispatcher.BeginFrame();
             frameStarted = true;

@@ -34,11 +34,11 @@ internal static class GraphicsWindowBenchmark
         GraphicsContext = GraphicsContextKind.OpenGL
     });
 
-        using var window = new OpenGLWindow(
+        using var window = new DesktopWindow(
             platformWindow,
-            () => new OpenGLGraphicsDeviceContext(
-                name => platformWindow.OpenGLContext.GetProcAddress(name)),
-            new OpenGLGraphicsDeviceFactory());
+            new SilkNetGraphicsContextFactory(),
+            GraphicsContextKind.OpenGL,
+            new OpenGLDesktopGraphicsDeviceFactory());
 
 
         window.Initialize();
@@ -59,7 +59,7 @@ internal static class GraphicsWindowBenchmark
         private const int Columns = 160;
         private const float SpriteSize = 8.0f;
 
-        private readonly OpenGLWindow _window;
+        private readonly DesktopWindow _window;
 
         private enum TextureOrder
         {
@@ -91,7 +91,7 @@ internal static class GraphicsWindowBenchmark
         private int _lastStageIndex = -1;
         private int _lastFrameIndex = -1;
 
-        public BenchmarkApplication(OpenGLWindow window)
+        public BenchmarkApplication(DesktopWindow window)
         {
             _window = window;
         }

@@ -9,6 +9,7 @@ public readonly record struct RenderPass(
     bool ClearColor,
     RenderPassLayerRange Layers)
 {
+    public IRenderPassContextData? ContextData { get; init; }
     /// <summary>
     /// Indicates that this pass produces the image
     /// which will be sent through post-processing.

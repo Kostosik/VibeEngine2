@@ -1,25 +1,23 @@
-﻿
-using Engine.Camera;
+﻿using Engine.Camera;
 using Engine.Core.Application;
-using Engine.Graphics;
-using Engine.Graphics.OpenGL;
 using Engine.Input;
 using Engine.Input.Cursors;
 using Engine.Platform;
-using Engine.Platform.SilkNet;
 using System.Runtime.ExceptionServices;
 
 namespace Engine.Hosting.Desktop;
 
-public sealed class OpenGLWindow : IDesktopWindow
+public sealed class DesktopWindow : IDesktopWindow
 {
     private readonly IPlatformWindow _window;
 
-    private readonly Func<IOpenGLGraphicsDeviceContext> _graphicsContextFactory;
+    private readonly IPlatformGraphicsContextFactory
+        _platformGraphicsContextFactory;
 
-    private readonly IGraphicsDeviceFactory<
-        IOpenGLGraphicsDeviceContext,
-        OpenGLGraphicsDeviceOptions> _graphicsDeviceFactory;
+    private readonly GraphicsContextKind _graphicsContextKind;
+
+    private readonly IDesktopGraphicsDeviceFactory
+        _graphicsDeviceFactory;
 
     private GameLoop? _gameLoop;
     private IGraphicsDevice? _graphicsDevice;
@@ -71,19 +69,19 @@ public sealed class OpenGLWindow : IDesktopWindow
 
     public event Action<int, int>? Resized;
 
-    public OpenGLWindow(
+    public DesktopWindow(
     IPlatformWindow platformWindow,
-    Func<IOpenGLGraphicsDeviceContext> graphicsContextFactory,
-    IGraphicsDeviceFactory<
-        IOpenGLGraphicsDeviceContext,
-        OpenGLGraphicsDeviceOptions> graphicsDeviceFactory)
+    IPlatformGraphicsContextFactory platformGraphicsContextFactory,
+    GraphicsContextKind graphicsContextKind,
+    IDesktopGraphicsDeviceFactory graphicsDeviceFactory)
     {
         ArgumentNullException.ThrowIfNull(platformWindow);
-        ArgumentNullException.ThrowIfNull(graphicsContextFactory);
+        ArgumentNullException.ThrowIfNull(platformGraphicsContextFactory);
         ArgumentNullException.ThrowIfNull(graphicsDeviceFactory);
 
         _window = platformWindow;
-        _graphicsContextFactory = graphicsContextFactory;
+        _platformGraphicsContextFactory = platformGraphicsContextFactory;
+        _graphicsContextKind = graphicsContextKind;
         _graphicsDeviceFactory = graphicsDeviceFactory;
 
         Camera = new Camera2D(
@@ -192,13 +190,15 @@ public sealed class OpenGLWindow : IDesktopWindow
                 windowWidth,
                 windowHeight));
 
-        var graphicsContext = _graphicsContextFactory()
+        var platformContext = _platformGraphicsContextFactory.Create(
+            _window,
+            _graphicsContextKind)
             ?? throw new InvalidOperationException(
-                "Graphics context factory returned null.");
+                "Platform graphics context factory returned null.");
 
         _graphicsDevice = _graphicsDeviceFactory.CreateDevice(
-            graphicsContext,
-            new OpenGLGraphicsDeviceOptions(
+            platformContext,
+            new DesktopGraphicsDeviceOptions(
                 windowWidth,
                 windowHeight,
                 framebufferWidth,

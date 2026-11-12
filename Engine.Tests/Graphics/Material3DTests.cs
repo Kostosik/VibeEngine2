@@ -1,10 +1,10 @@
 ﻿
+using Engine.Core.Math;
 using Xunit;
-using Engine.Graphics3D.Resources;
-// Добавь using для namespace, в котором находятся Material3D
-// и MaterialColor, по примеру остальных тестов проекта.
 
-public class Material3DTests
+namespace Engine.Tests.Graphics;
+
+public sealed class Material3DTests
 {
     [Fact]
     public void Default_HasExpectedValues()
@@ -12,7 +12,7 @@ public class Material3DTests
         var material = Material3D.Default;
 
         Assert.Equal(
-            new Material3D(
+            new MaterialColor(0.25f, 0.65f, 1.0f),
             material.BaseColor);
 
         Assert.Equal(0.2f, material.AmbientStrength);
@@ -22,9 +22,12 @@ public class Material3DTests
     [Fact]
     public void Constructor_StoresProvidedValues()
     {
-        var color = new MaterialColor(1f, 0.2f, 0.1f, 1f);
+        var color = new MaterialColor(1f, 0.2f, 0.1f);
 
-        var material = new Material3D(color, 0.3f, 0.7f);
+        var material = new Material3D(
+            color,
+            ambientStrength: 0.3f,
+            diffuseStrength: 0.7f);
 
         Assert.Equal(color, material.BaseColor);
         Assert.Equal(0.3f, material.AmbientStrength);
@@ -39,11 +42,20 @@ public class Material3DTests
     }
 
     [Fact]
-    public void Constructor_RejectsInvalidLightingStrength()
+    public void Constructor_RejectsInvalidAmbientStrength()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             new Material3D(
-                MaterialColor.White,
+                new MaterialColor(),
                 ambientStrength: -0.1f));
+    }
+
+    [Fact]
+    public void Constructor_RejectsInvalidDiffuseStrength()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new Material3D(
+                new MaterialColor(),
+                diffuseStrength: 1.1f));
     }
 }

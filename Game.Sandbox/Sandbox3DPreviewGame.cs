@@ -6,6 +6,7 @@ using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Engine.Graphics3D;
 using Engine.Graphics3D.Commands;
+using Engine.Graphics3D.Lighting;
 using Engine.Graphics3D.Rendering;
 using Engine.Graphics3D.Resources;
 using Engine.Hosting.Desktop;
@@ -16,6 +17,17 @@ namespace Game.Sandbox;
 
 internal sealed class Sandbox3DPreviewGame : EngineGame
 {
+    private readonly DirectionalLight3D _directionalLight = new(
+    new Vector3(-0.4f, 0.7f, 0.5f),
+    new Vector3(1.0f, 0.95f, 0.85f),
+    1.1f);
+
+    private readonly PointLight3D _pointLight = new(
+    new Vector3(0f, 3f, 3f),
+    new Vector3(1f, 0.75f, 0.45f),
+    intensity: 2f,
+    range: 8f);
+
     private readonly Sandbox3DPreviewControls _controls;
 
     private Camera3DController? _cameraController;
@@ -34,51 +46,139 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
         uniform mat4 uModel;
         uniform mat4 uView;
         uniform mat4 uProjection;
-
+        out vec3 vWorldPosition;
         out vec3 vNormal;
 
         void main()
         {
+            vec4 worldPosition = uModel * vec4(aPosition, 1.0);
+
+            vWorldPosition = worldPosition.xyz;
+
             vNormal = mat3(transpose(inverse(uModel))) * aNormal;
 
             gl_Position =
                 uProjection *
                 uView *
-                uModel *
-                vec4(aPosition, 1.0);
+                worldPosition;
         }
         
         """;
 
     private const string FragmentShader = """
-        
-        #version 330 core
 
-        in vec3 vNormal;
+    #version 330 core
 
-        out vec4 FragColor;
+    #define MAX_POINT_LIGHTS 4
 
-        void main()
+    in vec3 vNormal;
+    in vec3 vWorldPosition;
+
+    uniform vec3 uBaseColor;
+    uniform float uAmbientStrength;
+    uniform float uDiffuseStrength;
+
+    uniform vec3 uDirectionalLightDirection;
+    uniform vec3 uDirectionalLightColor;
+    uniform float uDirectionalLightIntensity;
+
+    struct PointLight
+    {
+        vec3 position;
+        vec3 color;
+        float intensity;
+        float range;
+    };
+
+    uniform PointLight uPointLights[MAX_POINT_LIGHTS];
+
+    out vec4 FragColor;
+
+    void main()
+    {
+        vec3 normal = normalize(vNormal);
+
+        // Общее фоновое освещение.
+        vec3 finalColor =
+            uBaseColor * uAmbientStrength;
+
+        // Направленный источник.
+        vec3 direction = normalize(
+            uDirectionalLightDirection);
+
+        float directionalDiffuse = max(
+            dot(normal, direction),
+            0.0);
+
+        finalColor +=
+            uBaseColor *
+            uDirectionalLightColor *
+            directionalDiffuse *
+            uDiffuseStrength *
+            uDirectionalLightIntensity;
+
+        // Все точечные источники.
+        for (int i = 0; i < MAX_POINT_LIGHTS; i++)
         {
-            vec3 normal = normalize(vNormal);
+            PointLight light = uPointLights[i];
 
-            vec3 lightDirection = normalize(
-                vec3(-0.4, 0.7, 0.5));
+            vec3 toLight =
+                light.position - vWorldPosition;
+
+            float distanceToLight = length(toLight);
+
+            if (distanceToLight <= 0.0001 ||
+                distanceToLight >= light.range)
+            {
+                continue;
+            }
+
+            vec3 lightDirection =
+                toLight / distanceToLight;
 
             float diffuse = max(
                 dot(normal, lightDirection),
                 0.0);
 
-            float lighting = 0.2 + diffuse * 0.8;
+            float attenuation =
+                1.0 - distanceToLight / light.range;
 
-            vec3 baseColor = vec3(0.25, 0.65, 1.0);
+            attenuation *= attenuation;
 
-            FragColor = vec4(
-                baseColor * lighting,
-                1.0);
+            finalColor +=
+                uBaseColor *
+                light.color *
+                diffuse *
+                uDiffuseStrength *
+                light.intensity *
+                attenuation;
         }
-        
-        """;
+
+        FragColor = vec4(finalColor, 1.0);
+    }
+
+    """;
+
+    private readonly SceneLighting3D _sceneLighting = new(
+    new DirectionalLight3D(
+        new Vector3(-0.4f, 0.7f, 0.5f),
+        new Vector3(1f, 0.95f, 0.85f),
+        1.1f),
+    new[]
+    {
+        new PointLight3D(
+            new Vector3(-2f, 3f, 3f),
+            new Vector3(1f, 0.55f, 0.25f),
+            2f,
+            7f),
+
+        new PointLight3D(
+            new Vector3(4f, 1f, 2f),
+            new Vector3(0.25f, 0.45f, 1f),
+            1.5f,
+            6f)
+    });
+
 
     private readonly DesktopGameHostContext _context;
 
@@ -137,7 +237,8 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
 
         graphics.Pipeline.Clear();
         graphics.Pipeline.PostProcessing.Clear();
-        graphics.Pipeline.AddPass(RenderPass3D.World);
+        graphics.Pipeline.AddPass(
+            RenderPass3D.CreateWorld(_sceneLighting));
 
         var shaderDescription = new ShaderDescription(
             VertexShader,
@@ -229,7 +330,13 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
                 _shader,
                 tetrahedronModel,
                 view,
-                projection));
+                projection)
+            {
+                Material = new Material3D(
+                    new MaterialColor(0.95f, 0.25f, 0.15f)),
+                PointLight = _pointLight,
+                DirectionalLight = _directionalLight
+            });
 
         // Куб справа вращается вокруг двух осей.
         var rotation =
@@ -251,14 +358,27 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
                 _shader,
                 cubeModel,
                 view,
-                projection));
+                projection)
+            {
+                Material = new Material3D(
+                    new MaterialColor(0.2f, 0.85f, 0.35f)),
+                PointLight = _pointLight,
+                DirectionalLight = _directionalLight
+            });
 
-        graphics.Submit(new DrawMeshCommand(
-            _sphereMesh,
-            _shader,
-            Matrix4x4.CreateTranslation(new Vector3(4.5f, 1f, 1f)),
-            camera.ViewMatrix,
-            camera.ProjectionMatrix));
+        graphics.Submit(
+            new DrawMeshCommand(
+                _sphereMesh,
+                _shader,
+                Matrix4x4.CreateTranslation(
+                    new Vector3(4.5f, 1f, 1f)),
+                view,
+                projection)
+            {
+                Material = Material3D.Default,
+                PointLight = _pointLight,
+                DirectionalLight = _directionalLight
+            });
     }
 
     protected override void OnShutdown()

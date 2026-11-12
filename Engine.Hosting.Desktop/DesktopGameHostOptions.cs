@@ -8,6 +8,12 @@ namespace Engine.Hosting.Desktop;
 
 public sealed class DesktopGameHostOptions
 {
+    public Action<DesktopPlatformBackendRegistry>?
+    ConfigurePlatformBackends
+    { get; init; }
+    public Action<DesktopGraphicsBackendRegistry>?
+    ConfigureGraphicsBackends
+    { get; init; }
     public GraphicsBackendKind GraphicsBackend { get; init; }
     = GraphicsBackendKind.OpenGL;
     public PlatformBackendKind PlatformBackend { get; init; }

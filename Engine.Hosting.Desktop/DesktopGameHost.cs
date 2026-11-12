@@ -190,21 +190,32 @@ public static class DesktopGameHost
             options,
             GraphicsContextKind.OpenGL);
 
-        var procedureProvider =
-            platformWindow as IPlatformGraphicsProcedureAddressProvider
-            ?? throw new NotSupportedException(
-                "The selected platform does not provide graphics procedure addresses.");
-
         return new OpenGLWindow(
             platformWindow,
-            () => new OpenGLGraphicsDeviceContext(
-                procedureProvider.GetProcAddress),
+            () =>
+            {
+                var platformContext =
+                    CreatePlatformGraphicsContext(
+                        options.PlatformBackend,
+                        platformWindow,
+                        GraphicsContextKind.OpenGL);
+
+                if (platformContext is not
+                    IPlatformGraphicsProcedureAddressProvider provider)
+                {
+                    throw new NotSupportedException(
+                        "The platform context does not provide OpenGL procedure addresses.");
+                }
+
+                return new OpenGLGraphicsDeviceContext(
+                    provider.GetProcAddress);
+            },
             new OpenGLGraphicsDeviceFactory());
     }
 
     private static IPlatformWindow CreatePlatformWindow(
         DesktopGameHostOptions options,
-    GraphicsContextKind graphicsContext)
+        GraphicsContextKind graphicsContext)
     {
         var windowOptions = new PlatformWindowOptions
         {
@@ -223,6 +234,23 @@ public static class DesktopGameHost
 
             _ => throw new NotSupportedException(
                 $"Platform backend '{options.PlatformBackend}' is not supported.")
+        };
+    }
+
+    private static IPlatformGraphicsContext CreatePlatformGraphicsContext(
+        PlatformBackendKind platformBackend,
+        IPlatformWindow window,
+        GraphicsContextKind graphicsContext)
+    {
+        return platformBackend switch
+        {
+            PlatformBackendKind.SilkNet =>
+                new SilkNetGraphicsContextFactory().Create(
+                    window,
+                    graphicsContext),
+
+            _ => throw new NotSupportedException(
+                $"Platform backend '{platformBackend}' is not supported.")
         };
     }
 

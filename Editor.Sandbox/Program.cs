@@ -45,8 +45,23 @@ var platformWindow = new SilkNetWindow(
 
 using var window = new OpenGLWindow(
     platformWindow,
-    () => new OpenGLGraphicsDeviceContext(
-        platformWindow.GetProcAddress),
+    () =>
+    {
+        var platformContext =
+            new SilkNetGraphicsContextFactory().Create(
+                platformWindow,
+                GraphicsContextKind.OpenGL);
+
+        if (platformContext is not
+            IPlatformGraphicsProcedureAddressProvider provider)
+        {
+            throw new NotSupportedException(
+                "OpenGL procedure addresses are unavailable.");
+        }
+
+        return new OpenGLGraphicsDeviceContext(
+            provider.GetProcAddress);
+    },
     new OpenGLGraphicsDeviceFactory());
 
 window.Initialize();

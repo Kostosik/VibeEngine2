@@ -35,6 +35,68 @@ public sealed class MeshPrimitivesTests
         Assert.True(Vector3.Dot(normal, Vector3.UnitZ) > 0);
     }
 
+
+    [Fact]
+    public void CreateTetrahedron_ReturnsFourFaces()
+    {
+        var mesh = MeshPrimitives.CreateTetrahedron();
+
+        Assert.Equal(12, mesh.VertexCount);
+        Assert.Equal(12, mesh.IndexCount);
+        Assert.Equal(4, mesh.TriangleCount);
+    }
+
+    [Fact]
+    public void CreateTetrahedron_HasOutwardFacingNormals()
+    {
+        var mesh = MeshPrimitives.CreateTetrahedron();
+
+        var vertices = mesh.Vertices.Span;
+        var indices = mesh.Indices.Span;
+
+        for (var i = 0; i < indices.Length; i += 3)
+        {
+            var a = vertices[(int)indices[i]];
+            var b = vertices[(int)indices[i + 1]];
+            var c = vertices[(int)indices[i + 2]];
+
+            var geometricNormal = Vector3.Cross(
+                b.Position - a.Position,
+                c.Position - a.Position);
+
+            Assert.True(
+                Vector3.Dot(geometricNormal, a.Normal) > 0);
+        }
+    }
+
+    [Fact]
+    public void CreateTetrahedron_HasFourDistinctNormals()
+    {
+        var mesh = MeshPrimitives.CreateTetrahedron();
+
+        var normals = mesh.Vertices
+            .ToArray()
+            .Select(vertex => vertex.Normal)
+            .Distinct()
+            .ToArray();
+
+        Assert.Equal(4, normals.Length);
+    }
+
+    [Fact]
+    public void CreateTetrahedron_HasRequestedEdgeLength()
+    {
+        const float size = 3.0f;
+
+        var mesh = MeshPrimitives.CreateTetrahedron(size);
+
+        var first = mesh.Vertices.Span[0].Position;
+        var second = mesh.Vertices.Span[1].Position;
+
+        Assert.Equal(size, Vector3.Distance(first, second), 5);
+    }
+
+
     [Fact]
     public void CreateTriangle_UsesRequestedSize()
     {

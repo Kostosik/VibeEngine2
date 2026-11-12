@@ -1,8 +1,8 @@
-﻿
-using Engine.Camera;
+﻿using Engine.Camera;
 using Engine.Core.Math;
 using Engine.Core.Time;
 using Engine.Graphics.Commands;
+using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Engine.Graphics3D;
 using Engine.Graphics3D.Commands;
@@ -24,6 +24,7 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
     private bool _hasLastPointerPosition;
 
     private const string VertexShader = """
+        
         #version 330 core
 
         layout(location = 0) in vec3 aPosition;
@@ -34,33 +35,57 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
         uniform mat4 uView;
         uniform mat4 uProjection;
 
+        out vec3 vNormal;
+
         void main()
         {
+            vNormal = mat3(transpose(inverse(uModel))) * aNormal;
+
             gl_Position =
                 uProjection *
                 uView *
                 uModel *
                 vec4(aPosition, 1.0);
         }
+        
         """;
 
     private const string FragmentShader = """
+        
         #version 330 core
+
+        in vec3 vNormal;
 
         out vec4 FragColor;
 
         void main()
         {
-            FragColor = vec4(0.25, 0.65, 1.0, 1.0);
+            vec3 normal = normalize(vNormal);
+
+            vec3 lightDirection = normalize(
+                vec3(-0.4, 0.7, 0.5));
+
+            float diffuse = max(
+                dot(normal, lightDirection),
+                0.0);
+
+            float lighting = 0.2 + diffuse * 0.8;
+
+            vec3 baseColor = vec3(0.25, 0.65, 1.0);
+
+            FragColor = vec4(
+                baseColor * lighting,
+                1.0);
         }
+        
         """;
 
     private readonly DesktopGameHostContext _context;
 
     private IMeshManager? _meshes;
     private Camera3D? _camera;
-
-    private MeshHandle _triangleMesh;
+    private MeshHandle _sphereMesh;
+    private MeshHandle _tetrahedronMesh;
     private MeshHandle _cubeMesh;
     private ShaderHandle _shader;
 
@@ -120,9 +145,9 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
 
         _shader = graphics.Shaders.Create(shaderDescription);
 
-        _triangleMesh = _meshes.Create(
-            MeshPrimitives.CreateTriangle(1.8f));
-
+        _tetrahedronMesh = _meshes.Create(
+            MeshPrimitives.CreateTetrahedron(1.8f));
+        _sphereMesh = _meshes.Create(MeshPrimitives.CreateUvSphere(2));
         _cubeMesh = _meshes.Create(
             MeshPrimitives.CreateCube(1.6f));
 
@@ -195,14 +220,14 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
         var projection = camera.ProjectionMatrix;
 
         // Статичный треугольник слева.
-        var triangleModel = Matrix4x4.CreateTranslation(
+        var tetrahedronModel = Matrix4x4.CreateTranslation(
             new Vector3(-1.7f, 0, 0));
 
         graphics.Submit(
             new DrawMeshCommand(
-                _triangleMesh,
+                _tetrahedronMesh,
                 _shader,
-                triangleModel,
+                tetrahedronModel,
                 view,
                 projection));
 
@@ -227,6 +252,13 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
                 cubeModel,
                 view,
                 projection));
+
+        graphics.Submit(new DrawMeshCommand(
+            _sphereMesh,
+            _shader,
+            Matrix4x4.CreateTranslation(new Vector3(4.5f, 1f, 1f)),
+            camera.ViewMatrix,
+            camera.ProjectionMatrix));
     }
 
     protected override void OnShutdown()
@@ -251,10 +283,10 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
 
         if (meshes is not null)
         {
-            if (_triangleMesh.IsValid)
+            if (_tetrahedronMesh.IsValid)
             {
-                TryCleanup(() => meshes.Destroy(_triangleMesh));
-                _triangleMesh = MeshHandle.Invalid;
+                TryCleanup(() => meshes.Destroy(_tetrahedronMesh));
+                _tetrahedronMesh = MeshHandle.Invalid;
             }
 
             if (_cubeMesh.IsValid)

@@ -106,7 +106,11 @@ public sealed class ProjectCreationIntegrationTests
             Path.Combine(publishDirectory, "GeneratedGame.vibeproject")));
 
         Assert.True(File.Exists(
-            Path.Combine(publishDirectory, "Scenes", "Main.world")));
+            Path.Combine(
+                publishDirectory,
+                "Assets",
+                "Scenes",
+                "Main.world")));
 
         Assert.Equal(
             "generated-project-asset",

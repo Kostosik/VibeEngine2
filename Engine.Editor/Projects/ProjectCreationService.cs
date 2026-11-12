@@ -510,19 +510,6 @@ public sealed class ProjectCreationService
         lines.Add(
             "    </None>");
 
-        // Copy project scenes to the game output directory.
-        lines.Add(
-            "    <None Update=\"Scenes/**/*\">");
-
-        lines.Add(
-            "      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>");
-
-        lines.Add(
-            "      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>");
-
-        lines.Add(
-            "    </None>");
-
         // Copy the project manifest beside the game executable.
         lines.Add(
             "    <None Update=\"*.vibeproject\">");
@@ -574,6 +561,7 @@ public sealed class ProjectCreationService
         return $$"""
         using System.Text.Json;
         using Engine.Hosting.Desktop;
+        using Engine.Hosting.Desktop.SilkNet;
         using Engine.Runtime;
         using Engine.Serialization.Content;
         using Engine.Serialization.UI;
@@ -589,7 +577,7 @@ public sealed class ProjectCreationService
                     ResolveStartupScenePath(
                         "{{manifestFileName}}");
 
-                DesktopGameHost.Run(
+                SilkNetDesktopHost.Run(
                 (DesktopGameHostContext context) => new GameMain(
                     context.Runtime,
                     startupScenePath),
@@ -633,7 +621,7 @@ public sealed class ProjectCreationService
                         File.ReadAllText(manifestPath));
 
                 var relativeScenePath =
-                    "Scenes/Main.world";
+                "Assets/Scenes/Main.world";
 
                 if (document.RootElement.TryGetProperty(
                         "startupScene",

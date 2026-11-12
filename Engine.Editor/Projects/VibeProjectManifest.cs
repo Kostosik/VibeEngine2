@@ -7,7 +7,7 @@ internal sealed class VibeProjectManifest
     public const int CurrentFormatVersion = 1;
 
     public const string DefaultStartupScenePath =
-    "Scenes/Main.world";
+        "Assets/Scenes/Main.world";
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {

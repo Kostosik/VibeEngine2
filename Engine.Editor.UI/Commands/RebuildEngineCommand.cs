@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-using System.Reflection;
-using System.Text;
+﻿using System.Reflection;
 using System.Xml.Linq;
 using Engine.Core.Diagnostics;
 using Engine.Editor.Projects;
@@ -12,25 +10,6 @@ public sealed class RebuildEngineCommand :
     IDebugCommand,
     IDisposable
 {
-    private static readonly string[] ProjectsToPublish =
-    {
-        @"Engine.Hosting.Desktop\Engine.Hosting.Desktop.csproj",
-        @"Engine.Serialization\Engine.Serialization.csproj",
-        @"Engine.Input.SilkNet\Engine.Input.SilkNet.csproj",
-@"Engine.Networking.Replication\Engine.Networking.Replication.csproj"
-    };
-
-    private static readonly string[] RequiredAssemblies =
-    {
-        "Engine.Hosting.Desktop.dll",
-        "Engine.Runtime.dll",
-        "Engine.Graphics.OpenGL.dll",
-        "Engine.Audio.OpenAL.dll",
-        "Engine.Serialization.dll",
-        "Engine.Graphics2D.dll",
-        "Engine.Input.SilkNet.dll","Engine.Networking.dll",
-"Engine.Networking.Replication.dll"
-    };
     private readonly Func<bool>? _areGameSessionsActive;
     private readonly Func<GameProject?> _getActiveProject;
     private readonly Queue<RebuildEngineEvent> _events = new();
@@ -280,71 +259,8 @@ public sealed class RebuildEngineCommand :
 
             Directory.CreateDirectory(runtimeDirectory);
 
-            foreach (var relativeProjectPath in ProjectsToPublish)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                var projectPath = Path.Combine(
-                    sourceRoot,
-                    relativeProjectPath);
-
-                if (!File.Exists(projectPath))
-                {
-                    throw new FileNotFoundException(
-                        "An engine project required for rebuilding was not found.",
-                        projectPath);
-                }
-
-                var outputDirectory = Path.Combine(
-                    buildDirectory,
-                    Path.GetFileNameWithoutExtension(
-                        relativeProjectPath));
-
-                Directory.CreateDirectory(outputDirectory);
-
-                Enqueue(
-                    new RebuildEngineEvent(
-                        DiagnosticLevel.Info,
-                        $"Publishing {Path.GetFileNameWithoutExtension(relativeProjectPath)}..."));
-
-                await RunDotnetAsync(
-                    sourceRoot,
-                    new[]
-                    {
-                        "publish",
-                        projectPath,
-                        "--configuration",
-                        configuration,
-                        "--runtime",
-                        "win-x64",
-                        "--self-contained",
-                        "false",
-                        "-p:CopyLocalLockFileAssemblies=true",
-                        "--output",
-                        outputDirectory
-                    },
-                    cancellationToken).ConfigureAwait(false);
-
-                foreach (var file in Directory.EnumerateFiles(
-                             outputDirectory,
-                             "*.dll",
-                             SearchOption.TopDirectoryOnly))
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    File.Copy(
-                        file,
-                        Path.Combine(
-                            runtimeDirectory,
-                            Path.GetFileName(file)),
-                        overwrite: true);
-                }
-            }
-
-            var missing = RequiredAssemblies
-                .Where(name => !File.Exists(
-                    Path.Combine(runtimeDirectory, name)))
-                .ToArray();
+            var missing =
+                EngineRuntimeBuilder.GetMissingAssemblies(runtimeDirectory);
 
             if (missing.Length != 0)
             {
@@ -459,127 +375,6 @@ public sealed class RebuildEngineCommand :
         return isStandardError
             ? DiagnosticLevel.Warning
             : DiagnosticLevel.Debug;
-    }
-
-    private async Task RunDotnetAsync(
-        string workingDirectory,
-        IReadOnlyList<string> arguments,
-        CancellationToken cancellationToken)
-    {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = "dotnet",
-            WorkingDirectory = workingDirectory,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
-            CreateNoWindow = true
-        };
-
-        startInfo.Environment["DOTNET_CLI_UI_LANGUAGE"] = "en";
-
-        foreach (var argument in arguments)
-        {
-            startInfo.ArgumentList.Add(argument);
-        }
-
-        using var process = new Process
-        {
-            StartInfo = startInfo
-        };
-
-        if (!process.Start())
-        {
-            throw new InvalidOperationException(
-                "Failed to start dotnet.");
-        }
-
-        using var cancellationRegistration =
-            cancellationToken.Register(() =>
-            {
-                try
-                {
-                    if (!process.HasExited)
-                    {
-                        process.Kill(entireProcessTree: true);
-                    }
-                }
-                catch
-                {
-                    // Process may already have exited.
-                }
-            });
-
-        var stdoutTask = PumpOutputAsync(
-            process.StandardOutput,
-            isStandardError: false);
-
-        var stderrTask = PumpOutputAsync(
-            process.StandardError,
-            isStandardError: true);
-
-        try
-        {
-            await process.WaitForExitAsync(
-                cancellationToken).ConfigureAwait(false);
-        }
-        catch
-        {
-            try
-            {
-                if (!process.HasExited)
-                {
-                    process.Kill(entireProcessTree: true);
-                }
-            }
-            catch
-            {
-                // Process may already have exited.
-            }
-
-            await process.WaitForExitAsync().ConfigureAwait(false);
-            await Task.WhenAll(stdoutTask, stderrTask).ConfigureAwait(false);
-            throw;
-        }
-
-        await Task.WhenAll(stdoutTask, stderrTask).ConfigureAwait(false);
-
-        if (process.ExitCode != 0)
-        {
-            throw new InvalidOperationException(
-                $"dotnet publish exited with code {process.ExitCode}.");
-        }
-
-        async Task PumpOutputAsync(
-            StreamReader reader,
-            bool isStandardError)
-        {
-            while (await reader.ReadLineAsync().ConfigureAwait(false)
-                   is { } line)
-            {
-                if (string.IsNullOrWhiteSpace(line))
-                {
-                    continue;
-                }
-
-                var level = line.Contains(
-                    ": error ",
-                    StringComparison.OrdinalIgnoreCase)
-                    ? DiagnosticLevel.Error
-                    : line.Contains(
-                        ": warning ",
-                        StringComparison.OrdinalIgnoreCase)
-                        ? DiagnosticLevel.Warning
-                        : isStandardError
-                            ? DiagnosticLevel.Warning
-                            : DiagnosticLevel.Debug;
-
-                Enqueue(
-                    new RebuildEngineEvent(level, line));
-            }
-        }
     }
 
     private static void SynchronizeProjectReferences(

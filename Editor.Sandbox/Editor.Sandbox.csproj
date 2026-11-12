@@ -15,7 +15,6 @@
 		<ProjectReference Include="..\Engine.Editor\Engine.Editor.csproj" />
 		<ProjectReference Include="..\Engine.Editor.UI\Engine.Editor.UI.csproj" />
 		<ProjectReference Include="..\Engine.Graphics\Engine.Graphics.csproj" />
-		<ProjectReference Include="..\Engine.Graphics.OpenGL\Engine.Graphics.OpenGL.csproj" />
 		<ProjectReference Include="..\Engine.Hosting.Desktop.SilkNet\Engine.Hosting.Desktop.SilkNet.csproj" />
 		<ProjectReference Include="..\Engine.Hosting.Desktop\Engine.Hosting.Desktop.csproj" />
 		<ProjectReference Include="..\Engine.Input\Engine.Input.csproj" />
@@ -26,7 +25,6 @@
 		<ProjectReference Include="..\Engine.UI\Engine.UI.csproj" />
 		<ProjectReference Include="..\Engine.World\Engine.Worlds.csproj" />
 		<ProjectReference Include="..\Engine.Platform\Engine.Platform.csproj" />
-		<ProjectReference Include="..\Engine.Platform.SilkNet\Engine.Platform.SilkNet.csproj" />
 	</ItemGroup>
 
   <ItemGroup>

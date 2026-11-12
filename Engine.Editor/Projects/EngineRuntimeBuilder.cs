@@ -5,11 +5,17 @@ namespace Engine.Editor.Projects;
 
 public static class EngineRuntimeBuilder
 {
-        private static readonly string[] s_sourceProjectPaths =
-        {
+    private static readonly SemaphoreSlim s_buildLock = new(1, 1);
+
+    private static readonly string[] s_sourceProjectPaths =
+    {
         Path.Combine(
             "Engine.Hosting.Desktop",
             "Engine.Hosting.Desktop.csproj"),
+
+        Path.Combine(
+            "Engine.Hosting.Desktop.SilkNet",
+            "Engine.Hosting.Desktop.SilkNet.csproj"),
 
         Path.Combine(
             "Engine.Serialization",
@@ -34,22 +40,13 @@ public static class EngineRuntimeBuilder
         Path.Combine(
             "Engine.Navigation",
             "Engine.Navigation.csproj"),
-        Path.Combine(
-            "Engine.Hosting",
-            "Engine.Hosting.csproj"),
 
-        Path.Combine(
-            "Engine.Localization",
-            "Engine.Localization.csproj"),
         Path.Combine(
             "Engine.AI",
-            "Engine.AI.csproj"),
-        Path.Combine(
-            "Engine.Navigation",
-            "Engine.Navigation.csproj")
-        };
+            "Engine.AI.csproj")
+    };
 
-        private static readonly string[] s_requiredAssemblies =
+    private static readonly string[] s_requiredAssemblies =
         {
         "Engine.AI.dll",
         "Engine.Animation.dll",
@@ -66,6 +63,9 @@ public static class EngineRuntimeBuilder
         "Engine.Hosting.dll",
         "Engine.Input.SilkNet.dll",
         "Engine.Input.dll",
+        "Engine.Hosting.Desktop.SilkNet.dll",
+        "Engine.Platform.dll",
+        "Engine.Platform.SilkNet.dll",
         "Engine.Jobs.dll",
         "Engine.Localization.dll",
         "Engine.Memory.dll",
@@ -154,8 +154,12 @@ public static class EngineRuntimeBuilder
             throw new DirectoryNotFoundException(
                 $"'{sourceRoot}' is not a valid VibeEngine2 source root.");
         }
+        await s_buildLock.WaitAsync(cancellationToken)
+    .ConfigureAwait(false);
 
-        var workspace = Path.Combine(
+        try
+        {
+            var workspace = Path.Combine(
             Path.GetTempPath(),
             $"VibeEngine2-RuntimeBuild-{Guid.NewGuid():N}");
 
@@ -232,6 +236,11 @@ public static class EngineRuntimeBuilder
         finally
         {
             TryDeleteDirectory(workspace);
+        }
+        }
+        finally
+        {
+            s_buildLock.Release();
         }
     }
 

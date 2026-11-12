@@ -3,6 +3,7 @@ using Engine.Serialization.Content;
 using Engine.Serialization.UI;
 using Engine.UI.Assets;
 using Game.Sandbox;
+using Engine.Hosting.Desktop.SilkNet;
 
 if (args.Any(
         arg => string.Equals(
@@ -12,7 +13,7 @@ if (args.Any(
 {
     var previewControls = new Sandbox3DPreviewControls();
 
-    DesktopGameHost.Run(
+    SilkNetDesktopHost.Run(
         (DesktopGameHostContext context) =>
             new Sandbox3DPreviewGame(
                 context,

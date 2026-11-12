@@ -33,7 +33,10 @@ using Engine.Worlds;
 using Engine.Worlds.Spatial;
 
 
-var platformWindow = new SilkNetWindow(
+var platformBackend =
+    new SilkNetDesktopPlatformBackend();
+
+var platformWindow = platformBackend.WindowFactory.Create(
     new PlatformWindowOptions
     {
         Width = 1280,
@@ -45,7 +48,7 @@ var platformWindow = new SilkNetWindow(
 
 using var window = new DesktopWindow(
     platformWindow,
-    new SilkNetGraphicsContextFactory(),
+    platformBackend.GraphicsContextFactory,
     GraphicsContextKind.OpenGL,
     new OpenGLDesktopGraphicsDeviceFactory());
 

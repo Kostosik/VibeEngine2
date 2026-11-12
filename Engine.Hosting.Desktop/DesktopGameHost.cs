@@ -5,15 +5,13 @@ using Engine.Content.Assets;
 using Engine.Content.Loading;
 using Engine.Core.Application;
 using Engine.Core.Assets;
-using Engine.Graphics;
-using Engine.Graphics.OpenGL;
 using Engine.Graphics.Resources;
 using Engine.Input;
 using Engine.Platform;
-using Engine.Platform.SilkNet;
 using Engine.Runtime;
 using Engine.Serialization.Content;
 using System.Runtime.ExceptionServices;
+using Engine.Platform.SilkNet;
 
 namespace Engine.Hosting.Desktop;
 
@@ -56,13 +54,13 @@ public static class DesktopGameHost
         Directory.CreateDirectory(assetsDirectory);
 
         var graphicsBackends =
-            DesktopGraphicsBackendRegistry.CreateDefault();
+            new DesktopGraphicsBackendRegistry();
 
         options.ConfigureGraphicsBackends?.Invoke(
             graphicsBackends);
 
         var platformBackends =
-            DesktopPlatformBackendRegistry.CreateDefault();
+            new DesktopPlatformBackendRegistry();
 
         options.ConfigurePlatformBackends?.Invoke(
             platformBackends);

@@ -37,7 +37,7 @@ if (args.Any(
             "--engine-game-probe",
             StringComparison.OrdinalIgnoreCase)))
 {
-    DesktopGameHost.Run(
+    SilkNetDesktopHost.Run(
         runtime => new EngineGameProbe(runtime),
         new DesktopGameHostOptions
         {
@@ -73,7 +73,7 @@ if (!SandboxNetworkRoleOptions.TryParse(
 
 var sandboxActions = new SandboxInputActions();
 
-DesktopGameHost.Run(
+SilkNetDesktopHost.Run(
 
 (DesktopGameHostContext context) =>
     new SandboxGame(

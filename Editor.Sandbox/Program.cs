@@ -31,7 +31,7 @@ using Engine.UI.Layout;
 using Engine.UI.Styling;
 using Engine.Worlds;
 using Engine.Worlds.Spatial;
-
+using Engine.Hosting.Desktop.SilkNet;
 
 var platformBackend =
     new SilkNetDesktopPlatformBackend();

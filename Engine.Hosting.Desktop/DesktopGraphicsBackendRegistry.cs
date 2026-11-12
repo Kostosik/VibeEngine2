@@ -29,14 +29,4 @@ public sealed class DesktopGraphicsBackendRegistry
 
         return backend;
     }
-
-    public static DesktopGraphicsBackendRegistry CreateDefault()
-    {
-        var registry = new DesktopGraphicsBackendRegistry();
-
-        registry.Register(
-            new OpenGLDesktopGraphicsBackend());
-
-        return registry;
-    }
 }

@@ -17,17 +17,6 @@ namespace Game.Sandbox;
 
 internal sealed class Sandbox3DPreviewGame : EngineGame
 {
-    private readonly DirectionalLight3D _directionalLight = new(
-    new Vector3(-0.4f, 0.7f, 0.5f),
-    new Vector3(1.0f, 0.95f, 0.85f),
-    1.1f);
-
-    private readonly PointLight3D _pointLight = new(
-    new Vector3(0f, 3f, 3f),
-    new Vector3(1f, 0.75f, 0.45f),
-    intensity: 2f,
-    range: 8f);
-
     private readonly Sandbox3DPreviewControls _controls;
 
     private Camera3DController? _cameraController;
@@ -333,9 +322,7 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
                 projection)
             {
                 Material = new Material3D(
-                    new MaterialColor(0.95f, 0.25f, 0.15f)),
-                PointLight = _pointLight,
-                DirectionalLight = _directionalLight
+                    new MaterialColor(0.95f, 0.25f, 0.15f))
             });
 
         // Куб справа вращается вокруг двух осей.
@@ -361,9 +348,7 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
                 projection)
             {
                 Material = new Material3D(
-                    new MaterialColor(0.2f, 0.85f, 0.35f)),
-                PointLight = _pointLight,
-                DirectionalLight = _directionalLight
+                    new MaterialColor(0.2f, 0.85f, 0.35f))
             });
 
         graphics.Submit(
@@ -375,9 +360,7 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
                 view,
                 projection)
             {
-                Material = Material3D.Default,
-                PointLight = _pointLight,
-                DirectionalLight = _directionalLight
+                Material = Material3D.Default
             });
     }
 

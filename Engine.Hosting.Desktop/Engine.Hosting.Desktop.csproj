@@ -8,14 +8,13 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\Engine.Platform.SilkNet\Engine.Platform.SilkNet.csproj" />
 		<ProjectReference Include="..\Engine.Audio\Engine.Audio.csproj" />
 		<ProjectReference Include="..\Engine.Audio.OpenAL\Engine.Audio.OpenAL.csproj" />
 		<ProjectReference Include="..\Engine.Content\Engine.Content.csproj" />
 		<ProjectReference Include="..\Engine.Core\Engine.Core.csproj" />
 		<ProjectReference Include="..\Engine.Graphics\Engine.Graphics.csproj" />
-		<ProjectReference Include="..\Engine.Graphics.OpenGL\Engine.Graphics.OpenGL.csproj" />
 		<ProjectReference Include="..\Engine.Input\Engine.Input.csproj" />
+		<ProjectReference Include="..\Engine.Platform\Engine.Platform.csproj" />
 		<ProjectReference Include="..\Engine.Runtime\Engine.Runtime.csproj" />
 	</ItemGroup>
 

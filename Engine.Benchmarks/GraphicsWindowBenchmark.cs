@@ -9,9 +9,8 @@ using Engine.Graphics.Resources;
 using Engine.Graphics2D.Sprites;
 using Engine.Hosting.Desktop;
 using Engine.Platform;
-using Engine.Platform.SilkNet;
 using System.Diagnostics;
-
+using Engine.Hosting.Desktop.SilkNet;
 namespace Engine.Benchmarks;
 
 internal static class GraphicsWindowBenchmark
@@ -23,20 +22,22 @@ internal static class GraphicsWindowBenchmark
         Console.WriteLine("VSync: disabled by OpenGLWindow");
         Console.WriteLine();
 
+        var platformBackend =
+    new SilkNetDesktopPlatformBackend();
 
-        var platformWindow = new SilkNetWindow(
-    new PlatformWindowOptions
-    {
-        Width = 1280,
-        Height = 720,
-        Title = "VibeEngine Graphics Benchmark",
-        VSync = true,
-        GraphicsContext = GraphicsContextKind.OpenGL
-    });
+        var platformWindow = platformBackend.WindowFactory.Create(
+            new PlatformWindowOptions
+            {
+                Width = 1280,
+                Height = 720,
+                Title = "VibeEngine Graphics Benchmark",
+                VSync = true,
+                GraphicsContext = GraphicsContextKind.OpenGL
+            });
 
         using var window = new DesktopWindow(
             platformWindow,
-            new SilkNetGraphicsContextFactory(),
+            platformBackend.GraphicsContextFactory,
             GraphicsContextKind.OpenGL,
             new OpenGLDesktopGraphicsDeviceFactory());
 

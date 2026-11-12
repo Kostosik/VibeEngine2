@@ -77,34 +77,6 @@ internal sealed class OpenGLMeshRenderer
                 "uDiffuseStrength",
                 command.Material.DiffuseStrength);
 
-            shader.SetVector3(
-                "uLightDirection",
-                command.DirectionalLight.DirectionToLight);
-
-            shader.SetVector3(
-                "uLightColor",
-                command.DirectionalLight.Color);
-
-            shader.SetFloat(
-                "uLightIntensity",
-                command.DirectionalLight.Intensity);
-
-            shader.SetVector3(
-                "uPointLightPosition",
-                command.PointLight.Position);
-
-            shader.SetVector3(
-                "uPointLightColor",
-                command.PointLight.Color);
-
-            shader.SetFloat(
-                "uPointLightIntensity",
-                command.PointLight.Intensity);
-
-            shader.SetFloat(
-                "uPointLightRange",
-                command.PointLight.Range);
-
             var directionalLight = lighting.DirectionalLight;
 
             shader.SetVector3(

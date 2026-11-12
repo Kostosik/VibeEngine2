@@ -29,14 +29,4 @@ public sealed class DesktopPlatformBackendRegistry
 
         return backend;
     }
-
-    public static DesktopPlatformBackendRegistry CreateDefault()
-    {
-        var registry = new DesktopPlatformBackendRegistry();
-
-        registry.Register(
-            new SilkNetDesktopPlatformBackend());
-
-        return registry;
-    }
 }

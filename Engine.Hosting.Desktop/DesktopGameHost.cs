@@ -7,11 +7,10 @@ using Engine.Core.Application;
 using Engine.Core.Assets;
 using Engine.Graphics.Resources;
 using Engine.Input;
-using Engine.Platform;
 using Engine.Runtime;
 using Engine.Serialization.Content;
 using System.Runtime.ExceptionServices;
-using Engine.Platform.SilkNet;
+using Engine.Platform;
 
 namespace Engine.Hosting.Desktop;
 
@@ -228,62 +227,6 @@ public static class DesktopGameHost
             platformWindow.Dispose();
             throw;
         }
-    }
-
-    private static IDesktopWindow CreateOpenGLWindow(
-    DesktopGameHostOptions options)
-    {
-        var platformWindow = CreatePlatformWindow(
-            options,
-            GraphicsContextKind.OpenGL);
-
-        var contextFactory =
-            CreatePlatformGraphicsContextFactory(
-                options.PlatformBackend);
-
-        return new DesktopWindow(
-            platformWindow,
-            contextFactory,
-            GraphicsContextKind.OpenGL,
-            new OpenGLDesktopGraphicsDeviceFactory());
-    }
-
-    private static IPlatformWindow CreatePlatformWindow(
-        DesktopGameHostOptions options,
-        GraphicsContextKind graphicsContext)
-    {
-        var windowOptions = new PlatformWindowOptions
-        {
-            Width = options.Width,
-            Height = options.Height,
-            Title = options.Title,
-            Fullscreen = options.Fullscreen,
-            VSync = options.VSync,
-            GraphicsContext = graphicsContext
-        };
-
-        return options.PlatformBackend switch
-        {
-            PlatformBackendKind.SilkNet =>
-                new SilkNetWindowFactory().Create(windowOptions),
-
-            _ => throw new NotSupportedException(
-                $"Platform backend '{options.PlatformBackend}' is not supported.")
-        };
-    }
-
-    private static IPlatformGraphicsContextFactory
-        CreatePlatformGraphicsContextFactory(
-            PlatformBackendKind platformBackend)
-    {
-        return platformBackend switch
-        {
-            PlatformBackendKind.SilkNet =>
-                new SilkNetGraphicsContextFactory(),
-
-            _ => throw new NotSupportedException(
-                $"Platform backend '{platformBackend}' is not supported.")
-        };
     }
 
     private sealed class HostedApplication :

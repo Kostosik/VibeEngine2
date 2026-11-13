@@ -1,58 +1,154 @@
-﻿
-namespace Engine.Graphics.Resources;
+﻿namespace Engine.Graphics.Resources;
 
-/// <summary>
-/// Source code for one shader language.
-/// Fragment stage maps to a pixel shader on Direct3D.
-/// </summary>
 public readonly record struct ShaderVariant
 {
+    private readonly ShaderStageSource[]? _stages;
+    private readonly IReadOnlyList<ShaderStageSource>? _stagesView;
+
+    /// <summary>
+    /// Backward-compatible constructor for vertex and fragment shaders.
+    /// </summary>
     public ShaderVariant(
         ShaderLanguage language,
         string vertexSource,
         string fragmentSource,
         string vertexEntryPoint = "main",
         string fragmentEntryPoint = "main")
+        : this(
+            language,
+            new ShaderStageSource(
+                ShaderStage.Vertex,
+                vertexSource,
+                vertexEntryPoint),
+            new ShaderStageSource(
+                ShaderStage.Fragment,
+                fragmentSource,
+                fragmentEntryPoint))
+    {
+    }
+
+    /// <summary>
+    /// Creates a shader variant containing arbitrary stages.
+    /// </summary>
+    public ShaderVariant(
+        ShaderLanguage language,
+        params ShaderStageSource[] stages)
     {
         if (!Enum.IsDefined(language))
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(language));
+            throw new ArgumentOutOfRangeException(nameof(language));
         }
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(vertexSource);
-        ArgumentException.ThrowIfNullOrWhiteSpace(fragmentSource);
-        ArgumentException.ThrowIfNullOrWhiteSpace(vertexEntryPoint);
-        ArgumentException.ThrowIfNullOrWhiteSpace(fragmentEntryPoint);
+        ArgumentNullException.ThrowIfNull(stages);
+
+        if (stages.Length == 0)
+        {
+            throw new ArgumentException(
+                "At least one shader stage is required.",
+                nameof(stages));
+        }
+
+        var copy = stages.ToArray();
+        var usedStages = new HashSet<ShaderStage>();
+
+        foreach (var stage in copy)
+        {
+            stage.Validate();
+
+            if (!usedStages.Add(stage.Stage))
+            {
+                throw new ArgumentException(
+                    $"Duplicate shader stage: {stage.Stage}.",
+                    nameof(stages));
+            }
+        }
 
         Language = language;
-        VertexSource = vertexSource;
-        FragmentSource = fragmentSource;
-        VertexEntryPoint = vertexEntryPoint;
-        FragmentEntryPoint = fragmentEntryPoint;
+        _stages = copy;
+        _stagesView = Array.AsReadOnly(copy);
     }
 
     public ShaderLanguage Language { get; }
 
-    public string VertexSource { get; }
+    public IReadOnlyList<ShaderStageSource> Stages =>
+        _stagesView ?? Array.Empty<ShaderStageSource>();
 
-    public string FragmentSource { get; }
+    public bool TryGetStage(
+        ShaderStage stage,
+        out ShaderStageSource source)
+    {
+        if (!Enum.IsDefined(stage))
+        {
+            throw new ArgumentOutOfRangeException(nameof(stage));
+        }
 
-    public string VertexEntryPoint { get; }
+        foreach (var candidate in Stages)
+        {
+            if (candidate.Stage == stage)
+            {
+                source = candidate;
+                return true;
+            }
+        }
 
-    public string FragmentEntryPoint { get; }
+        source = default;
+        return false;
+    }
+
+    public ShaderStageSource GetStage(ShaderStage stage)
+    {
+        if (TryGetStage(stage, out var source))
+        {
+            return source;
+        }
+
+        var available = string.Join(
+            ", ",
+            Stages.Select(x => x.Stage));
+
+        throw new NotSupportedException(
+            $"Shader variant does not contain the '{stage}' stage. " +
+            $"Available stages: {available}.");
+    }
+
+    // Compatibility accessors for existing OpenGL-based code.
+
+    public string VertexSource =>
+        GetStage(ShaderStage.Vertex).Source;
+
+    public string FragmentSource =>
+        GetStage(ShaderStage.Fragment).Source;
+
+    public string VertexEntryPoint =>
+        GetStage(ShaderStage.Vertex).EntryPoint;
+
+    public string FragmentEntryPoint =>
+        GetStage(ShaderStage.Fragment).EntryPoint;
 
     internal void Validate()
     {
         if (!Enum.IsDefined(Language))
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(Language));
+            throw new ArgumentOutOfRangeException(nameof(Language));
         }
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(VertexSource);
-        ArgumentException.ThrowIfNullOrWhiteSpace(FragmentSource);
-        ArgumentException.ThrowIfNullOrWhiteSpace(VertexEntryPoint);
-        ArgumentException.ThrowIfNullOrWhiteSpace(FragmentEntryPoint);
+        if (_stages is null || _stages.Length == 0)
+        {
+            throw new ArgumentException(
+                "At least one shader stage is required.");
+        }
+
+        var usedStages = new HashSet<ShaderStage>();
+
+        foreach (var stage in _stages)
+        {
+            stage.Validate();
+
+            if (!usedStages.Add(stage.Stage))
+            {
+                throw new ArgumentException(
+                    $"Duplicate shader stage: {stage.Stage}.");
+            }
+        }
     }
 }

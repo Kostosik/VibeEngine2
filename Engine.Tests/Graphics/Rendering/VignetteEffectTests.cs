@@ -1,5 +1,6 @@
 ﻿using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
+using Engine.Core.Math;
 
 namespace Engine.Tests.Graphics.Rendering;
 
@@ -38,6 +39,17 @@ public sealed class VignetteEffectTests
         public void SetVector3(
             string name,
             Engine.Core.Math.Vector3 value)
+        {
+        }
+        public void SetInt32(string name, int value)
+        {
+        }
+
+        public void SetVector2(string name, Vector2 value)
+        {
+        }
+
+        public void SetMatrix4x4(string name, Matrix4x4 value)
         {
         }
     }

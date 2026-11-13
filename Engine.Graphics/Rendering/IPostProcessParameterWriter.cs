@@ -1,10 +1,10 @@
-﻿using Engine.Core.Math;
-
+﻿
 namespace Engine.Graphics.Rendering;
 
+/// <summary>
+/// Compatibility specialization for post-processing parameters.
+/// </summary>
 public interface IPostProcessParameterWriter
+    : IShaderParameterWriter
 {
-    void SetFloat(string name, float value);
-
-    void SetVector3(string name, Vector3 value);
 }

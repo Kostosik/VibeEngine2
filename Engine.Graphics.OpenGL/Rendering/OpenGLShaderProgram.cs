@@ -170,6 +170,41 @@ internal sealed class OpenGLShaderProgram :
         }
     }
 
+    public void SetVector2(string name, Vector2 value)
+    {
+        if (!float.IsFinite(value.X) ||
+            !float.IsFinite(value.Y))
+        {
+            throw new ArgumentOutOfRangeException(nameof(value));
+        }
+
+        var location = GetUniformLocation(name);
+
+        if (location < 0)
+        {
+            throw new InvalidOperationException(
+                $"Shader uniform '{name}' was not found.");
+        }
+
+        _gl.Uniform2(
+            location,
+            value.X,
+            value.Y);
+    }
+
+    public void SetInt32(string name, int value)
+    {
+        var location = GetUniformLocation(name);
+
+        if (location < 0)
+        {
+            throw new InvalidOperationException(
+                $"Shader uniform '{name}' was not found.");
+        }
+
+        _gl.Uniform1(location, value);
+    }
+
     public int GetUniformLocation(string name)
     {
         ThrowIfDisposed();

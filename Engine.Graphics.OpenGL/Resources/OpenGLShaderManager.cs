@@ -52,12 +52,26 @@ internal sealed class OpenGLShaderManager :
         var variant = description.GetVariant(
             ShaderLanguage.Glsl);
 
+        foreach (var stage in variant.Stages)
+        {
+            if (stage.Stage is not ShaderStage.Vertex
+                and not ShaderStage.Fragment)
+            {
+                throw new NotSupportedException(
+                    $"OpenGL shader stage '{stage.Stage}' " +
+                    "is not supported by the current shader manager.");
+            }
+        }
+
+        var vertexStage = variant.GetStage(ShaderStage.Vertex);
+        var fragmentStage = variant.GetStage(ShaderStage.Fragment);
+
         if (!string.Equals(
-                variant.VertexEntryPoint,
+                vertexStage.EntryPoint,
                 "main",
                 StringComparison.Ordinal) ||
             !string.Equals(
-                variant.FragmentEntryPoint,
+                fragmentStage.EntryPoint,
                 "main",
                 StringComparison.Ordinal))
         {
@@ -65,11 +79,10 @@ internal sealed class OpenGLShaderManager :
                 "OpenGL GLSL shaders must use the 'main' entry point.");
         }
 
-        var program =
-            new OpenGLShaderProgram(
-                _gl,
-                variant.VertexSource,
-                variant.FragmentSource);
+        var program = new OpenGLShaderProgram(
+            _gl,
+            vertexStage.Source,
+            fragmentStage.Source);
 
         try
         {

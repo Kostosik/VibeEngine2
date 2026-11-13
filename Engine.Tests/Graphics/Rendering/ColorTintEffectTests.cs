@@ -58,5 +58,16 @@ public sealed class ColorTintEffectTests
             if (name == "uTint")
                 Tint = value;
         }
+        public void SetInt32(string name, int value)
+        {
+        }
+
+        public void SetVector2(string name, Vector2 value)
+        {
+        }
+
+        public void SetMatrix4x4(string name, Matrix4x4 value)
+        {
+        }
     }
 }

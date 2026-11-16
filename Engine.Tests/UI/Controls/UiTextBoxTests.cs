@@ -399,6 +399,7 @@ public sealed class UiTextBoxTests
     private sealed class EmptyPointerInput :
         IPointerInput
     {
+        public Vector2 RelativeDelta { get; set; }
         public Vector2 Position { get; set; }
 
         public float ScrollDelta { get; set; }

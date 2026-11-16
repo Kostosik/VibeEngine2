@@ -2,7 +2,7 @@
 using Engine.UI.Controls;
 using Engine.UI.Core;
 using Engine.UI.Input;
-
+using Engine.Core.Math;
 namespace Engine.Tests.UI;
 
 public sealed class UiFocusManagerTests
@@ -100,6 +100,7 @@ public sealed class UiFocusManagerTests
     private sealed class TestPointerInput :
         IPointerInput
     {
+        public Vector2 RelativeDelta { get; set; }
         public Engine.Core.Math.Vector2 Position =>
             Engine.Core.Math.Vector2.Zero;
 

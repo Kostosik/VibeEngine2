@@ -1,9 +1,14 @@
-﻿namespace Engine.Input.Cursors;
+﻿using Engine.Input.Cursors;
 
 public interface ICursorService
 {
     CursorShape Current { get; }
 
-    void Set(
-        CursorShape shape);
+    PointerMode Mode { get; }
+
+    bool IsModeSupported(PointerMode mode);
+
+    void Set(CursorShape shape);
+
+    void SetMode(PointerMode mode);
 }

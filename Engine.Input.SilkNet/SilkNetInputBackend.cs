@@ -19,6 +19,12 @@ public sealed class SilkNetInputBackend :
 
     private SilkNetCursorService? _cursorService;
 
+    private Engine.Core.Math.Vector2 _relativeDelta;
+    private Engine.Core.Math.Vector2 _pendingRelativeDelta;
+    private Engine.Core.Math.Vector2 _lastMousePosition;
+
+    private bool _hasLastMousePosition;
+
     private float _mouseScroll;
     private float _pendingMouseScroll;
 
@@ -51,6 +57,9 @@ public sealed class SilkNetInputBackend :
         TextInputKey.End,
         TextInputKey.Escape
     ];
+
+    public Engine.Core.Math.Vector2 RelativeDelta =>
+    _relativeDelta;
     public float ScrollDelta =>
     _mouseScroll;
 
@@ -104,6 +113,13 @@ public sealed class SilkNetInputBackend :
 
     public void Update()
     {
+        _relativeDelta = _focused
+    ? _pendingRelativeDelta
+    : Engine.Core.Math.Vector2.Zero;
+
+        _pendingRelativeDelta =
+            Engine.Core.Math.Vector2.Zero;
+
         _characters.Clear();
 
         if (_focused && _pendingCharacters.Count > 0)
@@ -160,6 +176,30 @@ public sealed class SilkNetInputBackend :
             _focused ? _pendingMouseScroll : 0.0f;
 
         _pendingMouseScroll = 0.0f;
+    }
+
+    private void ResetMouseMotion()
+    {
+        _relativeDelta =
+            Engine.Core.Math.Vector2.Zero;
+
+        _pendingRelativeDelta =
+            Engine.Core.Math.Vector2.Zero;
+
+        if (_mouse is null)
+        {
+            _hasLastMousePosition = false;
+            return;
+        }
+
+        var position = _mouse.Position;
+
+        _lastMousePosition =
+            new Engine.Core.Math.Vector2(
+                position.X,
+                position.Y);
+
+        _hasLastMousePosition = true;
     }
 
     public bool IsDown(TextInputKey key)
@@ -460,6 +500,7 @@ public sealed class SilkNetInputBackend :
 
     private void SubscribeToEvents()
     {
+
         if (_keyboard is not null)
         {
             _keyboard.KeyChar +=
@@ -470,7 +511,35 @@ public sealed class SilkNetInputBackend :
         {
             _mouse.Scroll +=
                 OnMouseScroll;
+            _mouse.MouseMove += OnMouseMove;
         }
+    }
+
+    private void OnMouseMove(
+    IMouse mouse,
+    System.Numerics.Vector2 position)
+    {
+        if (!_focused)
+            return;
+
+        var currentPosition =
+            new Engine.Core.Math.Vector2(
+                position.X,
+                position.Y);
+
+        if (_hasLastMousePosition)
+        {
+            _pendingRelativeDelta =
+                new Engine.Core.Math.Vector2(
+                    _pendingRelativeDelta.X +
+                    currentPosition.X - _lastMousePosition.X,
+
+                    _pendingRelativeDelta.Y +
+                    currentPosition.Y - _lastMousePosition.Y);
+        }
+
+        _lastMousePosition = currentPosition;
+        _hasLastMousePosition = true;
     }
 
     private void OnKeyChar(
@@ -494,14 +563,41 @@ public sealed class SilkNetInputBackend :
     }
 
     public CursorShape Current =>
-    _cursorService?.Current ??
-    CursorShape.Default;
+        _cursorService?.Current ??
+        CursorShape.Default;
+
+    public PointerMode Mode =>
+        _cursorService?.Mode ??
+        PointerMode.Normal;
+
+    public bool IsModeSupported(PointerMode mode)
+    {
+        return _cursorService?.IsModeSupported(mode) ?? false;
+    }
 
     public void Set(
         CursorShape shape)
     {
-        _cursorService?.Set(
-            shape);
+        _cursorService?.Set(shape);
+    }
+
+    public void SetMode(PointerMode mode)
+    {
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(
+                nameof(SilkNetInputBackend));
+        }
+
+        if (_cursorService is null)
+        {
+            throw new NotSupportedException(
+                "Cursor modes are unavailable because no mouse device exists.");
+        }
+
+        _cursorService.SetMode(mode);
+
+        ResetMouseMotion();
     }
 
     private void UnsubscribeFromEvents()
@@ -514,6 +610,7 @@ public sealed class SilkNetInputBackend :
         if (_mouse is not null)
         {
             _mouse.Scroll -= OnMouseScroll;
+            _mouse.MouseMove -= OnMouseMove;
         }
     }
 

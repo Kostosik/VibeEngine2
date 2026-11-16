@@ -80,7 +80,7 @@ public sealed class SpriteAnimationDefinitionJsonSerializer
 
         public bool Loop { get; set; } = true;
 
-        public List<FrameDocument?>? Frames { get; set; } = new();
+        public List<FrameDocument> Frames { get; set; } = new();
     }
 
     private sealed class FrameDocument

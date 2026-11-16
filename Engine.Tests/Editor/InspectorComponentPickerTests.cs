@@ -719,6 +719,7 @@ public sealed class InspectorComponentPickerTests
 
     private sealed class EmptyPointerInput : IPointerInput
     {
+        public Vector2 RelativeDelta { get; set; }
         public Vector2 Position => Vector2.Zero;
         public float ScrollDelta => 0f;
 

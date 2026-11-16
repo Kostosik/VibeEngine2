@@ -1,5 +1,4 @@
 ﻿using Engine.Core.Math;
-using Engine.Physics._3D.Collision;
 using Engine.Physics.ThreeD.BroadPhase;
 using Engine.Physics.ThreeD.Shapes;
 
@@ -39,8 +38,8 @@ public sealed class CollisionDetector3D
 
             (PhysicsShapeType3D.Box, PhysicsShapeType3D.Sphere) =>
                 TryDetectReverse(
-                    second,
                     first,
+                    second,
                     TryDetectSphereBox,
                     out manifold),
 
@@ -69,8 +68,7 @@ public sealed class CollisionDetector3D
     private static bool TryDetectReverse(
         PhysicsColliderProxy3D first,
         PhysicsColliderProxy3D second,
-        Func<PhysicsColliderProxy3D, PhysicsColliderProxy3D,
-            out CollisionManifold3D, bool> detector,
+        PairDetector detector,
         out CollisionManifold3D manifold)
     {
         if (!detector(second, first, out var reverse))

@@ -817,6 +817,7 @@ public sealed class UiInputRouterTests
 
     private sealed class TestPointerInput : IPointerInput
     {
+        public Vector2 RelativeDelta { get; set; }
         public Vector2 Position { get; set; }
 
         public float ScrollDelta => 0.0f;

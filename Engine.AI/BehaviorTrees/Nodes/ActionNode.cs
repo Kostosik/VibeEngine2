@@ -73,7 +73,7 @@ public sealed class ActionNode : IBehaviorTreeNode
                 context.TryGetState(
                     this,
                     out RuntimeState? state) &&
-                state.IsRunning)
+                state!.IsRunning)
             {
                 _abort(in context);
             }

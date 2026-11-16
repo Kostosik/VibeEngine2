@@ -1,5 +1,6 @@
 ﻿using Engine.Input.Cursors;
 using Silk.NET.Input;
+using SilkCursorMode = Silk.NET.Input.CursorMode;
 
 namespace Engine.Input.SilkNet;
 
@@ -7,6 +8,56 @@ public sealed class SilkNetCursorService :
     ICursorService
 {
     private readonly ICursor _cursor;
+
+    private PointerMode _mode = PointerMode.Normal;
+
+    public PointerMode Mode => _mode;
+
+    public bool IsModeSupported(PointerMode mode)
+    {
+        return mode switch
+        {
+            PointerMode.Normal =>
+                _cursor.IsSupported(SilkCursorMode.Normal),
+
+            PointerMode.Hidden =>
+                _cursor.IsSupported(SilkCursorMode.Hidden),
+
+            PointerMode.Locked =>
+                _cursor.IsSupported(SilkCursorMode.Raw) ||
+                _cursor.IsSupported(SilkCursorMode.Disabled),
+
+            _ => false
+        };
+    }
+
+    public void SetMode(PointerMode mode)
+    {
+        var nativeMode = mode switch
+        {
+            PointerMode.Normal =>
+                SilkCursorMode.Normal,
+
+            PointerMode.Hidden =>
+                SilkCursorMode.Hidden,
+
+            PointerMode.Locked =>
+                _cursor.IsSupported(SilkCursorMode.Raw)
+                    ? SilkCursorMode.Raw
+                    : SilkCursorMode.Disabled,
+
+            _ => throw new ArgumentOutOfRangeException(nameof(mode))
+        };
+
+        if (!_cursor.IsSupported(nativeMode))
+        {
+            throw new NotSupportedException(
+                $"Cursor mode '{mode}' is not supported.");
+        }
+
+        _cursor.CursorMode = nativeMode;
+        _mode = mode;
+    }
 
     public SilkNetCursorService(
         ICursor cursor)

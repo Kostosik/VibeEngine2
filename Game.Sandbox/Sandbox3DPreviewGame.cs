@@ -1,17 +1,22 @@
 ﻿using Engine.Camera;
 using Engine.Core.Math;
 using Engine.Core.Time;
+using Engine.ECS.Components;
+using Engine.ECS.Entities;
+using Engine.ECS.Systems;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Engine.Graphics3D;
 using Engine.Graphics3D.Commands;
+using Engine.Graphics3D.Components;
 using Engine.Graphics3D.Lighting;
 using Engine.Graphics3D.Rendering;
 using Engine.Graphics3D.Resources;
 using Engine.Hosting.Desktop;
 using Engine.Input;
 using Engine.Runtime;
+using Engine.Transform;
 
 namespace Game.Sandbox;
 
@@ -333,6 +338,11 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
     private MeshHandle _cubeMesh;
     private ShaderHandle _shader;
 
+    private EntityId _cubeEntity;
+
+    private MeshRenderSystem3D? _meshRenderSystem3D;
+    private TransformHierarchy3DSystem? _transformHierarchy3DSystem;
+
     private double _elapsed;
 
     public Sandbox3DPreviewGame(
@@ -403,6 +413,40 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
         _cubeMesh = _meshes.Create(
             MeshPrimitives.CreateCube(1.6f));
 
+        var camera = _camera
+            ?? throw new InvalidOperationException(
+                "3D preview camera is not initialized.");
+
+        _transformHierarchy3DSystem =
+            new TransformHierarchy3DSystem(Runtime.EcsWorld);
+
+        _meshRenderSystem3D =
+            new MeshRenderSystem3D(
+                Runtime.EcsWorld,
+                graphics,
+                camera);
+
+        // Создаём объекты как обычные ECS-сущности.
+        CreateMeshEntity(
+            _tetrahedronMesh,
+            new Vector3(-1.7f, 0, 0),
+            new Material3D(
+                new MaterialColor(0.95f, 0.25f, 0.15f)));
+
+        _cubeEntity = CreateMeshEntity(
+            _cubeMesh,
+            new Vector3(1.4f, 0, 0),
+            new Material3D(
+                new MaterialColor(0.2f, 0.85f, 0.35f)));
+
+        CreateMeshEntity(
+            _sphereMesh,
+            new Vector3(4.5f, 1f, 1f),
+            Material3D.Default);
+
+        // Первичное вычисление мировых трансформаций.
+        _transformHierarchy3DSystem.Update(default);
+
         _context.Resized += OnResized;
     }
 
@@ -414,6 +458,22 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
             0.1);
 
         _elapsed += time.Delta.TotalSeconds;
+
+        var rotation =
+    Quaternion.CreateFromAxisAngle(
+        Vector3.UnitY,
+        (float)_elapsed) *
+    Quaternion.CreateFromAxisAngle(
+        Vector3.UnitX,
+        (float)(_elapsed * 0.65));
+
+        ref var cubeTransform =
+            ref Runtime.EcsWorld.Get<LocalTransform3D>(_cubeEntity);
+
+        cubeTransform.Rotation = rotation;
+
+        // Пересчитываем LocalTransform3D -> WorldTransform3D.
+        _transformHierarchy3DSystem?.Update(default);
 
         var input = Runtime.Services.Input;
 
@@ -463,67 +523,11 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
 
     protected override void OnRender(double interpolationAlpha)
     {
-        var graphics = Runtime.Services.Graphics;
-        var camera = _camera
+        var renderer = _meshRenderSystem3D
             ?? throw new InvalidOperationException(
-                "3D preview camera is not initialized.");
+                "3D mesh render system is not initialized.");
 
-        var view = camera.ViewMatrix;
-        var projection = camera.ProjectionMatrix;
-
-        // Статичный треугольник слева.
-        var tetrahedronModel = Matrix4x4.CreateTranslation(
-            new Vector3(-1.7f, 0, 0));
-
-        graphics.Submit(
-            new DrawMeshCommand(
-                _tetrahedronMesh,
-                _shader,
-                tetrahedronModel,
-                view,
-                projection)
-            {
-                Material = new Material3D(
-                    new MaterialColor(0.95f, 0.25f, 0.15f))
-            });
-
-        // Куб справа вращается вокруг двух осей.
-        var rotation =
-            Quaternion.CreateFromAxisAngle(
-                Vector3.UnitY,
-                (float)_elapsed) *
-            Quaternion.CreateFromAxisAngle(
-                Vector3.UnitX,
-                (float)(_elapsed * 0.65));
-
-        var cubeModel =
-            Matrix4x4.CreateRotation(rotation) *
-            Matrix4x4.CreateTranslation(
-                new Vector3(1.4f, 0, 0));
-
-        graphics.Submit(
-            new DrawMeshCommand(
-                _cubeMesh,
-                _shader,
-                cubeModel,
-                view,
-                projection)
-            {
-                Material = new Material3D(
-                    new MaterialColor(0.2f, 0.85f, 0.35f))
-            });
-
-        graphics.Submit(
-            new DrawMeshCommand(
-                _sphereMesh,
-                _shader,
-                Matrix4x4.CreateTranslation(
-                    new Vector3(4.5f, 1f, 1f)),
-                view,
-                projection)
-            {
-                Material = Material3D.Default
-            });
+        renderer.Render();
     }
 
     protected override void OnShutdown()
@@ -559,6 +563,11 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
                 TryCleanup(() => meshes.Destroy(_cubeMesh));
                 _cubeMesh = MeshHandle.Invalid;
             }
+            if (_sphereMesh.IsValid)
+            {
+                TryCleanup(() => meshes.Destroy(_sphereMesh));
+                _sphereMesh = MeshHandle.Invalid;
+            }
         }
 
         if (_shader.IsValid)
@@ -575,6 +584,33 @@ internal sealed class Sandbox3DPreviewGame : EngineGame
                 "3D preview resources could not be fully released.",
                 errors);
         }
+    }
+
+    private EntityId CreateMeshEntity(
+    MeshHandle mesh,
+    Vector3 position,
+    Material3D material)
+    {
+        var world = Runtime.EcsWorld;
+        var entity = world.CreateEntity();
+
+        world.Add(
+            entity,
+            new LocalTransform3D(
+                new Transform3D(position)));
+
+        world.Add(
+            entity,
+            new WorldTransform3D());
+
+        world.Add(
+            entity,
+            new MeshRenderer3D(
+                mesh,
+                _shader,
+                material));
+
+        return entity;
     }
 
     private void OnResized(int width, int height)

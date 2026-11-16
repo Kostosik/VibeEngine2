@@ -71,7 +71,7 @@ public sealed class CooldownNode : IBehaviorTreeParentNode
                 this,
                 out RuntimeState? state))
         {
-            if (now < state.CooldownUntil)
+            if (now < state?.CooldownUntil)
                 return BehaviorStatus.Failure;
 
             context.RemoveState(this);

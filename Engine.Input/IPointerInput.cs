@@ -5,7 +5,7 @@ namespace Engine.Input;
 public interface IPointerInput
 {
     Vector2 Position { get; }
-
+    Vector2 RelativeDelta { get; }
     float ScrollDelta { get; }
     bool IsDown(InputMouseButton button);
 

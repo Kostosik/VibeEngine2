@@ -122,27 +122,63 @@ internal sealed class OpenGLRenderState
 
     public void ClearBuffers(ClearBufferMask mask)
     {
+        var hadKnownState = _hasCurrentState;
+
+        var previousScissor = _current.Scissor;
+        var previousDepthWrite = _current.Depth.WriteEnabled;
+
         try
         {
-            // Очистка должна затрагивать всю область.
-            if (!_hasCurrentState || _current.Scissor.Enabled)
+            // Temporarily disable scissor for a full clear.
+            if (!hadKnownState || previousScissor.Enabled)
             {
                 _gl.Disable(EnableCap.ScissorTest);
             }
 
-            // Разрешаем очистку depth buffer.
-            if (!_hasCurrentState || !_current.Depth.WriteEnabled)
+            // Allow depth buffer clearing.
+            if (!hadKnownState || !previousDepthWrite)
             {
                 _gl.DepthMask(true);
             }
 
             _gl.Clear(mask);
         }
-        finally
+        catch
         {
-            // После очистки фактическое состояние GPU
-            // может отличаться от сохранённого.
             Invalidate();
+            throw;
+        }
+
+        if (!hadKnownState)
+        {
+            Invalidate();
+            return;
+        }
+
+        try
+        {
+            // Restore the cached scissor state.
+            if (previousScissor.Enabled)
+            {
+                _gl.Scissor(
+                    previousScissor.X,
+                    previousScissor.Y,
+                    (uint)previousScissor.Width,
+                    (uint)previousScissor.Height);
+
+                _gl.Enable(EnableCap.ScissorTest);
+            }
+
+            // Restore the cached depth write state.
+            if (!previousDepthWrite)
+            {
+                _gl.DepthMask(false);
+            }
+        }
+        catch
+        {
+            Invalidate();
+            throw;
         }
     }
 
@@ -355,18 +391,34 @@ internal sealed class OpenGLRenderState
     RenderRasterizerState state,
     RenderRasterizerState previous)
     {
-        var previousEnabled =
-            _hasCurrentState && previous.PolygonOffset.Enabled;
+        var currentEnabled = state.PolygonOffset.Enabled;
 
-        var currentEnabled =
-            state.PolygonOffset.Enabled;
+        // Unknown cache: establish a deterministic baseline.
+        if (!_hasCurrentState)
+        {
+            _gl.Disable(EnableCap.PolygonOffsetFill);
+            _gl.Disable(EnableCap.PolygonOffsetLine);
+            _gl.Disable(EnableCap.PolygonOffsetPoint);
+
+            if (currentEnabled)
+            {
+                _gl.Enable(
+                    GetPolygonOffsetCapability(state.PolygonMode));
+
+                _gl.PolygonOffset(
+                    state.PolygonOffset.Factor,
+                    state.PolygonOffset.Units);
+            }
+
+            return;
+        }
+
+        var previousEnabled = previous.PolygonOffset.Enabled;
 
         var modeChanged =
-            !_hasCurrentState ||
             previous.PolygonMode != state.PolygonMode;
 
         var offsetChanged =
-            !_hasCurrentState ||
             previous.PolygonOffset.Factor != state.PolygonOffset.Factor ||
             previous.PolygonOffset.Units != state.PolygonOffset.Units;
 

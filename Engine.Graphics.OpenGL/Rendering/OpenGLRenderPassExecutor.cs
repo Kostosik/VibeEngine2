@@ -200,6 +200,7 @@ internal sealed class OpenGLRenderPassExecutor :
             // Источник итогового изображения.
             // При отсутствии эффектов это World RenderTarget.
             var sourceTarget = _activePostProcessSource;
+            _dispatcher.ApplyState(FullscreenRenderState);
 
             if (chain.HasEnabledEffects)
             {
@@ -207,8 +208,6 @@ internal sealed class OpenGLRenderPassExecutor :
 
                 var sourceTexture = _renderTargets.GetColorTexture(
                     sourceTarget);
-
-                _dispatcher.ApplyState(FullscreenRenderState);
 
                 foreach (var effect in chain.Effects)
                 {

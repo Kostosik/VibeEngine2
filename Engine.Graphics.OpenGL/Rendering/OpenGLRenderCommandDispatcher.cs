@@ -5,6 +5,7 @@ using Engine.Graphics.Rendering;
 using Engine.Graphics2D.Commands;
 using Engine.Graphics3D.Commands;
 using Engine.Graphics3D.Lighting;
+using Silk.NET.OpenGL;
 
 namespace Engine.Graphics.OpenGL.Rendering;
 
@@ -220,7 +221,10 @@ internal sealed class OpenGLRenderCommandDispatcher
                     _renderState.Apply(
                         _currentState with
                         {
-                            DepthTestEnabled = true
+                            Depth = _currentState.Depth with
+                            {
+                                TestEnabled = true
+                            }
                         });
 
                     _meshRenderer.Draw(drawMesh, _lighting);
@@ -258,6 +262,17 @@ internal sealed class OpenGLRenderCommandDispatcher
         }
     }
 
+    public void ClearBuffers()
+    {
+        _renderState.ClearBuffers(
+            ClearBufferMask.ColorBufferBit |
+            ClearBufferMask.DepthBufferBit);
+    }
+
+    public void InvalidateStateCache()
+    {
+        _renderState.Invalidate();
+    }
     public void Execute(DrawWorldTextureData command)
     {
         if (!_textureManager.Exists(command.Texture))

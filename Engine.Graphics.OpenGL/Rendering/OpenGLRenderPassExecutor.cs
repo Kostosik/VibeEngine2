@@ -141,9 +141,7 @@ internal sealed class OpenGLRenderPassExecutor :
 
             if (context.ClearColor)
             {
-                _gl.Clear(
-                    ClearBufferMask.ColorBufferBit |
-                    ClearBufferMask.DepthBufferBit);
+                _dispatcher.ClearBuffers();
             }
 
             _dispatcher.SetLightingContext(

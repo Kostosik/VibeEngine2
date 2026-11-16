@@ -3,5 +3,8 @@
 public enum RenderBlendMode
 {
     Disabled,
-    Alpha
+    Alpha,
+    Additive,
+    PremultipliedAlpha,
+    Custom
 }

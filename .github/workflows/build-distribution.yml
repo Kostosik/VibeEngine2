@@ -84,6 +84,7 @@ jobs:
               -Force | Out-Null
 
             $extraProjects = @(
+              ".\Engine.Graphics.OpenGL\Engine.Graphics.OpenGL.csproj"
                 ".\Engine.Serialization\Engine.Serialization.csproj"
                 ".\Engine.Input.SilkNet\Engine.Input.SilkNet.csproj"
               ".\Engine.Networking.Replication\Engine.Networking.Replication.csproj"

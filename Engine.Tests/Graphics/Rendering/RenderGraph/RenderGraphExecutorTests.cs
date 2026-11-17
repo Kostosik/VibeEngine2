@@ -7,6 +7,61 @@ namespace Engine.Tests.Graphics.Rendering.RenderGraph;
 
 public sealed class RenderGraphExecutorTests
 {
+
+    [Fact]
+    public void Execute_FiltersQueueCommandsByPassLayerRange()
+    {
+        var targets = new TestRenderTargetManager();
+        var passExecutor = new TestRenderPassExecutor();
+        var queue = new RenderQueue();
+
+        queue.Submit(new TestCommand(150));
+        queue.Submit(new TestCommand(10));
+        queue.Submit(new TestCommand(100));
+
+        var builder = new RenderGraphBuilder();
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer",
+            new RenderTargetDescription(1280, 720));
+
+        builder.AddPass(
+            "World",
+            pass => pass
+                .WriteColor(backbuffer, RenderGraphLoadAction.Clear)
+                .SetLayerRange(
+                    new RenderPassLayerRange(0, 99)));
+
+        builder.AddPass(
+            "UI",
+            pass => pass
+                .WriteColor(backbuffer, RenderGraphLoadAction.Load)
+                .SetLayerRange(
+                    new RenderPassLayerRange(100, 199)));
+
+        builder.SetOutput(backbuffer);
+
+        var plan = new RenderGraphCompiler()
+            .Compile(builder.Build());
+
+        using var result = new RenderGraphExecutor(
+            targets,
+            passExecutor).Execute(plan, queue);
+
+        Assert.Collection(
+            passExecutor.ExecutedCommands,
+            command => Assert.Equal(
+                10,
+                ((TestCommand)command).Layer),
+            command => Assert.Equal(
+                100,
+                ((TestCommand)command).Layer),
+            command => Assert.Equal(
+                150,
+                ((TestCommand)command).Layer));
+    }
+
+
     [Fact]
     public void Execute_RunsProducerBeforeConsumerAndResolvesTexture()
     {

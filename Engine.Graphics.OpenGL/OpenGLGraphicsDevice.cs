@@ -5,6 +5,7 @@ using Engine.Graphics.OpenGL.Fonts;
 using Engine.Graphics.OpenGL.Rendering;
 using Engine.Graphics.OpenGL.Resources;
 using Engine.Graphics.Rendering;
+using Engine.Graphics.Rendering.RenderGraph;
 using Engine.Graphics.Resources;
 using Engine.Graphics2D.Rendering;
 using Engine.Graphics3D.Resources;
@@ -17,6 +18,12 @@ public sealed class OpenGLGraphicsDevice
       IWorldTextureDataSubmitter,
       IMeshManagerProvider
 {
+    private RenderTargetHandle _sceneColorTarget =
+    RenderTargetHandle.Invalid;
+    private readonly RenderGraphExecutor _renderGraphExecutor;
+
+    private RenderGraphExecutionPlan _renderGraphPlan = null!;
+
     private readonly OpenGLFullscreenRenderer _fullscreenRenderer;
     private readonly GL _gl;
     private bool _disposed;
@@ -134,6 +141,11 @@ public sealed class OpenGLGraphicsDevice
                 new OpenGLRenderTargetManager(
                     gl,
                     _textureManager);
+            _sceneColorTarget = _renderTargetManager.Create(
+                new RenderTargetDescription(
+                    logicalWidth,
+                    logicalHeight));
+
             _fullscreenRenderer =
                 new OpenGLFullscreenRenderer(gl);
             _dispatcher =
@@ -175,6 +187,14 @@ public sealed class OpenGLGraphicsDevice
             _renderPipeline.AddPass(
                 RenderPass2D.Debug);
 
+            _renderGraphExecutor = new RenderGraphExecutor(
+                _renderTargetManager,
+                _passExecutor);
+
+            _renderGraphPlan = BuildRenderGraph(
+                logicalWidth,
+                logicalHeight);
+
             Configure();
         }
         catch
@@ -193,6 +213,94 @@ public sealed class OpenGLGraphicsDevice
             TryDispose(gl);
             throw;
         }
+    }
+
+    private RenderGraphExecutionPlan BuildRenderGraph(
+    int logicalWidth,
+    int logicalHeight)
+    {
+        var builder = new RenderGraphBuilder();
+
+        var sceneColor = builder.ImportRenderTarget(
+            "SceneColor",
+            _sceneColorTarget,
+            new RenderTargetDescription(
+                logicalWidth,
+                logicalHeight));
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer",
+            new RenderTargetDescription(
+                logicalWidth,
+                logicalHeight));
+
+        // 1. World
+        builder.AddPass(
+            "World",
+            pass => pass
+                .WriteColor(
+                    sceneColor,
+                    RenderGraphLoadAction.Clear)
+                .SetRenderState(RenderState.Default2D)
+                .SetLayerRange(
+                    new RenderPassLayerRange(
+                        RenderLayers.World,
+                        RenderLayers.Present - 1))
+                .SetPostProcessSource());
+
+        // 2. Post-processing
+        builder.AddPass(
+            "PostProcessing",
+            pass => pass
+                .Read(sceneColor)
+                .WriteColor(
+                    backbuffer,
+                    RenderGraphLoadAction.DontCare)
+                .SetRenderState(RenderState.Default2D)
+                .SetExecuteQueuedCommands(false)
+                .SetExecute(_ =>
+                {
+                    if (_passExecutor is not
+                        IPostProcessRenderPassExecutor postProcessExecutor)
+                    {
+                        throw new NotSupportedException(
+                            "The render-pass executor does not support post-processing.");
+                    }
+
+                    postProcessExecutor.ExecutePostProcessing(
+                        _renderPipeline.PostProcessing);
+                }));
+
+        // 3. UI
+        builder.AddPass(
+            "UI",
+            pass => pass
+                .WriteColor(
+                    backbuffer,
+                    RenderGraphLoadAction.Load)
+                .SetRenderState(RenderState.Default2D)
+                .SetLayerRange(
+                    new RenderPassLayerRange(
+                        RenderLayers.Ui,
+                        RenderLayers.Debug - 1)));
+
+        // 4. Debug
+        builder.AddPass(
+            "Debug",
+            pass => pass
+                .WriteColor(
+                    backbuffer,
+                    RenderGraphLoadAction.Load)
+                .SetRenderState(RenderState.Default2D)
+                .SetLayerRange(
+                    new RenderPassLayerRange(
+                        RenderLayers.Debug,
+                        int.MaxValue)));
+
+        builder.SetOutput(backbuffer);
+
+        return new RenderGraphCompiler().Compile(
+            builder.Build());
     }
 
     private static void TryDispose(
@@ -236,9 +344,10 @@ public sealed class OpenGLGraphicsDevice
     public void EndFrame()
     {
         ThrowIfDisposed();
-        _renderPipeline.Execute(
-            _renderQueue,
-            _passExecutor);
+
+        using var result = _renderGraphExecutor.Execute(
+            _renderGraphPlan,
+            _renderQueue);
     }
 
     public void Resize(int width, int height)
@@ -258,11 +367,24 @@ public sealed class OpenGLGraphicsDevice
     {
         ThrowIfDisposed();
 
+        var updatedGraphPlan = BuildRenderGraph(
+            logicalWidth,
+            logicalHeight);
+
+        _renderTargetManager.Resize(
+            _sceneColorTarget,
+            logicalWidth,
+            logicalHeight);
+
         _passExecutor.Resize(
             logicalWidth,
             logicalHeight,
             framebufferWidth,
             framebufferHeight);
+
+        _renderGraphPlan = BuildRenderGraph(
+            logicalWidth,
+            logicalHeight);
     }
 
     private void ThrowIfDisposed()

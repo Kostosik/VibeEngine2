@@ -11,6 +11,9 @@ public sealed class RenderGraphPassBuilder
     private readonly List<RenderGraphResourceAccess> _resourceAccesses = new();
     private readonly List<RenderGraphPassHandle> _explicitDependencies = new();
 
+    private bool _executeQueuedCommands = true;
+    private bool _isPostProcessSource;
+
     private Action<RenderGraphContext>? _execute;
     private bool _built;
 
@@ -31,6 +34,21 @@ public sealed class RenderGraphPassBuilder
 
     public RenderPassLayerRange Layers { get; private set; } =
         RenderPassLayerRange.All;
+
+    public RenderGraphPassBuilder SetExecuteQueuedCommands(
+    bool enabled)
+    {
+        EnsureMutable();
+        _executeQueuedCommands = enabled;
+        return this;
+    }
+
+    public RenderGraphPassBuilder SetPostProcessSource()
+    {
+        EnsureMutable();
+        _isPostProcessSource = true;
+        return this;
+    }
 
     /// <summary>
     /// Declares that this pass samples or otherwise reads a resource.
@@ -156,7 +174,9 @@ public sealed class RenderGraphPassBuilder
             Layers,
             Array.AsReadOnly(_resourceAccesses.ToArray()),
             Array.AsReadOnly(_explicitDependencies.ToArray()),
-            _execute);
+            _execute,
+            _executeQueuedCommands,
+            _isPostProcessSource);
     }
 
     private void ValidateResourceHandle(

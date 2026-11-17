@@ -499,7 +499,8 @@ public sealed class RenderGraphCompiler
                     pass.Layers,
                     pass.ResourceAccesses,
                     directDependencies,
-                    pass.Execute));
+                    pass.Execute, pass.ExecuteQueuedCommands,
+                    pass.IsPostProcessSource));
         }
 
         return result;

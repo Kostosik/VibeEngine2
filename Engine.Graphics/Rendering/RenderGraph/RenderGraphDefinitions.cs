@@ -33,4 +33,5 @@ internal sealed record RenderGraphPassDefinition(
     RenderPassLayerRange Layers,
     IReadOnlyList<RenderGraphResourceAccess> ResourceAccesses,
     IReadOnlyList<RenderGraphPassHandle> ExplicitDependencies,
-    Action<RenderGraphContext>? Execute);
+    Action<RenderGraphContext>? Execute, bool ExecuteQueuedCommands,
+    bool IsPostProcessSource);

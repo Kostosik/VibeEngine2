@@ -28,19 +28,40 @@ public sealed class RenderGraphExecutor
     /// on first use and released after their last use. Transient outputs are
     /// transferred to the returned result and remain alive until it is disposed.
     /// </summary>
-    public RenderGraphExecutionResult Execute(RenderGraphExecutionPlan plan)
+
+    public RenderGraphExecutionResult Execute(
+        RenderGraphExecutionPlan plan)
+    {
+        return Execute(plan, null);
+    }
+
+    public RenderGraphExecutionResult Execute(
+        RenderGraphExecutionPlan plan,
+        RenderQueue? queue)
     {
         ArgumentNullException.ThrowIfNull(plan);
 
-        var resources = plan.Resources.ToDictionary(resource => resource.Handle);
-        var physicalTargets = new Dictionary<RenderGraphResourceHandle, RenderTargetHandle>();
-        var allocatedTransientTargets = new HashSet<RenderTargetHandle>();
+        // Queue sorting is performed once for the entire graph.
+        queue?.Sort();
 
-        ValidateAndImportExternalResources(plan.Resources, physicalTargets);
+        var resources = plan.Resources.ToDictionary(
+            resource => resource.Handle);
+
+        var physicalTargets =
+            new Dictionary<RenderGraphResourceHandle, RenderTargetHandle>();
+
+        var allocatedTransientTargets =
+            new HashSet<RenderTargetHandle>();
+
+        ValidateAndImportExternalResources(
+            plan.Resources,
+            physicalTargets);
 
         try
         {
-            for (var passIndex = 0; passIndex < plan.Passes.Count; passIndex++)
+            for (var passIndex = 0;
+                 passIndex < plan.Passes.Count;
+                 passIndex++)
             {
                 AllocateResourcesAtFirstUse(
                     plan.Resources,
@@ -51,7 +72,8 @@ public sealed class RenderGraphExecutor
                 ExecutePass(
                     plan.Passes[passIndex],
                     resources,
-                    physicalTargets);
+                    physicalTargets,
+                    queue);
 
                 ReleaseResourcesAtLastUse(
                     plan.Resources,
@@ -64,12 +86,16 @@ public sealed class RenderGraphExecutor
                 plan,
                 physicalTargets);
 
-            var retainedTargets = new HashSet<RenderTargetHandle>();
+            var retainedTargets =
+                new HashSet<RenderTargetHandle>();
+
             foreach (var output in plan.Resources.Where(resource =>
                          resource.IsOutput &&
                          resource.Kind == RenderGraphResourceKind.Transient))
             {
-                if (!physicalTargets.TryGetValue(output.Handle, out var target) ||
+                if (!physicalTargets.TryGetValue(
+                        output.Handle,
+                        out var target) ||
                     !target.IsValid)
                 {
                     throw new InvalidOperationException(
@@ -79,7 +105,9 @@ public sealed class RenderGraphExecutor
                 retainedTargets.Add(target);
             }
 
-            DestroyUnretainedTransientTargets(allocatedTransientTargets, retainedTargets);
+            DestroyUnretainedTransientTargets(
+                allocatedTransientTargets,
+                retainedTargets);
 
             return new RenderGraphExecutionResult(
                 plan.GraphId,
@@ -89,10 +117,13 @@ public sealed class RenderGraphExecutor
         }
         catch (Exception executionException)
         {
-            var cleanupErrors = DestroyAllTransientTargets(allocatedTransientTargets);
+            var cleanupErrors =
+                DestroyAllTransientTargets(allocatedTransientTargets);
+
             if (cleanupErrors.Count > 0)
             {
                 cleanupErrors.Insert(0, executionException);
+
                 throw new AggregateException(
                     "Render-graph execution failed and transient resources could not all be released.",
                     cleanupErrors);
@@ -101,6 +132,7 @@ public sealed class RenderGraphExecutor
             throw;
         }
     }
+
 
     private void ValidateAndImportExternalResources(
         IReadOnlyList<RenderGraphCompiledResource> resources,
@@ -179,7 +211,8 @@ public sealed class RenderGraphExecutor
     private void ExecutePass(
         RenderGraphCompiledPass pass,
         IReadOnlyDictionary<RenderGraphResourceHandle, RenderGraphCompiledResource> resources,
-        IReadOnlyDictionary<RenderGraphResourceHandle, RenderTargetHandle> physicalTargets)
+        IReadOnlyDictionary<RenderGraphResourceHandle, RenderTargetHandle> physicalTargets,
+        RenderQueue? queue)
     {
         var writeAccesses = pass.ResourceAccesses
             .Where(access => access.Kind == RenderGraphResourceAccessKind.WriteColor)
@@ -218,13 +251,24 @@ public sealed class RenderGraphExecutor
         var passContext = new RenderPassContext(
             colorTarget,
             pass.State,
-            clearColor);
+            clearColor)
+        {
+            IsPostProcessSource = pass.IsPostProcessSource
+        };
 
         var begun = false;
         try
         {
             _passExecutor.Begin(passContext);
             begun = true;
+
+            if (pass.ExecuteQueuedCommands)
+            {
+                ExecuteQueuedCommands(
+                    queue,
+                    pass.Layers,
+                    context);
+            }
 
             pass.Execute?.Invoke(context);
         }
@@ -233,6 +277,32 @@ public sealed class RenderGraphExecutor
             if (begun)
             {
                 _passExecutor.End();
+            }
+        }
+    }
+
+    private static void ExecuteQueuedCommands(
+    RenderQueue? queue,
+    RenderPassLayerRange layers,
+    RenderGraphContext context)
+    {
+        if (queue is null)
+            return;
+
+        foreach (var item in queue.Items)
+        {
+            if (!layers.Contains(item.Layer))
+                continue;
+
+            if (item.HasWorldTextureData)
+            {
+                context.Execute(
+                    queue.GetWorldTextureData(
+                        item.WorldTextureDataIndex));
+            }
+            else
+            {
+                context.Execute(item.Command);
             }
         }
     }

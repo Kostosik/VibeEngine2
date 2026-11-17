@@ -13,7 +13,8 @@ public sealed class RenderGraphCompiledPass
         RenderPassLayerRange layers,
         IReadOnlyList<RenderGraphResourceAccess> resourceAccesses,
         IReadOnlyList<RenderGraphPassHandle> dependencies,
-        Action<RenderGraphContext>? execute)
+        Action<RenderGraphContext>? execute, bool executeQueuedCommands,
+        bool isPostProcessSource)
     {
         Handle = handle;
         Name = name;
@@ -22,7 +23,13 @@ public sealed class RenderGraphCompiledPass
         ResourceAccesses = Array.AsReadOnly(resourceAccesses.ToArray());
         Dependencies = Array.AsReadOnly(dependencies.ToArray());
         Execute = execute;
+        ExecuteQueuedCommands = executeQueuedCommands;
+        IsPostProcessSource = isPostProcessSource;
     }
+
+    public bool ExecuteQueuedCommands { get; }
+
+    public bool IsPostProcessSource { get; }
 
     public RenderGraphPassHandle Handle { get; }
 

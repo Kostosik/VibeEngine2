@@ -103,7 +103,8 @@ public sealed class RenderGraphExecutorTests
         builder.SetOutput(backbuffer);
 
         var plan = new RenderGraphCompiler().Compile(builder.Build());
-        var result = new RenderGraphExecutor(targets, passExecutor).Execute(plan);
+        var executor = new RenderGraphExecutor(targets, passExecutor);
+        var result = executor.Execute(plan);
 
         Assert.Equal(new[] { "World", "PostProcess" }, events);
         Assert.True(sampledTexture.HasValue);
@@ -114,6 +115,12 @@ public sealed class RenderGraphExecutorTests
         Assert.Equal(RenderTargetHandle.Invalid, result.GetRenderTarget(backbuffer));
 
         result.Dispose();
+
+        Assert.Single(targets.ActiveTargets);
+
+        // Освобождаем весь пул.
+        executor.Dispose();
+
         Assert.Empty(targets.ActiveTargets);
     }
 
@@ -144,9 +151,21 @@ public sealed class RenderGraphExecutorTests
         builder.SetOutput(backbuffer);
 
         var plan = new RenderGraphCompiler().Compile(builder.Build());
-        using var result = new RenderGraphExecutor(targets, passExecutor).Execute(plan);
+
+        var executor = new RenderGraphExecutor(targets, passExecutor);
+        var result = executor.Execute(plan);
 
         Assert.True(createdTarget.IsValid);
+        Assert.True(targets.Exists(createdTarget));
+
+        result.Dispose();
+
+        // Ресурс находится в пуле и ожидает повторного использования.
+        Assert.True(targets.Exists(createdTarget));
+
+        executor.Dispose();
+
+        // Теперь ресурс действительно уничтожен.
         Assert.False(targets.Exists(createdTarget));
         Assert.Empty(targets.ActiveTargets);
     }
@@ -156,25 +175,42 @@ public sealed class RenderGraphExecutorTests
     {
         var targets = new TestRenderTargetManager();
         var passExecutor = new TestRenderPassExecutor();
+        var executor = new RenderGraphExecutor(targets, passExecutor);
+
         var builder = new RenderGraphBuilder();
 
         var output = builder.CreateTexture(
             "CapturedOutput",
             new RenderGraphResourceDescriptor(64, 64));
+
         builder.AddPass("Capture", pass => pass.WriteColor(output));
         builder.SetOutput(output);
 
         var plan = new RenderGraphCompiler().Compile(builder.Build());
-        var result = new RenderGraphExecutor(targets, passExecutor).Execute(plan);
+
+        var result = executor.Execute(plan);
         var target = result.GetRenderTarget(output);
 
+        // Пока результат не освобождён, ресурс занят.
         Assert.True(targets.Exists(target));
         Assert.True(result.GetTexture(output).IsValid);
 
         result.Dispose();
 
-        Assert.False(targets.Exists(target));
+        Assert.True(targets.Exists(target));
         Assert.Throws<ObjectDisposedException>(() => result.GetRenderTarget(output));
+
+        // Следующее выполнение должно использовать тот же RenderTarget.
+        using (var secondResult = executor.Execute(plan))
+        {
+            Assert.Equal(target, secondResult.GetRenderTarget(output));
+        }
+
+        // Теперь окончательно освобождаем пул.
+        executor.Dispose();
+
+        Assert.False(targets.Exists(target));
+        Assert.Empty(targets.ActiveTargets);
     }
 
     [Fact]
@@ -217,7 +253,7 @@ public sealed class RenderGraphExecutorTests
         var targets = new TestRenderTargetManager();
         var passExecutor = new TestRenderPassExecutor();
         var builder = new RenderGraphBuilder();
-
+        var executor = new RenderGraphExecutor(targets, passExecutor);
         var output = builder.CreateTexture(
             "Output",
             new RenderGraphResourceDescriptor(128, 128));
@@ -231,11 +267,17 @@ public sealed class RenderGraphExecutorTests
         var plan = new RenderGraphCompiler().Compile(builder.Build());
 
         var exception = Assert.Throws<InvalidOperationException>(
-            () => new RenderGraphExecutor(targets, passExecutor).Execute(plan));
+            () => executor.Execute(plan));
 
         Assert.Equal("Pass failed.", exception.Message);
         Assert.Equal(1, passExecutor.BeginCount);
         Assert.Equal(1, passExecutor.EndCount);
+        // Ресурс освобождён и возвращён в пул.
+        Assert.Single(targets.ActiveTargets);
+
+        // Окончательно уничтожаем ресурсы пула.
+        executor.Dispose();
+
         Assert.Empty(targets.ActiveTargets);
     }
 
@@ -438,9 +480,14 @@ public sealed class RenderGraphExecutorTests
         public RenderTargetHandle Create(RenderTargetDescription description)
         {
             description.Validate();
+
+            CreateCount++;
+
             var target = new RenderTargetHandle(_nextTarget++);
             var texture = new TextureHandle(_nextTexture++);
+
             _targets.Add(target, new Entry(description, texture));
+
             return target;
         }
 
@@ -455,7 +502,10 @@ public sealed class RenderGraphExecutorTests
 
         public void Destroy(RenderTargetHandle target)
         {
-            _targets.Remove(target);
+            if (_targets.Remove(target))
+            {
+                DestroyCount++;
+            }
         }
 
         public void Resize(RenderTargetHandle target, int width, int height)

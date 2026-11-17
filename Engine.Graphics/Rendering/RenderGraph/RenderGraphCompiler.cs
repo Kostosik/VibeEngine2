@@ -34,18 +34,30 @@ public sealed class RenderGraphCompiler
         BuildExplicitDependencies(
             passes,
             dependencies);
-
-        // Validate the entire declared graph before culling. A cycle in an
-        // otherwise unused branch is still a graph construction error.
+        // Сначала проверяем зависимости всего объявленного графа.
         var topologicalOrder = TopologicalSort(passes, dependencies);
+
+        // Определяем проходы, которые действительно влияют на выходы.
         var livePasses = FindLivePasses(
+            passes,
             graph.Outputs,
             resources,
             writers,
             dependencies);
 
-        var compiledPasses = BuildCompiledPasses(
+        // Добавляем порядок записи только между живыми writers.
+        // Благодаря этому ранее перезаписанные ресурсы не мешают culling.
+        BuildImportedWriterOrderingDependencies(
+            resources,
             passes,
+            livePasses,
+            dependencies);
+
+        // Повторно строим порядок с учётом новых зависимостей.
+        topologicalOrder = TopologicalSort(passes, dependencies);
+
+        var compiledPasses = BuildCompiledPasses(
+                    passes,
             dependencies,
             topologicalOrder,
             livePasses);
@@ -61,6 +73,52 @@ public sealed class RenderGraphCompiler
             compiledResources,
             graph.Outputs,
             passCount - livePasses.Count);
+    }
+
+    private static void BuildImportedWriterOrderingDependencies(
+    IReadOnlyList<RenderGraphResourceDefinition> resources,
+    IReadOnlyList<RenderGraphPassDefinition> passes,
+    IReadOnlySet<int> livePasses,
+    IReadOnlyList<HashSet<int>> dependencies)
+    {
+        foreach (var resource in resources)
+        {
+            if (resource.Kind == RenderGraphResourceKind.Transient)
+            {
+                continue;
+            }
+
+            int? previousLiveWriter = null;
+
+            foreach (var pass in passes)
+            {
+                var passIndex = pass.Handle.Index;
+
+                if (!livePasses.Contains(passIndex))
+                {
+                    continue;
+                }
+
+                var writesResource = pass.ResourceAccesses.Any(access =>
+                    access.Resource == resource.Handle &&
+                    access.Kind == RenderGraphResourceAccessKind.WriteColor);
+
+                if (!writesResource)
+                {
+                    continue;
+                }
+
+                if (previousLiveWriter.HasValue)
+                {
+                    AddDependency(
+                        dependencies,
+                        previousLiveWriter.Value,
+                        passIndex);
+                }
+
+                previousLiveWriter = passIndex;
+            }
+        }
     }
 
     private static void ValidateGraphHandles(RenderGraph graph)
@@ -423,6 +481,7 @@ public sealed class RenderGraphCompiler
     }
 
     private static HashSet<int> FindLivePasses(
+        IReadOnlyList<RenderGraphPassDefinition> passes,
         IReadOnlyList<RenderGraphResourceHandle> outputs,
         IReadOnlyList<RenderGraphResourceDefinition> resources,
         IReadOnlyList<int>[] writers,
@@ -450,7 +509,14 @@ public sealed class RenderGraphCompiler
                 pending.Push(outputWriters[^1]);
             }
         }
-
+        // Passes with externally observable effects are always live.
+        foreach (var pass in passes)
+        {
+            if (pass.HasSideEffects)
+            {
+                pending.Push(pass.Handle.Index);
+            }
+        }
         while (pending.Count > 0)
         {
             var current = pending.Pop();
@@ -499,8 +565,10 @@ public sealed class RenderGraphCompiler
                     pass.Layers,
                     pass.ResourceAccesses,
                     directDependencies,
-                    pass.Execute, pass.ExecuteQueuedCommands,
-                    pass.IsPostProcessSource));
+                    pass.Execute,
+                    pass.ExecuteQueuedCommands,
+                    pass.IsPostProcessSource,
+                    pass.ContextData, pass.ClearDepth));
         }
 
         return result;

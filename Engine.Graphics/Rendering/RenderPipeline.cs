@@ -5,7 +5,7 @@ public sealed class RenderPipeline
     private readonly List<RenderPass> _passes = new();
 
     public IReadOnlyList<RenderPass> Passes => _passes;
-
+    public long Revision { get; private set; }
     public int Count => _passes.Count;
 
     public PostProcessChain PostProcessing { get; } = new();
@@ -13,11 +13,13 @@ public sealed class RenderPipeline
     public void AddPass(RenderPass pass)
     {
         _passes.Add(pass);
+        Revision++;
     }
 
     public void Clear()
     {
         _passes.Clear();
+        Revision++;
     }
 
     public void Execute(
@@ -71,7 +73,8 @@ public sealed class RenderPipeline
                 pass.ClearColor)
             {
                 IsPostProcessSource = pass.IsPostProcessSource,
-                ContextData = pass.ContextData
+                ContextData = pass.ContextData,
+                ClearDepth = pass.ClearColor,
             };
 
             executor.Begin(context);

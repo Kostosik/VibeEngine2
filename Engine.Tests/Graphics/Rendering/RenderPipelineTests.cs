@@ -9,6 +9,21 @@ namespace Engine.Tests.Graphics.Rendering;
 public sealed class RenderPipelineTests
 {
     [Fact]
+    public void Revision_ChangesWhenPassesAreAddedOrCleared()
+    {
+        var pipeline = new RenderPipeline();
+        var initialRevision = pipeline.Revision;
+
+        pipeline.AddPass(RenderPass2D.Default);
+
+        Assert.Equal(initialRevision + 1, pipeline.Revision);
+
+        pipeline.Clear();
+
+        Assert.Equal(initialRevision + 2, pipeline.Revision);
+    }
+
+    [Fact]
     public void Execute_PresentsWorldWhenAllEffectsAreDisabled()
     {
         var queue = new RenderQueue();

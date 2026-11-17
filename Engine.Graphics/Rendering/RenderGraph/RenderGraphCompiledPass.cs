@@ -14,7 +14,7 @@ public sealed class RenderGraphCompiledPass
         IReadOnlyList<RenderGraphResourceAccess> resourceAccesses,
         IReadOnlyList<RenderGraphPassHandle> dependencies,
         Action<RenderGraphContext>? execute, bool executeQueuedCommands,
-        bool isPostProcessSource)
+        bool isPostProcessSource, IRenderPassContextData? contextData, bool clearDepth)
     {
         Handle = handle;
         Name = name;
@@ -25,7 +25,11 @@ public sealed class RenderGraphCompiledPass
         Execute = execute;
         ExecuteQueuedCommands = executeQueuedCommands;
         IsPostProcessSource = isPostProcessSource;
+        ContextData = contextData;
+        ClearDepth = clearDepth;
     }
+    public bool ClearDepth { get; }
+    public IRenderPassContextData? ContextData { get; }
 
     public bool ExecuteQueuedCommands { get; }
 

@@ -10,13 +10,13 @@ public sealed class RenderGraphPassBuilder
     private readonly int _passIndex;
     private readonly List<RenderGraphResourceAccess> _resourceAccesses = new();
     private readonly List<RenderGraphPassHandle> _explicitDependencies = new();
-
+    private bool _clearDepth;
     private bool _executeQueuedCommands = true;
     private bool _isPostProcessSource;
-
+    private bool _hasSideEffects;
     private Action<RenderGraphContext>? _execute;
     private bool _built;
-
+    private IRenderPassContextData? _contextData;
     internal RenderGraphPassBuilder(
         Guid graphId,
         int passIndex,
@@ -40,6 +40,38 @@ public sealed class RenderGraphPassBuilder
     {
         EnsureMutable();
         _executeQueuedCommands = enabled;
+        return this;
+    }
+
+    /// <summary>
+    /// Requests clearing the depth attachment of this pass.
+    /// </summary>
+    public RenderGraphPassBuilder SetClearDepth(bool enabled = true)
+    {
+        EnsureMutable();
+        _clearDepth = enabled;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the data passed to the render-pass executor when this pass begins.
+    /// </summary>
+    public RenderGraphPassBuilder SetContextData(
+        IRenderPassContextData? contextData)
+    {
+        EnsureMutable();
+        _contextData = contextData;
+        return this;
+    }
+
+    /// <summary>
+    /// Marks this pass as externally observable.
+    /// The compiler will preserve it even when it does not contribute to graph outputs.
+    /// </summary>
+    public RenderGraphPassBuilder SetSideEffect()
+    {
+        EnsureMutable();
+        _hasSideEffects = true;
         return this;
     }
 
@@ -165,6 +197,15 @@ public sealed class RenderGraphPassBuilder
         RenderGraphPassHandle handle)
     {
         EnsureMutable();
+
+        if (_clearDepth &&
+    !_resourceAccesses.Any(
+        access => access.Kind == RenderGraphResourceAccessKind.WriteColor))
+        {
+            throw new InvalidOperationException(
+                $"Pass '{Name}' cannot clear depth without a color output.");
+        }
+
         _built = true;
 
         return new RenderGraphPassDefinition(
@@ -176,7 +217,9 @@ public sealed class RenderGraphPassBuilder
             Array.AsReadOnly(_explicitDependencies.ToArray()),
             _execute,
             _executeQueuedCommands,
-            _isPostProcessSource);
+            _isPostProcessSource,
+            _contextData,
+            _hasSideEffects, _clearDepth);
     }
 
     private void ValidateResourceHandle(

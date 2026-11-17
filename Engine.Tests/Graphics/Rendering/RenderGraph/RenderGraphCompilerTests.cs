@@ -7,6 +7,72 @@ namespace Engine.Tests.Graphics.Rendering.RenderGraph;
 public sealed class RenderGraphCompilerTests
 {
     [Fact]
+    public void Compile_OrdersLiveImportedWritersByDeclarationOrder()
+    {
+        var builder = new RenderGraphBuilder();
+
+        var imported = builder.ImportRenderTarget(
+            "ImportedTexture",
+            new RenderTargetHandle(1),
+            new RenderTargetDescription(64, 64));
+
+        var prerequisite = builder.CreateTexture(
+            "Prerequisite",
+            new RenderGraphResourceDescriptor(64, 64));
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer",
+            new RenderTargetDescription(64, 64));
+
+        // Первый writer вынужден ждать ресурс,
+        // который будет произведён позже.
+        var earlierWriter = builder.AddPass(
+            "EarlierWriter",
+            pass => pass
+                .Read(prerequisite)
+                .WriteColor(imported, RenderGraphLoadAction.Clear));
+
+        // Второй writer объявлен позже, но первоначально
+        // не имеет зависимостей.
+        var laterWriter = builder.AddPass(
+            "LaterWriter",
+            pass => pass.WriteColor(
+                imported,
+                RenderGraphLoadAction.Clear));
+
+        var prerequisiteProducer = builder.AddPass(
+            "PrerequisiteProducer",
+            pass => pass.WriteColor(prerequisite));
+
+        // Нужен для того, чтобы EarlierWriter остался живым
+        // после culling.
+        var anotherOutput = builder.AddPass(
+            "AnotherOutput",
+            pass => pass
+                .DependsOn(earlierWriter)
+                .WriteColor(backbuffer));
+
+        builder.SetOutput(imported);
+        builder.SetOutput(backbuffer);
+
+        var plan = new RenderGraphCompiler().Compile(builder.Build());
+
+        Assert.Collection(
+            plan.Passes,
+            pass => Assert.Equal(prerequisiteProducer, pass.Handle),
+            pass => Assert.Equal(earlierWriter, pass.Handle),
+            pass => Assert.Equal(laterWriter, pass.Handle),
+            pass => Assert.Equal(anotherOutput, pass.Handle));
+
+        var compiledLaterWriter = plan.Passes.Single(
+            pass => pass.Handle == laterWriter);
+
+        Assert.Equal(
+            new[] { earlierWriter },
+            compiledLaterWriter.Dependencies);
+    }
+
+    [Fact]
     public void Compile_OrdersProducerBeforeConsumer_WhenProducerWasDeclaredLater()
     {
         var builder = new RenderGraphBuilder();

@@ -61,6 +61,38 @@ public sealed class RenderGraphExecutorTests
                 ((TestCommand)command).Layer));
     }
 
+    [Fact]
+    public void Execute_ForwardsPassContextDataToRenderPassContext()
+    {
+        var targets = new TestRenderTargetManager();
+        var passExecutor = new TestRenderPassExecutor();
+        var builder = new RenderGraphBuilder();
+
+        var contextData = new TestContextData();
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer",
+            new RenderTargetDescription(1280, 720));
+
+        builder.AddPass(
+            "World",
+            pass => pass
+                .WriteColor(backbuffer)
+                .SetContextData(contextData));
+
+        builder.SetOutput(backbuffer);
+
+        var plan = new RenderGraphCompiler()
+            .Compile(builder.Build());
+
+        using var result = new RenderGraphExecutor(
+            targets,
+            passExecutor).Execute(plan);
+
+        var begunPass = Assert.Single(passExecutor.BegunPasses);
+
+        Assert.Same(contextData, begunPass.ContextData);
+    }
 
     [Fact]
     public void Execute_RunsProducerBeforeConsumerAndResolvesTexture()
@@ -111,7 +143,7 @@ public sealed class RenderGraphExecutorTests
         Assert.True(sampledTexture.Value.IsValid);
         Assert.Equal(2, passExecutor.BeginCount);
         Assert.Equal(2, passExecutor.EndCount);
-        Assert.Equal(1, passExecutor.ExecutedCommands.Count);
+        Assert.Single(passExecutor.ExecutedCommands);
         Assert.Equal(RenderTargetHandle.Invalid, result.GetRenderTarget(backbuffer));
 
         result.Dispose();
@@ -122,6 +154,52 @@ public sealed class RenderGraphExecutorTests
         executor.Dispose();
 
         Assert.Empty(targets.ActiveTargets);
+    }
+
+    [Fact]
+    public void Execute_MapsColorAndDepthClearsIndependently()
+    {
+        var targets = new TestRenderTargetManager();
+        var passExecutor = new TestRenderPassExecutor();
+        var builder = new RenderGraphBuilder();
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer",
+            new RenderTargetDescription(1280, 720));
+
+        builder.AddPass(
+            "ColorClear",
+            pass => pass.WriteColor(
+                backbuffer,
+                RenderGraphLoadAction.Clear));
+
+        builder.AddPass(
+            "DepthClear",
+            pass => pass
+                .WriteColor(backbuffer, RenderGraphLoadAction.Load)
+                .SetClearDepth());
+
+        builder.SetOutput(backbuffer);
+
+        var plan = new RenderGraphCompiler()
+            .Compile(builder.Build());
+
+        using var result = new RenderGraphExecutor(
+            targets,
+            passExecutor).Execute(plan);
+
+        Assert.Collection(
+            passExecutor.BegunPasses,
+            context =>
+            {
+                Assert.True(context.ClearColor);
+                Assert.False(context.ClearDepth);
+            },
+            context =>
+            {
+                Assert.False(context.ClearColor);
+                Assert.True(context.ClearDepth);
+            });
     }
 
     [Fact]
@@ -378,8 +456,8 @@ public sealed class RenderGraphExecutorTests
 
     private sealed class TestRenderPassExecutor : IRenderPassExecutor
     {
-        public List<RenderPassContext> BegunPasses { get; } = new();
-        public List<IRenderCommand> ExecutedCommands { get; } = new();
+        public List<RenderPassContext> BegunPasses { get; } = [];
+        public List<IRenderCommand> ExecutedCommands { get; } = [];
         public int BeginCount { get; private set; }
         public int EndCount { get; private set; }
 
@@ -468,7 +546,7 @@ public sealed class RenderGraphExecutorTests
 
     private sealed class TestRenderTargetManager : IRenderTargetManager
     {
-        private readonly Dictionary<RenderTargetHandle, Entry> _targets = new();
+        private readonly Dictionary<RenderTargetHandle, Entry> _targets = [];
         private uint _nextTarget = 1;
         private uint _nextTexture = 100;
         public int CreateCount { get; private set; }
@@ -534,4 +612,6 @@ public sealed class RenderGraphExecutorTests
             RenderTargetDescription Description,
             TextureHandle Texture);
     }
+
+    private sealed class TestContextData : IRenderPassContextData;
 }

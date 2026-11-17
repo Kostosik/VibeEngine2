@@ -262,6 +262,18 @@ internal sealed class OpenGLRenderCommandDispatcher
         }
     }
 
+    public void ClearColorBuffer()
+    {
+        _renderState.ClearBuffers(
+            ClearBufferMask.ColorBufferBit);
+    }
+
+    public void ClearDepthBuffer()
+    {
+        _renderState.ClearBuffers(
+            ClearBufferMask.DepthBufferBit);
+    }
+
     public void ClearBuffers()
     {
         _renderState.ClearBuffers(

@@ -9,4 +9,5 @@ public readonly record struct RenderPassContext(
 {
     public IRenderPassContextData? ContextData { get; init; }
     public bool IsPostProcessSource { get; init; }
+    public bool ClearDepth { get; init; }
 }

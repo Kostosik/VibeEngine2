@@ -203,13 +203,7 @@ public sealed class EngineRuntime :
         EngineConsole =
     new EngineConsole(Console);
 
-        Profiler =
-            new Profiler();
-
-        SchedulerProfiler =
-            new SchedulerProfiler(
-                Scheduler,
-                Profiler);
+        Profiler = new Profiler();
 
         PhysicsDebugVisualizer =
             new PhysicsDebugVisualizer(
@@ -299,6 +293,9 @@ Services.Graphics;
                 DiagnosticReporter);
     }
 
+    public bool IsProfiling =>
+    Profiler?.IsCapturing == true;
+
     public Engine.ECS.World EcsWorld { get; }
 
     public Engine.Worlds.World World { get; }
@@ -381,6 +378,59 @@ Services.Graphics;
         EnsureNotDisposed();
 
         Simulation.Initialize();
+    }
+
+
+
+    public void StartProfiling()
+    {
+        EnsureNotDisposed();
+
+        if (Simulation.IsShutdown)
+        {
+            throw new InvalidOperationException(
+                "Cannot start profiling after runtime shutdown.");
+        }
+
+        var profiler = Profiler
+            ?? throw new InvalidOperationException(
+                "Profiling requires Tooling to be enabled.");
+
+        if (profiler.IsCapturing)
+        {
+            return;
+        }
+
+        profiler.StartCapture();
+
+        try
+        {
+            SchedulerProfiler = new SchedulerProfiler(
+                Scheduler,
+                profiler);
+        }
+        catch
+        {
+            profiler.StopCapture();
+            throw;
+        }
+    }
+
+    public void StopProfiling()
+    {
+        EnsureNotDisposed();
+
+        StopProfilingCore();
+    }
+
+    private void StopProfilingCore()
+    {
+        var schedulerProfiler = SchedulerProfiler;
+        SchedulerProfiler = null;
+
+        Profiler?.StopCapture();
+
+        schedulerProfiler?.Dispose();
     }
 
 
@@ -647,6 +697,7 @@ Services.Graphics;
                 errors.Add(exception);
             }
         }
+        TryCleanup(StopProfilingCore);
         TryCleanup(DisposeTilemapRenderSystem);
         TryCleanup(Simulation.Shutdown);
         TryCleanup(DisposeAudioEcsSystem);
@@ -691,7 +742,7 @@ Services.Graphics;
                 errors.Add(exception);
             }
         }
-
+        TryCleanup(StopProfilingCore);
         // Освобождаем ссылки на игровой цикл и его команды.
         if (_debugExecution is not null)
         {
@@ -722,7 +773,6 @@ Services.Graphics;
         TryCleanup(DisposeTextureResources);
         TryCleanup(() => EngineConsole?.Dispose());
         TryCleanup(() => Console?.Dispose());
-        TryCleanup(() => SchedulerProfiler?.Dispose());
 
         TryCleanup(() =>
         {

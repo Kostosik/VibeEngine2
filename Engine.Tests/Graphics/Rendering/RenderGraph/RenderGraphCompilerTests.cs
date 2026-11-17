@@ -114,6 +114,106 @@ public sealed class RenderGraphCompilerTests
     }
 
     [Fact]
+    public void Compile_RejectsLoadingImportedResourceAfterDontCareStore()
+    {
+        var builder = new RenderGraphBuilder();
+
+        var imported = builder.ImportRenderTarget(
+            "External",
+            new RenderTargetHandle(1),
+            new RenderTargetDescription(64, 64));
+
+        builder.AddPass(
+            "Discard",
+            pass => pass.WriteColor(
+                imported,
+                RenderGraphLoadAction.Clear,
+                RenderGraphStoreAction.DontCare));
+
+        builder.AddPass(
+            "Load",
+            pass => pass.WriteColor(
+                imported,
+                RenderGraphLoadAction.Load));
+
+        builder.SetOutput(imported);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => new RenderGraphCompiler().Compile(builder.Build()));
+
+        Assert.Contains("loads", exception.Message);
+    }
+
+    [Fact]
+    public void Compile_RejectsReadingImportedResourceAfterDontCareStore()
+    {
+        var builder = new RenderGraphBuilder();
+
+        var imported = builder.ImportRenderTarget(
+            "External",
+            new RenderTargetHandle(1),
+            new RenderTargetDescription(64, 64));
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer",
+            new RenderTargetDescription(64, 64));
+
+        builder.AddPass(
+            "Overwrite",
+            pass => pass.WriteColor(
+                imported,
+                RenderGraphLoadAction.Clear,
+                RenderGraphStoreAction.DontCare));
+
+        builder.AddPass(
+            "Read",
+            pass => pass
+                .Read(imported)
+                .WriteColor(backbuffer));
+
+        builder.SetOutput(backbuffer);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => new RenderGraphCompiler().Compile(builder.Build()));
+
+        Assert.Contains("discarded", exception.Message);
+    }
+
+    [Fact]
+    public void Compile_RejectsReadingTransientAfterDontCareStore()
+    {
+        var builder = new RenderGraphBuilder();
+
+        var texture = builder.CreateTexture(
+            "Intermediate",
+            new RenderGraphResourceDescriptor(64, 64));
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer",
+            new RenderTargetDescription(64, 64));
+
+        builder.AddPass(
+            "Producer",
+            pass => pass.WriteColor(
+                texture,
+                RenderGraphLoadAction.Clear,
+                RenderGraphStoreAction.DontCare));
+
+        builder.AddPass(
+            "Consumer",
+            pass => pass
+                .Read(texture)
+                .WriteColor(backbuffer));
+
+        builder.SetOutput(backbuffer);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => new RenderGraphCompiler().Compile(builder.Build()));
+
+        Assert.Contains("StoreAction.DontCare", exception.Message);
+    }
+
+    [Fact]
     public void Compile_OrdersProducerBeforeConsumer_WhenProducerWasDeclaredLater()
     {
         var builder = new RenderGraphBuilder();

@@ -96,7 +96,8 @@ public sealed class RenderGraphPassBuilder
             new RenderGraphResourceAccess(
                 resource,
                 RenderGraphResourceAccessKind.Read,
-                RenderGraphLoadAction.DontCare));
+                RenderGraphLoadAction.DontCare,
+                RenderGraphStoreAction.Store));
 
         return this;
     }
@@ -107,7 +108,8 @@ public sealed class RenderGraphPassBuilder
     /// </summary>
     public RenderGraphPassBuilder WriteColor(
         RenderGraphResourceHandle resource,
-        RenderGraphLoadAction loadAction = RenderGraphLoadAction.Clear)
+        RenderGraphLoadAction loadAction = RenderGraphLoadAction.Clear,
+        RenderGraphStoreAction storeAction = RenderGraphStoreAction.Store)
     {
         EnsureMutable();
         ValidateResourceHandle(resource);
@@ -119,7 +121,13 @@ public sealed class RenderGraphPassBuilder
                 loadAction,
                 "Unsupported render-graph load action.");
         }
-
+        if (!Enum.IsDefined(storeAction))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(storeAction),
+                storeAction,
+                "Unsupported render-graph store action.");
+        }
         EnsureResourceIsNotAlreadyUsed(resource);
 
         if (_resourceAccesses.Any(
@@ -133,7 +141,8 @@ public sealed class RenderGraphPassBuilder
             new RenderGraphResourceAccess(
                 resource,
                 RenderGraphResourceAccessKind.WriteColor,
-                loadAction));
+                loadAction,
+                storeAction));
 
         return this;
     }

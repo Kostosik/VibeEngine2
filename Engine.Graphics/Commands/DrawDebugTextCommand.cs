@@ -10,5 +10,12 @@ public readonly record struct DrawDebugTextCommand(
     DebugColor Color,
     float Scale = 2.0f,
     DebugRenderSpace Space = DebugRenderSpace.Screen,
-    int Layer = RenderLayers.DebugText) :
-    IRenderCommand;
+    int Layer = RenderLayers.DebugText,
+    DebugTextAlignment Alignment = DebugTextAlignment.Left,
+    DebugColor? BackgroundColor = null,
+    Vector2 BackgroundPadding = default,
+    DebugColor? OutlineColor = null,
+    float OutlineThickness = 1.0f,
+    float LetterSpacing = 1.0f,
+    float LineSpacing = 1.0f)
+    : IRenderCommand;

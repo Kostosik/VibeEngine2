@@ -17,7 +17,8 @@ public enum RenderGraphResourceAccessKind
 public readonly record struct RenderGraphResourceAccess(
     RenderGraphResourceHandle Resource,
     RenderGraphResourceAccessKind Kind,
-    RenderGraphLoadAction LoadAction);
+    RenderGraphLoadAction LoadAction,
+    RenderGraphStoreAction StoreAction);
 
 internal sealed record RenderGraphResourceDefinition(
     RenderGraphResourceHandle Handle,

@@ -27,6 +27,77 @@ namespace Engine.Tests.Runtime;
 
 public sealed class EngineRuntimeTests
 {
+
+    [Fact]
+    public void Profiling_IsDisabledUntilExplicitlyStarted()
+    {
+        using var runtime = CreateRuntime();
+
+        Assert.NotNull(runtime.Profiler);
+        Assert.False(runtime.IsProfiling);
+        Assert.Null(runtime.SchedulerProfiler);
+
+        runtime.StartProfiling();
+
+        Assert.True(runtime.IsProfiling);
+        Assert.NotNull(runtime.SchedulerProfiler);
+
+        runtime.StopProfiling();
+
+        Assert.False(runtime.IsProfiling);
+        Assert.Null(runtime.SchedulerProfiler);
+    }
+
+    [Fact]
+    public void StartProfiling_RejectsRuntimeWithoutTooling()
+    {
+        using var runtime = CreateRuntime(
+            new EngineRuntimeOptions
+            {
+                ToolingEnabled = false
+            });
+
+        Assert.Throws<InvalidOperationException>(
+            () => runtime.StartProfiling());
+
+        Assert.False(runtime.IsProfiling);
+
+        // Остановка без активной сессии безопасна.
+        runtime.StopProfiling();
+    }
+
+    [Fact]
+    public void Shutdown_StopsActiveProfiling()
+    {
+        using var runtime = CreateRuntime();
+
+        runtime.Initialize();
+        runtime.StartProfiling();
+
+        Assert.True(runtime.IsProfiling);
+
+        runtime.Shutdown();
+
+        Assert.False(runtime.IsProfiling);
+        Assert.Null(runtime.SchedulerProfiler);
+    }
+
+    [Fact]
+    public void Dispose_StopsActiveProfiling()
+    {
+        var runtime = CreateRuntime();
+
+        runtime.StartProfiling();
+
+        Assert.True(runtime.IsProfiling);
+
+        runtime.Dispose();
+
+        Assert.False(runtime.Profiler!.IsCapturing);
+        Assert.Null(runtime.SchedulerProfiler);
+    }
+
+
     [Fact]
     public void Constructor_WithoutServices_RejectsEnabledTooling()
     {

@@ -19,6 +19,12 @@ public sealed class RenderGraphCompiler
         var dependencies = CreateDependencySets(passCount);
         var writers = FindWriters(resources, passes);
 
+        ValidateStoreActions(
+            resources,
+            passes,
+            graph.Outputs,
+            writers);
+
         BuildTransientResourceDependencies(
             resources,
             passes,
@@ -153,7 +159,11 @@ public sealed class RenderGraphCompiler
             foreach (var access in pass.ResourceAccesses)
             {
                 ValidateResourceHandle(graph, access.Resource, pass.Name);
-
+                if (!Enum.IsDefined(access.StoreAction))
+                {
+                    throw new InvalidOperationException(
+                        $"Pass '{pass.Name}' contains an unsupported store action.");
+                }
                 if (!Enum.IsDefined(access.Kind))
                 {
                     throw new InvalidOperationException(
@@ -351,6 +361,99 @@ public sealed class RenderGraphCompiler
                 // not need the previous writer unless a live reader consumed
                 // that writer's version.
                 latestWriter = pass.Handle.Index;
+            }
+        }
+    }
+
+    private static void ValidateStoreActions(
+    IReadOnlyList<RenderGraphResourceDefinition> resources,
+    IReadOnlyList<RenderGraphPassDefinition> passes,
+    IReadOnlyList<RenderGraphResourceHandle> outputs,
+    IReadOnlyList<int>[] writers)
+    {
+        var outputSet = outputs.ToHashSet();
+
+        foreach (var resource in resources)
+        {
+            // A transient resource has exactly one writer.
+            if (resource.Kind == RenderGraphResourceKind.Transient)
+            {
+                var resourceWriters = writers[resource.Handle.Index];
+
+                if (resourceWriters.Count == 0)
+                {
+                    continue;
+                }
+
+                var writer = passes[resourceWriters[0]];
+
+                var writeAccess = writer.ResourceAccesses.Single(
+                    access =>
+                        access.Resource == resource.Handle &&
+                        access.Kind == RenderGraphResourceAccessKind.WriteColor);
+
+                if (writeAccess.StoreAction != RenderGraphStoreAction.DontCare)
+                {
+                    continue;
+                }
+
+                var hasReaders = passes.Any(pass =>
+                    pass.ResourceAccesses.Any(access =>
+                        access.Resource == resource.Handle &&
+                        access.Kind == RenderGraphResourceAccessKind.Read));
+
+                if (hasReaders || outputSet.Contains(resource.Handle))
+                {
+                    throw new InvalidOperationException(
+                        $"Resource '{resource.Name}' is read or exported, " +
+                        "but its writer uses StoreAction.DontCare.");
+                }
+
+                continue;
+            }
+
+            // Imported resources can have multiple writers.
+            // Declaration order defines their resource versions.
+            RenderGraphStoreAction? latestStoreAction = null;
+
+            foreach (var pass in passes)
+            {
+                foreach (var access in pass.ResourceAccesses)
+                {
+                    if (access.Resource != resource.Handle)
+                    {
+                        continue;
+                    }
+
+                    if (access.Kind == RenderGraphResourceAccessKind.Read)
+                    {
+                        if (latestStoreAction == RenderGraphStoreAction.DontCare)
+                        {
+                            throw new InvalidOperationException(
+                                $"Pass '{pass.Name}' reads resource '{resource.Name}' " +
+                                "after its contents were discarded.");
+                        }
+
+                        continue;
+                    }
+
+                    if (access.LoadAction == RenderGraphLoadAction.Load &&
+                        latestStoreAction == RenderGraphStoreAction.DontCare)
+                    {
+                        throw new InvalidOperationException(
+                            $"Pass '{pass.Name}' loads resource '{resource.Name}' " +
+                            "after its contents were discarded.");
+                    }
+
+                    latestStoreAction = access.StoreAction;
+                }
+            }
+
+            if (outputSet.Contains(resource.Handle) &&
+                latestStoreAction == RenderGraphStoreAction.DontCare)
+            {
+                throw new InvalidOperationException(
+                    $"Output resource '{resource.Name}' cannot use StoreAction.DontCare.");
             }
         }
     }

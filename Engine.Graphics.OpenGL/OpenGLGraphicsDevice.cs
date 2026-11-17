@@ -199,12 +199,14 @@ public sealed class OpenGLGraphicsDevice
         }
         catch
         {
+
             TryDispose(_fontRenderer);
             TryDispose(_textureRenderer);
             TryDispose(_debugRenderer);
             TryDispose(_passExecutor);
             TryDispose(_fullscreenRenderer);
             TryDispose(_fontManager);
+            TryDispose(_renderGraphExecutor);
             TryDispose(_renderTargetManager);
             TryDispose(_textureManager);
             TryDispose(_meshManager);
@@ -413,6 +415,7 @@ public sealed class OpenGLGraphicsDevice
         DisposeResource(_passExecutor, errors);
         DisposeResource(_fullscreenRenderer, errors);
         DisposeResource(_fontManager, errors);
+        DisposeResource(_renderGraphExecutor, errors);
         DisposeResource(_renderTargetManager, errors);
         DisposeResource(_textureManager, errors);
         DisposeResource(_meshManager, errors);

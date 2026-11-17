@@ -358,12 +358,80 @@ public sealed class RenderGraphExecutorTests
         }
     }
 
+    [Fact]
+    public void Execute_ReusesTransientTargetAcrossExecutions()
+    {
+        var targets = new TestRenderTargetManager();
+        var executor = new RenderGraphExecutor(
+            targets,
+            new TestRenderPassExecutor());
+
+        var builder = new RenderGraphBuilder();
+
+        var intermediate = builder.CreateTexture(
+            "Intermediate",
+            new RenderGraphResourceDescriptor(320, 200));
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer",
+            new RenderTargetDescription(320, 200));
+
+        var firstTarget = RenderTargetHandle.Invalid;
+        var secondTarget = RenderTargetHandle.Invalid;
+
+        builder.AddPass(
+            "Producer",
+            pass => pass
+                .WriteColor(intermediate)
+                .SetExecute(context =>
+                {
+                    if (!firstTarget.IsValid)
+                    {
+                        firstTarget = context.ColorTarget;
+                    }
+                    else
+                    {
+                        secondTarget = context.ColorTarget;
+                    }
+                }));
+
+        builder.AddPass(
+            "Consumer",
+            pass => pass
+                .Read(intermediate)
+                .WriteColor(backbuffer));
+
+        builder.SetOutput(backbuffer);
+
+        var plan = new RenderGraphCompiler().Compile(builder.Build());
+
+        using (executor.Execute(plan))
+        {
+        }
+
+        using (executor.Execute(plan))
+        {
+        }
+
+        Assert.True(firstTarget.IsValid);
+        Assert.Equal(firstTarget, secondTarget);
+        Assert.Equal(1, targets.CreateCount);
+        Assert.Equal(0, targets.DestroyCount);
+
+        executor.Dispose();
+
+        Assert.Equal(1, targets.DestroyCount);
+        Assert.Empty(targets.ActiveTargets);
+    }
+
     private sealed class TestRenderTargetManager : IRenderTargetManager
     {
         private readonly Dictionary<RenderTargetHandle, Entry> _targets = new();
         private uint _nextTarget = 1;
         private uint _nextTexture = 100;
+        public int CreateCount { get; private set; }
 
+        public int DestroyCount { get; private set; }
         public IReadOnlyCollection<RenderTargetHandle> ActiveTargets =>
             _targets.Keys.ToArray();
 

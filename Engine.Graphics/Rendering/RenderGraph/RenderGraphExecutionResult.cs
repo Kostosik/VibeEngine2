@@ -14,12 +14,13 @@ public sealed class RenderGraphExecutionResult : IDisposable
     private readonly Dictionary<RenderGraphResourceHandle, RenderTargetHandle> _outputs;
     private readonly HashSet<RenderTargetHandle> _ownedTargets;
     private bool _disposed;
-
+    private readonly Action<RenderTargetHandle> _releaseOwnedTarget;
     internal RenderGraphExecutionResult(
         Guid graphId,
         IRenderTargetManager renderTargets,
         IReadOnlyDictionary<RenderGraphResourceHandle, RenderTargetHandle> outputs,
-        IEnumerable<RenderTargetHandle> ownedTargets)
+        IEnumerable<RenderTargetHandle> ownedTargets,
+        Action<RenderTargetHandle> releaseOwnedTarget)
     {
         _graphId = graphId;
         _renderTargets = renderTargets;
@@ -27,6 +28,8 @@ public sealed class RenderGraphExecutionResult : IDisposable
             pair => pair.Key,
             pair => pair.Value);
         _ownedTargets = new HashSet<RenderTargetHandle>(ownedTargets);
+        _releaseOwnedTarget = releaseOwnedTarget;
+
     }
 
     public IReadOnlyCollection<RenderGraphResourceHandle> OutputResources =>
@@ -78,7 +81,7 @@ public sealed class RenderGraphExecutionResult : IDisposable
         {
             try
             {
-                _renderTargets.Destroy(target);
+                _releaseOwnedTarget(target);
                 _ownedTargets.Remove(target);
             }
             catch (Exception exception)

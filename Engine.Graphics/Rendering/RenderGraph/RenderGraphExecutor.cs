@@ -7,8 +7,10 @@ namespace Engine.Graphics.Rendering.RenderGraph;
 /// Executes a compiled render graph using the existing render-pass executor
 /// and render-target manager abstractions. It does not depend on OpenGL.
 /// </summary>
-public sealed class RenderGraphExecutor
+public sealed class RenderGraphExecutor : IDisposable
 {
+    private readonly TransientRenderTargetPool _transientPool;
+    private bool _disposed;
     private readonly IRenderTargetManager _renderTargets;
     private readonly IRenderPassExecutor _passExecutor;
 
@@ -21,6 +23,7 @@ public sealed class RenderGraphExecutor
 
         _renderTargets = renderTargets;
         _passExecutor = passExecutor;
+        _transientPool = new TransientRenderTargetPool(_renderTargets);
     }
 
     /// <summary>
@@ -32,6 +35,7 @@ public sealed class RenderGraphExecutor
     public RenderGraphExecutionResult Execute(
         RenderGraphExecutionPlan plan)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         return Execute(plan, null);
     }
 
@@ -39,6 +43,7 @@ public sealed class RenderGraphExecutor
         RenderGraphExecutionPlan plan,
         RenderQueue? queue)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(plan);
 
         // Queue sorting is performed once for the entire graph.
@@ -113,7 +118,8 @@ public sealed class RenderGraphExecutor
                 plan.GraphId,
                 _renderTargets,
                 outputs,
-                retainedTargets);
+                retainedTargets,
+                _transientPool.Release);
         }
         catch (Exception executionException)
         {
@@ -194,7 +200,7 @@ public sealed class RenderGraphExecutor
                 continue;
             }
 
-            var target = _renderTargets.Create(
+            var target = _transientPool.Acquire(
                 resource.Descriptor.ToRenderTargetDescription());
 
             if (!target.IsValid)
@@ -327,7 +333,7 @@ public sealed class RenderGraphExecutor
                 continue;
             }
 
-            _renderTargets.Destroy(target);
+            _transientPool.Release(target);
             allocatedTargets.Remove(target);
             physicalTargets.Remove(resource.Handle);
         }
@@ -366,7 +372,7 @@ public sealed class RenderGraphExecutor
 
             try
             {
-                _renderTargets.Destroy(target);
+                _transientPool.Release(target);
                 allocatedTargets.Remove(target);
             }
             catch (Exception exception)
@@ -391,16 +397,181 @@ public sealed class RenderGraphExecutor
         {
             try
             {
-                _renderTargets.Destroy(target);
+                _transientPool.Release(target);
                 allocatedTargets.Remove(target);
             }
             catch (Exception exception)
-            {
+            {   
                 errors.Add(exception);
             }
         }
 
         return errors;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _transientPool.Dispose();
+    }
+
+    private sealed class TransientRenderTargetPool : IDisposable
+    {
+        private const int MaxCachedTargets = 16;
+        private const int MaxCachedPerDescription = 2;
+
+        private readonly IRenderTargetManager _renderTargets;
+
+        private readonly Dictionary<
+            RenderTargetDescription,
+            Stack<RenderTargetHandle>> _available = new();
+
+        private readonly Dictionary<
+            RenderTargetHandle,
+            RenderTargetDescription> _knownTargets = new();
+
+        private readonly HashSet<RenderTargetHandle> _leasedTargets = new();
+
+        private int _cachedCount;
+        private bool _disposed;
+
+        public TransientRenderTargetPool(IRenderTargetManager renderTargets)
+        {
+            ArgumentNullException.ThrowIfNull(renderTargets);
+            _renderTargets = renderTargets;
+        }
+
+        public RenderTargetHandle Acquire(RenderTargetDescription description)
+        {
+            ThrowIfDisposed();
+            description.Validate();
+
+            if (_available.TryGetValue(description, out var available))
+            {
+                while (available.Count > 0)
+                {
+                    var target = available.Pop();
+                    _cachedCount--;
+
+                    // Если ресурс был потерян, забываем о нём.
+                    if (!_renderTargets.Exists(target))
+                    {
+                        _knownTargets.Remove(target);
+                        continue;
+                    }
+
+                    _leasedTargets.Add(target);
+                    return target;
+                }
+            }
+
+            var createdTarget = _renderTargets.Create(description);
+
+            if (!createdTarget.IsValid)
+            {
+                throw new InvalidOperationException(
+                    "Failed to create a transient render target.");
+            }
+
+            _knownTargets.Add(createdTarget, description);
+            _leasedTargets.Add(createdTarget);
+
+            return createdTarget;
+        }
+
+        public void Release(RenderTargetHandle target)
+        {
+            if (!target.IsValid || _disposed)
+            {
+                return;
+            }
+
+            if (!_knownTargets.TryGetValue(target, out var description))
+            {
+                throw new InvalidOperationException(
+                    $"Render target '{target.Value}' does not belong to this pool.");
+            }
+
+            // Защита от повторного возвращения одного ресурса.
+            if (!_leasedTargets.Remove(target))
+            {
+                return;
+            }
+
+            if (!_renderTargets.Exists(target))
+            {
+                _knownTargets.Remove(target);
+                return;
+            }
+
+            if (!_available.TryGetValue(description, out var available))
+            {
+                available = new Stack<RenderTargetHandle>();
+                _available.Add(description, available);
+            }
+
+            // Ограничиваем количество сохранённых GPU-ресурсов.
+            if (_cachedCount >= MaxCachedTargets ||
+                available.Count >= MaxCachedPerDescription)
+            {
+                _renderTargets.Destroy(target);
+                _knownTargets.Remove(target);
+                return;
+            }
+
+            available.Push(target);
+            _cachedCount++;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+
+            var errors = new List<Exception>();
+
+            // Уничтожаем и свободные, и ещё занятые пулом ресурсы.
+            foreach (var target in _knownTargets.Keys.ToArray())
+            {
+                try
+                {
+                    if (_renderTargets.Exists(target))
+                    {
+                        _renderTargets.Destroy(target);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+            }
+
+            _available.Clear();
+            _knownTargets.Clear();
+            _leasedTargets.Clear();
+            _cachedCount = 0;
+
+            if (errors.Count > 0)
+            {
+                throw new AggregateException(
+                    "Failed to dispose one or more pooled render targets.",
+                    errors);
+            }
+        }
+
+        private void ThrowIfDisposed()
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+        }
     }
 
 }

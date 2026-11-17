@@ -148,7 +148,7 @@ public sealed class SandboxState
 
         grayscale.Enabled = false;
         tint.Enabled = false;
-        vignette.Enabled = true;
+        vignette.Enabled = false;
 
         _graphics.Pipeline.PostProcessing.Add(grayscale);
         _graphics.Pipeline.PostProcessing.Add(tint);

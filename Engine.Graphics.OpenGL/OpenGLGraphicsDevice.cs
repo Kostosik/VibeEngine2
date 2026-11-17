@@ -18,8 +18,6 @@ public sealed class OpenGLGraphicsDevice
       IWorldTextureDataSubmitter,
       IMeshManagerProvider
 {
-    private RenderTargetHandle _sceneColorTarget =
-    RenderTargetHandle.Invalid;
     private readonly RenderGraphExecutor _renderGraphExecutor;
 
     private RenderGraphExecutionPlan _renderGraphPlan = null!;
@@ -145,10 +143,6 @@ public sealed class OpenGLGraphicsDevice
                 new OpenGLRenderTargetManager(
                     gl,
                     _textureManager);
-            _sceneColorTarget = _renderTargetManager.Create(
-                new RenderTargetDescription(
-                    logicalWidth,
-                    logicalHeight));
 
             _fullscreenRenderer =
                 new OpenGLFullscreenRenderer(gl);
@@ -228,10 +222,9 @@ public sealed class OpenGLGraphicsDevice
 
         var builder = new RenderGraphBuilder();
 
-        var sceneColor = builder.ImportRenderTarget(
+        var sceneColor = builder.CreateTexture(
             "SceneColor",
-            _sceneColorTarget,
-            new RenderTargetDescription(
+            new RenderGraphResourceDescriptor(
                 logicalWidth,
                 logicalHeight));
 
@@ -244,10 +237,7 @@ public sealed class OpenGLGraphicsDevice
         // Повторно используем одно описание ресурса,
         // если несколько проходов пишут в один RenderTarget.
         var pipelineTargets =
-            new Dictionary<RenderTargetHandle, RenderGraphResourceHandle>
-            {
-                [_sceneColorTarget] = sceneColor
-            };
+            new Dictionary<RenderTargetHandle, RenderGraphResourceHandle>();
 
         RenderGraphResourceHandle ResolveTarget(RenderPass renderPass)
         {
@@ -470,11 +460,6 @@ public sealed class OpenGLGraphicsDevice
         int framebufferHeight)
     {
         ThrowIfDisposed();
-
-        _renderTargetManager.Resize(
-            _sceneColorTarget,
-            logicalWidth,
-            logicalHeight);
 
         _passExecutor.Resize(
             logicalWidth,

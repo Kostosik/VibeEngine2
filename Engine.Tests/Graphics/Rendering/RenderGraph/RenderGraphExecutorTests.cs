@@ -203,6 +203,159 @@ public sealed class RenderGraphExecutorTests
     }
 
     [Fact]
+    public void Execute_ReusesTargetForNonOverlappingTransientResources()
+    {
+        var targets = new TestRenderTargetManager();
+        using var executor = new RenderGraphExecutor(
+            targets,
+            new TestRenderPassExecutor());
+
+        var builder = new RenderGraphBuilder();
+
+        var firstTexture = builder.CreateTexture(
+            "First",
+            new RenderGraphResourceDescriptor(320, 200));
+
+        var secondTexture = builder.CreateTexture(
+            "Second",
+            new RenderGraphResourceDescriptor(320, 200));
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer",
+            new RenderTargetDescription(320, 200));
+
+        var firstTarget = RenderTargetHandle.Invalid;
+        var secondTarget = RenderTargetHandle.Invalid;
+
+        builder.AddPass(
+            "ProduceFirst",
+            pass => pass
+                .WriteColor(firstTexture)
+                .SetExecute(context =>
+                    firstTarget = context.ColorTarget));
+
+        builder.AddPass(
+            "ConsumeFirst",
+            pass => pass
+                .Read(firstTexture)
+                .WriteColor(backbuffer));
+
+        builder.AddPass(
+            "ProduceSecond",
+            pass => pass
+                .WriteColor(secondTexture)
+                .SetExecute(context =>
+                    secondTarget = context.ColorTarget));
+
+        builder.AddPass(
+            "ConsumeSecond",
+            pass => pass
+                .Read(secondTexture)
+                .WriteColor(backbuffer, RenderGraphLoadAction.Load));
+
+        builder.SetOutput(backbuffer);
+
+        var plan = new RenderGraphCompiler()
+            .Compile(builder.Build());
+
+        using var result = executor.Execute(plan);
+
+        Assert.True(firstTarget.IsValid);
+        Assert.Equal(firstTarget, secondTarget);
+
+        Assert.Equal(1, targets.CreateCount);
+
+        var firstResource = Assert.Single(
+            plan.Resources,
+            resource => resource.Name == "First");
+
+        var secondResource = Assert.Single(
+            plan.Resources,
+            resource => resource.Name == "Second");
+
+        Assert.Equal(0, firstResource.FirstUseIndex);
+        Assert.Equal(1, firstResource.LastUseIndex);
+
+        Assert.Equal(2, secondResource.FirstUseIndex);
+        Assert.Equal(3, secondResource.LastUseIndex);
+    }
+
+    [Fact]
+    public void Execute_DoesNotReuseTargetForOverlappingTransientResources()
+    {
+        var targets = new TestRenderTargetManager();
+
+        using var executor = new RenderGraphExecutor(
+            targets,
+            new TestRenderPassExecutor());
+
+        var builder = new RenderGraphBuilder();
+
+        var firstTexture = builder.CreateTexture(
+            "First",
+            new RenderGraphResourceDescriptor(320, 200));
+
+        var secondTexture = builder.CreateTexture(
+            "Second",
+            new RenderGraphResourceDescriptor(320, 200));
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer",
+            new RenderTargetDescription(320, 200));
+
+        var firstTarget = RenderTargetHandle.Invalid;
+        var secondTarget = RenderTargetHandle.Invalid;
+
+        builder.AddPass(
+            "ProduceFirst",
+            pass => pass
+                .WriteColor(firstTexture)
+                .SetExecute(context =>
+                    firstTarget = context.ColorTarget));
+
+        builder.AddPass(
+            "ProduceSecond",
+            pass => pass
+                .WriteColor(secondTexture)
+                .SetExecute(context =>
+                    secondTarget = context.ColorTarget));
+
+        builder.AddPass(
+            "ConsumeBoth",
+            pass => pass
+                .Read(firstTexture)
+                .Read(secondTexture)
+                .WriteColor(backbuffer));
+
+        builder.SetOutput(backbuffer);
+
+        var plan = new RenderGraphCompiler()
+            .Compile(builder.Build());
+
+        using var result = executor.Execute(plan);
+
+        Assert.True(firstTarget.IsValid);
+        Assert.True(secondTarget.IsValid);
+
+        Assert.NotEqual(firstTarget, secondTarget);
+        Assert.Equal(2, targets.CreateCount);
+
+        var firstResource = Assert.Single(
+            plan.Resources,
+            resource => resource.Name == "First");
+
+        var secondResource = Assert.Single(
+            plan.Resources,
+            resource => resource.Name == "Second");
+
+        Assert.Equal(0, firstResource.FirstUseIndex);
+        Assert.Equal(2, firstResource.LastUseIndex);
+
+        Assert.Equal(1, secondResource.FirstUseIndex);
+        Assert.Equal(2, secondResource.LastUseIndex);
+    }
+
+    [Fact]
     public void Execute_ReleasesTransientAfterLastUse()
     {
         var targets = new TestRenderTargetManager();

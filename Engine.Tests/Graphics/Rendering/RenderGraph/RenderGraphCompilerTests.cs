@@ -73,6 +73,47 @@ public sealed class RenderGraphCompilerTests
     }
 
     [Fact]
+    public void Compile_CullsImportedReaderWhoseOutputIsUnusedBeforeOverwrite()
+    {
+        var builder = new RenderGraphBuilder();
+
+        var imported = builder.ImportRenderTarget(
+            "ImportedTexture",
+            new RenderTargetHandle(1),
+            new RenderTargetDescription(64, 64));
+
+        var unusedCapture = builder.CreateTexture(
+            "UnusedCapture",
+            new RenderGraphResourceDescriptor(64, 64));
+
+        builder.AddPass(
+            "UnusedCapturePass",
+            pass => pass
+                .Read(imported)
+                .WriteColor(unusedCapture));
+
+        var overwrite = builder.AddPass(
+            "Overwrite",
+            pass => pass.WriteColor(
+                imported,
+                RenderGraphLoadAction.Clear));
+
+        builder.SetOutput(imported);
+
+        var plan = new RenderGraphCompiler()
+            .Compile(builder.Build());
+
+        var compiledPass = Assert.Single(plan.Passes);
+
+        Assert.Equal(overwrite, compiledPass.Handle);
+        Assert.Equal(1, plan.CulledPassCount);
+
+        Assert.DoesNotContain(
+            plan.Resources,
+            resource => resource.Name == "UnusedCapture");
+    }
+
+    [Fact]
     public void Compile_OrdersProducerBeforeConsumer_WhenProducerWasDeclaredLater()
     {
         var builder = new RenderGraphBuilder();

@@ -52,7 +52,11 @@ public sealed class RenderGraphCompiler
             passes,
             livePasses,
             dependencies);
-
+        BuildImportedReaderOrderingDependencies(
+            resources,
+            passes,
+            livePasses,
+            dependencies);
         // Повторно строим порядок с учётом новых зависимостей.
         topologicalOrder = TopologicalSort(passes, dependencies);
 
@@ -308,7 +312,6 @@ public sealed class RenderGraphCompiler
             }
 
             int? latestWriter = null;
-            var readersOfCurrentVersion = new List<int>();
 
             // Imported resources may be written more than once. Declaration
             // order defines resource versions. Reads before the first graph
@@ -332,20 +335,7 @@ public sealed class RenderGraphCompiler
                             latestWriter.Value,
                             pass.Handle.Index);
                     }
-
-                    readersOfCurrentVersion.Add(pass.Handle.Index);
                     continue;
-                }
-
-                // Every reader of the previous version must finish before this
-                // resource is overwritten, including a reader of imported
-                // initial contents before the first graph write.
-                foreach (var readerIndex in readersOfCurrentVersion)
-                {
-                    AddDependency(
-                        dependencies,
-                        readerIndex,
-                        pass.Handle.Index);
                 }
 
                 if (access.LoadAction == RenderGraphLoadAction.Load &&
@@ -361,7 +351,65 @@ public sealed class RenderGraphCompiler
                 // not need the previous writer unless a live reader consumed
                 // that writer's version.
                 latestWriter = pass.Handle.Index;
-                readersOfCurrentVersion.Clear();
+            }
+        }
+    }
+
+    private static void BuildImportedReaderOrderingDependencies(
+    IReadOnlyList<RenderGraphResourceDefinition> resources,
+    IReadOnlyList<RenderGraphPassDefinition> passes,
+    IReadOnlySet<int> livePasses,
+    IReadOnlyList<HashSet<int>> dependencies)
+    {
+        foreach (var resource in resources)
+        {
+            if (resource.Kind == RenderGraphResourceKind.Transient)
+            {
+                continue;
+            }
+
+            var liveReadersOfCurrentVersion = new List<int>();
+
+            foreach (var pass in passes)
+            {
+                var passIndex = pass.Handle.Index;
+
+                var access = pass.ResourceAccesses.FirstOrDefault(
+                    item => item.Resource == resource.Handle);
+
+                if (access.Resource != resource.Handle)
+                {
+                    continue;
+                }
+
+                if (access.Kind == RenderGraphResourceAccessKind.Read)
+                {
+                    if (livePasses.Contains(passIndex))
+                    {
+                        liveReadersOfCurrentVersion.Add(passIndex);
+                    }
+
+                    continue;
+                }
+
+                // Dead writers do not execute, so they must not
+                // force ordering against live readers.
+                if (!livePasses.Contains(passIndex))
+                {
+                    continue;
+                }
+
+                // Every live reader of the current version must
+                // finish before this live writer overwrites it.
+                foreach (var readerIndex in liveReadersOfCurrentVersion)
+                {
+                    AddDependency(
+                        dependencies,
+                        readerIndex,
+                        passIndex);
+                }
+
+                liveReadersOfCurrentVersion.Clear();
             }
         }
     }

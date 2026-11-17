@@ -3,6 +3,7 @@ using Engine.Core.Application;
 using Engine.Input;
 using Engine.Input.Cursors;
 using Engine.Platform;
+using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 
 namespace Engine.Hosting.Desktop;
@@ -251,13 +252,33 @@ public sealed class DesktopWindow : IDesktopWindow
 
         try
         {
+            var timingRecorder = gameLoop.FrameTimingRecorder;
+
+            if (timingRecorder?.IsCapturing == true)
+            {
+                timingRecorder.BeginFrame();
+            }
             ApplyPendingGraphicsResize();
 
             graphicsDevice.BeginFrame();
 
             gameLoop.Render();
 
-            graphicsDevice.EndFrame();
+            if (timingRecorder?.IsCapturing == true)
+            {
+                var endFrameStart = Stopwatch.GetTimestamp();
+
+                graphicsDevice.EndFrame();
+
+                timingRecorder.RecordEndFrame(
+                    Stopwatch.GetElapsedTime(endFrameStart));
+
+                timingRecorder.EndFrame();
+            }
+            else
+            {
+                graphicsDevice.EndFrame();
+            }
         }
         finally
         {

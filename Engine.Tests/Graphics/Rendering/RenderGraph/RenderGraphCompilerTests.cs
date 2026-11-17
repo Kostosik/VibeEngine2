@@ -114,6 +114,44 @@ public sealed class RenderGraphCompilerTests
     }
 
     [Fact]
+    public void Compile_PreservesIndependentDepthAttachmentActions()
+    {
+        var builder = new RenderGraphBuilder();
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer",
+            new RenderTargetDescription(640, 480));
+
+        var passHandle = builder.AddPass(
+            "World",
+            pass => pass
+                .WriteColor(
+                    backbuffer,
+                    RenderGraphLoadAction.Clear,
+                    RenderGraphStoreAction.Store)
+                .SetDepthAttachment(
+                    RenderGraphLoadAction.Load,
+                    RenderGraphStoreAction.DontCare));
+
+        builder.SetOutput(backbuffer);
+
+        var plan = new RenderGraphCompiler()
+            .Compile(builder.Build());
+
+        var compiledPass = Assert.Single(plan.Passes);
+
+        Assert.Equal(passHandle, compiledPass.Handle);
+
+        Assert.Equal(
+            new RenderGraphDepthAttachment(
+                RenderGraphLoadAction.Load,
+                RenderGraphStoreAction.DontCare),
+            compiledPass.DepthAttachment);
+
+        Assert.False(compiledPass.ClearDepth);
+    }
+
+    [Fact]
     public void Compile_RejectsLoadingImportedResourceAfterDontCareStore()
     {
         var builder = new RenderGraphBuilder();

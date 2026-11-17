@@ -10,7 +10,7 @@ public sealed class RenderGraphPassBuilder
     private readonly int _passIndex;
     private readonly List<RenderGraphResourceAccess> _resourceAccesses = new();
     private readonly List<RenderGraphPassHandle> _explicitDependencies = new();
-    private bool _clearDepth;
+    private RenderGraphDepthAttachment? _depthAttachment;
     private bool _executeQueuedCommands = true;
     private bool _isPostProcessSource;
     private bool _hasSideEffects;
@@ -49,7 +49,13 @@ public sealed class RenderGraphPassBuilder
     public RenderGraphPassBuilder SetClearDepth(bool enabled = true)
     {
         EnsureMutable();
-        _clearDepth = enabled;
+
+        _depthAttachment = enabled
+            ? new RenderGraphDepthAttachment(
+                RenderGraphLoadAction.Clear,
+                RenderGraphStoreAction.Store)
+            : null;
+
         return this;
     }
 
@@ -207,12 +213,12 @@ public sealed class RenderGraphPassBuilder
     {
         EnsureMutable();
 
-        if (_clearDepth &&
-    !_resourceAccesses.Any(
-        access => access.Kind == RenderGraphResourceAccessKind.WriteColor))
+        if (_depthAttachment.HasValue &&
+            !_resourceAccesses.Any(
+                access => access.Kind == RenderGraphResourceAccessKind.WriteColor))
         {
             throw new InvalidOperationException(
-                $"Pass '{Name}' cannot clear depth without a color output.");
+                $"Pass '{Name}' cannot declare a depth attachment without a color output.");
         }
 
         _built = true;
@@ -228,7 +234,34 @@ public sealed class RenderGraphPassBuilder
             _executeQueuedCommands,
             _isPostProcessSource,
             _contextData,
-            _hasSideEffects, _clearDepth);
+            _hasSideEffects, _depthAttachment);
+    }
+
+    /// <summary>
+    /// Declares the depth attachment of this pass.
+    /// It is attached to the same render target as the color output.
+    /// </summary>
+    public RenderGraphPassBuilder SetDepthAttachment(
+        RenderGraphLoadAction loadAction = RenderGraphLoadAction.Clear,
+        RenderGraphStoreAction storeAction = RenderGraphStoreAction.Store)
+    {
+        EnsureMutable();
+
+        if (!Enum.IsDefined(loadAction))
+        {
+            throw new ArgumentOutOfRangeException(nameof(loadAction));
+        }
+
+        if (!Enum.IsDefined(storeAction))
+        {
+            throw new ArgumentOutOfRangeException(nameof(storeAction));
+        }
+
+        _depthAttachment = new RenderGraphDepthAttachment(
+            loadAction,
+            storeAction);
+
+        return this;
     }
 
     private void ValidateResourceHandle(

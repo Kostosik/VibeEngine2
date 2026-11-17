@@ -719,7 +719,7 @@ public sealed class RenderGraphCompiler
                     pass.Execute,
                     pass.ExecuteQueuedCommands,
                     pass.IsPostProcessSource,
-                    pass.ContextData, pass.ClearDepth));
+                    pass.ContextData, pass.DepthAttachment));
         }
 
         return result;

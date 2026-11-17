@@ -282,7 +282,6 @@ public sealed class SandboxState
     public void Update(
         TimeSnapshot time)
     {
-        _runtime.Profiler?.RecordFrame();
         _aiPerceptionScenario.Update(time);
         using var profiler =
             _runtime.Profiler?.BeginScope(

@@ -36,16 +36,65 @@ public sealed class EngineRuntimeTests
         Assert.NotNull(runtime.Profiler);
         Assert.False(runtime.IsProfiling);
         Assert.Null(runtime.SchedulerProfiler);
+        Assert.Null(runtime.FrameTimingProfiler);
 
         runtime.StartProfiling();
 
         Assert.True(runtime.IsProfiling);
         Assert.NotNull(runtime.SchedulerProfiler);
+        Assert.NotNull(runtime.FrameTimingProfiler);
+        Assert.True(runtime.FrameTimingProfiler.IsCapturing);
+
+        var frameProfiler = runtime.FrameTimingProfiler;
 
         runtime.StopProfiling();
 
         Assert.False(runtime.IsProfiling);
         Assert.Null(runtime.SchedulerProfiler);
+
+        // Экземпляр сохраняется, сбор данных выключен.
+        Assert.Same(frameProfiler, runtime.FrameTimingProfiler);
+        Assert.False(frameProfiler.IsCapturing);
+
+        // Повторный запуск использует тот же экземпляр.
+        runtime.StartProfiling();
+
+        Assert.True(runtime.IsProfiling);
+        Assert.Same(frameProfiler, runtime.FrameTimingProfiler);
+        Assert.True(frameProfiler.IsCapturing);
+
+        runtime.StopProfiling();
+
+        Assert.False(runtime.IsProfiling);
+        Assert.False(frameProfiler.IsCapturing);
+        Assert.Null(runtime.SchedulerProfiler);
+    }
+
+    [Fact]
+    public void StartProfiling_AttachesRecorderToGameLoop()
+    {
+        using var runtime = CreateRuntime();
+
+        var loop = new GameLoop(
+            new Engine.Tests.Application.TestApplication(),
+            runtime.SimulationRate,
+            new Engine.Tests.Application.TestClock(),
+            Duration.FromMilliseconds(250),
+            8);
+
+        runtime.AttachGameLoopController(loop);
+
+        Assert.Null(loop.FrameTimingRecorder);
+
+        runtime.StartProfiling();
+
+        Assert.Same(
+            runtime.FrameTimingProfiler,
+            loop.FrameTimingRecorder);
+
+        runtime.StopProfiling();
+
+        Assert.Null(loop.FrameTimingRecorder);
     }
 
     [Fact]

@@ -20,6 +20,10 @@ public readonly record struct RenderGraphResourceAccess(
     RenderGraphLoadAction LoadAction,
     RenderGraphStoreAction StoreAction);
 
+public readonly record struct RenderGraphDepthAttachment(
+    RenderGraphLoadAction LoadAction,
+    RenderGraphStoreAction StoreAction);
+
 internal sealed record RenderGraphResourceDefinition(
     RenderGraphResourceHandle Handle,
     string Name,
@@ -38,4 +42,4 @@ internal sealed record RenderGraphPassDefinition(
     bool ExecuteQueuedCommands,
     bool IsPostProcessSource,
     IRenderPassContextData? ContextData,
-    bool HasSideEffects, bool ClearDepth);
+    bool HasSideEffects, RenderGraphDepthAttachment? DepthAttachment);

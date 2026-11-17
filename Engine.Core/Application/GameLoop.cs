@@ -1,9 +1,18 @@
 ﻿using Engine.Core.Time;
+using System.Diagnostics;
 
 namespace Engine.Core.Application;
 
-public sealed class GameLoop : IGameLoopController
+public sealed class GameLoop :
+    IGameLoopController,
+    IFrameTimingGameLoop
 {
+    public IFrameTimingRecorder? FrameTimingRecorder
+    {
+        get;
+        set;
+    }
+
     private static readonly Duration DefaultMaxFrameDelta =
         Duration.FromMilliseconds(250);
 
@@ -222,14 +231,37 @@ public sealed class GameLoop : IGameLoopController
             _accumulator += delta;
         }
 
+        var timingRecorder = FrameTimingRecorder;
+
+        if (timingRecorder?.IsCapturing == true)
+        {
+            timingRecorder.BeginUpdate();
+        }
+
         var frameTime =
             new TimeSnapshot(
                 delta,
                 _elapsed,
                 _tick);
 
-        _application.Update(
-            frameTime);
+        if (timingRecorder?.IsCapturing == true)
+        {
+            var startTimestamp = Stopwatch.GetTimestamp();
+
+            try
+            {
+                _application.Update(frameTime);
+            }
+            finally
+            {
+                timingRecorder.RecordUpdate(
+                    Stopwatch.GetElapsedTime(startTimestamp));
+            }
+        }
+        else
+        {
+            _application.Update(frameTime);
+        }
         // Не начинаем FixedUpdate, если во время Update
         // было запрошено завершение приложения.
         if (_shutdownRequested || _shutdown)
@@ -274,8 +306,26 @@ public sealed class GameLoop : IGameLoopController
     {
         EnsureInitialized();
 
-        _application.Render(
-            InterpolationAlpha);
+        var timingRecorder = FrameTimingRecorder;
+
+        if (timingRecorder?.IsCapturing == true)
+        {
+            var startTimestamp = Stopwatch.GetTimestamp();
+
+            try
+            {
+                _application.Render(InterpolationAlpha);
+            }
+            finally
+            {
+                timingRecorder.RecordRender(
+                    Stopwatch.GetElapsedTime(startTimestamp));
+            }
+
+            return;
+        }
+
+        _application.Render(InterpolationAlpha);
     }
     /// <summary>
     /// Requests shutdown after the current game-loop update completes.
@@ -394,9 +444,30 @@ public sealed class GameLoop : IGameLoopController
     {
         _tick++;
 
-        _application.FixedUpdate(
+        var simulationTime =
             new SimulationTime(
                 _simulationRate.SimulationDelta,
-                _tick));
+                _tick);
+
+        var timingRecorder = FrameTimingRecorder;
+
+        if (timingRecorder?.IsCapturing == true)
+        {
+            var startTimestamp = Stopwatch.GetTimestamp();
+
+            try
+            {
+                _application.FixedUpdate(simulationTime);
+            }
+            finally
+            {
+                timingRecorder.RecordFixedUpdate(
+                    Stopwatch.GetElapsedTime(startTimestamp));
+            }
+
+            return;
+        }
+
+        _application.FixedUpdate(simulationTime);
     }
 }

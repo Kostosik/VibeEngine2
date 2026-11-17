@@ -34,6 +34,7 @@ public sealed class EngineRuntime :
 {
     private bool _disposed;
     private DebugExecutionController? _debugExecution;
+    private IFrameTimingGameLoop? _frameTimingGameLoop;
     private RebuildEngineDebugCommand? _rebuildEngineCommand;
     public ValidationService? Validation { get; private set; }
     public DebugVisualizationRenderer? DebugVisualizationRenderer { get; private set; }
@@ -261,6 +262,8 @@ Services.Graphics;
         DebugRegistry.Register(
             new MetricsDebugCommand(
                 Profiler));
+        DebugRegistry.Register(
+            new ProfileDebugCommand(this));
 
         DebugRegistry.Register(
             new PhysicsDebugCommand(
@@ -355,7 +358,7 @@ Services.Graphics;
     public ConsoleLogger? Logger { get; private set; }
 
     public Profiler? Profiler { get; private set; }
-
+    public FrameTimingProfiler? FrameTimingProfiler { get; private set; }
     public SchedulerProfiler? SchedulerProfiler { get; private set; }
 
     public PhysicsDebugVisualizer? PhysicsDebugVisualizer { get; private set; }
@@ -380,11 +383,15 @@ Services.Graphics;
         Simulation.Initialize();
     }
 
-
-
     public void StartProfiling()
     {
         EnsureNotDisposed();
+
+        if (Profiler is null)
+        {
+            throw new InvalidOperationException(
+                "Profiling requires enabled tooling.");
+        }
 
         if (Simulation.IsShutdown)
         {
@@ -392,26 +399,32 @@ Services.Graphics;
                 "Cannot start profiling after runtime shutdown.");
         }
 
-        var profiler = Profiler
-            ?? throw new InvalidOperationException(
-                "Profiling requires Tooling to be enabled.");
-
-        if (profiler.IsCapturing)
+        if (Profiler.IsCapturing)
         {
             return;
         }
 
-        profiler.StartCapture();
+        FrameTimingProfiler ??= new FrameTimingProfiler();
+
+        Profiler.StartCapture();
+        FrameTimingProfiler.StartCapture();
 
         try
         {
             SchedulerProfiler = new SchedulerProfiler(
                 Scheduler,
-                profiler);
+                Profiler);
+
+            if (_frameTimingGameLoop is not null)
+            {
+                _frameTimingGameLoop.FrameTimingRecorder =
+                    FrameTimingProfiler;
+            }
         }
         catch
         {
-            profiler.StopCapture();
+            FrameTimingProfiler.StopCapture();
+            Profiler.StopCapture();
             throw;
         }
     }
@@ -425,14 +438,27 @@ Services.Graphics;
 
     private void StopProfilingCore()
     {
+        if (_frameTimingGameLoop is not null &&
+            ReferenceEquals(
+                _frameTimingGameLoop.FrameTimingRecorder,
+                FrameTimingProfiler))
+        {
+            _frameTimingGameLoop.FrameTimingRecorder = null;
+        }
+
         var schedulerProfiler = SchedulerProfiler;
         SchedulerProfiler = null;
 
-        Profiler?.StopCapture();
-
-        schedulerProfiler?.Dispose();
+        try
+        {
+            schedulerProfiler?.Dispose();
+        }
+        finally
+        {
+            FrameTimingProfiler?.StopCapture();
+            Profiler?.StopCapture();
+        }
     }
-
 
     private ITextureResourceManager GetTextureResources()
     {
@@ -666,6 +692,16 @@ Services.Graphics;
         _debugExecution =
             new DebugExecutionController(
                 loop);
+
+        _frameTimingGameLoop =
+    loop as IFrameTimingGameLoop;
+
+        if (_frameTimingGameLoop is not null &&
+            FrameTimingProfiler?.IsCapturing == true)
+        {
+            _frameTimingGameLoop.FrameTimingRecorder =
+                FrameTimingProfiler;
+        }
 
         DebugRegistry.Register(
             new PauseDebugCommand(

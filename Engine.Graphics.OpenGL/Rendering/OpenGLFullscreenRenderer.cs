@@ -74,6 +74,46 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
     int width = 0,
     int height = 0)
     {
+        Action<OpenGLShaderProgram>? applyParameters =
+            effect is null
+                ? null
+                : program => effect.ApplyParameters(program);
+
+        DrawCore(
+            shader,
+            source,
+            width,
+            height,
+            applyParameters);
+    }
+
+    public void DrawWithParameters(
+        OpenGLShaderProgram shader,
+        TextureHandle source,
+        int width,
+        int height,
+        Action<IShaderParameterWriter>? applyParameters)
+    {
+        Action<OpenGLShaderProgram>? callback =
+            applyParameters is null
+                ? null
+                : program => applyParameters(program);
+
+        DrawCore(
+            shader,
+            source,
+            width,
+            height,
+            callback);
+    }
+
+    private void DrawCore(
+        OpenGLShaderProgram shader,
+        TextureHandle source,
+        int width,
+        int height,
+        Action<OpenGLShaderProgram>? applyParameters)
+    {
         ThrowIfDisposed();
 
         ArgumentNullException.ThrowIfNull(shader);
@@ -114,7 +154,6 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
             shader.Use();
             shaderStarted = true;
 
-            // Uniform устанавливаем только после активации программы.
             if (resolutionLocation >= 0 &&
                 width > 0 &&
                 height > 0)
@@ -133,7 +172,7 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
 
             _gl.Uniform1(sourceLocation, 0);
 
-            effect?.ApplyParameters(shader);
+            applyParameters?.Invoke(shader);
 
             _gl.BindVertexArray(_vao);
 

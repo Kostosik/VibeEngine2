@@ -11,12 +11,13 @@ namespace Engine.Graphics.OpenGL.Rendering;
 internal sealed class OpenGLRenderPassExecutor :
     IRenderPassExecutor,
     IPostProcessRenderPassExecutor,
+    IFullscreenPassExecutor,
     IDisposable
 {
     private readonly GL _gl;
     private readonly OpenGLRenderTargetManager _renderTargets;
     private readonly OpenGLRenderCommandDispatcher _dispatcher;
-
+    private RenderState _activeRenderState = RenderState.Default;
     // Логический размер backbuffer.
     private int _backBufferRenderWidth;
     private int _backBufferRenderHeight;
@@ -155,7 +156,8 @@ internal sealed class OpenGLRenderPassExecutor :
             _dispatcher.BeginFrame();
             frameStarted = true;
 
-            _dispatcher.ApplyState(context.State);
+            _activeRenderState = context.State;
+            _dispatcher.ApplyState(_activeRenderState);
         }
         catch
         {
@@ -183,6 +185,52 @@ internal sealed class OpenGLRenderPassExecutor :
             }
 
             throw;
+        }
+    }
+
+    public void ExecuteFullscreen(
+    FullscreenPassDescription pass,
+    TextureHandle source,
+    RenderTargetDescription outputDescription)
+    {
+        ThrowIfDisposed();
+
+        ArgumentNullException.ThrowIfNull(pass);
+
+        if (!source.IsValid)
+        {
+            throw new ArgumentException(
+                "Source texture handle is invalid.",
+                nameof(source));
+        }
+
+        outputDescription.Validate();
+
+        if (!pass.Shader.IsValid ||
+            !_shaderManager.Exists(pass.Shader))
+        {
+            throw new InvalidOperationException(
+                "Fullscreen pass references an invalid shader.");
+        }
+
+        // Flush pending batched rendering before fullscreen draw.
+        _dispatcher.EndFrame();
+
+        _dispatcher.ApplyState(FullscreenRenderState);
+
+        try
+        {
+            _fullscreenRenderer.DrawWithParameters(
+                _shaderManager.GetProgram(pass.Shader),
+                source,
+                outputDescription.Width,
+                outputDescription.Height,
+                pass.ApplyParameters);
+        }
+        finally
+        {
+            // Restore the state of the active render graph pass.
+            _dispatcher.ApplyState(_activeRenderState);
         }
     }
 

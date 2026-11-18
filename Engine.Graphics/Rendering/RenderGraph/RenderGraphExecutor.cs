@@ -246,6 +246,7 @@ public sealed class RenderGraphExecutor : IDisposable
             physicalTargets,
             _renderTargets,
             _passExecutor,
+            _passExecutor as IFullscreenPassExecutor,
             hasColorOutput);
 
         if (!hasColorOutput)

@@ -15,7 +15,7 @@ public sealed class RenderGraphContext
     private readonly IRenderTargetManager _renderTargets;
     private readonly IRenderPassExecutor _passExecutor;
     private readonly bool _canSubmitCommands;
-
+    private readonly IFullscreenPassExecutor? _fullscreenPassExecutor;
     internal RenderGraphContext(
         string passName,
         RenderTargetHandle colorTarget,
@@ -24,7 +24,7 @@ public sealed class RenderGraphContext
         IReadOnlyDictionary<RenderGraphResourceHandle, RenderTargetHandle> physicalTargets,
         IRenderTargetManager renderTargets,
         IRenderPassExecutor passExecutor,
-        bool canSubmitCommands)
+        IFullscreenPassExecutor? fullscreenPassExecutor, bool canSubmitCommands)
     {
         PassName = passName;
         ColorTarget = colorTarget;
@@ -34,6 +34,8 @@ public sealed class RenderGraphContext
         _renderTargets = renderTargets;
         _passExecutor = passExecutor;
         _canSubmitCommands = canSubmitCommands;
+        _fullscreenPassExecutor = fullscreenPassExecutor;
+
     }
 
     public string PassName { get; }
@@ -69,6 +71,45 @@ public sealed class RenderGraphContext
         }
 
         return _renderTargets.GetColorTexture(target);
+    }
+
+    /// <summary>
+    /// Executes a fullscreen operation using declared graph resources.
+    /// </summary>
+    public void ExecuteFullscreen(
+        FullscreenPassDescription pass,
+        RenderGraphResourceHandle source)
+    {
+        ArgumentNullException.ThrowIfNull(pass);
+
+        EnsureCanSubmitCommands();
+
+        var executor = _fullscreenPassExecutor
+            ?? throw new NotSupportedException(
+                "The render pass executor does not support fullscreen passes.");
+
+        var sourceTexture = GetTexture(source);
+
+        var outputAccess = _accesses.Single(
+            access => access.Kind == RenderGraphResourceAccessKind.WriteColor);
+
+        // Prevent framebuffer feedback when two graph resources
+        // reference the same physical render target.
+        if (ColorTarget.IsValid &&
+            _physicalTargets[source] == ColorTarget)
+        {
+            throw new InvalidOperationException(
+                "A fullscreen pass cannot sample its own output render target.");
+        }
+
+        var outputDescription = _resources[outputAccess.Resource]
+            .Descriptor
+            .ToRenderTargetDescription();
+
+        executor.ExecuteFullscreen(
+            pass,
+            sourceTexture,
+            outputDescription);
     }
 
     /// <summary>

@@ -11,6 +11,7 @@ using Engine.Graphics;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.Rendering;
+using Engine.Graphics.Rendering.RenderGraph;
 using Engine.Graphics.Resources;
 using Engine.Graphics.Tilemaps;
 using Engine.Graphics2D.Commands;
@@ -445,6 +446,7 @@ public sealed class TilemapRenderSystemTests
 
     private sealed class FakeGraphicsDevice : IGraphicsDevice
     {
+        public IRenderGraphExtensionRegistry RenderGraphExtensions => new RenderGraphExtensionRegistry();
         public FakeGraphicsDevice(ITextureManager textures)
         {
             Textures = textures;

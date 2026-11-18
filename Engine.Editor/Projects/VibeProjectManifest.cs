@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Engine.Editor.Projects;
 
@@ -21,6 +22,8 @@ internal sealed class VibeProjectManifest
     public string Name { get; init; } = string.Empty;
 
     public string StartupProject { get; init; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? StartupScene { get; init; }
     public static VibeProjectManifest Load(string path)
     {

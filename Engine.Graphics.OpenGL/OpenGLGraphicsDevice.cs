@@ -18,8 +18,11 @@ public sealed class OpenGLGraphicsDevice
       IWorldTextureDataSubmitter,
       IMeshManagerProvider
 {
+    public IRenderGraphExtensionRegistry RenderGraphExtensions =>
+    _renderPipelineGraphBuilder.Extensions;
+    private long _compiledRenderGraphExtensionsRevision = -1;
     private readonly RenderGraphExecutor _renderGraphExecutor;
-
+    private readonly RenderPipelineGraphBuilder _renderPipelineGraphBuilder;
     private RenderGraphExecutionPlan _renderGraphPlan = null!;
     private int _logicalWidth;
     private int _logicalHeight;
@@ -173,6 +176,10 @@ public sealed class OpenGLGraphicsDevice
                     framebufferWidth,
                     framebufferHeight);
 
+            _renderPipelineGraphBuilder = new RenderPipelineGraphBuilder(
+                _renderTargetManager,
+                _passExecutor);
+
             _renderPipeline =
                 new RenderPipeline();
 
@@ -189,9 +196,13 @@ public sealed class OpenGLGraphicsDevice
                 _renderTargetManager,
                 _passExecutor);
 
-            _renderGraphPlan = BuildRenderGraph(
+            _renderGraphPlan = _renderPipelineGraphBuilder.Build(
+                _renderPipeline,
                 logicalWidth,
                 logicalHeight);
+            _compiledRenderGraphExtensionsRevision =
+                _renderPipelineGraphBuilder.LastBuildExtensionRevision;
+
             _compiledPipelineRevision = _renderPipeline.Revision;
             Configure();
         }
@@ -214,159 +225,6 @@ public sealed class OpenGLGraphicsDevice
             throw;
         }
     }
-    private RenderGraphExecutionPlan BuildRenderGraph(
-        int logicalWidth,
-        int logicalHeight)
-    {
-        ValidateRenderPipeline();
-
-        var builder = new RenderGraphBuilder();
-
-        var sceneColor = builder.CreateTexture(
-            "SceneColor",
-            new RenderGraphResourceDescriptor(
-                logicalWidth,
-                logicalHeight));
-
-        var backbuffer = builder.ImportBackbuffer(
-            "Backbuffer",
-            new RenderTargetDescription(
-                logicalWidth,
-                logicalHeight));
-
-        // Повторно используем одно описание ресурса,
-        // если несколько проходов пишут в один RenderTarget.
-        var pipelineTargets =
-            new Dictionary<RenderTargetHandle, RenderGraphResourceHandle>();
-
-        RenderGraphResourceHandle ResolveTarget(RenderPass renderPass)
-        {
-            // Старый API использует Invalid для backbuffer.
-            // Но источник постобработки должен писать в SceneColor.
-            if (!renderPass.Target.IsValid)
-            {
-                return renderPass.IsPostProcessSource
-                    ? sceneColor
-                    : backbuffer;
-            }
-
-            if (pipelineTargets.TryGetValue(
-                    renderPass.Target,
-                    out var existing))
-            {
-                return existing;
-            }
-
-            if (!_renderTargetManager.Exists(renderPass.Target))
-            {
-                throw new InvalidOperationException(
-                    $"Render pass '{renderPass.Name}' references " +
-                    $"unknown render target '{renderPass.Target.Value}'.");
-            }
-
-            var description = _renderTargetManager.GetDescription(
-                renderPass.Target);
-
-            var imported = builder.ImportRenderTarget(
-                $"PipelineTarget_{pipelineTargets.Count}",
-                renderPass.Target,
-                description);
-
-            pipelineTargets.Add(
-                renderPass.Target,
-                imported);
-
-            return imported;
-        }
-
-        RenderGraphPassHandle? previousPass = null;
-
-        for (var i = 0; i < _renderPipeline.Passes.Count; i++)
-        {
-            var renderPass = _renderPipeline.Passes[i];
-            var output = ResolveTarget(renderPass);
-
-            var passName = string.IsNullOrWhiteSpace(renderPass.Name)
-                ? $"PipelinePass_{i}"
-                : $"PipelinePass_{i}_{renderPass.Name}";
-
-            var currentPass = builder.AddPass(
-                passName,
-                pass =>
-                {
-                    pass.WriteColor(
-                        output,
-                        renderPass.ClearColor
-                            ? RenderGraphLoadAction.Clear
-                            : RenderGraphLoadAction.Load);
-
-                    pass.SetRenderState(renderPass.State);
-                    pass.SetLayerRange(renderPass.Layers);
-                    pass.SetContextData(renderPass.ContextData);
-                    pass.SetClearDepth(renderPass.ClearColor);
-                    // Сохраняем семантику старого Pipeline:
-                    // каждый добавленный проход должен выполниться.
-                    pass.SetSideEffect();
-
-                    if (renderPass.IsPostProcessSource)
-                    {
-                        pass.SetPostProcessSource();
-                    }
-
-                    // Старый Pipeline выполнял проходы последовательно.
-                    if (previousPass.HasValue)
-                    {
-                        pass.DependsOn(previousPass.Value);
-                    }
-                });
-
-            previousPass = currentPass;
-
-            if (!renderPass.IsPostProcessSource)
-            {
-                continue;
-            }
-
-            // Постобработка выполняется непосредственно после
-            // прохода-источника, до следующего прохода Pipeline.
-            var postProcessPass = builder.AddPass(
-                $"PipelinePostProcessing_{i}",
-                pass =>
-                {
-                    pass.Read(output);
-
-                    pass.WriteColor(
-                        backbuffer,
-                        RenderGraphLoadAction.DontCare);
-
-                    pass.SetRenderState(RenderState.Default2D);
-                    pass.SetExecuteQueuedCommands(false);
-                    pass.SetSideEffect();
-
-                    pass.SetExecute(_ =>
-                    {
-                        if (_passExecutor is not
-                            IPostProcessRenderPassExecutor postProcessExecutor)
-                        {
-                            throw new NotSupportedException(
-                                "The render-pass executor does not support post-processing.");
-                        }
-
-                        postProcessExecutor.ExecutePostProcessing(
-                            _renderPipeline.PostProcessing);
-                    });
-
-                    pass.DependsOn(currentPass);
-                });
-
-            previousPass = postProcessPass;
-        }
-
-        builder.SetOutput(backbuffer);
-
-        return new RenderGraphCompiler().Compile(
-            builder.Build());
-    }
 
     private static void TryDispose(
     IDisposable? resource)
@@ -378,23 +236,6 @@ public sealed class OpenGLGraphicsDevice
         catch
         {
             // Не подменяем исходную ошибку конструктора.
-        }
-    }
-
-    private void ValidateRenderPipeline()
-    {
-        var sourcePassCount = _renderPipeline.Passes.Count(
-            pass => pass.IsPostProcessSource);
-
-        var postProcessingEnabled =
-            _renderPipeline.PostProcessing.HasEnabledEffects;
-
-        if (sourcePassCount > 1 ||
-            (postProcessingEnabled && sourcePassCount != 1))
-        {
-            throw new InvalidOperationException(
-                "An enabled post-process chain requires exactly one " +
-                "render pass marked as its source.");
         }
     }
 
@@ -427,16 +268,23 @@ public sealed class OpenGLGraphicsDevice
     {
         ThrowIfDisposed();
 
-        ValidateRenderPipeline();
+        RenderPipelineGraphBuilder.Validate(_renderPipeline);
 
-        if (_compiledPipelineRevision != _renderPipeline.Revision)
+        if (_compiledPipelineRevision != _renderPipeline.Revision ||
+            _compiledRenderGraphExtensionsRevision !=
+                _renderPipelineGraphBuilder.Extensions.Revision)
         {
-            var updatedPlan = BuildRenderGraph(
+            var updatedPlan = _renderPipelineGraphBuilder.Build(
+                _renderPipeline,
                 _logicalWidth,
                 _logicalHeight);
 
             _renderGraphPlan = updatedPlan;
+
             _compiledPipelineRevision = _renderPipeline.Revision;
+
+            _compiledRenderGraphExtensionsRevision =
+                _renderPipelineGraphBuilder.LastBuildExtensionRevision;
         }
 
         using var result = _renderGraphExecutor.Execute(
@@ -472,10 +320,12 @@ public sealed class OpenGLGraphicsDevice
 
         _compiledPipelineRevision = -1;
 
-        _renderGraphPlan = BuildRenderGraph(
+        _renderGraphPlan = _renderPipelineGraphBuilder.Build(
+            _renderPipeline,
             logicalWidth,
             logicalHeight);
-
+        _compiledRenderGraphExtensionsRevision =
+            _renderPipelineGraphBuilder.LastBuildExtensionRevision;
         _compiledPipelineRevision = _renderPipeline.Revision;
     }
 

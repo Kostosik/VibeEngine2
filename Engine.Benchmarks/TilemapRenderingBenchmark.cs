@@ -1,12 +1,13 @@
-﻿using System.Diagnostics;
-using Engine.Camera;
+﻿using Engine.Camera;
 using Engine.Core.Math;
 using Engine.Graphics;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.Rendering;
+using Engine.Graphics.Rendering.RenderGraph;
 using Engine.Graphics.Resources;
 using Engine.Graphics.Tilemaps;
+using System.Diagnostics;
 
 namespace Engine.Benchmarks;
 
@@ -138,6 +139,7 @@ internal static class TilemapRenderingBenchmark
         IGraphicsDevice,
         IWorldTextureDataSubmitter
     {
+        public IRenderGraphExtensionRegistry RenderGraphExtensions => new RenderGraphExtensionRegistry();
         public int SubmittedCount { get; private set; }
 
         public void ResetCount()

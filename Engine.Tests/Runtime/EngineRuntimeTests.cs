@@ -13,6 +13,7 @@ using Engine.Graphics;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.Rendering;
+using Engine.Graphics.Rendering.RenderGraph;
 using Engine.Graphics.Resources;
 using Engine.Input;
 using Engine.Physics;
@@ -1193,6 +1194,7 @@ public sealed class EngineRuntimeTests
     private sealed class FakeGraphicsDevice :
         IGraphicsDevice
     {
+        public IRenderGraphExtensionRegistry RenderGraphExtensions => new RenderGraphExtensionRegistry();
         public RenderPipeline Pipeline => throw new NotSupportedException();
         public IFontManager Fonts =>
     throw new NotSupportedException();

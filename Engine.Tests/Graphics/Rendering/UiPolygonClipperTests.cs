@@ -5,6 +5,7 @@ using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.OpenGL.Rendering;
 using Engine.Graphics.Rendering;
+using Engine.Graphics.Rendering.RenderGraph;
 using Engine.Graphics.Resources;
 using Engine.UI.Core;
 using Engine.UI.Layout;
@@ -214,6 +215,7 @@ public sealed class UiPolygonClipperTests
     private sealed class RecordingGraphicsDevice
         : IGraphicsDevice
     {
+        public IRenderGraphExtensionRegistry RenderGraphExtensions => new RenderGraphExtensionRegistry();
         public List<IRenderCommand> Commands { get; } = new();
 
         public ITextureManager Textures => null!;

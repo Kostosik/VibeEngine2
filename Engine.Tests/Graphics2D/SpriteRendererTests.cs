@@ -5,6 +5,7 @@ using Engine.Graphics;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.Rendering;
+using Engine.Graphics.Rendering.RenderGraph;
 using Engine.Graphics.Resources;
 using Engine.Graphics2D.Commands;
 using Engine.Graphics2D.Sprites;
@@ -68,6 +69,7 @@ public sealed class SpriteRendererTests
 
     private sealed class TestGraphicsDevice : IGraphicsDevice
     {
+        public IRenderGraphExtensionRegistry RenderGraphExtensions => new RenderGraphExtensionRegistry();
         public RenderPipeline Pipeline =>
             throw new NotSupportedException();
 

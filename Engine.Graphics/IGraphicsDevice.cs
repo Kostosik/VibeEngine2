@@ -1,12 +1,13 @@
 ﻿using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.Rendering;
+using Engine.Graphics.Rendering.RenderGraph;
 using Engine.Graphics.Resources;
 
 public interface IGraphicsDevice : IDisposable
 {
     ITextureManager Textures { get; }
-
+    IRenderGraphExtensionRegistry RenderGraphExtensions { get; }
     IFontManager Fonts { get; }
     IGraphicsBufferManager Buffers { get; }
     IShaderManager Shaders { get; }

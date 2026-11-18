@@ -2,6 +2,7 @@
 using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.Rendering;
+using Engine.Graphics.Rendering.RenderGraph;
 using Engine.Graphics.Resources;
 
 namespace Engine.Tests.WorldTests;
@@ -11,6 +12,7 @@ public sealed class SandboxTilemapRendererTests
     private sealed class TestGraphicsDevice :
         IGraphicsDevice
     {
+        public IRenderGraphExtensionRegistry RenderGraphExtensions => new RenderGraphExtensionRegistry();
         public RenderPipeline Pipeline => throw new NotSupportedException();
         public IGraphicsBufferManager Buffers => throw new NotSupportedException();
         public IRenderTargetManager RenderTargets => throw new NotSupportedException();

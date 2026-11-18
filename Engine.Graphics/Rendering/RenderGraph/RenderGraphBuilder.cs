@@ -8,6 +8,9 @@ namespace Engine.Graphics.Rendering.RenderGraph;
 /// </summary>
 public sealed class RenderGraphBuilder
 {
+    public int PassCount => _passes.Count;
+    public int ResourceCount => _resources.Count;
+
     private readonly Guid _graphId = Guid.NewGuid();
 
     private readonly List<RenderGraphResourceDefinition> _resources = new();

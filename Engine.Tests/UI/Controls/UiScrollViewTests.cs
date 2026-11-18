@@ -3,6 +3,7 @@ using Engine.Graphics;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.Rendering;
+using Engine.Graphics.Rendering.RenderGraph;
 using Engine.Graphics.Resources;
 using Engine.Input;
 using Engine.UI.Controls;
@@ -418,6 +419,7 @@ public sealed class UiScrollViewTests
     private sealed class RecordingGraphicsDevice
         : IGraphicsDevice
     {
+        public IRenderGraphExtensionRegistry RenderGraphExtensions => new RenderGraphExtensionRegistry();
         public List<IRenderCommand> Commands { get; } = new();
 
         public ITextureManager Textures => null!;

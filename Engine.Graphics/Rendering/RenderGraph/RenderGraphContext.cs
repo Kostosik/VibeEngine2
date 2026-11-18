@@ -76,13 +76,61 @@ public sealed class RenderGraphContext
     /// <summary>
     /// Executes a fullscreen operation using declared graph resources.
     /// </summary>
+    /// <summary>
+    /// Executes a fullscreen pass using its declared graph inputs.
+    /// Every input must have a corresponding Read declaration.
+    /// </summary>
     public void ExecuteFullscreen(
-        FullscreenPassDescription pass,
-        RenderGraphResourceHandle source)
+        FullscreenPassDescription pass)
     {
         ArgumentNullException.ThrowIfNull(pass);
 
         EnsureCanSubmitCommands();
+
+        if (pass.Inputs.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "Fullscreen pass does not declare any texture inputs.");
+        }
+
+        var inputs = new FullscreenPassTextureBinding[
+            pass.Inputs.Count];
+
+        for (var i = 0; i < pass.Inputs.Count; i++)
+        {
+            var input = pass.Inputs[i];
+
+            // GetTexture validates graph ownership and declared Read access.
+            var texture = GetTexture(input.Resource);
+
+            EnsureNoFramebufferFeedback(input.Resource);
+
+            inputs[i] = new FullscreenPassTextureBinding(
+                input.Name,
+                texture,
+                input.Sampler);
+        }
+
+        ExecuteFullscreenCore(pass, inputs);
+    }
+
+    /// <summary>
+    /// Legacy single-texture execution path.
+    /// </summary>
+    public void ExecuteFullscreen(
+    FullscreenPassDescription pass,
+    RenderGraphResourceHandle source)
+    {
+        ArgumentNullException.ThrowIfNull(pass);
+
+        EnsureCanSubmitCommands();
+
+        if (pass.Inputs.Count != 0)
+        {
+            throw new InvalidOperationException(
+                "This fullscreen pass already declares texture inputs. " +
+                "Use ExecuteFullscreen(pass) instead.");
+        }
 
         var executor = _fullscreenPassExecutor
             ?? throw new NotSupportedException(
@@ -90,17 +138,10 @@ public sealed class RenderGraphContext
 
         var sourceTexture = GetTexture(source);
 
+        EnsureNoFramebufferFeedback(source);
+
         var outputAccess = _accesses.Single(
             access => access.Kind == RenderGraphResourceAccessKind.WriteColor);
-
-        // Prevent framebuffer feedback when two graph resources
-        // reference the same physical render target.
-        if (ColorTarget.IsValid &&
-            _physicalTargets[source] == ColorTarget)
-        {
-            throw new InvalidOperationException(
-                "A fullscreen pass cannot sample its own output render target.");
-        }
 
         var outputDescription = _resources[outputAccess.Resource]
             .Descriptor
@@ -110,6 +151,42 @@ public sealed class RenderGraphContext
             pass,
             sourceTexture,
             outputDescription);
+    }
+
+    private void ExecuteFullscreenCore(
+        FullscreenPassDescription pass,
+        IReadOnlyList<FullscreenPassTextureBinding> inputs)
+    {
+        EnsureCanSubmitCommands();
+
+        var executor = _fullscreenPassExecutor
+            ?? throw new NotSupportedException(
+                "The render pass executor does not support fullscreen passes.");
+
+        var outputAccess = _accesses.Single(
+            access => access.Kind == RenderGraphResourceAccessKind.WriteColor);
+
+        var outputDescription = _resources[outputAccess.Resource]
+            .Descriptor
+            .ToRenderTargetDescription();
+
+        executor.ExecuteFullscreen(
+            pass,
+            inputs,
+            outputDescription);
+    }
+
+    private void EnsureNoFramebufferFeedback(
+        RenderGraphResourceHandle resource)
+    {
+        // Prevent framebuffer feedback when two graph resources
+        // reference the same physical render target.
+        if (ColorTarget.IsValid &&
+            _physicalTargets[resource] == ColorTarget)
+        {
+            throw new InvalidOperationException(
+                "A fullscreen pass cannot sample its own output render target.");
+        }
     }
 
     /// <summary>

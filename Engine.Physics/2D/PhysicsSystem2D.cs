@@ -694,6 +694,19 @@ public sealed class PhysicsSystem2D :
                     transform.Position,
                     transform.Rotation);
 
+            var worldRotation = transform.Rotation;
+
+            var hasPolygon =
+                collider.Shape.Type == PhysicsShapeType.Polygon;
+
+            var worldSine = hasPolygon
+                ? Fixed32.Sin(worldRotation)
+                : Fixed32.Zero;
+
+            var worldCosine = hasPolygon
+                ? Fixed32.Cos(worldRotation)
+                : Fixed32.Zero;
+
             _colliders.Add(
                 new PhysicsColliderProxy(
                     entity,
@@ -701,7 +714,10 @@ public sealed class PhysicsSystem2D :
                     collider)
                 {
                     WorldPosition = worldPosition,
-                    WorldRotation = transform.Rotation
+                    WorldRotation = worldRotation,
+                    WorldSine = worldSine,
+                    WorldCosine = worldCosine,
+                    HasCachedRotation = hasPolygon
                 });
         }
 

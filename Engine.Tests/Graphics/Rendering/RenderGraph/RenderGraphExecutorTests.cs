@@ -7,6 +7,163 @@ namespace Engine.Tests.Graphics.Rendering.RenderGraph;
 
 public sealed class RenderGraphExecutorTests
 {
+    [Fact]
+    public void ExecuteFullscreen_ResolvesAllDeclaredInputs()
+    {
+        var targets = new TestRenderTargetManager();
+        var passExecutor = new TestFullscreenPassExecutor();
+
+        var builder = new RenderGraphBuilder();
+
+        var description = new RenderTargetDescription(64, 64);
+
+        var sceneTarget = targets.Create(description);
+        var normalTarget = targets.Create(description);
+        var lightTarget = targets.Create(description);
+        var emissionTarget = targets.Create(description);
+
+        var sceneColor = builder.ImportRenderTarget(
+            "SceneColor", sceneTarget, description);
+
+        var normalBuffer = builder.ImportRenderTarget(
+            "NormalBuffer", normalTarget, description);
+
+        var lightBuffer = builder.ImportRenderTarget(
+            "LightBuffer", lightTarget, description);
+
+        var emissionBuffer = builder.ImportRenderTarget(
+            "EmissionBuffer", emissionTarget, description);
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer", description);
+
+        var normalSampler = new TextureSamplerDescription(
+            TextureFilter.Linear,
+            TextureFilter.Linear,
+            TextureWrapMode.Repeat,
+            TextureWrapMode.MirroredRepeat);
+
+        var fullscreenPass = new FullscreenPassDescription(
+            new ShaderHandle(1),
+            inputs:
+            [
+                new FullscreenPassTextureInput(
+                "uSceneColor", sceneColor),
+
+            new FullscreenPassTextureInput(
+                "uNormalMap", normalBuffer, normalSampler),
+
+            new FullscreenPassTextureInput(
+                "uLightBuffer", lightBuffer),
+
+            new FullscreenPassTextureInput(
+                "uEmission", emissionBuffer)
+            ]);
+
+        builder.AddPass(
+            "Lighting",
+            pass => pass
+                .Read(sceneColor)
+                .Read(normalBuffer)
+                .Read(lightBuffer)
+                .Read(emissionBuffer)
+                .WriteColor(backbuffer)
+                .SetExecute(context =>
+                    context.ExecuteFullscreen(fullscreenPass)));
+
+        builder.SetOutput(backbuffer);
+
+        var plan = new RenderGraphCompiler()
+            .Compile(builder.Build());
+
+        using var executor = new RenderGraphExecutor(
+            targets,
+            passExecutor);
+
+        using var result = executor.Execute(plan);
+
+        Assert.Equal(4, passExecutor.CapturedInputs.Count);
+
+        Assert.Equal(
+            targets.GetColorTexture(sceneTarget),
+            passExecutor.CapturedInputs[0].Texture);
+
+        Assert.Equal(
+            targets.GetColorTexture(normalTarget),
+            passExecutor.CapturedInputs[1].Texture);
+
+        Assert.Equal(
+            targets.GetColorTexture(lightTarget),
+            passExecutor.CapturedInputs[2].Texture);
+
+        Assert.Equal(
+            targets.GetColorTexture(emissionTarget),
+            passExecutor.CapturedInputs[3].Texture);
+
+        Assert.Equal(
+            normalSampler,
+            passExecutor.CapturedInputs[1].Sampler);
+
+        Assert.Equal(
+            "uNormalMap",
+            passExecutor.CapturedInputs[1].Name);
+    }
+
+    [Fact]
+    public void ExecuteFullscreen_RejectsUndeclaredInput()
+    {
+        var targets = new TestRenderTargetManager();
+        var passExecutor = new TestFullscreenPassExecutor();
+
+        var builder = new RenderGraphBuilder();
+
+        var description = new RenderTargetDescription(64, 64);
+
+        var targetA = targets.Create(description);
+        var targetB = targets.Create(description);
+
+        var inputA = builder.ImportRenderTarget(
+            "InputA", targetA, description);
+
+        var inputB = builder.ImportRenderTarget(
+            "InputB", targetB, description);
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer", description);
+
+        var fullscreenPass = new FullscreenPassDescription(
+            new ShaderHandle(1),
+            inputs:
+            [
+                new FullscreenPassTextureInput(
+                "uInputB", inputB)
+            ]);
+
+        builder.AddPass(
+            "Composite",
+            pass => pass
+                .Read(inputA)
+                .WriteColor(backbuffer)
+                .SetExecute(context =>
+                    context.ExecuteFullscreen(fullscreenPass)));
+
+        builder.SetOutput(backbuffer);
+        builder.SetOutput(inputB);
+
+        var plan = new RenderGraphCompiler()
+            .Compile(builder.Build());
+
+        using var executor = new RenderGraphExecutor(
+            targets,
+            passExecutor);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => executor.Execute(plan));
+
+        Assert.Contains(
+            "did not declare Read access",
+            exception.Message);
+    }
 
     [Fact]
     public void Execute_FiltersQueueCommandsByPassLayerRange()
@@ -765,6 +922,41 @@ public sealed class RenderGraphExecutorTests
             RenderTargetDescription Description,
             TextureHandle Texture);
     }
+    private sealed class TestFullscreenPassExecutor :
+    IRenderPassExecutor,
+    IFullscreenPassExecutor
+    {
+        public IReadOnlyList<FullscreenPassTextureBinding>
+            CapturedInputs
+        { get; private set; } = [];
 
+        public void Begin(RenderPassContext context)
+        {
+        }
+
+        public void Execute(IRenderCommand command)
+        {
+        }
+
+        public void End()
+        {
+        }
+
+        public void ExecuteFullscreen(
+            FullscreenPassDescription pass,
+            TextureHandle source,
+            RenderTargetDescription outputDescription)
+        {
+            throw new NotSupportedException();
+        }
+
+        public void ExecuteFullscreen(
+            FullscreenPassDescription pass,
+            IReadOnlyList<FullscreenPassTextureBinding> inputs,
+            RenderTargetDescription outputDescription)
+        {
+            CapturedInputs = inputs.ToArray();
+        }
+    }
     private sealed class TestContextData : IRenderPassContextData;
 }

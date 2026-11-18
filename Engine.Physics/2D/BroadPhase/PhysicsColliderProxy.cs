@@ -9,6 +9,12 @@ public readonly record struct PhysicsColliderProxy(
     FixedBounds2 Bounds,
     Collider2D Collider)
 {
+    public Fixed32 WorldSine { get; init; }
+
+    public Fixed32 WorldCosine { get; init; }
+
+    public bool HasCachedRotation { get; init; }
+
     public FixedVector2 WorldPosition { get; init; }
 
     public Fixed32 WorldRotation { get; init; }
@@ -17,9 +23,16 @@ public readonly record struct PhysicsColliderProxy(
         int index)
     {
         var vertex =
-            Collider.Shape
-                .Polygon
-                .GetVertex(index);
+            Collider.Shape.Polygon.GetVertex(index);
+
+        if (HasCachedRotation)
+        {
+            return Rotate(
+                vertex,
+                WorldSine,
+                WorldCosine) +
+                WorldPosition;
+        }
 
         return Rotate(
             vertex,
@@ -31,12 +44,17 @@ public readonly record struct PhysicsColliderProxy(
         FixedVector2 value,
         Fixed32 angle)
     {
-        var cosine =
-            Fixed32.Cos(angle);
+        return Rotate(
+            value,
+            Fixed32.Sin(angle),
+            Fixed32.Cos(angle));
+    }
 
-        var sine =
-            Fixed32.Sin(angle);
-
+    private static FixedVector2 Rotate(
+        FixedVector2 value,
+        Fixed32 sine,
+        Fixed32 cosine)
+    {
         return new FixedVector2(
             value.X * cosine -
             value.Y * sine,

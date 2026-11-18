@@ -10,17 +10,19 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
     private readonly uint _vao;
     private readonly OpenGLShaderProgram _copyShader;
     private bool _disposed;
-
+    private readonly OpenGLShaderResourceBinder _resourceBinder;
     public OpenGLFullscreenRenderer(GL gl)
     {
         ArgumentNullException.ThrowIfNull(gl);
 
         _gl = gl;
-
+        _resourceBinder = new OpenGLShaderResourceBinder(gl);
         _vao = _gl.GenVertexArray();
 
         if (_vao == 0)
         {
+            _resourceBinder.Dispose();
+
             throw new InvalidOperationException(
                 "OpenGL failed to create a fullscreen vertex array.");
         }
@@ -34,6 +36,15 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
         }
         catch
         {
+            try
+            {
+                _resourceBinder.Dispose();
+            }
+            catch
+            {
+                // Preserve the original shader initialization error.
+            }
+
             _gl.DeleteVertexArray(_vao);
             throw;
         }
@@ -74,17 +85,23 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
     int width = 0,
     int height = 0)
     {
-        Action<OpenGLShaderProgram>? applyParameters =
+        Action<IShaderParameterWriter>? applyParameters =
             effect is null
                 ? null
-                : program => effect.ApplyParameters(program);
+                : _ => effect.ApplyParameters(shader);
 
         DrawCore(
             shader,
-            source,
+            [
+                new FullscreenPassTextureBinding(
+                FullscreenShaderSource.SourceTextureUniform,
+                source,
+                TextureSamplerDescription.Default)
+            ],
             width,
             height,
-            applyParameters);
+            applyParameters,
+            applySamplers: false);
     }
 
     public void DrawWithParameters(
@@ -94,35 +111,57 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
         int height,
         Action<IShaderParameterWriter>? applyParameters)
     {
-        Action<OpenGLShaderProgram>? callback =
-            applyParameters is null
-                ? null
-                : program => applyParameters(program);
-
         DrawCore(
             shader,
-            source,
+            [
+                new FullscreenPassTextureBinding(
+                FullscreenShaderSource.SourceTextureUniform,
+                source,
+                TextureSamplerDescription.Default)
+            ],
             width,
             height,
-            callback);
+            applyParameters,
+            applySamplers: false);
+    }
+
+    /// <summary>
+    /// Executes a fullscreen draw with multiple named texture inputs.
+    /// </summary>
+    public void DrawWithResources(
+        OpenGLShaderProgram shader,
+        IReadOnlyList<FullscreenPassTextureBinding> inputs,
+        int width,
+        int height,
+        Action<IShaderParameterWriter>? applyParameters)
+    {
+        DrawCore(
+            shader,
+            inputs,
+            width,
+            height,
+            applyParameters,
+            applySamplers: true);
     }
 
     private void DrawCore(
         OpenGLShaderProgram shader,
-        TextureHandle source,
+        IReadOnlyList<FullscreenPassTextureBinding> inputs,
         int width,
         int height,
-        Action<OpenGLShaderProgram>? applyParameters)
+        Action<IShaderParameterWriter>? applyParameters,
+        bool applySamplers)
     {
         ThrowIfDisposed();
 
         ArgumentNullException.ThrowIfNull(shader);
+        ArgumentNullException.ThrowIfNull(inputs);
 
-        if (!source.IsValid)
+        if (inputs.Count == 0)
         {
             throw new ArgumentException(
-                "Source texture handle is invalid.",
-                nameof(source));
+                "At least one texture input is required.",
+                nameof(inputs));
         }
 
         if (width < 0 ||
@@ -134,20 +173,32 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
                 "Width and height must both be zero or both be positive.");
         }
 
-        var sourceLocation = shader.GetUniformLocation(
-            FullscreenShaderSource.SourceTextureUniform);
+        var names = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var input in inputs)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(input.Name);
+
+            if (!input.Texture.IsValid)
+            {
+                throw new ArgumentException(
+                    $"Texture input '{input.Name}' is invalid.",
+                    nameof(inputs));
+            }
+
+            if (!names.Add(input.Name))
+            {
+                throw new ArgumentException(
+                    $"Texture input '{input.Name}' is duplicated.",
+                    nameof(inputs));
+            }
+        }
 
         var resolutionLocation = shader.GetUniformLocation(
             FullscreenShaderSource.ResolutionUniform);
 
-        if (sourceLocation < 0)
-        {
-            throw new InvalidOperationException(
-                $"Fullscreen shader must declare " +
-                $"'{FullscreenShaderSource.SourceTextureUniform}'.");
-        }
-
         var shaderStarted = false;
+        var bindingsStarted = false;
 
         try
         {
@@ -164,13 +215,22 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
                     (float)height);
             }
 
-            _gl.ActiveTexture(TextureUnit.Texture0);
+            _resourceBinder.Begin(shader);
+            bindingsStarted = true;
 
-            _gl.BindTexture(
-                TextureTarget.Texture2D,
-                source.Value);
+            foreach (var input in inputs)
+            {
+                _resourceBinder.SetTexture(
+                    input.Name,
+                    input.Texture);
 
-            _gl.Uniform1(sourceLocation, 0);
+                if (applySamplers)
+                {
+                    _resourceBinder.SetSampler(
+                        input.Name,
+                        input.Sampler);
+                }
+            }
 
             applyParameters?.Invoke(shader);
 
@@ -191,11 +251,10 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
             {
                 try
                 {
-                    _gl.ActiveTexture(TextureUnit.Texture0);
-
-                    _gl.BindTexture(
-                        TextureTarget.Texture2D,
-                        0);
+                    if (bindingsStarted)
+                    {
+                        _resourceBinder.End();
+                    }
                 }
                 finally
                 {
@@ -219,8 +278,15 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
         }
         finally
         {
-            _gl.DeleteVertexArray(_vao);
-            _disposed = true;
+            try
+            {
+                _resourceBinder.Dispose();
+            }
+            finally
+            {
+                _gl.DeleteVertexArray(_vao);
+                _disposed = true;
+            }
         }
     }
 

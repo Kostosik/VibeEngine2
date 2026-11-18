@@ -190,6 +190,53 @@ internal sealed class OpenGLRenderPassExecutor :
 
     public void ExecuteFullscreen(
     FullscreenPassDescription pass,
+    IReadOnlyList<FullscreenPassTextureBinding> inputs,
+    RenderTargetDescription outputDescription)
+    {
+        ThrowIfDisposed();
+
+        ArgumentNullException.ThrowIfNull(pass);
+        ArgumentNullException.ThrowIfNull(inputs);
+
+        if (inputs.Count == 0)
+        {
+            throw new ArgumentException(
+                "At least one fullscreen texture input is required.",
+                nameof(inputs));
+        }
+
+        outputDescription.Validate();
+
+        if (!pass.Shader.IsValid ||
+            !_shaderManager.Exists(pass.Shader))
+        {
+            throw new InvalidOperationException(
+                "Fullscreen pass references an invalid shader.");
+        }
+
+        // Finish pending batched rendering.
+        _dispatcher.EndFrame();
+
+        _dispatcher.ApplyState(FullscreenRenderState);
+
+        try
+        {
+            _fullscreenRenderer.DrawWithResources(
+                _shaderManager.GetProgram(pass.Shader),
+                inputs,
+                outputDescription.Width,
+                outputDescription.Height,
+                pass.ApplyParameters);
+        }
+        finally
+        {
+            // Restore the active render graph state.
+            _dispatcher.ApplyState(_activeRenderState);
+        }
+    }
+
+    public void ExecuteFullscreen(
+    FullscreenPassDescription pass,
     TextureHandle source,
     RenderTargetDescription outputDescription)
     {

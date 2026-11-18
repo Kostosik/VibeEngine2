@@ -22,7 +22,7 @@ if (benchmarkOptionIndex >= 0)
     if (benchmarkOptionIndex + 1 >= args.Length)
     {
         Console.Error.WriteLine(
-            "Usage: --benchmark <all|physics|graphics|runtime|tilemap|transforms|list|physics-queries>");
+            "Usage: --benchmark <all|physics|physics-broadphase|physics-narrowphase|physics-solver|physics-system|graphics|runtime|tilemap|transforms|list|physics-queries>");
 
         Environment.ExitCode = 2;
         return;
@@ -43,6 +43,24 @@ if (benchmarkOptionIndex >= 0)
             return;
         case "physics":
             Engine.Benchmarks.PhysicsBroadPhaseBenchmark.Run();
+            Engine.Benchmarks.PhysicsNarrowPhaseBenchmark.Run();
+            Engine.Benchmarks.PhysicsSolverBenchmark.Run();
+            Engine.Benchmarks.PhysicsSystemBenchmark.Run();
+            return;
+
+        case "physics-broadphase":
+            Engine.Benchmarks.PhysicsBroadPhaseBenchmark.Run();
+            return;
+
+        case "physics-narrowphase":
+            Engine.Benchmarks.PhysicsNarrowPhaseBenchmark.Run();
+            return;
+
+        case "physics-solver":
+            Engine.Benchmarks.PhysicsSolverBenchmark.Run();
+            return;
+
+        case "physics-system":
             Engine.Benchmarks.PhysicsSystemBenchmark.Run();
             return;
 
@@ -60,7 +78,9 @@ if (benchmarkOptionIndex >= 0)
 
         case "list":
             Console.WriteLine(
-                "Available benchmarks: all, physics, graphics, runtime");
+                "Available benchmarks: all, physics, physics-broadphase, " +
+                "physics-narrowphase, physics-solver, physics-system, " +
+                "graphics, runtime, tilemap, transforms, physics-queries");
             return;
 
         default:

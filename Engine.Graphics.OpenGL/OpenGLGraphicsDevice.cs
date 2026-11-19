@@ -386,10 +386,16 @@ public sealed class OpenGLGraphicsDevice
 
     private void Configure()
     {
+        var background =
+            ColorSpaceConverter.SrgbToLinear(0.05f);
+
         _gl.ClearColor(
-            0.05f,
-            0.05f,
-            0.05f,
+            background,
+            background,
+            background,
             1.0f);
+
+        _gl.Enable(
+            EnableCap.FramebufferSrgb);
     }
 }

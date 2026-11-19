@@ -3,6 +3,7 @@ using Engine.Input;
 using Engine.Input.Cursors;
 using Engine.Input.SilkNet;
 using Silk.NET.Core.Contexts;
+using Silk.NET.GLFW;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
@@ -118,6 +119,10 @@ public sealed class SilkNetWindow : ISilkNetWindow
         };
 
         GlfwWindowing.Use();
+
+        GlfwProvider.GLFW.Value.WindowHint(
+            WindowHintBool.SrgbCapable,
+            true);
 
         _window = Window.Create(windowOptions);
 

@@ -98,7 +98,10 @@ public sealed class PingPongRenderTargets : IDisposable
             width,
             height,
             current.Format,
-            current.HasDepthAttachment);
+            current.HasDepthAttachment)
+        {
+            ColorSpace = current.ColorSpace
+        };
 
         description.Validate();
 

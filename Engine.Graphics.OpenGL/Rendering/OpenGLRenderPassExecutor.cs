@@ -297,17 +297,16 @@ internal sealed class OpenGLRenderPassExecutor :
             var sourceDescription = _renderTargets.GetDescription(
                 _activePostProcessSource);
 
-            // Источник итогового изображения.
-            // При отсутствии эффектов это World RenderTarget.
+            // Исходное изображение — World RenderTarget.
             var sourceTarget = _activePostProcessSource;
+            var sourceTexture = _renderTargets.GetColorTexture(
+                sourceTarget);
+
             _dispatcher.ApplyState(FullscreenRenderState);
 
             if (chain.HasEnabledEffects)
             {
                 EnsurePostProcessTargets(sourceDescription);
-
-                var sourceTexture = _renderTargets.GetColorTexture(
-                    sourceTarget);
 
                 foreach (var effect in chain.Effects)
                 {
@@ -341,40 +340,26 @@ internal sealed class OpenGLRenderPassExecutor :
                         sourceDescription.Width,
                         sourceDescription.Height);
 
+                    // Результат эффекта становится новым источником.
                     _postProcessTargets.Swap();
 
-                    sourceTarget = _postProcessTargets.ReadTarget;
                     sourceTexture = _postProcessTargets.ReadTexture;
                 }
             }
 
-            // Получаем framebuffer итогового изображения.
-            var sourceFramebuffer = _renderTargets.GetFramebuffer(
-                sourceTarget);
-
-            // Читаем изображение из RenderTarget,
-            // а выводим непосредственно в framebuffer окна.
+            // Выводим итоговое изображение в backbuffer.
             _gl.BindFramebuffer(
-                FramebufferTarget.ReadFramebuffer,
-                sourceFramebuffer);
-
-            _gl.BindFramebuffer(
-                FramebufferTarget.DrawFramebuffer,
+                FramebufferTarget.Framebuffer,
                 0);
 
-            // Сохраняем вертикальное отражение,
-            // которое ранее выполнялось в CopyFragmentShader.
-            _gl.BlitFramebuffer(
+            _gl.Viewport(
                 0,
                 0,
-                sourceDescription.Width,
-                sourceDescription.Height,
-                0,
-                0,
-                _backBufferFramebufferWidth,
-                _backBufferFramebufferHeight,
-                ClearBufferMask.ColorBufferBit,
-                BlitFramebufferFilter.Nearest);
+                (uint)_backBufferFramebufferWidth,
+                (uint)_backBufferFramebufferHeight);
+
+            _fullscreenRenderer.DrawCopy(
+                sourceTexture);
         }
         finally
         {
@@ -428,6 +413,7 @@ internal sealed class OpenGLRenderPassExecutor :
             var current = _postProcessTargets.Description;
 
             if (current.Format != sourceDescription.Format ||
+                current.ColorSpace != sourceDescription.ColorSpace ||
                 current.HasDepthAttachment != sourceDescription.HasDepthAttachment)
             {
                 _postProcessTargets.Dispose();

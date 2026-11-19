@@ -3,6 +3,7 @@ using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.OpenGL.Rendering;
 using Engine.Graphics.Rendering;
+using Engine.Graphics.Resources;
 using Silk.NET.OpenGL;
 using System.Runtime.InteropServices;
 
@@ -339,9 +340,12 @@ internal sealed class OpenGLFontRenderer :
 
         _gl.Uniform4(
             _colorLocation,
-            command.Color.R / 255.0f,
-            command.Color.G / 255.0f,
-            command.Color.B / 255.0f,
+            ColorSpaceConverter.SrgbToLinear(
+                command.Color.R / 255.0f),
+            ColorSpaceConverter.SrgbToLinear(
+                command.Color.G / 255.0f),
+            ColorSpaceConverter.SrgbToLinear(
+                command.Color.B / 255.0f),
             command.Color.A / 255.0f);
 
         var baseline =

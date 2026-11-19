@@ -7,7 +7,7 @@ public sealed class ImageTextureLoader
 {
     public TextureData Load(
         IAssetSource source,
-        AssetPath path)
+        AssetPath path, TextureColorSpace colorSpace = TextureColorSpace.Srgb)
     {
         ArgumentNullException.ThrowIfNull(source);
 
@@ -29,14 +29,18 @@ public sealed class ImageTextureLoader
             image.Data.ToArray();
 
         return new TextureData(
-            image.Width,
-            image.Height,
-            TextureFormat.Rgba8,
+            new TextureDescription(
+                image.Width,
+                image.Height,
+                TextureFormat.Rgba8)
+            {
+                ColorSpace = colorSpace
+            },
             pixels);
     }
 
     public TextureData Load(
-    ReadOnlyMemory<byte> encodedData)
+    ReadOnlyMemory<byte> encodedData, TextureColorSpace colorSpace = TextureColorSpace.Srgb)
     {
         if (encodedData.IsEmpty)
         {
@@ -53,9 +57,13 @@ public sealed class ImageTextureLoader
             image.Data.ToArray();
 
         return new TextureData(
-            image.Width,
-            image.Height,
-            TextureFormat.Rgba8,
+            new TextureDescription(
+                image.Width,
+                image.Height,
+                TextureFormat.Rgba8)
+            {
+                ColorSpace = colorSpace
+            },
             pixels);
     }
 }

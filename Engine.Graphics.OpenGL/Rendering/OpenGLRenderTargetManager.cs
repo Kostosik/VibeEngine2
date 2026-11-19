@@ -116,7 +116,10 @@ internal sealed class OpenGLRenderTargetManager :
             new TextureDescription(
                 description.Width,
                 description.Height,
-                description.Format));
+                description.Format)
+            {
+                ColorSpace = description.ColorSpace
+            });
 
         uint framebuffer = 0;
         uint depthBuffer = 0;
@@ -260,7 +263,10 @@ internal sealed class OpenGLRenderTargetManager :
             width,
             height,
             entry.Description.Format,
-            entry.Description.HasDepthAttachment);
+            entry.Description.HasDepthAttachment)
+        {
+            ColorSpace = entry.Description.ColorSpace
+        };
 
         description.Validate();
 
@@ -268,7 +274,10 @@ internal sealed class OpenGLRenderTargetManager :
             new TextureDescription(
                 description.Width,
                 description.Height,
-                description.Format));
+                description.Format)
+            {
+                ColorSpace = description.ColorSpace
+            });
 
         uint newFramebuffer = 0;
         uint newDepthBuffer = 0;

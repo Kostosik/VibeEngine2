@@ -51,7 +51,7 @@ public sealed class OpenGLTextureManager
                 "Mipmaps require pixel data. Use Create(TextureData) instead.");
         }
         Validate(description);
-        var format = GetOpenGlFormat(description.Format);
+        var format = GetOpenGlFormat(description);
         var handle = _gl.GenTexture();
 
         if (handle == 0)
@@ -105,22 +105,25 @@ public sealed class OpenGLTextureManager
     }
 
     private static (
-    InternalFormat InternalFormat,
-    PixelType PixelType,
-    int BytesPerPixel) GetOpenGlFormat(TextureFormat format)
+        InternalFormat InternalFormat,
+        PixelType PixelType,
+        int BytesPerPixel) GetOpenGlFormat(
+            TextureDescription description)
     {
-        return format switch
+        return (description.Format, description.ColorSpace) switch
         {
-            TextureFormat.Rgba8 =>
+            (TextureFormat.Rgba8, TextureColorSpace.Linear) =>
                 (InternalFormat.Rgba8, PixelType.UnsignedByte, 4),
 
-            TextureFormat.Rgba16Float =>
+            (TextureFormat.Rgba8, TextureColorSpace.Srgb) =>
+                (InternalFormat.Srgb8Alpha8, PixelType.UnsignedByte, 4),
+
+            (TextureFormat.Rgba16Float, TextureColorSpace.Linear) =>
                 (InternalFormat.Rgba16f, PixelType.HalfFloat, 8),
 
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(format),
-                format,
-                "Unsupported texture format.")
+            _ => throw new ArgumentException(
+                "Unsupported texture format and color space combination.",
+                nameof(description))
         };
     }
 
@@ -130,7 +133,7 @@ public sealed class OpenGLTextureManager
         ArgumentNullException.ThrowIfNull(data);
 
         Validate(data.Description);
-        var format = GetOpenGlFormat(data.Format);
+        var format = GetOpenGlFormat(data.Description);
         var expectedSize =
             (long)data.Width * data.Height * format.BytesPerPixel;
 
@@ -168,12 +171,12 @@ public sealed class OpenGLTextureManager
                     _gl.TexImage2D(
                         TextureTarget.Texture2D,
                         0,
-                        InternalFormat.Rgba8,
+                        format.InternalFormat,
                         (uint)data.Width,
                         (uint)data.Height,
                         0,
                         PixelFormat.Rgba,
-                        PixelType.UnsignedByte,
+                        format.PixelType,
                         ptr);
                 }
             }
@@ -427,6 +430,23 @@ public sealed class OpenGLTextureManager
                 description.Format,
                 "Unsupported texture format.");
         }
+
+        if (!Enum.IsDefined(description.ColorSpace))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(description.ColorSpace),
+                description.ColorSpace,
+                "Unsupported texture color space.");
+        }
+
+        if (description.ColorSpace == TextureColorSpace.Srgb &&
+            description.Format != TextureFormat.Rgba8)
+        {
+            throw new ArgumentException(
+                "sRGB color space is supported only for Rgba8 textures.",
+                nameof(description));
+        }
+
         ValidateSampler(
             description.EffectiveSampler,
             description.GenerateMipmaps);

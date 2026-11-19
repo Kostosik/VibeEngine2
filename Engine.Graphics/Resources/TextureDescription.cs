@@ -6,7 +6,8 @@ public readonly record struct TextureDescription(
     TextureFormat Format)
 {
     public TextureSamplerDescription? Sampler { get; init; }
-
+    public TextureColorSpace ColorSpace { get; init; }
+    = TextureColorSpace.Linear;
     public bool GenerateMipmaps { get; init; }
 
     public TextureSamplerDescription EffectiveSampler =>

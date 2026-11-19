@@ -39,7 +39,7 @@ public sealed class TextureAtlasBuilder
         ArgumentNullException.ThrowIfNull(sprites[0].Texture);
 
         var format = sprites[0].Texture.Format;
-
+        var colorSpace = sprites[0].Texture.Description.ColorSpace;
         var indexedSprites = new IndexedSprite[sprites.Count];
         var names = new HashSet<string>(StringComparer.Ordinal);
 
@@ -57,7 +57,12 @@ public sealed class TextureAtlasBuilder
                     $"Sprite at index {i} is null.",
                     nameof(sprites));
             }
-
+            if (sprite.Texture.Description.ColorSpace != colorSpace)
+            {
+                throw new ArgumentException(
+                    "All sprites must use the same texture color space.",
+                    nameof(sprites));
+            }
             ArgumentException.ThrowIfNullOrWhiteSpace(sprite.Name);
             ArgumentNullException.ThrowIfNull(sprite.Texture);
 
@@ -181,7 +186,10 @@ public sealed class TextureAtlasBuilder
         var description = new TextureDescription(
             usedWidth,
             usedHeight,
-            format);
+            format)
+        {
+            ColorSpace = colorSpace
+        };
 
         for (var i = 0; i < sprites.Count; i++)
         {
@@ -218,9 +226,7 @@ public sealed class TextureAtlasBuilder
         }
 
         var atlasTexture = new TextureData(
-            usedWidth,
-            usedHeight,
-            format,
+            description,
             atlasPixels);
 
         return new TextureAtlasBuildResult(

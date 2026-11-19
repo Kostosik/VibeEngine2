@@ -5,6 +5,61 @@ namespace Engine.Tests.Graphics;
 public sealed class TextureAtlasBuilderTests
 {
     [Fact]
+    public void Build_RejectsDifferentColorSpaces()
+    {
+        var linear = new TextureData(
+            new TextureDescription(
+                2,
+                2,
+                TextureFormat.Rgba8),
+            new byte[16]);
+
+        var srgb = new TextureData(
+            new TextureDescription(
+                2,
+                2,
+                TextureFormat.Rgba8)
+            {
+                ColorSpace = TextureColorSpace.Srgb
+            },
+            new byte[16]);
+
+        var sprites = new[]
+        {
+        new TextureAtlasSprite("linear", linear),
+        new TextureAtlasSprite("srgb", srgb)
+    };
+
+        Assert.Throws<ArgumentException>(
+            () => new TextureAtlasBuilder().Build(sprites));
+    }
+
+    [Fact]
+    public void Build_PreservesTextureColorSpace()
+    {
+        var description = new TextureDescription(
+            2,
+            2,
+            TextureFormat.Rgba8)
+        {
+            ColorSpace = TextureColorSpace.Srgb
+        };
+
+        var sprite = new TextureAtlasSprite(
+            "sprite",
+            new TextureData(
+                description,
+                new byte[2 * 2 * 4]));
+
+        var result = new TextureAtlasBuilder().Build(
+            new[] { sprite });
+
+        Assert.Equal(
+            TextureColorSpace.Srgb,
+            result.Texture.Description.ColorSpace);
+    }
+
+    [Fact]
     public void Build_ReservesPaddingBetweenSprites()
     {
         var sprites = new[]

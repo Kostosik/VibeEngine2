@@ -3,6 +3,7 @@ using Engine.Core.Math;
 using Engine.Graphics.Commands;
 using Engine.Graphics.DebugGraphics;
 using Engine.Graphics.Rendering;
+using Engine.Graphics.Resources;
 using Silk.NET.OpenGL;
 using System.Runtime.InteropServices;
 
@@ -768,14 +769,11 @@ internal sealed class OpenGLDebugRenderer :
         vertices.Add(x);
         vertices.Add(y);
 
-        vertices.Add(
-            color.R / 255.0f);
+        vertices.Add(ToFloat(color.R));
 
-        vertices.Add(
-            color.G / 255.0f);
+        vertices.Add(ToFloat(color.G));
 
-        vertices.Add(
-            color.B / 255.0f);
+        vertices.Add(ToFloat(color.B));
 
         vertices.Add(
             color.A / 255.0f);
@@ -840,14 +838,11 @@ internal sealed class OpenGLDebugRenderer :
         vertices.Add(x);
         vertices.Add(y);
 
-        vertices.Add(
-            color.R / 255.0f);
+        vertices.Add(ToFloat(color.R));
 
-        vertices.Add(
-            color.G / 255.0f);
+        vertices.Add(ToFloat(color.G));
 
-        vertices.Add(
-            color.B / 255.0f);
+        vertices.Add(ToFloat(color.B));
 
         vertices.Add(
             color.A / 255.0f);
@@ -1099,10 +1094,10 @@ internal sealed class OpenGLDebugRenderer :
         }
     }
 
-    private static float ToFloat(
-        byte value)
+    private static float ToFloat(byte value)
     {
-        return value / 255.0f;
+        return ColorSpaceConverter.SrgbToLinear(
+            value / 255.0f);
     }
 
     private void EnsureFrameActive()

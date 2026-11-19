@@ -6,6 +6,8 @@ public readonly record struct RenderTargetDescription(
     int Height,
     TextureFormat Format)
 {
+    public TextureColorSpace ColorSpace { get; init; }
+    = TextureColorSpace.Linear;
     public bool HasDepthAttachment { get; init; } = true;
 
     public RenderTargetDescription(
@@ -33,6 +35,19 @@ public readonly record struct RenderTargetDescription(
 
     public void Validate()
     {
+        if (!Enum.IsDefined(ColorSpace))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(ColorSpace));
+        }
+
+        if (ColorSpace == TextureColorSpace.Srgb &&
+            Format != TextureFormat.Rgba8)
+        {
+            throw new ArgumentException(
+                "sRGB render targets support only Rgba8.",
+                nameof(ColorSpace));
+        }
         if (Width <= 0)
         {
             throw new ArgumentOutOfRangeException(

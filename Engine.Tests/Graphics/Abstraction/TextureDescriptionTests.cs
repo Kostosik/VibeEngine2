@@ -19,4 +19,33 @@ public sealed class TextureDescriptionTests
             TextureFormat.Rgba8,
             description.Format);
     }
+
+    [Fact]
+    public void Constructor_DefaultsToLinearColorSpace()
+    {
+        var description = new TextureDescription(
+            128,
+            64,
+            TextureFormat.Rgba8);
+
+        Assert.Equal(
+            TextureColorSpace.Linear,
+            description.ColorSpace);
+    }
+
+    [Fact]
+    public void Description_CanUseSrgbColorSpace()
+    {
+        var description = new TextureDescription(
+            128,
+            64,
+            TextureFormat.Rgba8)
+        {
+            ColorSpace = TextureColorSpace.Srgb
+        };
+
+        Assert.Equal(
+            TextureColorSpace.Srgb,
+            description.ColorSpace);
+    }
 }

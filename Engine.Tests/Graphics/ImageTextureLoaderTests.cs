@@ -39,6 +39,9 @@ public sealed class ImageTextureLoaderTests
         Assert.Equal(
             4,
             texture.Pixels.Length);
+        Assert.Equal(
+    TextureColorSpace.Srgb,
+    texture.Description.ColorSpace);
     }
 
     private sealed class TestAssetSource :

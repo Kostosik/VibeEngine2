@@ -11,13 +11,17 @@ public readonly record struct RenderGraphResourceDescriptor(
     TextureFormat Format = TextureFormat.Rgba8)
 {
     public TextureColorSpace ColorSpace { get; init; }
-    = TextureColorSpace.Linear;
+        = TextureColorSpace.Linear;
+
+    public bool HasDepthAttachment { get; init; } = true;
+
     public void Validate()
     {
         new RenderTargetDescription(
             Width,
             Height,
-            Format)
+            Format,
+            HasDepthAttachment)
         {
             ColorSpace = ColorSpace
         }.Validate();
@@ -30,7 +34,8 @@ public readonly record struct RenderGraphResourceDescriptor(
         return new RenderTargetDescription(
             Width,
             Height,
-            Format)
+            Format,
+            HasDepthAttachment)
         {
             ColorSpace = ColorSpace
         };
@@ -46,7 +51,8 @@ public readonly record struct RenderGraphResourceDescriptor(
             description.Height,
             description.Format)
         {
-            ColorSpace = description.ColorSpace
+            ColorSpace = description.ColorSpace,
+            HasDepthAttachment = description.HasDepthAttachment
         };
     }
 }

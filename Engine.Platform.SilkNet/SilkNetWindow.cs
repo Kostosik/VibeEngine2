@@ -145,6 +145,10 @@ public sealed class SilkNetWindow : ISilkNetWindow
                 "Window has already been initialized.");
         }
 
+        GlfwProvider.GLFW.Value.WindowHint(
+            WindowHintBool.SrgbCapable,
+            true);
+
         _window.Initialize();
 
         if (_startFullscreen)

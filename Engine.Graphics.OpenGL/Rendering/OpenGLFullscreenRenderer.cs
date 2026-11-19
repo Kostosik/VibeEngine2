@@ -9,6 +9,7 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
     private readonly GL _gl;
     private readonly uint _vao;
     private readonly OpenGLShaderProgram _copyShader;
+    private readonly OpenGLShaderProgram _presentShader;
     private bool _disposed;
     private readonly OpenGLShaderResourceBinder _resourceBinder;
     public OpenGLFullscreenRenderer(GL gl)
@@ -33,6 +34,11 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
                 gl,
                 FullscreenShaderSource.Vertex,
                 CopyFragmentShader);
+
+            _presentShader = new OpenGLShaderProgram(
+                gl,
+                FullscreenShaderSource.Vertex,
+                PresentFragmentShader);
         }
         catch
         {
@@ -50,10 +56,42 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
         }
     }
 
+    public void DrawPresent(TextureHandle source)
+    {
+        Draw(_presentShader, source);
+    }
+
     public void DrawCopy(TextureHandle source)
     {
         Draw(_copyShader, source);
     }
+
+    private const string PresentFragmentShader = """
+        #version 330 core
+
+        in vec2 vTexCoord;
+        uniform sampler2D uSource;
+
+        out vec4 FragColor;
+
+        float LinearToSrgb(float value)
+        {
+            return value <= 0.0031308
+                ? value * 12.92
+                : 1.055 * pow(max(value, 0.0), 1.0 / 2.4) - 0.055;
+        }
+
+        void main()
+        {
+            vec4 color = texture(uSource, vTexCoord);
+
+            FragColor = vec4(
+                LinearToSrgb(color.r),
+                LinearToSrgb(color.g),
+                LinearToSrgb(color.b),
+                color.a);
+        }
+        """;
 
     private const string CopyFragmentShader = """
     #version 330 core
@@ -65,7 +103,7 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
 
     void main()
     {
-    FragColor = texture(uSource, vTexCoord);
+        FragColor = texture(uSource, vTexCoord);
     }
     """;
 

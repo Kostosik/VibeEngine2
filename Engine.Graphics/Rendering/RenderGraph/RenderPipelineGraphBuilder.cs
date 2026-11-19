@@ -10,7 +10,8 @@ public sealed class RenderPipelineGraphBuilder
 {
     private readonly IRenderTargetManager _renderTargetManager;
     private readonly IPostProcessRenderPassExecutor _postProcessExecutor;
-
+    private readonly IFramePresentationExecutor?
+    _presentationExecutor;
     private readonly IRenderGraphExtensionRegistry _extensions;
 
     public IRenderGraphExtensionRegistry Extensions =>
@@ -21,14 +22,15 @@ public sealed class RenderPipelineGraphBuilder
     public RenderPipelineGraphBuilder(
         IRenderTargetManager renderTargetManager,
         IPostProcessRenderPassExecutor postProcessExecutor,
-        IRenderGraphExtensionRegistry? extensions = null)
+        IRenderGraphExtensionRegistry? extensions = null,
+        IFramePresentationExecutor? presentationExecutor = null)
     {
         ArgumentNullException.ThrowIfNull(renderTargetManager);
         ArgumentNullException.ThrowIfNull(postProcessExecutor);
 
         _renderTargetManager = renderTargetManager;
         _postProcessExecutor = postProcessExecutor;
-
+        _presentationExecutor = presentationExecutor;
         _extensions = extensions ?? new RenderGraphExtensionRegistry();
     }
 
@@ -67,11 +69,36 @@ public sealed class RenderPipelineGraphBuilder
                 logicalWidth,
                 logicalHeight));
 
-        var backbuffer = builder.ImportBackbuffer(
-            "Backbuffer",
-            new RenderTargetDescription(
-                logicalWidth,
-                logicalHeight));
+        RenderGraphResourceHandle backbuffer;
+
+        var presentationExecutor = _presentationExecutor;
+
+        if (presentationExecutor is null)
+        {
+            backbuffer = builder.ImportBackbuffer(
+                "Backbuffer",
+                new RenderTargetDescription(
+                    logicalWidth,
+                    logicalHeight));
+        }
+        else
+        {
+            var target = presentationExecutor.PresentationTarget;
+
+            if (!target.IsValid ||
+                !_renderTargetManager.Exists(target))
+            {
+                throw new InvalidOperationException(
+                    "Presentation render target is not available.");
+            }
+
+            var description = _renderTargetManager.GetDescription(target);
+
+            backbuffer = builder.ImportRenderTarget(
+                "Backbuffer",
+                target,
+                description);
+        }
 
         var pipelineTargets =
             new Dictionary<RenderTargetHandle, RenderGraphResourceHandle>();
@@ -232,6 +259,31 @@ public sealed class RenderPipelineGraphBuilder
                 });
 
             previousPass = postProcessPass;
+        }
+
+        if (presentationExecutor is not null)
+        {
+            var lastPipelinePass = previousPass;
+
+            builder.AddPass(
+                "FinalPresent",
+                pass =>
+                {
+                    pass.Read(backbuffer);
+                    pass.SetSideEffect();
+
+                    if (lastPipelinePass.HasValue)
+                    {
+                        pass.DependsOn(lastPipelinePass.Value);
+                    }
+
+                    pass.SetExecute(context =>
+                    {
+                        var source = context.GetTexture(backbuffer);
+
+                        presentationExecutor.ExecutePresent(source);
+                    });
+                });
         }
 
         builder.SetOutput(backbuffer);

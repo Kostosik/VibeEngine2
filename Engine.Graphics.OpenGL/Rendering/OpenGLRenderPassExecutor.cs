@@ -12,6 +12,7 @@ internal sealed class OpenGLRenderPassExecutor :
     IRenderPassExecutor,
     IPostProcessRenderPassExecutor,
     IFullscreenPassExecutor,
+    IFramePresentationExecutor,
     IDisposable
 {
     private readonly GL _gl;
@@ -33,6 +34,10 @@ internal sealed class OpenGLRenderPassExecutor :
     private RenderTargetHandle _activePostProcessSource;
 
     private PingPongRenderTargets? _postProcessTargets;
+    private RenderTargetHandle _presentationTarget;
+
+    public RenderTargetHandle PresentationTarget =>
+        _presentationTarget;
 
     private bool _disposed;
 
@@ -72,6 +77,15 @@ internal sealed class OpenGLRenderPassExecutor :
 
         _backBufferFramebufferWidth = framebufferWidth;
         _backBufferFramebufferHeight = framebufferHeight;
+        _presentationTarget = _renderTargets.Create(
+            new RenderTargetDescription(
+                framebufferWidth,
+                framebufferHeight,
+                TextureFormat.Rgba8,
+                false)
+            {
+                ColorSpace = TextureColorSpace.Srgb
+            });
     }
 
     public void Begin(RenderPassContext context)
@@ -112,6 +126,12 @@ internal sealed class OpenGLRenderPassExecutor :
 
             var description = _renderTargets.GetDescription(
                 targetHandle);
+
+            if (targetHandle == _presentationTarget)
+            {
+                renderWidth = _backBufferRenderWidth;
+                renderHeight = _backBufferRenderHeight;
+            }
 
             viewportWidth = description.Width;
             viewportHeight = description.Height;
@@ -350,7 +370,8 @@ internal sealed class OpenGLRenderPassExecutor :
             // Выводим итоговое изображение в backbuffer.
             _gl.BindFramebuffer(
                 FramebufferTarget.Framebuffer,
-                0);
+                _renderTargets.GetFramebuffer(
+                    _presentationTarget));
 
             _gl.Viewport(
                 0,
@@ -380,6 +401,32 @@ internal sealed class OpenGLRenderPassExecutor :
                     (uint)_backBufferFramebufferHeight);
             }
         }
+    }
+
+    public void ExecutePresent(TextureHandle source)
+    {
+        ThrowIfDisposed();
+
+        if (!source.IsValid)
+        {
+            throw new ArgumentException(
+                "Presentation source texture is invalid.",
+                nameof(source));
+        }
+
+        _dispatcher.ApplyState(FullscreenRenderState);
+
+        _gl.BindFramebuffer(
+            FramebufferTarget.Framebuffer,
+            0);
+
+        _gl.Viewport(
+            0,
+            0,
+            (uint)_backBufferFramebufferWidth,
+            (uint)_backBufferFramebufferHeight);
+
+        _fullscreenRenderer.DrawPresent(source);
     }
 
     private void EnsureSceneTarget(int width, int height)
@@ -485,6 +532,14 @@ internal sealed class OpenGLRenderPassExecutor :
                 renderHeight);
         }
 
+        if (_presentationTarget.IsValid)
+        {
+            _renderTargets.Resize(
+                _presentationTarget,
+                framebufferWidth,
+                framebufferHeight);
+        }
+
         _backBufferRenderWidth = renderWidth;
         _backBufferRenderHeight = renderHeight;
 
@@ -516,6 +571,20 @@ internal sealed class OpenGLRenderPassExecutor :
 
         _postProcessTargets = null;
 
+        if (_presentationTarget.IsValid)
+        {
+            try
+            {
+                _renderTargets.Destroy(_presentationTarget);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+        }
+
+        _presentationTarget = RenderTargetHandle.Invalid;
+
         if (_sceneTarget.IsValid)
         {
             try
@@ -527,6 +596,8 @@ internal sealed class OpenGLRenderPassExecutor :
                 errors.Add(exception);
             }
         }
+
+
 
         _sceneTarget = RenderTargetHandle.Invalid;
         _activePostProcessSource = RenderTargetHandle.Invalid;

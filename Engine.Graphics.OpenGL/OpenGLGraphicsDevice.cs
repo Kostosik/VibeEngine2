@@ -178,7 +178,8 @@ public sealed class OpenGLGraphicsDevice
 
             _renderPipelineGraphBuilder = new RenderPipelineGraphBuilder(
                 _renderTargetManager,
-                _passExecutor);
+                _passExecutor,
+                presentationExecutor: _passExecutor);
 
             _renderPipeline =
                 new RenderPipeline();

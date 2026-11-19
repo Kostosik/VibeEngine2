@@ -366,9 +366,9 @@ internal sealed class OpenGLRenderPassExecutor :
             // которое ранее выполнялось в CopyFragmentShader.
             _gl.BlitFramebuffer(
                 0,
-                sourceDescription.Height,
-                sourceDescription.Width,
                 0,
+                sourceDescription.Width,
+                sourceDescription.Height,
                 0,
                 0,
                 _backBufferFramebufferWidth,

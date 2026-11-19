@@ -196,8 +196,8 @@ internal sealed class MultiTextureBindingProbe :
             1.0 - vTexCoord.y);
 
         vec3 scene = texture(
-            uSceneColor,
-            uv).rgb;
+        uSceneColor,
+        vTexCoord).rgb;
 
         float mask = texture(
             uMask,

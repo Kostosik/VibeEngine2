@@ -467,18 +467,22 @@ internal sealed class OpenGLTextureRenderer : IDisposable
             return;
         }
 
-        var position =
-            _camera.WorldToScreen(
-                command.Position);
+        // Position задаёт нижний левый угол в World Space.
+        // DrawQuad ожидает верхний левый угол в Screen Space.
+        var worldTopLeft =
+            command.Position +
+            new Vector2(0.0f, command.Size.Y);
 
-        var size =
-            command.Size *
-            _camera.Zoom;
+        var screenTopLeft =
+            _camera.WorldToScreen(worldTopLeft);
+
+        var screenSize =
+            command.Size * _camera.Zoom;
 
         DrawQuad(
             command.Texture,
-            position,
-            size,
+            screenTopLeft,
+            screenSize,
             command.UV,
             command.RotationDegrees);
     }

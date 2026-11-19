@@ -5,6 +5,7 @@ using Engine.Core.Math;
 using Engine.Core.Time;
 using Engine.Graphics;
 using Engine.Graphics.Commands;
+using Engine.Graphics.DebugGraphics;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Engine.Graphics2D.Rendering;
@@ -82,11 +83,10 @@ public sealed class SandboxState
         ArgumentNullException.ThrowIfNull(actions);
         ArgumentNullException.ThrowIfNull(saveLoad);
         ArgumentNullException.ThrowIfNull(aiSystem);
-        _saveLoad =
-    saveLoad;
+
+        _saveLoad = saveLoad;
         _scriptProbeProvider = scriptProbeProvider;
-        _localization =
-    CreateLocalizationManager();
+        _localization = CreateLocalizationManager();
 
         _graphics = runtime.Services.Graphics;
         _input = runtime.Services.Input;
@@ -100,9 +100,11 @@ public sealed class SandboxState
                 "sandbox.vbe");
 
         _runtime = runtime;
+
         _aiPerceptionScenario = new AIPerceptionScenario(
-    runtime.EcsWorld,
-    aiSystem);
+            runtime.EcsWorld,
+            aiSystem);
+
         _input = runtime.Services.Input;
         _ui = ui;
         _console = console;
@@ -150,7 +152,7 @@ public sealed class SandboxState
 
         grayscale.Enabled = false;
         tint.Enabled = false;
-        vignette.Enabled = true;
+        vignette.Enabled = false;
 
         _graphics.Pipeline.PostProcessing.Add(grayscale);
         _graphics.Pipeline.PostProcessing.Add(tint);
@@ -173,41 +175,31 @@ public sealed class SandboxState
                 _actions.MoveLeft,
                 _actions.MoveRight, _actions.CollectResource);
 
-        _topDown.InteractionChanged +=
-    _hud.SetInteraction;
+        _topDown.InteractionChanged += _hud.SetInteraction;
 
         _physics = null;
 
-        _networkProbe =
-    new SandboxNetworkProbe();
+        _networkProbe = new SandboxNetworkProbe();
 
-        _networkProbe.StatusChanged +=
-            _hud.SetNetworkStatus;
+        _networkProbe.StatusChanged += _hud.SetNetworkStatus;
 
-        _hud.SetNetworkStatus(
-            _networkProbe.Status);
+        _hud.SetNetworkStatus(_networkProbe.Status);
 
-        _networkReplicationProbe =
-    new SandboxReplicationProbe();
+        _networkReplicationProbe = new SandboxReplicationProbe();
 
-        _networkReplicationProbe.StatusChanged +=
-            _hud.SetNetworkReplicationStatus;
+        _networkReplicationProbe.StatusChanged += _hud.SetNetworkReplicationStatus;
 
-        _hud.SetNetworkReplicationStatus(
-            _networkReplicationProbe.Status);
+        _hud.SetNetworkReplicationStatus(_networkReplicationProbe.Status);
 
-        _playerReplicationProbe =
-    new SandboxPlayerReplicationProbe();
+        _playerReplicationProbe = new SandboxPlayerReplicationProbe();
 
-        _playerReplicationProbe.StatusChanged +=
-            _hud.SetPlayerReplicationStatus;
+        _playerReplicationProbe.StatusChanged += _hud.SetPlayerReplicationStatus;
 
-        _hud.SetPlayerReplicationStatus(
-            _playerReplicationProbe.Status);
+        _hud.SetPlayerReplicationStatus(_playerReplicationProbe.Status);
 
         _multiplayerProbe = networkRoleOptions is null
-    ? null
-    : new SandboxMultiplayerProbe(networkRoleOptions);
+            ? null
+            : new SandboxMultiplayerProbe(networkRoleOptions);
 
         if (_multiplayerProbe is null)
         {
@@ -245,15 +237,14 @@ public sealed class SandboxState
             };
 
             _multiplayerReplicationProbe =
-                new SandboxMultiplayerReplicationProbe(
-                    replicationOptions);
+                new SandboxMultiplayerReplicationProbe(replicationOptions);
 
             _multiplayerReplicationProbe.StatusChanged +=
                 _hud.SetMultiplayerReplicationStatus;
 
             _multiplayerPlayerProbe = networkRoleOptions is null
-    ? null
-    : new SandboxMultiplayerPlayerProbe(networkRoleOptions);
+                ? null
+                : new SandboxMultiplayerPlayerProbe(networkRoleOptions);
 
             if (_multiplayerPlayerProbe is not null)
             {
@@ -582,6 +573,25 @@ public sealed class SandboxState
             _camera.Zoom =
                 28.0f;
         }
+
+        var markerPosition = new Vector2(24f, 24f);
+        var markerSize = new Vector2(24f, 24f);
+        var redMarkerSize = new Vector2(60f, 60f);
+        _graphics.Submit(new DrawDebugRectangleCommand(
+            markerPosition,
+            redMarkerSize,
+            DebugColor.Red,
+            Filled: true,
+            Space: DebugRenderSpace.Screen,
+            Layer: RenderLayers.World));
+
+        _graphics.Submit(new DrawDebugRectangleCommand(
+            markerPosition,
+            markerSize,
+            DebugColor.Green,
+            Filled: true,
+            Space: DebugRenderSpace.Screen,
+            Layer: RenderLayers.Debug));
 
         _runtime.RenderDebugVisualization();
 

@@ -254,7 +254,7 @@ public sealed class Camera2D
             var height = _viewportSize.Y / _zoom;
 
             var centerX = _position.X - _shakeOffset.X / _zoom;
-            var centerY = _position.Y - _shakeOffset.Y / _zoom;
+            var centerY = _position.Y + _shakeOffset.Y / _zoom;
 
             return new Rectangle(
                 centerX - width * 0.5f,
@@ -282,7 +282,7 @@ public sealed class Camera2D
             _viewportSize.X * 0.5f +
             _shakeOffset.X,
 
-            (worldPosition.Y - _position.Y) * _zoom +
+            (_position.Y - worldPosition.Y) * _zoom +
             _viewportSize.Y * 0.5f +
             _shakeOffset.Y);
     }
@@ -294,9 +294,10 @@ public sealed class Camera2D
              _viewportSize.X * 0.5f -
              _shakeOffset.X) / _zoom + _position.X,
 
+            _position.Y -
             (screenPosition.Y -
              _viewportSize.Y * 0.5f -
-             _shakeOffset.Y) / _zoom + _position.Y);
+             _shakeOffset.Y) / _zoom);
     }
 
     public void SetViewportSize(Vector2 viewportSize)
@@ -497,7 +498,7 @@ public sealed class Camera2D
             (targetPosition.X - _position.X) * _zoom +
             _viewportSize.X * 0.5f,
 
-            (targetPosition.Y - _position.Y) * _zoom +
+            (_position.Y - targetPosition.Y) * _zoom +
             _viewportSize.Y * 0.5f);
 
         var centerX = _viewportSize.X * 0.5f;
@@ -520,9 +521,9 @@ public sealed class Camera2D
             correctionX = (screenPosition.X - right) / _zoom;
 
         if (screenPosition.Y < top)
-            correctionY = (screenPosition.Y - top) / _zoom;
+            correctionY = (top - screenPosition.Y) / _zoom;
         else if (screenPosition.Y > bottom)
-            correctionY = (screenPosition.Y - bottom) / _zoom;
+            correctionY = (bottom - screenPosition.Y) / _zoom;
 
         return new Vector2(
             _position.X + correctionX,

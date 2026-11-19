@@ -172,39 +172,62 @@ internal sealed class OpenGLDebugRenderer :
             command.Color);
     }
 
+
     public void Draw(
         DrawDebugRectangleCommand command)
     {
         ThrowIfDisposed();
         EnsureFrameActive();
 
-        var position =
-            ToScreen(
-                command.Position,
-                command.Space);
+        Vector2 topLeft;
+        Vector2 topRight;
+        Vector2 bottomRight;
+        Vector2 bottomLeft;
 
-        var size =
-            command.Space ==
-            DebugRenderSpace.World
-                ? command.Size *
-                  _camera.Zoom
-                : command.Size;
+        if (command.Space == DebugRenderSpace.World)
+        {
+            // В мировых координатах Y направлен вверх.
+            // Position задаёт нижний левый угол прямоугольника.
 
-        var topLeft =
-            position;
+            var worldBottomLeft = command.Position;
 
-        var topRight =
-            new Vector2(
+            var worldBottomRight =
+                command.Position +
+                new Vector2(command.Size.X, 0.0f);
+
+            var worldTopLeft =
+                command.Position +
+                new Vector2(0.0f, command.Size.Y);
+
+            var worldTopRight =
+                command.Position +
+                command.Size;
+
+            // Каждую вершину преобразуем отдельно.
+            topLeft = _camera.WorldToScreen(worldTopLeft);
+            topRight = _camera.WorldToScreen(worldTopRight);
+
+            bottomRight = _camera.WorldToScreen(worldBottomRight);
+            bottomLeft = _camera.WorldToScreen(worldBottomLeft);
+        }
+        else
+        {
+            // Screen coordinates: Y направлен вниз.
+            var position = command.Position;
+            var size = command.Size;
+
+            topLeft = position;
+
+            topRight = new Vector2(
                 position.X + size.X,
                 position.Y);
 
-        var bottomRight =
-            position + size;
+            bottomRight = position + size;
 
-        var bottomLeft =
-            new Vector2(
+            bottomLeft = new Vector2(
                 position.X,
                 position.Y + size.Y);
+        }
 
         if (command.Filled)
         {
@@ -223,26 +246,12 @@ internal sealed class OpenGLDebugRenderer :
             return;
         }
 
-        DrawLine(
-            topLeft,
-            topRight,
-            command.Color);
-
-        DrawLine(
-            topRight,
-            bottomRight,
-            command.Color);
-
-        DrawLine(
-            bottomRight,
-            bottomLeft,
-            command.Color);
-
-        DrawLine(
-            bottomLeft,
-            topLeft,
-            command.Color);
+        DrawLine(topLeft, topRight, command.Color);
+        DrawLine(topRight, bottomRight, command.Color);
+        DrawLine(bottomRight, bottomLeft, command.Color);
+        DrawLine(bottomLeft, topLeft, command.Color);
     }
+
 
     public void Draw(
     DrawUiRectangleCommand command)

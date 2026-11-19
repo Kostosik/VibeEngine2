@@ -97,7 +97,8 @@ public sealed class PingPongRenderTargets : IDisposable
         var description = new RenderTargetDescription(
             width,
             height,
-            current.Format);
+            current.Format,
+            current.HasDepthAttachment);
 
         description.Validate();
 

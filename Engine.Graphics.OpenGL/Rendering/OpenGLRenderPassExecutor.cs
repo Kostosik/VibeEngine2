@@ -427,7 +427,8 @@ internal sealed class OpenGLRenderPassExecutor :
         {
             var current = _postProcessTargets.Description;
 
-            if (current.Format != sourceDescription.Format)
+            if (current.Format != sourceDescription.Format ||
+                current.HasDepthAttachment != sourceDescription.HasDepthAttachment)
             {
                 _postProcessTargets.Dispose();
                 _postProcessTargets = null;

@@ -1,10 +1,26 @@
-﻿namespace Engine.Graphics.Resources;
+﻿
+namespace Engine.Graphics.Resources;
 
 public readonly record struct RenderTargetDescription(
     int Width,
     int Height,
     TextureFormat Format)
 {
+    public bool HasDepthAttachment { get; init; } = true;
+
+    public RenderTargetDescription(
+        int width,
+        int height,
+        TextureFormat format,
+        bool hasDepthAttachment)
+        : this(
+            width,
+            height,
+            format)
+    {
+        HasDepthAttachment = hasDepthAttachment;
+    }
+
     public RenderTargetDescription(
         int width,
         int height)

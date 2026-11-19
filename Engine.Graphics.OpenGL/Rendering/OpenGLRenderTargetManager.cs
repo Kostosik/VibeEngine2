@@ -105,8 +105,9 @@ internal sealed class OpenGLRenderTargetManager :
             depthBuffer);
     }
 
+
     public RenderTargetHandle Create(
-    RenderTargetDescription description)
+        RenderTargetDescription description)
     {
         ThrowIfDisposed();
         description.Validate();
@@ -130,9 +131,12 @@ internal sealed class OpenGLRenderTargetManager :
                     "OpenGL failed to create a framebuffer.");
             }
 
-            depthBuffer = CreateDepthBuffer(
-                description.Width,
-                description.Height);
+            if (description.HasDepthAttachment)
+            {
+                depthBuffer = CreateDepthBuffer(
+                    description.Width,
+                    description.Height);
+            }
 
             GLEnum status;
 
@@ -149,7 +153,10 @@ internal sealed class OpenGLRenderTargetManager :
                     colorTexture.Value,
                     0);
 
-                AttachDepthBuffer(depthBuffer);
+                if (description.HasDepthAttachment)
+                {
+                    AttachDepthBuffer(depthBuffer);
+                }
 
                 status = _gl.CheckFramebufferStatus(
                     FramebufferTarget.Framebuffer);
@@ -199,6 +206,7 @@ internal sealed class OpenGLRenderTargetManager :
         }
     }
 
+
     public bool Exists(
         RenderTargetHandle target)
     {
@@ -229,10 +237,11 @@ internal sealed class OpenGLRenderTargetManager :
             .ColorTexture;
     }
 
+
     public void Resize(
-    RenderTargetHandle target,
-    int width,
-    int height)
+        RenderTargetHandle target,
+        int width,
+        int height)
     {
         ThrowIfDisposed();
 
@@ -250,7 +259,8 @@ internal sealed class OpenGLRenderTargetManager :
         var description = new RenderTargetDescription(
             width,
             height,
-            entry.Description.Format);
+            entry.Description.Format,
+            entry.Description.HasDepthAttachment);
 
         description.Validate();
 
@@ -273,7 +283,12 @@ internal sealed class OpenGLRenderTargetManager :
                     "OpenGL failed to create a framebuffer.");
             }
 
-            newDepthBuffer = CreateDepthBuffer(width, height);
+            if (description.HasDepthAttachment)
+            {
+                newDepthBuffer = CreateDepthBuffer(
+                    width,
+                    height);
+            }
 
             GLEnum status;
 
@@ -290,7 +305,10 @@ internal sealed class OpenGLRenderTargetManager :
                     newColorTexture.Value,
                     0);
 
-                AttachDepthBuffer(newDepthBuffer);
+                if (description.HasDepthAttachment)
+                {
+                    AttachDepthBuffer(newDepthBuffer);
+                }
 
                 status = _gl.CheckFramebufferStatus(
                     FramebufferTarget.Framebuffer);
@@ -338,9 +356,15 @@ internal sealed class OpenGLRenderTargetManager :
 
         // Освобождаем старые ресурсы только после успешной замены.
         _gl.DeleteFramebuffer(entry.Framebuffer);
-        _gl.DeleteRenderbuffer(entry.DepthBuffer);
+
+        if (entry.DepthBuffer != 0)
+        {
+            _gl.DeleteRenderbuffer(entry.DepthBuffer);
+        }
+
         _textures.Destroy(entry.ColorTexture);
     }
+
     public void Destroy(
         RenderTargetHandle target)
     {
@@ -374,13 +398,16 @@ internal sealed class OpenGLRenderTargetManager :
         {
             errors.Add(exception);
         }
-        try
+        if (entry.DepthBuffer != 0)
         {
-            _gl.DeleteRenderbuffer(entry.DepthBuffer);
-        }
-        catch (Exception exception)
-        {
-            errors.Add(exception);
+            try
+            {
+                _gl.DeleteRenderbuffer(entry.DepthBuffer);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
         }
         if (errors.Count > 0)
         {
@@ -423,13 +450,16 @@ internal sealed class OpenGLRenderTargetManager :
             {
                 errors.Add(exception);
             }
-            try
+            if (entry.DepthBuffer != 0)
             {
-                _gl.DeleteRenderbuffer(entry.DepthBuffer);
-            }
-            catch (Exception exception)
-            {
-                errors.Add(exception);
+                try
+                {
+                    _gl.DeleteRenderbuffer(entry.DepthBuffer);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
             }
             try
             {

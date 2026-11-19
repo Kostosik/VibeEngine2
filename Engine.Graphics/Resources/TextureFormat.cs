@@ -2,5 +2,6 @@
 
 public enum TextureFormat
 {
-    Rgba8
+    Rgba8,
+    Rgba16Float
 }

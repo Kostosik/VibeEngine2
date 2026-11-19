@@ -16,7 +16,6 @@ using Engine.Serialization.SaveLoad.Game;
 using Engine.Simulations;
 using Engine.Tooling.Debugging;
 using Engine.UI.Core;
-using Game.Sandbox.Rendering;
 using Game.Sandbox.Scenarios;
 using Game.Sandbox.UI;
 
@@ -29,7 +28,6 @@ public sealed class SandboxState
         TopDown,
         Physics
     }
-    private MultiTextureBindingProbe? _multiTextureBindingProbe;
     private readonly LocalizationManager _localization;
     private readonly EngineRuntime _runtime;
     private readonly IInput _input;
@@ -270,12 +268,6 @@ public sealed class SandboxState
 
         _runtime.PhysicsDebugVisualizer!.Enabled =
             true;
-
-        _multiTextureBindingProbe =
-    new MultiTextureBindingProbe(_graphics.Shaders);
-
-        _graphics.RenderGraphExtensions.Register(
-            _multiTextureBindingProbe);
     }
 
     public void Update(
@@ -972,19 +964,6 @@ public sealed class SandboxState
 
         TryCleanup(failures, () =>
             _ui.Root.RemoveChild(_hud));
-
-        var multiTextureProbe = _multiTextureBindingProbe;
-
-        if (multiTextureProbe is not null)
-        {
-            TryCleanup(failures, () =>
-                _graphics.RenderGraphExtensions.Unregister(
-                    multiTextureProbe.Name));
-
-            TryCleanup(failures, multiTextureProbe.Dispose);
-
-            _multiTextureBindingProbe = null;
-        }
 
         if (failures.Count > 0)
         {

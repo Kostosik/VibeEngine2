@@ -51,7 +51,7 @@ public sealed class OpenGLTextureManager
                 "Mipmaps require pixel data. Use Create(TextureData) instead.");
         }
         Validate(description);
-
+        var format = GetOpenGlFormat(description.Format);
         var handle = _gl.GenTexture();
 
         if (handle == 0)
@@ -73,12 +73,12 @@ public sealed class OpenGLTextureManager
                 _gl.TexImage2D(
                     TextureTarget.Texture2D,
                     0,
-                    InternalFormat.Rgba8,
+                    format.InternalFormat,
                     (uint)description.Width,
                     (uint)description.Height,
                     0,
                     PixelFormat.Rgba,
-                    PixelType.UnsignedByte,
+                    format.PixelType,
                     null);
             }
 
@@ -104,21 +104,35 @@ public sealed class OpenGLTextureManager
         }
     }
 
+    private static (
+    InternalFormat InternalFormat,
+    PixelType PixelType,
+    int BytesPerPixel) GetOpenGlFormat(TextureFormat format)
+    {
+        return format switch
+        {
+            TextureFormat.Rgba8 =>
+                (InternalFormat.Rgba8, PixelType.UnsignedByte, 4),
+
+            TextureFormat.Rgba16Float =>
+                (InternalFormat.Rgba16f, PixelType.HalfFloat, 8),
+
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(format),
+                format,
+                "Unsupported texture format.")
+        };
+    }
+
     public TextureHandle Create(TextureData data)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(data);
 
         Validate(data.Description);
-
-        if (data.Format != TextureFormat.Rgba8)
-        {
-            throw new NotSupportedException(
-                $"Texture format '{data.Format}' is not supported.");
-        }
-
+        var format = GetOpenGlFormat(data.Format);
         var expectedSize =
-            (long)data.Width * data.Height * 4;
+            (long)data.Width * data.Height * format.BytesPerPixel;
 
         if (data.Pixels.Length != expectedSize)
         {

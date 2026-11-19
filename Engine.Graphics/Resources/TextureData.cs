@@ -36,6 +36,7 @@ public sealed class TextureData
         var bytesPerPixel = description.Format switch
         {
             TextureFormat.Rgba8 => 4,
+            TextureFormat.Rgba16Float => 8,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(description),
                 "Unsupported texture format.")

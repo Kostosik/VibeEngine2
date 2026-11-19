@@ -8,6 +8,152 @@ namespace Engine.Tests.Graphics.Rendering.RenderGraph;
 public sealed class RenderGraphExecutorTests
 {
     [Fact]
+    public void Execute_DestroysTargetsBeyondPerDescriptionCacheLimit()
+    {
+        var targets = new TestRenderTargetManager();
+
+        using var executor = new RenderGraphExecutor(
+            targets,
+            new TestRenderPassExecutor());
+
+        var builder = new RenderGraphBuilder();
+
+        var output = builder.CreateTexture(
+            "Output",
+            new RenderGraphResourceDescriptor(64, 64));
+
+        builder.AddPass(
+            "Produce",
+            pass => pass.WriteColor(output));
+
+        builder.SetOutput(output);
+
+        var plan = new RenderGraphCompiler()
+            .Compile(builder.Build());
+
+        // ”держиваем три результата одновременно,
+        // чтобы пул получил три разных Render Target.
+        var first = executor.Execute(plan);
+        var second = executor.Execute(plan);
+        var third = executor.Execute(plan);
+
+        Assert.Equal(3, targets.CreateCount);
+
+        first.Dispose();
+        second.Dispose();
+        third.Dispose();
+
+        // ¬ пуле остаютс€ только два ресурса.
+        Assert.Equal(1, targets.DestroyCount);
+        Assert.Equal(2, targets.ActiveTargets.Count);
+
+        // ѕровер€ем повторное использование.
+        using (executor.Execute(plan))
+        {
+        }
+
+        Assert.Equal(3, targets.CreateCount);
+
+        executor.Dispose();
+
+        Assert.Equal(3, targets.DestroyCount);
+        Assert.Empty(targets.ActiveTargets);
+    }
+
+    [Fact]
+    public void Execute_DestroysTargetsBeyondGlobalCacheLimit()
+    {
+        var targets = new TestRenderTargetManager();
+
+        using var executor = new RenderGraphExecutor(
+            targets,
+            new TestRenderPassExecutor());
+
+        var results = new List<RenderGraphExecutionResult>();
+
+        for (var i = 0; i < 17; i++)
+        {
+            var builder = new RenderGraphBuilder();
+
+            var output = builder.CreateTexture(
+                $"Output_{i}",
+                new RenderGraphResourceDescriptor(64 + i, 64));
+
+            builder.AddPass(
+                "Produce",
+                pass => pass.WriteColor(output));
+
+            builder.SetOutput(output);
+
+            var plan = new RenderGraphCompiler()
+                .Compile(builder.Build());
+
+            results.Add(executor.Execute(plan));
+        }
+
+        Assert.Equal(17, targets.CreateCount);
+
+        // ¬озвращаем все 17 ресурсов в пул.
+        foreach (var result in results)
+        {
+            result.Dispose();
+        }
+
+        // ћаксимальный размер пула Ч 16 ресурсов.
+        Assert.Equal(1, targets.DestroyCount);
+        Assert.Equal(16, targets.ActiveTargets.Count);
+
+        executor.Dispose();
+
+        Assert.Equal(17, targets.DestroyCount);
+        Assert.Empty(targets.ActiveTargets);
+    }
+
+    [Fact]
+    public void Dispose_DestroysTransientTargetsRetainedByExecutionResult()
+    {
+        var targets = new TestRenderTargetManager();
+
+        using var executor = new RenderGraphExecutor(
+            targets,
+            new TestRenderPassExecutor());
+
+        var builder = new RenderGraphBuilder();
+
+        var output = builder.CreateTexture(
+            "RetainedOutput",
+            new RenderGraphResourceDescriptor(64, 64));
+
+        builder.AddPass(
+            "ProduceOutput",
+            pass => pass.WriteColor(output));
+
+        builder.SetOutput(output);
+
+        var plan = new RenderGraphCompiler()
+            .Compile(builder.Build());
+
+        using var result = executor.Execute(plan);
+
+        var target = result.GetRenderTarget(output);
+
+        Assert.True(targets.Exists(target));
+        Assert.Single(targets.ActiveTargets);
+
+        // Executor должен уничтожить даже удерживаемые output-ресурсы.
+        executor.Dispose();
+
+        Assert.False(targets.Exists(target));
+        Assert.Empty(targets.ActiveTargets);
+
+        // –езультат должен безопасно освободитьс€ после Executor.
+        result.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(
+            () => result.GetRenderTarget(output));
+    }
+
+    [Fact]
     public void ExecuteFullscreen_ResolvesAllDeclaredInputs()
     {
         var targets = new TestRenderTargetManager();

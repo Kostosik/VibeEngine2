@@ -148,9 +148,9 @@ public sealed class SandboxState
             Softness = 0.25f
         };
 
-        grayscale.Enabled = false;
-        tint.Enabled = false;
-        vignette.Enabled = false;
+        grayscale.Enabled = true;
+        tint.Enabled = true;
+        vignette.Enabled = true;
 
         _graphics.Pipeline.PostProcessing.Add(grayscale);
         _graphics.Pipeline.PostProcessing.Add(tint);

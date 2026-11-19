@@ -151,7 +151,10 @@ public sealed class SpriteRenderer
                 sprite.Size,
                 sprite.UV,
                 sprite.Layer,
-                rotationDegrees));
+                rotationDegrees)
+            {
+                Material = sprite.Material
+            });
     }
 
     private static Rectangle GetRotatedBounds(

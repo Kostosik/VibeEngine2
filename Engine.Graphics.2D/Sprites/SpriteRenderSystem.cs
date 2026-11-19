@@ -4,6 +4,7 @@ using Engine.Core.Assets;
 using Engine.Core.Math;
 using Engine.ECS;
 using Engine.ECS.Components;
+using Engine.Graphics.Materials;
 using Engine.Graphics.Resources;
 using Engine.Graphics2D.Sprites;
 
@@ -126,12 +127,32 @@ public sealed class SpriteRenderSystem : IDisposable
                 flipX ? -1.0f : 1.0f,
                 flipY ? -1.0f : 1.0f);
 
-            var sprite =
-                new Sprite(
+            var material = SpriteMaterial.AlbedoOnly(texture);
+
+            if (_world.Has<SpriteMaterialComponent>(item.Entity))
+            {
+                var materialComponent =
+                    _world.GetReadOnly<SpriteMaterialComponent>(
+                        item.Entity);
+
+                var normal = LoadOptionalTexture(
+                    materialComponent.NormalTexturePath);
+
+                var emission = LoadOptionalTexture(
+                    materialComponent.EmissionTexturePath);
+
+                material = new SpriteMaterial(
                     texture,
-                    uv,
-                    new Vector2(width, height),
-                    component.Layer);
+                    normal,
+                    emission,
+                    materialComponent.Parameters);
+            }
+
+            var sprite = new Sprite(
+                material,
+                uv,
+                new Vector2(width, height),
+                component.Layer);
 
             var position =
                 transform.Position;
@@ -153,6 +174,15 @@ public sealed class SpriteRenderSystem : IDisposable
                 _camera,
                 rotationDegrees);
         }
+    }
+
+    private TextureHandle LoadOptionalTexture(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return TextureHandle.Invalid;
+
+        return _resources.Load(
+            new AssetPath(path));
     }
 
     public void Dispose()

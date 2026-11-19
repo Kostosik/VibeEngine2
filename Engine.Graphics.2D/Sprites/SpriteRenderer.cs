@@ -78,7 +78,10 @@ public sealed class SpriteRenderer
                 position,
                 sprite.Size,
                 sprite.UV,
-                sprite.Layer));
+                sprite.Layer)
+            {
+                Material = sprite.Material
+            });
     }
 
     public void DrawWorld(
@@ -98,7 +101,10 @@ public sealed class SpriteRenderer
                     sprite.Size,
                     sprite.UV,
                     sprite.Layer,
-                    rotationDegrees));
+                    rotationDegrees)
+                {
+                    Material = sprite.Material
+                });
 
             return;
         }
@@ -110,7 +116,10 @@ public sealed class SpriteRenderer
                 sprite.Size,
                 sprite.UV,
                 sprite.Layer,
-                rotationDegrees));
+                rotationDegrees)
+            {
+                Material = sprite.Material
+            });
     }
 
     private void SubmitWorld(
@@ -127,7 +136,10 @@ public sealed class SpriteRenderer
                     sprite.Size,
                     sprite.UV,
                     sprite.Layer,
-                    rotationDegrees));
+                    rotationDegrees)
+                {
+                    Material = sprite.Material
+                });
 
             return;
         }

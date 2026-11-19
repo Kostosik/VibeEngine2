@@ -18,12 +18,16 @@ public static class EcsComponentSerializerRegistryExtensions
             new PhysicsBody2DSerializer());
 
         registry.Register(
+            "engine.graphics.sprite.material2d",
+            new SpriteMaterialComponentSerializer());
+
+        registry.Register(
             "engine.physics.collider2d",
             new Collider2DSerializer());
 
         registry.Register(
-    "engine.graphics.tilemap2d",
-    new TilemapComponentSerializer());
+            "engine.graphics.tilemap2d",
+            new TilemapComponentSerializer());
 
         registry.Register(
             "engine.physics.joint.distance2d",

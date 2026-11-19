@@ -1,4 +1,5 @@
 ﻿using Engine.Core.Math;
+using Engine.Graphics.Materials;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 
@@ -10,4 +11,8 @@ public readonly record struct DrawWorldTextureData(
     Vector2 Size,
     Rectangle UV,
     int Layer = RenderLayers.World,
-    float RotationDegrees = 0.0f);
+    float RotationDegrees = 0.0f)
+{
+    public SpriteMaterial Material { get; init; } =
+        SpriteMaterial.AlbedoOnly(Texture);
+}

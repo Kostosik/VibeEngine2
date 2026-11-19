@@ -1,7 +1,8 @@
 ﻿using Engine.Core.Math;
+using Engine.Graphics.Commands;
+using Engine.Graphics.Materials;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
-using Engine.Graphics.Commands;
 
 namespace Engine.Graphics2D.Commands;
 
@@ -10,4 +11,8 @@ public sealed record DrawTextureCommand(
     Vector2 Position,
     Vector2 Size,
     Rectangle UV,
-    int Layer = RenderLayers.World) : IRenderCommand;
+    int Layer = RenderLayers.World) : IRenderCommand
+{
+    public SpriteMaterial Material { get; init; } =
+        SpriteMaterial.AlbedoOnly(Texture);
+}

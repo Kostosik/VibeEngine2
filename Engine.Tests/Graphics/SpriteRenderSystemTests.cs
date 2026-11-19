@@ -12,6 +12,7 @@ using Engine.ECS.Components;
 using Engine.Graphics;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
+using Engine.Graphics.Materials;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Rendering.RenderGraph;
 using Engine.Graphics.Resources;
@@ -32,6 +33,72 @@ namespace Engine.Tests.Graphics;
 
 public sealed class SpriteRenderSystemTests
 {
+    [Fact]
+    public void Render_LoadsOptionalMaterialChannels()
+    {
+        var textures = new FakeTextureManager();
+        var graphics = new FakeGraphicsDevice(textures);
+
+        using var content = CreateContent();
+        using var world = new World();
+
+        var entity = world.CreateEntity();
+
+        world.Add(
+            entity,
+            new WorldTransform2D(
+                new FixedVector2(
+                    Fixed32.FromFloat(10),
+                    Fixed32.FromFloat(12))));
+
+        world.Add(
+            entity,
+            new SpriteComponent(
+                "Textures/test.png",
+                4,
+                4));
+
+        world.Add(
+            entity,
+            new SpriteMaterialComponent(
+                "Textures/test_normal.png",
+                "Textures/test_emission.png",
+                new SpriteMaterialParameters(0.5f, 2.0f)));
+
+        using var renderer = new SpriteRenderSystem(
+            world,
+            graphics,
+            content,
+            new Camera2D(new Vector2(100, 100)));
+
+        renderer.Render();
+
+        var command =
+            Assert.IsType<DrawWorldTextureCommand>(
+                Assert.Single(graphics.Commands));
+
+        Assert.Equal(3, textures.CreateCount);
+
+        Assert.True(
+            command.Material.Normal.IsValid,
+            $"Normal handle is invalid: {command.Material.Normal}");
+
+        Assert.True(
+            command.Material.Emission.IsValid,
+            $"Emission handle is invalid: {command.Material.Emission}");
+
+        Assert.Equal(command.Texture, command.Material.Albedo);
+        Assert.Equal(
+            new SpriteMaterialParameters(0.5f, 2.0f),
+            command.Material.Parameters);
+
+        graphics.Commands.Clear();
+
+        renderer.Render();
+
+        Assert.Equal(3, textures.CreateCount);
+    }
+
     [Fact]
     public void Render_PassesWorldTransformRotationToDrawCommand()
     {
@@ -656,18 +723,24 @@ public sealed class SpriteRenderSystemTests
 
     private static ContentManager CreateContent()
     {
-        var path =
-            new AssetPath("Textures/test.png");
+        var albedoPath = new AssetPath("Textures/test.png");
+        var normalPath = new AssetPath("Textures/test_normal.png");
+        var emissionPath = new AssetPath("Textures/test_emission.png");
 
         var assets =
             new MemoryAssetSource(
                 new Dictionary<string, byte[]>
                 {
-                    [path.Value] = CreatePng()
+                    [albedoPath.Value] = CreatePng(),
+                    [normalPath.Value] = CreatePng(),
+                    [emissionPath.Value] = CreatePng()
                 });
 
         var catalog =
-            new MemoryContentCatalog(path);
+            new MemoryContentCatalog(
+                albedoPath,
+                normalPath,
+                emissionPath);
 
         var loaders =
             new ContentLoaderRegistry();

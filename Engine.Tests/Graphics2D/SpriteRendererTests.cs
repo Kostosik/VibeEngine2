@@ -4,6 +4,7 @@ using Engine.Core.Math;
 using Engine.Graphics;
 using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
+using Engine.Graphics.Materials;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Rendering.RenderGraph;
 using Engine.Graphics.Resources;
@@ -14,6 +15,67 @@ namespace Engine.Tests.Graphics2D;
 
 public sealed class SpriteRendererTests
 {
+
+    [Fact]
+    public void Draw_PreservesMaterialAndAtlasUv()
+    {
+        var graphics = new TestGraphicsDevice();
+
+        var material = new SpriteMaterial(
+            new TextureHandle(1),
+            new TextureHandle(2),
+            new TextureHandle(3));
+
+        var uv = new Rectangle(
+            0.25f, 0.5f, 0.125f, 0.25f);
+
+        var sprite = new Sprite(
+            material,
+            uv,
+            new Vector2(32, 32),
+            10);
+
+        var renderer = new SpriteRenderer(graphics);
+
+        renderer.Draw(sprite, new Vector2(10, 20));
+
+        var command = Assert.IsType<DrawTextureCommand>(
+            Assert.Single(graphics.Commands));
+
+        Assert.Equal(material, command.Material);
+        Assert.Equal(uv, command.UV);
+    }
+
+    [Fact]
+    public void DrawWorld_PreservesMaterialWithoutDataSubmitter()
+    {
+        var graphics = new TestGraphicsDevice();
+
+        var material = new SpriteMaterial(
+            new TextureHandle(1),
+            new TextureHandle(2),
+            new TextureHandle(3));
+
+        var sprite = new Sprite(
+            material,
+            new Rectangle(0.2f, 0.3f, 0.4f, 0.5f),
+            new Vector2(32, 32));
+
+        var renderer = new SpriteRenderer(graphics);
+
+        renderer.DrawWorld(
+            sprite,
+            new Vector2(10, 20),
+            45.0f);
+
+        var command = Assert.IsType<DrawWorldTextureCommand>(
+            Assert.Single(graphics.Commands));
+
+        Assert.Equal(material, command.Material);
+        Assert.Equal(sprite.UV, command.UV);
+        Assert.Equal(45.0f, command.RotationDegrees);
+    }
+
     [Fact]
     public void DrawWorld_RotatedSpriteIsVisibleWhenRotatedBoundsIntersectCamera()
     {

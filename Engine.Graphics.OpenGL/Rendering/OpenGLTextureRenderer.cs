@@ -444,7 +444,7 @@ internal sealed class OpenGLTextureRenderer : IDisposable
     }
 
     public void DrawWorld(
-    DrawWorldTextureCommand command)
+        DrawWorldTextureCommand command)
     {
         DrawWorld(
             new DrawWorldTextureData(
@@ -453,7 +453,10 @@ internal sealed class OpenGLTextureRenderer : IDisposable
                 command.Size,
                 command.UV,
                 command.Layer,
-                command.RotationDegrees));
+                command.RotationDegrees)
+            {
+                Material = command.Material
+            });
     }
 
     public void DrawWorld(

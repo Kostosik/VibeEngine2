@@ -3,6 +3,7 @@ using Engine.ECS;
 using Engine.ECS.Components;
 using Engine.Editor.Components;
 using Engine.Editor.Inspection;
+using Engine.Graphics.Materials;
 using Engine.Graphics2D.Sprites;
 using Engine.Serialization.Binary;
 using Engine.Serialization.SaveLoad.Ecs;
@@ -40,6 +41,15 @@ public sealed class SpriteComponentTests
                 2.25f,
                 17));
 
+        world.Add(
+            entity,
+            new SpriteMaterialComponent(
+                "Textures/player_normal.png",
+                "Textures/player_emission.png",
+                new SpriteMaterialParameters(
+                    0.75f,
+                    2.0f)));
+
         var path =
             Path.Combine(
                 Path.GetTempPath(),
@@ -61,6 +71,28 @@ public sealed class SpriteComponentTests
                 new World();
 
             restoredWorld.RestoreState(state);
+
+            Assert.True(
+    restoredWorld.Has<SpriteMaterialComponent>(entity));
+
+            var material =
+                restoredWorld.Get<SpriteMaterialComponent>(entity);
+
+            Assert.Equal(
+                "Textures/player_normal.png",
+                material.NormalTexturePath);
+
+            Assert.Equal(
+                "Textures/player_emission.png",
+                material.EmissionTexturePath);
+
+            Assert.Equal(
+                0.75f,
+                material.Parameters.NormalStrength);
+
+            Assert.Equal(
+                2.0f,
+                material.Parameters.EmissionStrength);
 
             Assert.True(
                 restoredWorld.Has<SpriteComponent>(entity));

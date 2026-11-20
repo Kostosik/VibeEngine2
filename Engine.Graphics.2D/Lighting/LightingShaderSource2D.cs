@@ -15,7 +15,6 @@ public static class LightingShaderSource2D
         in vec2 vTexCoord;
         uniform sampler2D uSceneColor;
         uniform sampler2D uNormalBuffer;
-        uniform sampler2D uSceneColor;
 
         uniform int uLightCount;
 

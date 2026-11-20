@@ -573,7 +573,10 @@ public sealed class SandboxState
             _camera.Zoom =
                 28.0f;
         }
-
+        if (_mode == SandboxMode.TopDown)
+        {
+            _lightingPreview.Render();
+        }
         var markerPosition = new Vector2(24f, 24f);
         var markerSize = new Vector2(24f, 24f);
         var redMarkerSize = new Vector2(60f, 60f);

@@ -18,6 +18,7 @@ public sealed class OpenGLGraphicsDevice
       IWorldTextureDataSubmitter,
       IMeshManagerProvider
 {
+    private readonly OpenGLNormalBufferRenderer2D _normalBufferRenderer;
     public IRenderGraphExtensionRegistry RenderGraphExtensions =>
     _renderPipelineGraphBuilder.Extensions;
     private long _compiledRenderGraphExtensionsRevision = -1;
@@ -124,6 +125,14 @@ public sealed class OpenGLGraphicsDevice
                     logicalHeight,
                     camera);
 
+            _normalBufferRenderer =
+                new OpenGLNormalBufferRenderer2D(
+                    gl,
+                    logicalWidth,
+                    logicalHeight,
+                    camera,
+                    _textureManager);
+
             _debugRenderer =
                 new OpenGLDebugRenderer(
                     gl,
@@ -162,7 +171,7 @@ public sealed class OpenGLGraphicsDevice
                     new OpenGLMeshRenderer(
                         gl,
                         _meshManager,
-                        _shaderManager));
+                        _shaderManager),_normalBufferRenderer);
 
             _passExecutor =
                 new OpenGLRenderPassExecutor(
@@ -352,6 +361,7 @@ public sealed class OpenGLGraphicsDevice
 
         DisposeResource(_debugRenderer, errors);
         DisposeResource(_textureRenderer, errors);
+        DisposeResource(_normalBufferRenderer, errors);
         DisposeResource(_fontRenderer, errors);
         DisposeResource(_passExecutor, errors);
         DisposeResource(_fullscreenRenderer, errors);

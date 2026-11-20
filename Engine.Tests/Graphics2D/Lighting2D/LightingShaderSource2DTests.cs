@@ -29,6 +29,21 @@ public sealed class LightingShaderSource2DTests
         Assert.Contains(
             "uLightCount",
             hlsl.FragmentSource);
+        Assert.Contains(
+    "uNormalBuffer",
+    glsl.FragmentSource);
+
+        Assert.Contains(
+            "dot(surfaceNormal, lightDirection)",
+            glsl.FragmentSource);
+
+        Assert.Contains(
+            "uNormalBuffer",
+            hlsl.FragmentSource);
+
+        Assert.Contains(
+            "dot(surfaceNormal, lightDirection)",
+            hlsl.FragmentSource);
     }
 
     [Fact]

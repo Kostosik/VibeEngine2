@@ -7,6 +7,7 @@ public readonly record struct LightingPassContext2D(
     LightingContext2D LightingContext,
     LightingResult2D LightingResult,
     RenderGraphResourceHandle SceneColor,
+    RenderGraphResourceHandle NormalBuffer,
     RenderGraphResourceHandle Output)
 {
     public IReadOnlyList<ILightingContribution2D> Contributions =>

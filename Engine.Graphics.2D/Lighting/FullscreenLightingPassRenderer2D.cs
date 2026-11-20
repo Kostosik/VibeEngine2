@@ -145,11 +145,15 @@ public sealed class FullscreenLightingPassRenderer2D :
                         light.Intensity);
                 }
             },
-            [
-                new FullscreenPassTextureInput(
-                    LightingShaderSource2D.SceneColor,
-                    context.SceneColor)
-            ]);
+                [
+                    new FullscreenPassTextureInput(
+                        LightingShaderSource2D.SceneColor,
+                        context.SceneColor),
+
+                    new FullscreenPassTextureInput(
+                        LightingShaderSource2D.NormalBuffer,
+                        context.NormalBuffer)
+                ]);
 
         renderGraphContext.ExecuteFullscreen(pass);
     }

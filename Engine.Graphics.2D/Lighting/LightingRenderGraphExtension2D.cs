@@ -2,7 +2,7 @@
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Rendering.RenderGraph;
 using Engine.Graphics.Resources;
-using Engine.Graphics2D.Rendering;
+using Engine.Core.Math;
 
 namespace Engine.Graphics2D.Lighting;
 
@@ -97,8 +97,46 @@ public sealed class LightingRenderGraphExtension2D :
                         lightingContext);
                 });
             });
+        var pipelinePassState = context.PipelinePass.State;
+        var pipelinePassLayers = context.PipelinePass.Layers;
 
-        var currentPass = collectPass;
+        var normalPassState = pipelinePassState with
+        {
+            Blend = new RenderBlendState(RenderBlendMode.Disabled),
+            Depth = pipelinePassState.Depth with
+            {
+                TestEnabled = false,
+                WriteEnabled = false
+            }
+        };
+
+        var normalBufferPass = builder.AddPass(
+            $"{Name}.NormalBuffer",
+            pass =>
+            {
+                pass.WriteColor(
+                    buffers.NormalBuffer,
+                    RenderGraphLoadAction.Clear);
+
+                pass.SetClearColor(
+                    new Vector4(0f, 0f, 1f, 1f));
+
+                pass.SetRenderState(normalPassState);
+                pass.SetLayerRange(pipelinePassLayers);
+
+                pass.SetContextData(
+                    new NormalBufferPassContext2D());
+
+                pass.SetExecuteQueuedCommands(true);
+                pass.SetContextData(new NormalBufferPassContext2D());
+                // Сохраняем проход, пока буфер ещё не используется
+                // проходами освещения.
+                pass.SetSideEffect();
+
+                pass.DependsOn(collectPass);
+            });
+
+        var currentPass = normalBufferPass;
 
         currentPass = AddChannelPass(
             builder,
@@ -106,6 +144,7 @@ public sealed class LightingRenderGraphExtension2D :
             LightingChannel2D.Direct,
             buffers.DirectLighting,
             sceneColor,
+            buffers.NormalBuffer,
             currentPass,
             frameState);
 
@@ -115,6 +154,7 @@ public sealed class LightingRenderGraphExtension2D :
             LightingChannel2D.Ambient,
             buffers.AmbientLighting,
             sceneColor,
+            buffers.NormalBuffer,
             currentPass,
             frameState);
 
@@ -124,6 +164,7 @@ public sealed class LightingRenderGraphExtension2D :
             LightingChannel2D.Indirect,
             buffers.IndirectLighting,
             sceneColor,
+            buffers.NormalBuffer,
             currentPass,
             frameState);
 
@@ -133,6 +174,7 @@ public sealed class LightingRenderGraphExtension2D :
             LightingChannel2D.Emission,
             buffers.Emission,
             sceneColor,
+            buffers.NormalBuffer,
             currentPass,
             frameState);
 
@@ -195,6 +237,7 @@ public sealed class LightingRenderGraphExtension2D :
         LightingChannel2D channel,
         RenderGraphResourceHandle output,
         RenderGraphResourceHandle sceneColor,
+        RenderGraphResourceHandle normalBuffer,
         RenderGraphPassHandle previousPass,
         LightingFrameState frameState)
     {
@@ -203,6 +246,11 @@ public sealed class LightingRenderGraphExtension2D :
             pass =>
             {
                 pass.Read(sceneColor);
+
+                if (channel == LightingChannel2D.Direct)
+                {
+                    pass.Read(normalBuffer);
+                }
 
                 pass.WriteColor(
                     output,
@@ -222,6 +270,7 @@ public sealed class LightingRenderGraphExtension2D :
                         frameState.Context,
                         result,
                         sceneColor,
+                        normalBuffer,
                         output);
 
                     _renderer.Render(

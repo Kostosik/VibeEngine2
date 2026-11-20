@@ -3,6 +3,7 @@ using Engine.Graphics.Commands;
 using Engine.Graphics.OpenGL.Resources;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
+using Engine.Graphics2D.Lighting;
 using Engine.Graphics3D.Lighting;
 using Silk.NET.OpenGL;
 
@@ -162,18 +163,14 @@ internal sealed class OpenGLRenderPassExecutor :
 
             if (context.ClearColor)
             {
-                _dispatcher.ClearColorBuffer();
-            }
-
-            if (context.ClearColor)
-            {
                 _dispatcher.ClearColorBuffer(
                     context.ClearColorValue);
             }
 
             _dispatcher.SetLightingContext(
-    context.ContextData as SceneLighting3D);
-
+                context.ContextData as SceneLighting3D);
+            _dispatcher.SetNormalBufferPass(
+                context.ContextData is NormalBufferPassContext2D);
             _dispatcher.BeginFrame();
             frameStarted = true;
 

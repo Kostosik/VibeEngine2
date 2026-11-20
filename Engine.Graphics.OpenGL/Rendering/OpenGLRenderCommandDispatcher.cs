@@ -17,13 +17,16 @@ internal sealed class OpenGLRenderCommandDispatcher
         None,
         Texture,
         Debug,
-        Font
+        Font,
+        NormalBuffer
     }
     private readonly OpenGLMeshRenderer _meshRenderer;
     private SceneLighting3D _lighting =
     SceneLighting3D.Default;
     private RenderState _currentState = RenderState.Default;
+    private readonly OpenGLNormalBufferRenderer2D _normalBufferRenderer;
 
+    private bool _normalBufferPass;
     private readonly OpenGLRenderTargetManager _renderTargetManager;
     private readonly OpenGLTextureManager _textureManager;
     private readonly OpenGLTextureRenderer _textureRenderer;
@@ -40,7 +43,7 @@ internal sealed class OpenGLRenderCommandDispatcher
         OpenGLFontRenderer fontRenderer,
         OpenGLRenderState renderState,
         OpenGLRenderTargetManager renderTargetManager, OpenGLShaderManager shaderManager,
-        OpenGLFullscreenRenderer fullscreenRenderer, OpenGLMeshRenderer meshRenderer)
+        OpenGLFullscreenRenderer fullscreenRenderer, OpenGLMeshRenderer meshRenderer, OpenGLNormalBufferRenderer2D normalBufferRenderer)
     {
         ArgumentNullException.ThrowIfNull(textureManager);
 
@@ -66,12 +69,23 @@ internal sealed class OpenGLRenderCommandDispatcher
 
         _debugRenderer =
             debugRenderer;
-
+        _normalBufferRenderer = normalBufferRenderer
+            ?? throw new ArgumentNullException(nameof(normalBufferRenderer));
         _fontRenderer =
             fontRenderer;
         _renderTargetManager = renderTargetManager;
         _shaderManager = shaderManager;
         _fullscreenRenderer = fullscreenRenderer;
+    }
+
+    public void SetNormalBufferPass(bool enabled)
+    {
+        if (_normalBufferPass == enabled)
+            return;
+
+        EndActiveRenderer();
+
+        _normalBufferPass = enabled;
     }
 
     public void SetRenderSize(
@@ -106,6 +120,20 @@ internal sealed class OpenGLRenderCommandDispatcher
     public void Execute(IRenderCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
+
+        if (_normalBufferPass)
+        {
+            if (command is DrawWorldTextureCommand worldTexture)
+            {
+                if (!_textureManager.Exists(worldTexture.Texture))
+                    return;
+
+                BeginNormalBufferRenderer();
+                _normalBufferRenderer.DrawWorld(worldTexture);
+            }
+
+            return;
+        }
 
         switch (command)
         {
@@ -297,8 +325,14 @@ internal sealed class OpenGLRenderCommandDispatcher
         if (!_textureManager.Exists(command.Texture))
             return;
 
-        BeginTextureRenderer();
+        if (_normalBufferPass)
+        {
+            BeginNormalBufferRenderer();
+            _normalBufferRenderer.DrawWorld(command);
+            return;
+        }
 
+        BeginTextureRenderer();
         _textureRenderer.DrawWorld(command);
     }
 
@@ -307,7 +341,17 @@ internal sealed class OpenGLRenderCommandDispatcher
         EndActiveRenderer();
     }
 
+    private void BeginNormalBufferRenderer()
+    {
+        if (_activeRenderer == RendererKind.NormalBuffer)
+            return;
 
+        EndActiveRenderer();
+
+        _normalBufferRenderer.Begin();
+
+        _activeRenderer = RendererKind.NormalBuffer;
+    }
 
     public void Resize(
         int width,
@@ -324,6 +368,7 @@ internal sealed class OpenGLRenderCommandDispatcher
         _fontRenderer.Resize(
             width,
             height);
+        _normalBufferRenderer.Resize(width, height);
     }
 
     private void BeginTextureRenderer()
@@ -388,6 +433,9 @@ internal sealed class OpenGLRenderCommandDispatcher
 
             case RendererKind.Font:
                 _fontRenderer.End();
+                break;
+            case RendererKind.NormalBuffer:
+                _normalBufferRenderer.End();
                 break;
         }
 

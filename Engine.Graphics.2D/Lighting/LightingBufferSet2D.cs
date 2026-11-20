@@ -1,12 +1,17 @@
-﻿using Engine.Graphics.Rendering;
+﻿
+using Engine.Graphics.Rendering;
 using Engine.Graphics.Rendering.RenderGraph;
 using Engine.Graphics.Resources;
 
 namespace Engine.Graphics2D.Lighting;
 
 /// <summary>
-/// Describes the GPU resources used by 2D lighting channels.
-/// Resources are owned and managed by the Render Graph.
+/// Describes GPU resources used by 2D lighting channels.
+/// All resources are owned by the Render Graph.
+///
+/// Indirect Lighting and Emission temporarily share
+/// a 1x1 neutral black texture until their renderers
+/// are implemented.
 /// </summary>
 public sealed class LightingBufferSet2D
 {
@@ -46,30 +51,41 @@ public sealed class LightingBufferSet2D
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
         ArgumentException.ThrowIfNullOrWhiteSpace(namePrefix);
 
-        var descriptor = new RenderGraphResourceDescriptor(
-            width,
-            height,
-            TextureFormat.Rgba16Float)
-        {
-            ColorSpace = TextureColorSpace.Linear,
-            HasDepthAttachment = false
-        };
+        var fullSizeDescriptor =
+            new RenderGraphResourceDescriptor(
+                width,
+                height,
+                TextureFormat.Rgba16Float)
+            {
+                ColorSpace = TextureColorSpace.Linear,
+                HasDepthAttachment = false
+            };
+
+        var neutralDescriptor =
+            new RenderGraphResourceDescriptor(
+                1,
+                1,
+                TextureFormat.Rgba16Float)
+            {
+                ColorSpace = TextureColorSpace.Linear,
+                HasDepthAttachment = false
+            };
 
         var direct = builder.CreateTexture(
             $"{namePrefix}.DirectLighting",
-            descriptor);
+            fullSizeDescriptor);
 
         var ambient = builder.CreateTexture(
             $"{namePrefix}.AmbientLighting",
-            descriptor);
+            fullSizeDescriptor);
 
         var indirect = builder.CreateTexture(
             $"{namePrefix}.IndirectLighting",
-            descriptor);
+            neutralDescriptor);
 
         var emission = builder.CreateTexture(
             $"{namePrefix}.Emission",
-            descriptor);
+            neutralDescriptor);
 
         return new LightingBufferSet2D(
             namePrefix,
@@ -96,10 +112,6 @@ public sealed class LightingBufferSet2D
         };
     }
 
-    /// <summary>
-    /// Adds passes that initialize all lighting buffers to black.
-    /// The first pass depends on the supplied previous pipeline pass.
-    /// </summary>
     public RenderGraphPassHandle AddClearPasses(
         RenderGraphBuilder builder,
         RenderGraphPassHandle previousPass)

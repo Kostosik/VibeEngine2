@@ -247,15 +247,26 @@ public sealed class LightingRenderGraphExtension2DTests
         var description =
             LightingCompositeShaderSource2D.CreateDescription();
 
-        Assert.True(
-            description.TryGetVariant(
-                ShaderLanguage.Glsl,
-                out _));
+        var glsl = description.GetVariant(ShaderLanguage.Glsl);
+        var hlsl = description.GetVariant(ShaderLanguage.Hlsl);
 
-        Assert.True(
-            description.TryGetVariant(
-                ShaderLanguage.Hlsl,
-                out _));
+        Assert.Contains(
+            "ambient + direct + indirect",
+            glsl.FragmentSource);
+
+        Assert.Contains(
+            "scene.rgb * combinedLighting + emission",
+            glsl.FragmentSource);
+
+        Assert.Contains(
+            "ambient + direct + indirect",
+            hlsl.FragmentSource);
+
+        Assert.Contains(
+            "scene.rgb * combinedLighting + emission",
+            hlsl.FragmentSource);
+
+
     }
 
     private static LightingRenderGraphExtension2D CreateExtension()

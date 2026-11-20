@@ -44,11 +44,11 @@ public static class LightingCompositeShaderSource2D
                 uEmission,
                 vTexCoord).rgb;
 
+            vec3 combinedLighting =
+                ambient + direct + indirect;
+
             vec3 lightedColor =
-                scene.rgb * ambient +
-                direct +
-                indirect +
-                emission;
+                scene.rgb * combinedLighting + emission;
 
             FragColor = vec4(lightedColor, scene.a);
         }
@@ -91,11 +91,11 @@ public static class LightingCompositeShaderSource2D
                 uSampler,
                 input.TexCoord).rgb;
 
+            float3 combinedLighting =
+                ambient + direct + indirect;
+
             float3 lightedColor =
-                scene.rgb * ambient +
-                direct +
-                indirect +
-                emission;
+                scene.rgb * combinedLighting + emission;
 
             return float4(lightedColor, scene.a);
         }

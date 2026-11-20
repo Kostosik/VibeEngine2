@@ -136,15 +136,25 @@ public sealed class LightingRenderGraphExtension2D :
             currentPass,
             frameState);
 
+        var compositeReadResources = new[]
+            {
+                sceneColor,
+                buffers.DirectLighting,
+                buffers.AmbientLighting,
+                buffers.IndirectLighting,
+                buffers.Emission
+            }
+            .Distinct()
+            .ToArray();
+
         var compositePass = builder.AddPass(
             $"{Name}.Composite",
             pass =>
             {
-                pass.Read(sceneColor);
-                pass.Read(buffers.DirectLighting);
-                pass.Read(buffers.AmbientLighting);
-                pass.Read(buffers.IndirectLighting);
-                pass.Read(buffers.Emission);
+                foreach (var resource in compositeReadResources)
+                {
+                    pass.Read(resource);
+                }
 
                 pass.WriteColor(
                     lightedScene,

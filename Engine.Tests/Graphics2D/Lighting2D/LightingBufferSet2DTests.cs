@@ -1,4 +1,5 @@
-﻿using Engine.Graphics.Rendering.RenderGraph;
+﻿
+using Engine.Graphics.Rendering.RenderGraph;
 using Engine.Graphics.Resources;
 using Engine.Graphics2D.Lighting;
 using Xunit;
@@ -16,7 +17,7 @@ public sealed class LightingBufferSet2DTests
             "Scene",
             new RenderGraphResourceDescriptor(800, 600));
 
-        builder.AddPass(
+        var worldPass = builder.AddPass(
             "World",
             pass => pass.WriteColor(
                 scene,
@@ -29,9 +30,7 @@ public sealed class LightingBufferSet2DTests
 
         var lastPass = buffers.AddClearPasses(
             builder,
-            new RenderGraphPassHandle(
-                scene.GraphId,
-                0));
+            worldPass);
 
         builder.SetOutput(scene);
         builder.SetOutput(buffers.DirectLighting);
@@ -51,21 +50,66 @@ public sealed class LightingBufferSet2DTests
 
         Assert.Equal(4, lightingResources.Length);
 
-        foreach (var resource in lightingResources)
-        {
-            Assert.Equal(800, resource.Descriptor.Width);
-            Assert.Equal(600, resource.Descriptor.Height);
-            Assert.Equal(
-                TextureFormat.Rgba16Float,
-                resource.Descriptor.Format);
+        var direct = Assert.Single(
+            lightingResources.Where(
+                resource => resource.Name ==
+                    "Lighting2D.DirectLighting"));
 
-            Assert.Equal(
-                TextureColorSpace.Linear,
-                resource.Descriptor.ColorSpace);
+        var ambient = Assert.Single(
+            lightingResources.Where(
+                resource => resource.Name ==
+                    "Lighting2D.AmbientLighting"));
 
-            Assert.False(
-                resource.Descriptor.HasDepthAttachment);
-        }
+        var indirect = Assert.Single(
+            lightingResources.Where(
+                resource => resource.Name ==
+                    "Lighting2D.IndirectLighting"));
+
+        var emission = Assert.Single(
+            lightingResources.Where(
+                resource => resource.Name ==
+                    "Lighting2D.Emission"));
+
+        // Direct Lighting uses a full-resolution HDR buffer.
+        Assert.Equal(800, direct.Descriptor.Width);
+        Assert.Equal(600, direct.Descriptor.Height);
+
+        // Ambient Lighting uses a full-resolution HDR buffer.
+        Assert.Equal(800, ambient.Descriptor.Width);
+        Assert.Equal(600, ambient.Descriptor.Height);
+
+        // Not-yet-implemented channels use separate 1x1 buffers.
+        Assert.Equal(1, indirect.Descriptor.Width);
+        Assert.Equal(1, indirect.Descriptor.Height);
+
+        Assert.Equal(1, emission.Descriptor.Width);
+        Assert.Equal(1, emission.Descriptor.Height);
+
+        // Every logical channel has its own graph resource.
+        Assert.NotEqual(
+            buffers.IndirectLighting,
+            buffers.Emission);
+
+        Assert.NotEqual(
+            indirect.Handle,
+            emission.Handle);
+
+        // All lighting buffers use linear HDR without depth.
+        Assert.All(
+            lightingResources,
+            resource =>
+            {
+                Assert.Equal(
+                    TextureFormat.Rgba16Float,
+                    resource.Descriptor.Format);
+
+                Assert.Equal(
+                    TextureColorSpace.Linear,
+                    resource.Descriptor.ColorSpace);
+
+                Assert.False(
+                    resource.Descriptor.HasDepthAttachment);
+            });
 
         Assert.Contains(
             plan.Passes,
@@ -133,7 +177,9 @@ public sealed class LightingBufferSet2DTests
             640,
             480);
 
-        buffers.AddClearPasses(builder, worldPass);
+        var lastPass = buffers.AddClearPasses(
+            builder,
+            worldPass);
 
         builder.SetOutput(scene);
         builder.SetOutput(buffers.DirectLighting);
@@ -158,6 +204,10 @@ public sealed class LightingBufferSet2DTests
                 "Lighting2D.Clear.Emission"
             },
             names);
+
+        Assert.Equal(
+            plan.Passes[^1].Handle,
+            lastPass);
     }
 
     [Fact]

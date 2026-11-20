@@ -1,0 +1,289 @@
+﻿using Engine.Graphics.Rendering.RenderGraph;
+using Engine.Graphics.Resources;
+using Engine.Graphics2D.Lighting;
+using Engine.Graphics2D.Rendering;
+using Xunit;
+
+namespace Engine.Tests.Graphics2D.Lighting2D;
+
+public sealed class LightingRenderGraphExtension2DTests
+{
+    [Fact]
+    public void Build_InsertsCompositeAfterLightingChannels()
+    {
+        var builder = new RenderGraphBuilder();
+
+        var sceneColor = builder.CreateTexture(
+            "SceneColor",
+            new RenderGraphResourceDescriptor(640, 480));
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer",
+            new RenderTargetDescription(640, 480));
+
+        var worldPass = builder.AddPass(
+            "World",
+            pass => pass.WriteColor(
+                sceneColor,
+                RenderGraphLoadAction.Clear));
+
+        var extension = CreateExtension();
+
+        var context = new RenderGraphExtensionContext(
+            640,
+            480,
+            0,
+            RenderPass2D.World,
+            sceneColor,
+            sceneColor,
+            backbuffer,
+            worldPass);
+
+        var result = extension.Build(
+            builder,
+            in context);
+
+        Assert.True(result.Output.HasValue);
+
+        builder.SetOutput(result.Output.Value);
+
+        var plan = new RenderGraphCompiler().Compile(
+            builder.Build());
+
+        Assert.Equal(
+            new[]
+            {
+                "World",
+                "Lighting2D.Collect",
+                "Lighting2D.DirectLighting",
+                "Lighting2D.AmbientLighting",
+                "Lighting2D.IndirectLighting",
+                "Lighting2D.Emission",
+                "Lighting2D.Composite"
+            },
+            plan.Passes.Select(pass => pass.Name));
+
+        Assert.Equal(
+            plan.Passes[^1].Handle,
+            result.LastPass);
+
+        Assert.Contains(
+            plan.Resources,
+            resource => resource.Handle == result.Output.Value &&
+                        resource.Name == "Lighting2D.LightedScene");
+    }
+
+    [Fact]
+    public void Composite_ReadsSceneAndAllLightingChannels()
+    {
+        var builder = new RenderGraphBuilder();
+
+        var sceneColor = builder.CreateTexture(
+            "SceneColor",
+            new RenderGraphResourceDescriptor(640, 480));
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer",
+            new RenderTargetDescription(640, 480));
+
+        var worldPass = builder.AddPass(
+            "World",
+            pass => pass.WriteColor(
+                sceneColor,
+                RenderGraphLoadAction.Clear));
+
+        var extension = CreateExtension();
+
+        var context = new RenderGraphExtensionContext(
+            640,
+            480,
+            0,
+            RenderPass2D.World,
+            sceneColor,
+            sceneColor,
+            backbuffer,
+            worldPass);
+
+        var result = extension.Build(
+            builder,
+            in context);
+
+        builder.SetOutput(result.Output!.Value);
+
+        var plan = new RenderGraphCompiler().Compile(
+            builder.Build());
+
+        var composite = Assert.Single(
+            plan.Passes.Where(
+                pass => pass.Name == "Lighting2D.Composite"));
+
+        var reads = composite.ResourceAccesses
+            .Where(access =>
+                access.Kind == RenderGraphResourceAccessKind.Read)
+            .ToArray();
+
+        Assert.Equal(5, reads.Length);
+
+        Assert.Contains(
+            reads,
+            access => access.Resource == sceneColor);
+
+        var outputAccess = Assert.Single(
+            composite.ResourceAccesses.Where(
+                access => access.Kind ==
+                    RenderGraphResourceAccessKind.WriteColor));
+
+        Assert.Equal(
+            result.Output.Value,
+            outputAccess.Resource);
+    }
+
+    [Fact]
+    public void Composite_UsesHdrLinearOutputWithoutDepth()
+    {
+        var builder = new RenderGraphBuilder();
+
+        var sceneColor = builder.CreateTexture(
+            "SceneColor",
+            new RenderGraphResourceDescriptor(640, 480));
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer",
+            new RenderTargetDescription(640, 480));
+
+        var worldPass = builder.AddPass(
+            "World",
+            pass => pass.WriteColor(
+                sceneColor,
+                RenderGraphLoadAction.Clear));
+
+        var extension = CreateExtension();
+
+        var context = new RenderGraphExtensionContext(
+            640,
+            480,
+            0,
+            RenderPass2D.World,
+            sceneColor,
+            sceneColor,
+            backbuffer,
+            worldPass);
+
+        var result = extension.Build(
+            builder,
+            in context);
+
+        builder.SetOutput(result.Output!.Value);
+
+        var plan = new RenderGraphCompiler().Compile(
+            builder.Build());
+
+        var output = Assert.Single(
+            plan.Resources.Where(
+                resource => resource.Handle == result.Output.Value));
+
+        Assert.Equal(
+            TextureFormat.Rgba16Float,
+            output.Descriptor.Format);
+
+        Assert.Equal(
+            TextureColorSpace.Linear,
+            output.Descriptor.ColorSpace);
+
+        Assert.False(
+            output.Descriptor.HasDepthAttachment);
+    }
+
+    [Fact]
+    public void Composite_ReplacesPostProcessSource()
+    {
+        var builder = new RenderGraphBuilder();
+
+        var sceneColor = builder.CreateTexture(
+            "SceneColor",
+            new RenderGraphResourceDescriptor(640, 480));
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer",
+            new RenderTargetDescription(640, 480));
+
+        var worldPass = builder.AddPass(
+            "World",
+            pass => pass.WriteColor(
+                sceneColor,
+                RenderGraphLoadAction.Clear));
+
+        var extension = CreateExtension();
+
+        var context = new RenderGraphExtensionContext(
+            640,
+            480,
+            0,
+            RenderPass2D.World,
+            sceneColor,
+            sceneColor,
+            backbuffer,
+            worldPass);
+
+        var result = extension.Build(
+            builder,
+            in context);
+
+        builder.SetOutput(result.Output!.Value);
+
+        var plan = new RenderGraphCompiler().Compile(
+            builder.Build());
+
+        var composite = Assert.Single(
+            plan.Passes.Where(
+                pass => pass.Name == "Lighting2D.Composite"));
+
+        Assert.True(composite.IsPostProcessSource);
+    }
+
+    [Fact]
+    public void CompositeShader_ProvidesGlslAndHlslVariants()
+    {
+        var description =
+            LightingCompositeShaderSource2D.CreateDescription();
+
+        Assert.True(
+            description.TryGetVariant(
+                ShaderLanguage.Glsl,
+                out _));
+
+        Assert.True(
+            description.TryGetVariant(
+                ShaderLanguage.Hlsl,
+                out _));
+    }
+
+    private static LightingRenderGraphExtension2D CreateExtension()
+    {
+        return new LightingRenderGraphExtension2D(
+            new LightingCore2D(),
+            () => null!,
+            new FakeLightingPassRenderer(),
+            new FakeLightingCompositeRenderer());
+    }
+
+    private sealed class FakeLightingPassRenderer :
+        ILightingPassRenderer2D
+    {
+        public void Render(
+            in LightingPassContext2D context,
+            RenderGraphContext renderGraphContext)
+        {
+        }
+    }
+
+    private sealed class FakeLightingCompositeRenderer :
+        ILightingCompositeRenderer2D
+    {
+        public void Composite(
+            in LightingCompositeContext2D context,
+            RenderGraphContext renderGraphContext)
+        {
+        }
+    }
+}

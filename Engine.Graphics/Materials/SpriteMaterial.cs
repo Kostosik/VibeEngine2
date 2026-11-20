@@ -30,6 +30,15 @@ public readonly record struct SpriteMaterial
 
     public TextureHandle Albedo { get; init; }
 
+    /// <summary>
+    /// Optional tangent-space normal map.
+    /// Texture format: RGBA8 UNorm.
+    /// Color space: Linear.
+    /// RGB encodes tangent-space normal as [0, 1].
+    /// A flat normal is represented by RGB = (0.5, 0.5, 1.0).
+    /// +X points right, +Y points up, +Z points out of the sprite.
+    /// Alpha is ignored.
+    /// </summary>
     public TextureHandle Normal { get; init; }
 
     public TextureHandle Emission { get; init; }

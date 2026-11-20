@@ -262,7 +262,8 @@ public sealed class RenderGraphExecutor : IDisposable
         {
             IsPostProcessSource = pass.IsPostProcessSource,
             ContextData = pass.ContextData,
-            ClearDepth = pass.ClearDepth
+            ClearDepth = pass.ClearDepth,
+            ClearColorValue = pass.ClearColorValue
         };
 
         var begun = false;

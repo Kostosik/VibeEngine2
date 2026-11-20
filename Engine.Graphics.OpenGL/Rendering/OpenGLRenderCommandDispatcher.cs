@@ -6,6 +6,7 @@ using Engine.Graphics2D.Commands;
 using Engine.Graphics3D.Commands;
 using Engine.Graphics3D.Lighting;
 using Silk.NET.OpenGL;
+using Engine.Core.Math;
 
 namespace Engine.Graphics.OpenGL.Rendering;
 
@@ -264,8 +265,14 @@ internal sealed class OpenGLRenderCommandDispatcher
 
     public void ClearColorBuffer()
     {
+        ClearColorBuffer(Vector4.Zero);
+    }
+
+    public void ClearColorBuffer(Vector4 color)
+    {
         _renderState.ClearBuffers(
-            ClearBufferMask.ColorBufferBit);
+            ClearBufferMask.ColorBufferBit,
+            color);
     }
 
     public void ClearDepthBuffer()

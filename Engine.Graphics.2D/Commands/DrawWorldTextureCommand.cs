@@ -14,6 +14,8 @@ public sealed record DrawWorldTextureCommand(
     int Layer = RenderLayers.World,
     float RotationDegrees = 0.0f) : IRenderCommand
 {
+    public SpriteNormalTransform2D NormalTransform { get; init; } =
+    SpriteNormalTransform2D.Identity;
     public SpriteMaterial Material { get; init; } =
         SpriteMaterial.AlbedoOnly(Texture);
 }

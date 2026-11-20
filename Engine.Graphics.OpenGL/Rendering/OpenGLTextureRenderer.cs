@@ -455,6 +455,7 @@ internal sealed class OpenGLTextureRenderer : IDisposable
                 command.Layer,
                 command.RotationDegrees)
             {
+                NormalTransform = command.NormalTransform,
                 Material = command.Material
             });
     }

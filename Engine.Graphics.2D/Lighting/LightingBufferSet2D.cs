@@ -1,4 +1,4 @@
-﻿
+﻿using Engine.Core.Math;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Rendering.RenderGraph;
 using Engine.Graphics.Resources;
@@ -8,10 +8,6 @@ namespace Engine.Graphics2D.Lighting;
 /// <summary>
 /// Describes GPU resources used by 2D lighting channels.
 /// All resources are owned by the Render Graph.
-///
-/// Indirect Lighting and Emission temporarily share
-/// a 1x1 neutral black texture until their renderers
-/// are implemented.
 /// </summary>
 public sealed class LightingBufferSet2D
 {
@@ -25,12 +21,15 @@ public sealed class LightingBufferSet2D
 
     public RenderGraphResourceHandle Emission { get; }
 
+    public RenderGraphResourceHandle NormalBuffer { get; }
+
     private LightingBufferSet2D(
         string namePrefix,
         RenderGraphResourceHandle directLighting,
         RenderGraphResourceHandle ambientLighting,
         RenderGraphResourceHandle indirectLighting,
-        RenderGraphResourceHandle emission)
+        RenderGraphResourceHandle emission,
+        RenderGraphResourceHandle normalBuffer)
     {
         _namePrefix = namePrefix;
 
@@ -38,6 +37,7 @@ public sealed class LightingBufferSet2D
         AmbientLighting = ambientLighting;
         IndirectLighting = indirectLighting;
         Emission = emission;
+        NormalBuffer = normalBuffer;
     }
 
     public static LightingBufferSet2D Create(
@@ -87,12 +87,17 @@ public sealed class LightingBufferSet2D
             $"{namePrefix}.Emission",
             neutralDescriptor);
 
+        var normalBuffer = builder.CreateTexture(
+            $"{namePrefix}.NormalBuffer",
+            fullSizeDescriptor);
+
         return new LightingBufferSet2D(
             namePrefix,
             direct,
             ambient,
             indirect,
-            emission);
+            emission,
+            normalBuffer);
     }
 
     public RenderGraphResourceHandle GetResource(
@@ -149,6 +154,13 @@ public sealed class LightingBufferSet2D
             Emission,
             current);
 
+        current = AddClearPass(
+            builder,
+            $"{_namePrefix}.Clear.NormalBuffer",
+            NormalBuffer,
+            current,
+            new Vector4(0f, 0f, 1f, 1f));
+
         return current;
     }
 
@@ -156,7 +168,8 @@ public sealed class LightingBufferSet2D
         RenderGraphBuilder builder,
         string passName,
         RenderGraphResourceHandle resource,
-        RenderGraphPassHandle dependency)
+        RenderGraphPassHandle dependency,
+        Vector4? clearColor = null)
     {
         return builder.AddPass(
             passName,
@@ -165,6 +178,11 @@ public sealed class LightingBufferSet2D
                 pass.WriteColor(
                     resource,
                     RenderGraphLoadAction.Clear);
+
+                if (clearColor.HasValue)
+                {
+                    pass.SetClearColor(clearColor.Value);
+                }
 
                 pass.SetExecuteQueuedCommands(false);
                 pass.DependsOn(dependency);

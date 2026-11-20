@@ -1,4 +1,5 @@
 using Engine.Graphics.Resources;
+using Engine.Core.Math;
 
 namespace Engine.Graphics.Rendering.RenderGraph;
 
@@ -42,4 +43,4 @@ internal sealed record RenderGraphPassDefinition(
     bool ExecuteQueuedCommands,
     bool IsPostProcessSource,
     IRenderPassContextData? ContextData,
-    bool HasSideEffects, RenderGraphDepthAttachment? DepthAttachment);
+    bool HasSideEffects, RenderGraphDepthAttachment? DepthAttachment, Vector4 ClearColorValue);

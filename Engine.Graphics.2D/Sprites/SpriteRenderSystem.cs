@@ -136,7 +136,8 @@ public sealed class SpriteRenderSystem : IDisposable
                         item.Entity);
 
                 var normal = LoadOptionalTexture(
-                    materialComponent.NormalTexturePath);
+                    materialComponent.NormalTexturePath,
+                    TextureColorSpace.Linear);
 
                 var emission = LoadOptionalTexture(
                     materialComponent.EmissionTexturePath);
@@ -152,7 +153,12 @@ public sealed class SpriteRenderSystem : IDisposable
                 material,
                 uv,
                 new Vector2(width, height),
-                component.Layer);
+                component.Layer)
+            {
+                NormalScale = new Vector2(
+                    scaleX,
+                    scaleY)
+            };
 
             var position =
                 transform.Position;
@@ -176,13 +182,16 @@ public sealed class SpriteRenderSystem : IDisposable
         }
     }
 
-    private TextureHandle LoadOptionalTexture(string? path)
+    private TextureHandle LoadOptionalTexture(
+        string? path,
+        TextureColorSpace colorSpace = TextureColorSpace.Srgb)
     {
         if (string.IsNullOrWhiteSpace(path))
             return TextureHandle.Invalid;
 
         return _resources.Load(
-            new AssetPath(path));
+            new AssetPath(path),
+            colorSpace);
     }
 
     public void Dispose()

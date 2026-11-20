@@ -6,6 +6,7 @@ namespace Engine.Graphics2D.Sprites;
 
 public readonly record struct Sprite
 {
+    public Vector2 NormalScale { get; init; } = Vector2.One;
     // Старый API сохраняется.
     public Sprite(
         TextureHandle Texture,

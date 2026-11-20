@@ -15,6 +15,83 @@ namespace Engine.Tests.Graphics2D;
 
 public sealed class SpriteRendererTests
 {
+    [Fact]
+    public void DrawWorld_PassesNormalTransformToCommand()
+    {
+        var graphics = new TestGraphicsDevice();
+
+        var sprite = new Sprite(
+            new SpriteMaterial(
+                new TextureHandle(1),
+                new TextureHandle(2)),
+            new Rectangle(0, 0, 1, 1),
+            new Vector2(32, 32))
+        {
+            NormalScale = new Vector2(2, 1)
+        };
+
+        var renderer = new SpriteRenderer(graphics);
+
+        renderer.DrawWorld(
+            sprite,
+            Vector2.Zero,
+            90.0f);
+
+        var command = Assert.IsType<DrawWorldTextureCommand>(
+            Assert.Single(graphics.Commands));
+
+        var actual = command.NormalTransform.TransformNormal(
+            new Vector3(1, 0, 1));
+
+        var expected = new Vector3(
+            0.0f,
+            -0.5f,
+            1.0f).Normalize();
+
+        Assert.InRange(
+            MathF.Abs(actual.X - expected.X),
+            0, 0.0001f);
+
+        Assert.InRange(
+            MathF.Abs(actual.Y - expected.Y),
+            0, 0.0001f);
+
+        Assert.InRange(
+            MathF.Abs(actual.Z - expected.Z),
+            0, 0.0001f);
+    }
+
+    [Fact]
+    public void DrawWorld_FlippedUvTransformsNormalAxes()
+    {
+        var graphics = new TestGraphicsDevice();
+
+        var sprite = new Sprite(
+            new SpriteMaterial(
+                new TextureHandle(1),
+                new TextureHandle(2)),
+            new Rectangle(1, 1, -1, -1),
+            new Vector2(32, 32));
+
+        var renderer = new SpriteRenderer(graphics);
+
+        renderer.DrawWorld(
+            sprite,
+            Vector2.Zero);
+
+        var command = Assert.IsType<DrawWorldTextureCommand>(
+            Assert.Single(graphics.Commands));
+
+        Assert.Equal(
+            -Vector3.UnitX,
+            command.NormalTransform.TransformNormal(
+                Vector3.UnitX));
+
+        Assert.Equal(
+            -Vector3.UnitY,
+            command.NormalTransform.TransformNormal(
+                Vector3.UnitY));
+    }
 
     [Fact]
     public void Draw_PreservesMaterialAndAtlasUv()

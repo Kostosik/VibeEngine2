@@ -13,6 +13,8 @@ public readonly record struct DrawWorldTextureData(
     int Layer = RenderLayers.World,
     float RotationDegrees = 0.0f)
 {
+    public SpriteNormalTransform2D NormalTransform { get; init; } =
+    SpriteNormalTransform2D.Identity;
     public SpriteMaterial Material { get; init; } =
         SpriteMaterial.AlbedoOnly(Texture);
 }

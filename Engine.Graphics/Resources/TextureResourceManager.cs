@@ -12,8 +12,9 @@ public sealed class TextureResourceManager :
     private readonly Dictionary<TextureAtlasKey, TextureAtlas> _atlases =
         new();
 
-    private readonly Dictionary<AssetPath, TextureHandle> _loaded =
-        new();
+    private readonly Dictionary<
+        (AssetPath Path, TextureColorSpace ColorSpace),
+        TextureHandle> _loaded = new();
 
     private bool _disposed;
 
@@ -34,35 +35,43 @@ public sealed class TextureResourceManager :
             textures;
     }
 
+    public TextureHandle Load(AssetPath path)
+    {
+        return Load(path, TextureColorSpace.Srgb);
+    }
+
     public TextureHandle Load(
-        AssetPath path)
+        AssetPath path,
+        TextureColorSpace colorSpace)
     {
         EnsureNotDisposed();
         EnsurePathValid(path);
 
-        if (_loaded.TryGetValue(
-                path,
-                out var existing))
-        {
-            if (_textures.Exists(
-                    existing))
-            {
-                return existing;
-            }
+        if (!Enum.IsDefined(colorSpace))
+            throw new ArgumentOutOfRangeException(nameof(colorSpace));
 
-            _loaded.Remove(
-                path);
-        }
+        var key = (path, colorSpace);
 
-        var data =
-            _content.Load<TextureData>(
-                path);
+        if (TryGet(path, colorSpace, out var existing))
+            return existing;
+
+        var sourceData = _content.Load<TextureData>(path);
+
+        var uploadData =
+            sourceData.Description.ColorSpace == colorSpace
+                ? sourceData
+                : new TextureData(
+                    sourceData.Description with
+                    {
+                        ColorSpace = colorSpace
+                    },
+                    sourceData.Pixels);
 
         TextureHandle texture;
 
         try
         {
-            texture = _textures.Create(data);
+            texture = _textures.Create(uploadData);
 
             if (!texture.IsValid || !_textures.Exists(texture))
             {
@@ -77,27 +86,15 @@ public sealed class TextureResourceManager :
             throw;
         }
 
-        _loaded.Add(
-            path,
-            texture);
+        _loaded.Add(key, texture);
 
         return texture;
     }
 
-    public bool IsLoaded(
-        AssetPath path)
+    public bool IsLoaded(AssetPath path)
     {
         EnsureNotDisposed();
-
-        if (!_loaded.TryGetValue(
-                path,
-                out var texture))
-        {
-            return false;
-        }
-
-        return _textures.Exists(
-            texture);
+        return TryGet(path, out _);
     }
 
     public bool TryGetDescription(
@@ -123,29 +120,47 @@ public sealed class TextureResourceManager :
         return true;
     }
 
+    private bool TryGet(
+    AssetPath path,
+    TextureColorSpace colorSpace,
+    out TextureHandle texture)
+    {
+        var key = (path, colorSpace);
+
+        if (_loaded.TryGetValue(key, out texture))
+        {
+            if (_textures.Exists(texture))
+                return true;
+
+            _loaded.Remove(key);
+            _content.Unload<TextureData>(path);
+        }
+
+        texture = TextureHandle.Invalid;
+        return false;
+    }
+
     public bool TryGet(
-        AssetPath path,
-        out TextureHandle texture)
+    AssetPath path,
+    out TextureHandle texture)
     {
         EnsureNotDisposed();
 
-        if (_loaded.TryGetValue(
-                path,
-                out texture))
-        {
-            if (_textures.Exists(
-                    texture))
-            {
-                return true;
-            }
+        if (TryGet(path, TextureColorSpace.Srgb, out texture))
+            return true;
 
-            _loaded.Remove(
-                path);
+        var variants = _loaded.Keys
+            .Where(key => key.Path == path)
+            .Select(key => key.ColorSpace)
+            .ToArray();
+
+        foreach (var colorSpace in variants)
+        {
+            if (TryGet(path, colorSpace, out texture))
+                return true;
         }
 
-        texture =
-            TextureHandle.Invalid;
-
+        texture = TextureHandle.Invalid;
         return false;
     }
 
@@ -182,8 +197,10 @@ public sealed class TextureResourceManager :
             return existing;
         }
 
-        var wasLoaded =
-            TryGet(path, out _);
+        var wasLoaded = TryGet(
+            path,
+            TextureColorSpace.Srgb,
+            out _);
 
         var texture =
             Load(path);
@@ -210,61 +227,51 @@ public sealed class TextureResourceManager :
         {
             if (!wasLoaded)
             {
-                Unload(path);
+                UnloadVariant((path, TextureColorSpace.Srgb));
             }
 
             throw;
         }
     }
 
-    public bool Unload(
-        AssetPath path)
+    private bool UnloadVariant(
+    (AssetPath Path, TextureColorSpace ColorSpace) key)
+    {
+        if (!_loaded.Remove(key, out var texture))
+            return false;
+
+        if (_textures.Exists(texture))
+            _textures.Destroy(texture);
+
+        _content.Unload<TextureData>(key.Path);
+
+        return true;
+    }
+
+    public bool Unload(AssetPath path)
     {
         EnsureNotDisposed();
 
-        RemoveAtlases(
-            path);
+        RemoveAtlases(path);
 
-        if (!_loaded.Remove(
-                path,
-                out var texture))
-        {
-            return false;
-        }
+        var keys = _loaded.Keys
+            .Where(key => key.Path == path)
+            .ToArray();
 
-        if (_textures.Exists(
-                texture))
-        {
-            _textures.Destroy(
-                texture);
-        }
+        foreach (var key in keys)
+            UnloadVariant(key);
 
-        _content.Unload<TextureData>(
-            path);
-
-        return true;
+        return keys.Length > 0;
     }
 
     public void UnloadAll()
     {
         EnsureNotDisposed();
 
+        foreach (var key in _loaded.Keys.ToArray())
+            UnloadVariant(key);
+
         _atlases.Clear();
-
-        foreach (var pair in _loaded)
-        {
-            if (_textures.Exists(
-                    pair.Value))
-            {
-                _textures.Destroy(
-                    pair.Value);
-            }
-
-            _content.Unload<TextureData>(
-                pair.Key);
-        }
-
-        _loaded.Clear();
     }
 
     public void Dispose()
@@ -274,22 +281,10 @@ public sealed class TextureResourceManager :
             return;
         }
 
+        foreach (var key in _loaded.Keys.ToArray())
+            UnloadVariant(key);
+
         _atlases.Clear();
-
-        foreach (var pair in _loaded)
-        {
-            if (_textures.Exists(
-                    pair.Value))
-            {
-                _textures.Destroy(
-                    pair.Value);
-            }
-
-            _content.Unload<TextureData>(
-                pair.Key);
-        }
-
-        _loaded.Clear();
 
         _disposed = true;
     }

@@ -1,3 +1,5 @@
+using Engine.Core.Math;
+
 namespace Engine.Graphics.Rendering.RenderGraph;
 
 /// <summary>
@@ -17,6 +19,7 @@ public sealed class RenderGraphPassBuilder
     private Action<RenderGraphContext>? _execute;
     private bool _built;
     private IRenderPassContextData? _contextData;
+    private Vector4 _clearColorValue = Vector4.Zero;
     internal RenderGraphPassBuilder(
         Guid graphId,
         int passIndex,
@@ -40,6 +43,22 @@ public sealed class RenderGraphPassBuilder
     {
         EnsureMutable();
         _executeQueuedCommands = enabled;
+        return this;
+    }
+
+    public RenderGraphPassBuilder SetClearColor(Vector4 color)
+    {
+        EnsureMutable();
+
+        if (!float.IsFinite(color.X) ||
+            !float.IsFinite(color.Y) ||
+            !float.IsFinite(color.Z) ||
+            !float.IsFinite(color.W))
+        {
+            throw new ArgumentOutOfRangeException(nameof(color));
+        }
+
+        _clearColorValue = color;
         return this;
     }
 
@@ -234,7 +253,7 @@ public sealed class RenderGraphPassBuilder
             _executeQueuedCommands,
             _isPostProcessSource,
             _contextData,
-            _hasSideEffects, _depthAttachment);
+            _hasSideEffects, _depthAttachment, _clearColorValue);
     }
 
     /// <summary>

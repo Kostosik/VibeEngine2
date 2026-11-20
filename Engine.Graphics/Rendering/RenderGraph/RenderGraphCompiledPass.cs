@@ -1,3 +1,5 @@
+using Engine.Core.Math;
+
 namespace Engine.Graphics.Rendering.RenderGraph;
 
 /// <summary>
@@ -14,7 +16,7 @@ public sealed class RenderGraphCompiledPass
         IReadOnlyList<RenderGraphResourceAccess> resourceAccesses,
         IReadOnlyList<RenderGraphPassHandle> dependencies,
         Action<RenderGraphContext>? execute, bool executeQueuedCommands,
-        bool isPostProcessSource, IRenderPassContextData? contextData, RenderGraphDepthAttachment? depthAttachment)
+        bool isPostProcessSource, IRenderPassContextData? contextData, RenderGraphDepthAttachment? depthAttachment, Vector4 clearColorValue)
     {
         Handle = handle;
         Name = name;
@@ -27,12 +29,15 @@ public sealed class RenderGraphCompiledPass
         IsPostProcessSource = isPostProcessSource;
         ContextData = contextData;
         DepthAttachment = depthAttachment;
+        ClearColorValue = clearColorValue;
     }
     public RenderGraphDepthAttachment? DepthAttachment { get; }
 
     public bool ClearDepth =>
         DepthAttachment?.LoadAction == RenderGraphLoadAction.Clear;
     public IRenderPassContextData? ContextData { get; }
+
+    public Vector4 ClearColorValue { get; }
 
     public bool ExecuteQueuedCommands { get; }
 

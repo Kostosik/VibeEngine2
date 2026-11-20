@@ -1,4 +1,5 @@
-﻿using Engine.Graphics.Rendering;
+﻿using Engine.Core.Math;
+using Engine.Graphics.Rendering;
 using Silk.NET.OpenGL;
 
 namespace Engine.Graphics.OpenGL.Rendering;
@@ -120,7 +121,9 @@ internal sealed class OpenGLRenderState
         }
     }
 
-    public void ClearBuffers(ClearBufferMask mask)
+    public void ClearBuffers(
+        ClearBufferMask mask,
+        Vector4? clearColor = null)
     {
         var hadKnownState = _hasCurrentState;
 
@@ -139,6 +142,17 @@ internal sealed class OpenGLRenderState
             if (!hadKnownState || !previousDepthWrite)
             {
                 _gl.DepthMask(true);
+            }
+
+            if (clearColor.HasValue)
+            {
+                var color = clearColor.Value;
+
+                _gl.ClearColor(
+                    color.X,
+                    color.Y,
+                    color.Z,
+                    color.W);
             }
 
             _gl.Clear(mask);

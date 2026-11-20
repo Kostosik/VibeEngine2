@@ -9,6 +9,46 @@ namespace Engine.Tests.Graphics;
 public sealed class TextureResourceManagerTests
 {
     [Fact]
+    public void Load_SameAssetWithDifferentColorSpaces_CreatesIndependentVariants()
+    {
+        using var content = (ContentManager)CreateContent();
+
+        var textures = new FakeTextureManager();
+
+        using var resources = new TextureResourceManager(
+            content,
+            textures);
+
+        var path = new AssetPath("Textures/test.png");
+
+        var srgb = resources.Load(path);
+
+        var linear = resources.Load(
+            path,
+            TextureColorSpace.Linear);
+
+        Assert.NotEqual(srgb, linear);
+
+        Assert.Equal(
+            TextureColorSpace.Srgb,
+            textures.GetDescription(srgb).ColorSpace);
+
+        Assert.Equal(
+            TextureColorSpace.Linear,
+            textures.GetDescription(linear).ColorSpace);
+
+        Assert.Equal(2, textures.CreateCount);
+
+        Assert.True(resources.IsLoaded(path));
+
+        Assert.True(resources.Unload(path));
+
+        Assert.Equal(0, textures.LiveTextureCount);
+
+        Assert.False(content.IsLoaded<TextureData>(path));
+    }
+
+    [Fact]
     public void Load_WhenTextureCreationFails_ReleasesContentData()
     {
         using var content = (ContentManager)CreateContent();

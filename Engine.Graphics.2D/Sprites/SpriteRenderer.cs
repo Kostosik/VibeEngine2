@@ -23,6 +23,17 @@ public sealed class SpriteRenderer
             graphics as IWorldTextureDataSubmitter;
     }
 
+    private static SpriteNormalTransform2D CreateNormalTransform(
+    Sprite sprite,
+    float rotationDegrees)
+    {
+        return SpriteNormalTransform2D.Create(
+            sprite.NormalScale,
+            rotationDegrees,
+            sprite.UV.Width < 0.0f,
+            sprite.UV.Height < 0.0f);
+    }
+
     public void DrawWorld(
         Sprite sprite,
         Vector2 position,
@@ -80,7 +91,10 @@ public sealed class SpriteRenderer
                 sprite.UV,
                 sprite.Layer)
             {
-                Material = sprite.Material
+                Material = sprite.Material,
+                NormalTransform = CreateNormalTransform(
+                    sprite,
+                    0.0f)
             });
     }
 
@@ -103,7 +117,10 @@ public sealed class SpriteRenderer
                     sprite.Layer,
                     rotationDegrees)
                 {
-                    Material = sprite.Material
+                    Material = sprite.Material,
+                    NormalTransform = CreateNormalTransform(
+                        sprite,
+                        rotationDegrees)
                 });
 
             return;
@@ -118,7 +135,10 @@ public sealed class SpriteRenderer
                 sprite.Layer,
                 rotationDegrees)
             {
-                Material = sprite.Material
+                Material = sprite.Material,
+                NormalTransform = CreateNormalTransform(
+                    sprite,
+                    rotationDegrees)
             });
     }
 
@@ -138,7 +158,10 @@ public sealed class SpriteRenderer
                     sprite.Layer,
                     rotationDegrees)
                 {
-                    Material = sprite.Material
+                    Material = sprite.Material,
+                    NormalTransform = CreateNormalTransform(
+                        sprite,
+                        rotationDegrees)
                 });
 
             return;
@@ -153,7 +176,10 @@ public sealed class SpriteRenderer
                 sprite.Layer,
                 rotationDegrees)
             {
-                Material = sprite.Material
+                Material = sprite.Material,
+                NormalTransform = CreateNormalTransform(
+                    sprite,
+                    rotationDegrees)
             });
     }
 

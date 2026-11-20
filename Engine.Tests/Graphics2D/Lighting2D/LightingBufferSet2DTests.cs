@@ -1,4 +1,4 @@
-﻿
+﻿using Engine.Core.Math;
 using Engine.Graphics.Rendering.RenderGraph;
 using Engine.Graphics.Resources;
 using Engine.Graphics2D.Lighting;
@@ -37,6 +37,7 @@ public sealed class LightingBufferSet2DTests
         builder.SetOutput(buffers.AmbientLighting);
         builder.SetOutput(buffers.IndirectLighting);
         builder.SetOutput(buffers.Emission);
+        builder.SetOutput(buffers.NormalBuffer);
 
         var plan = new RenderGraphCompiler().Compile(
             builder.Build());
@@ -48,7 +49,7 @@ public sealed class LightingBufferSet2DTests
                     StringComparison.Ordinal))
             .ToArray();
 
-        Assert.Equal(4, lightingResources.Length);
+        Assert.Equal(5, lightingResources.Length);
 
         var direct = Assert.Single(
             lightingResources.Where(
@@ -70,22 +71,27 @@ public sealed class LightingBufferSet2DTests
                 resource => resource.Name ==
                     "Lighting2D.Emission"));
 
-        // Direct Lighting uses a full-resolution HDR buffer.
+        var normal = Assert.Single(
+            lightingResources.Where(
+                resource => resource.Name ==
+                    "Lighting2D.NormalBuffer"));
+
         Assert.Equal(800, direct.Descriptor.Width);
         Assert.Equal(600, direct.Descriptor.Height);
 
-        // Ambient Lighting uses a full-resolution HDR buffer.
         Assert.Equal(800, ambient.Descriptor.Width);
         Assert.Equal(600, ambient.Descriptor.Height);
 
-        // Not-yet-implemented channels use separate 1x1 buffers.
         Assert.Equal(1, indirect.Descriptor.Width);
         Assert.Equal(1, indirect.Descriptor.Height);
 
         Assert.Equal(1, emission.Descriptor.Width);
         Assert.Equal(1, emission.Descriptor.Height);
 
-        // Every logical channel has its own graph resource.
+        // Normal Buffer is full-resolution.
+        Assert.Equal(800, normal.Descriptor.Width);
+        Assert.Equal(600, normal.Descriptor.Height);
+
         Assert.NotEqual(
             buffers.IndirectLighting,
             buffers.Emission);
@@ -94,7 +100,6 @@ public sealed class LightingBufferSet2DTests
             indirect.Handle,
             emission.Handle);
 
-        // All lighting buffers use linear HDR without depth.
         Assert.All(
             lightingResources,
             resource =>
@@ -114,6 +119,46 @@ public sealed class LightingBufferSet2DTests
         Assert.Contains(
             plan.Passes,
             pass => pass.Handle == lastPass);
+    }
+
+    [Fact]
+    public void NormalBufferClear_UsesNeutralWorldNormal()
+    {
+        var builder = new RenderGraphBuilder();
+
+        var scene = builder.CreateTexture(
+            "Scene",
+            new RenderGraphResourceDescriptor(640, 480));
+
+        var worldPass = builder.AddPass(
+            "World",
+            pass => pass.WriteColor(
+                scene,
+                RenderGraphLoadAction.Clear));
+
+        var buffers = LightingBufferSet2D.Create(
+            builder,
+            640,
+            480);
+
+        buffers.AddClearPasses(
+            builder,
+            worldPass);
+
+        builder.SetOutput(scene);
+        builder.SetOutput(buffers.NormalBuffer);
+
+        var plan = new RenderGraphCompiler().Compile(
+            builder.Build());
+
+        var normalClearPass = Assert.Single(
+            plan.Passes.Where(
+                pass => pass.Name ==
+                    "Lighting2D.Clear.NormalBuffer"));
+
+        Assert.Equal(
+            new Vector4(0f, 0f, 1f, 1f),
+            normalClearPass.ClearColorValue);
     }
 
     [Fact]
@@ -186,6 +231,7 @@ public sealed class LightingBufferSet2DTests
         builder.SetOutput(buffers.AmbientLighting);
         builder.SetOutput(buffers.IndirectLighting);
         builder.SetOutput(buffers.Emission);
+        builder.SetOutput(buffers.NormalBuffer);
 
         var plan = new RenderGraphCompiler().Compile(
             builder.Build());
@@ -201,7 +247,8 @@ public sealed class LightingBufferSet2DTests
                 "Lighting2D.Clear.DirectLighting",
                 "Lighting2D.Clear.AmbientLighting",
                 "Lighting2D.Clear.IndirectLighting",
-                "Lighting2D.Clear.Emission"
+                "Lighting2D.Clear.Emission",
+                "Lighting2D.Clear.NormalBuffer"
             },
             names);
 

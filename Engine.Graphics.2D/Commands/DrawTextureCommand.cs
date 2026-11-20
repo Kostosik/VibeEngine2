@@ -13,6 +13,8 @@ public sealed record DrawTextureCommand(
     Rectangle UV,
     int Layer = RenderLayers.World) : IRenderCommand
 {
+    public SpriteNormalTransform2D NormalTransform { get; init; } =
+    SpriteNormalTransform2D.Identity;
     public SpriteMaterial Material { get; init; } =
         SpriteMaterial.AlbedoOnly(Texture);
 }

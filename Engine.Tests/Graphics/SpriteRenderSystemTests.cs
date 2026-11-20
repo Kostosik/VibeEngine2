@@ -83,6 +83,18 @@ public sealed class SpriteRenderSystemTests
             command.Material.Normal.IsValid,
             $"Normal handle is invalid: {command.Material.Normal}");
 
+        Assert.Equal(
+    TextureColorSpace.Linear,
+    textures.GetDescription(command.Material.Normal).ColorSpace);
+
+        Assert.Equal(
+            TextureColorSpace.Srgb,
+            textures.GetDescription(command.Material.Albedo).ColorSpace);
+
+        Assert.Equal(
+            TextureColorSpace.Srgb,
+            textures.GetDescription(command.Material.Emission).ColorSpace);
+
         Assert.True(
             command.Material.Emission.IsValid,
             $"Emission handle is invalid: {command.Material.Emission}");

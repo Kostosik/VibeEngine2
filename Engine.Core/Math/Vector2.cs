@@ -6,6 +6,8 @@ public readonly record struct Vector2(
 {
     public static Vector2 Zero =>
         new(0.0f, 0.0f);
+    public static Vector2 One =>
+    new(1.0f, 1.0f);
 
     public float LengthSquared()
     {

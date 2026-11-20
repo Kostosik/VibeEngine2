@@ -102,7 +102,7 @@ public sealed class LightingRenderGraphExtension2D :
 
         var normalPassState = pipelinePassState with
         {
-            Blend = new RenderBlendState(RenderBlendMode.Disabled),
+            Blend = new RenderBlendState(RenderBlendMode.Alpha),
             Depth = pipelinePassState.Depth with
             {
                 TestEnabled = false,
@@ -119,7 +119,7 @@ public sealed class LightingRenderGraphExtension2D :
                     RenderGraphLoadAction.Clear);
 
                 pass.SetClearColor(
-                    new Vector4(0f, 0f, 1f, 1f));
+                    new Vector4(0.5f, 0.5f, 1f, 1f));
 
                 pass.SetRenderState(normalPassState);
                 pass.SetLayerRange(pipelinePassLayers);

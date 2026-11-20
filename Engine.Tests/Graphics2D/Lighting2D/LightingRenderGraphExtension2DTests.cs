@@ -135,14 +135,22 @@ public sealed class LightingRenderGraphExtension2DTests
             resource.Name);
 
         Assert.Equal(
-            new Vector4(0f, 0f, 1f, 1f),
+            new Vector4(0.5f, 0.5f, 1f, 1f),
             normalPass.ClearColorValue);
 
         Assert.True(normalPass.ExecuteQueuedCommands);
 
         Assert.Equal(
-            RenderBlendMode.Disabled,
+            RenderBlendMode.Alpha,
             normalPass.State.Blend.Mode);
+
+        Assert.Equal(
+            RenderBlendFactor.SourceAlpha,
+            normalPass.State.Blend.SourceColorFactor);
+
+        Assert.Equal(
+            RenderBlendFactor.OneMinusSourceAlpha,
+            normalPass.State.Blend.DestinationColorFactor);
 
         Assert.False(normalPass.State.Depth.TestEnabled);
         Assert.False(normalPass.State.Depth.WriteEnabled);

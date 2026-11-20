@@ -218,9 +218,9 @@ public sealed class OpenGLGraphicsDevice
         }
         catch
         {
-
             TryDispose(_fontRenderer);
             TryDispose(_textureRenderer);
+            TryDispose(_normalBufferRenderer);
             TryDispose(_debugRenderer);
             TryDispose(_passExecutor);
             TryDispose(_fullscreenRenderer);

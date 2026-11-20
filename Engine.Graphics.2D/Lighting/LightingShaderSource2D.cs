@@ -74,10 +74,9 @@ public static class LightingShaderSource2D
         #define MAX_POINT_LIGHTS 64
 
         Texture2D<float4> uSceneColor : register(t0);
-        SamplerState uSampler : register(s0);
-        Texture2D<float4> uSceneColor : register(t0);
         Texture2D<float4> uNormalBuffer : register(t1);
         SamplerState uSampler : register(s0);
+
         cbuffer LightingParameters : register(b0)
         {
             int uLightCount;

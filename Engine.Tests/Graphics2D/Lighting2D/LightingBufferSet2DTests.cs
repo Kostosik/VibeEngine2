@@ -157,7 +157,7 @@ public sealed class LightingBufferSet2DTests
                     "Lighting2D.Clear.NormalBuffer"));
 
         Assert.Equal(
-            new Vector4(0f, 0f, 1f, 1f),
+            new Vector4(0.5f, 0.5f, 1f, 1f),
             normalClearPass.ClearColorValue);
     }
 

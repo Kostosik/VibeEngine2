@@ -103,6 +103,9 @@ internal sealed class OpenGLRenderCommandDispatcher
         _fontRenderer.Resize(
             width,
             height);
+        _normalBufferRenderer.Resize(
+            width,
+            height);
     }
 
     public void BeginFrame()

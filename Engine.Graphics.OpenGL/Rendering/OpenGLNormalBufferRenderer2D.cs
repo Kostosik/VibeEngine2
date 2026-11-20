@@ -527,7 +527,7 @@ internal sealed class OpenGLNormalBufferRenderer2D : IDisposable
                 normal /= normalLength;
 
             // Записываем нормаль из [-1, 1] в [0, 1].
-            FragColor = vec4(normal * 0.5 + 0.5, 1.0);
+            FragColor = vec4(normal * 0.5 + 0.5, alpha);
         }
         """;
 }

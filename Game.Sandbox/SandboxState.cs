@@ -16,6 +16,7 @@ using Engine.Serialization.SaveLoad.Game;
 using Engine.Simulations;
 using Engine.Tooling.Debugging;
 using Engine.UI.Core;
+using Game.Sandbox.Rendering;
 using Game.Sandbox.Scenarios;
 using Game.Sandbox.UI;
 
@@ -28,6 +29,9 @@ public sealed class SandboxState
         TopDown,
         Physics
     }
+
+    private readonly SandboxLightingPreview _lightingPreview;
+
     private readonly LocalizationManager _localization;
     private readonly EngineRuntime _runtime;
     private readonly IInput _input;
@@ -148,9 +152,9 @@ public sealed class SandboxState
             Softness = 0.25f
         };
 
-        grayscale.Enabled = true;
-        tint.Enabled = true;
-        vignette.Enabled = true;
+        grayscale.Enabled = false;
+        tint.Enabled = false;
+        vignette.Enabled = false;
 
         _graphics.Pipeline.PostProcessing.Add(grayscale);
         _graphics.Pipeline.PostProcessing.Add(tint);
@@ -266,8 +270,11 @@ public sealed class SandboxState
                 _runtime.EcsWorld);
         }
 
-        _runtime.PhysicsDebugVisualizer!.Enabled =
-            true;
+        _runtime.PhysicsDebugVisualizer!.Enabled = true;
+
+        _lightingPreview = new SandboxLightingPreview(
+            _graphics,
+            _camera);
     }
 
     public void Update(
@@ -438,6 +445,7 @@ public sealed class SandboxState
         {
             _topDown?.StopMovement();
         }
+        _lightingPreview.Update();
     }
 
     public void ToggleUiShowcase()
@@ -904,7 +912,7 @@ public sealed class SandboxState
     public void Shutdown()
     {
         var failures = new List<Exception>();
-
+        TryCleanup(failures,_lightingPreview.Dispose);
         TryCleanup(failures, DisposeCurrentScenario);
         TryCleanup(
             failures,

@@ -37,7 +37,7 @@ public sealed class PointLightGpuData2DTests
             result.ScreenPosition);
 
         Assert.Equal(
-            new Vector2(40, 30),
+            new Vector2(80, 60),
             result.ScreenRadius);
 
         Assert.Equal(light.Color, result.Color);

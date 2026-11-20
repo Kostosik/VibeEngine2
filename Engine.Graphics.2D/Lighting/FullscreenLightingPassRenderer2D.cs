@@ -159,6 +159,7 @@ public sealed class FullscreenLightingPassRenderer2D :
         RenderGraphContext renderGraphContext)
     {
         var ambientColor = Vector3.Zero;
+        var hasEnabledAmbient = false;
 
         foreach (var contribution in context.Contributions)
         {
@@ -172,7 +173,15 @@ public sealed class FullscreenLightingPassRenderer2D :
             if (!light.IsEnabled)
                 continue;
 
+            hasEnabledAmbient = true;
             ambientColor += light.Color * light.Intensity;
+        }
+
+        // Без Ambient Light используем нейтральный множитель.
+        // Это позволяет сохранить исходный цвет сцены.
+        if (!hasEnabledAmbient)
+        {
+            ambientColor = new Vector3(1.0f, 1.0f, 1.0f);
         }
 
         if (!float.IsFinite(ambientColor.X) ||
@@ -182,9 +191,6 @@ public sealed class FullscreenLightingPassRenderer2D :
             throw new InvalidOperationException(
                 "Accumulated ambient-light intensity is not finite.");
         }
-
-        if (ambientColor == Vector3.Zero)
-            return;
 
         var pass = new FullscreenPassDescription(
             _ambientLightingShader,
@@ -196,8 +202,8 @@ public sealed class FullscreenLightingPassRenderer2D :
             },
             [
                 new FullscreenPassTextureInput(
-                    LightingShaderSource2D.SceneColor,
-                    context.SceneColor)
+                LightingShaderSource2D.SceneColor,
+                context.SceneColor)
             ]);
 
         renderGraphContext.ExecuteFullscreen(pass);

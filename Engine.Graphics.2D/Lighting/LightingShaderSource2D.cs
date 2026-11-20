@@ -16,8 +16,6 @@ public static class LightingShaderSource2D
 
         uniform sampler2D uSceneColor;
 
-        uniform vec2 uResolution;
-
         uniform int uLightCount;
 
         uniform vec2 uLightPositions[64];
@@ -30,7 +28,7 @@ public static class LightingShaderSource2D
 
         void main()
         {
-            vec2 pixelPosition = vTexCoord * uResolution;
+            vec2 pixelPosition = vTexCoord * vec2(textureSize(uSceneColor, 0));
 
             vec3 directLighting = vec3(0.0);
 
@@ -71,7 +69,7 @@ public static class LightingShaderSource2D
 
         Texture2D<float4> uSceneColor : register(t0);
         SamplerState uSampler : register(s0);
-        float2 uResolution;
+
         cbuffer LightingParameters : register(b0)
         {
             int uLightCount;
@@ -91,8 +89,16 @@ public static class LightingShaderSource2D
 
         float4 PSMain(PixelInput input) : SV_TARGET
         {
-            float2 pixelPosition =
-                input.TexCoord * uResolution;
+            uint textureWidth;
+            uint textureHeight;
+
+            uSceneColor.GetDimensions(
+                textureWidth,
+                textureHeight);
+
+            float2 pixelPosition = input.TexCoord * float2(
+                textureWidth,
+                textureHeight);
 
             float3 directLighting = float3(0.0, 0.0, 0.0);
 

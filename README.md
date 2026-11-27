@@ -70,6 +70,7 @@ dotnet test .\VibeEngine2.sln --configuration Release
 - [План развития движка](docs/ENGINE_DEVELOPMENT_PLAN.md) — долгосрочная стратегия и последовательность аудита.
 - [Аудиты](docs/audits/) — результаты проверок архитектуры и подсистем.
 - [Аудит Editor](docs/audits/01-EDITOR.md) — документы, Hierarchy, Inspector, Viewport и Undo/Redo.
+- [Аудит Content Pipeline](docs/audits/02-CONTENT-PIPELINE.md) — каталог ресурсов, loaders, кэширование, зависимости и Hot Reload.
 - [Диагностика и восстановление](docs/TROUBLESHOOTING.md) — действия при проблемах создания, сборки и запуска проекта.
 
 ## Границы первой версии

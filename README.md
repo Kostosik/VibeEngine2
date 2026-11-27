@@ -27,7 +27,7 @@
 - .NET 8 SDK.
 - Git.
 
-Поставка редактора собирается как framework-dependent Windows-приложение. Для запуска готовой поставки требуется подходящая среда выполнения .NET 8 для Windows Desktop. Поддержка других ОС и платформ в первой целевой конфигурации не заявляется.
+Поставка редактора собирается как framework-dependent Windows-приложение. Для запуска готовой поставки требуется подходящая среда выполнения .NET 8 для Windows Desktop. Поддержка других ОС и платформ в первой целевой конфигурации не заявляется. Для Play и Hot Reload пользовательских проектов дополнительно требуется .NET 8 SDK: Editor запускает `dotnet run` или `dotnet watch`, которые собирают игровой проект. Одного Desktop Runtime достаточно только для запуска самого Editor.
 
 ## Запуск из исходников
 
@@ -76,6 +76,7 @@ dotnet test .\VibeEngine2.sln --configuration Release
 - [Аудит 2D Engine](docs/audits/05-2D-ENGINE.md) — спрайты и материалы, TileSet/Tilemap, камера, анимация, физика, частицы, UI, аудио и навигация.
 - [Аудит 3D Engine](docs/audits/06-3D-ENGINE.md) — mesh rendering, Camera3D, Transform, Physics 3D, Animation, import, serialization и Editor workflow.
 - [Аудит Developer Tools](docs/audits/07-DEVELOPER-TOOLS.md) — console, diagnostics, profiling, validation, ECS inspection, debug visualization и benchmarks.
+- [Аудит Build и Platforms](docs/audits/08-BUILD-AND-PLATFORMS.md) — создание игровых проектов, Runtime Builder, Play/Stop/Restart, дистрибутив и платформенные ограничения.
 - [Диагностика и восстановление](docs/TROUBLESHOOTING.md) — действия при проблемах создания, сборки и запуска проекта.
 
 ## Границы первой версии

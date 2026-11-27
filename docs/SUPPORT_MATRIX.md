@@ -151,11 +151,37 @@
 
 Найденные тестовые исходники покрывают diagnostics/metrics, Profiler/FrameTimingProfiler, ValidationService/WorldValidator/PhysicsValidator, Runtime profiling lifecycle и Editor diagnostics/exception formatting. В просмотренном дереве не обнаружены отдельные тесты для DebugConsole/Overlay, DebugVisualization, ContentValidator или benchmark regression. Наличие файлов не означает запуск тестов в рамках этого аудита.
 
+## Результаты аудита Build и Platforms (2026-11-27)
+
+Статический аудит создания проектов, Runtime Builder, Editor process workflow, project files, CI и distribution workflow. Сборка, тесты и запуск приложений в рамках аудита не выполнялись. Полный отчёт: [08-BUILD-AND-PLATFORMS.md](audits/08-BUILD-AND-PLATFORMS.md).
+
+| Область | Фактическое состояние | Ограничения / границы |
+|---|---|---|
+| Создание проекта | `ProjectCreationService` создаёт обычный .NET 8 C# проект с локальными ссылками на Engine DLL, каталогом Engine, Assets, manifest, Program.cs и GameMain.cs. | Поддерживается только шаблон `empty`. Генерируемый проект задаёт `PlatformTarget=x64`; Engine DLL копируются в проект и не имеют отдельного Engine version field в manifest. |
+| Runtime Builder | Публикует фиксированный набор исходных проектов под `win-x64`, собирает DLL в staging-каталог и устанавливает его с backup/rollback. | Списки исходных проектов и обязательных DLL заданы вручную. `runtime verify` проверяет присутствие DLL, но не целостность, ABI или версии. Штатный pipeline framework-dependent. |
+| Play / Stop / Restart | Editor запускает игру отдельным процессом через `dotnet run`; Hot Reload использует `dotnet watch`. Тесты покрывают сборку, исправление ошибки компиляции, повторный запуск и остановку дерева процессов. | Для Play/Hot Reload нужен .NET 8 SDK. Одна лишь среда .NET Desktop Runtime позволяет запустить Editor, но не собрать игровой проект через эти команды. |
+| Assets и native files | Генерируемый .csproj копирует `Assets/**/*`, manifest и native DLL из Engine в output и publish. | Наличие MSBuild правил не заменяет проверку реального запуска и загрузки ресурсов из распакованной опубликованной игры. |
+| Startup Scene | Manifest и GameProject поддерживают относительный путь startupScene и проверку пути. | Helper создания пустой сцены в ProjectCreationService не вызывается; Editor Play и generated Program не загружают указанную сцену. Подробности — аудит 03. |
+| Distribution | Ручной GitHub Actions workflow публикует Editor, Runtime и Game.Sandbox под Windows x64, проверяет ZIP и обязательные файлы. Успешный запуск 2026-11-27 подтверждён на commit `1041f68`. | Проверка архива не запускает приложения и не выполняет create/build/run пользовательского проекта. Этот workflow запускался не на текущем commit аудита. |
+| CI | Workflow build/test выполняется на `windows-latest` с .NET 8 SDK. | Нет матрицы Linux/macOS/ARM64. Последний найденный успешный master run build/test — 2026-10-29, commit `3491040`; текущий master им не покрыт. |
+
+### Матрица платформ и поставки
+
+| Конфигурация | Статус |
+|---|---|
+| Windows x64 + .NET 8 framework-dependent Editor/Runtime/Game.Sandbox | Основная целевая конфигурация; подтверждается существующими workflow, но актуальность последнего успешного прогона относительно master ограничена |
+| Linux x64 | Требует отдельной реализации/проверки host, native dependencies, Editor и packaging |
+| macOS | Требует отдельной реализации/проверки host, native dependencies, Editor и packaging |
+| ARM64 | Не проверено |
+| Self-contained game/editor distribution | Не является текущим штатным pipeline; отдельная проверка не найдена |
+
+Успешные workflow runs не следует автоматически переносить на текущий master: последний найденный distribution run использовал commit `1041f68`, а текущая точка аудита `c177111` находится на 37 коммитов впереди. Между состояниями менялись исходники и тесты, включая OpenGL rendering.
+
 ## Документированные ограничения
 
 | Область | Поддерживаемое поведение / ограничение | Практическое следствие |
 |---|---|---|
-| Платформа и дистрибутив | GitHub Actions workflow сборки и тестов выполняется на `windows-latest` с .NET 8; workflow дистрибутива публикует Editor, Game.Sandbox и runtime под `win-x64` как framework-dependent приложение. README дистрибутива требует Windows x64 и .NET 8 Desktop Runtime x64. | Подтверждённая CI/дистрибутивная конфигурация — Windows x64 + .NET 8. Это не доказывает невозможность запуска на других платформах, но для заявления об их поддержке нужны отдельные CI и практические проверки. Основание: `.github/workflows/dotnet.yml`, `.github/workflows/build-distribution.yml`. |
+| Платформа и дистрибутив | Editor использует `net8.0-windows` и Windows Forms; Runtime Builder и distribution workflow публикуют `win-x64` как framework-dependent. CI build/test выполняется на `windows-latest` с .NET 8. Последний найденный успешный distribution run от 2026-11-27 собран с commit `1041f68`, который на 37 коммитов старше текущего audit snapshot `c177111`. | Основная целевая конфигурация поставки — Windows x64 + .NET 8. Linux/macOS/ARM64 и self-contained workflow не подтверждены. Для Play/Hot Reload требуется .NET 8 SDK, хотя README готовой поставки сейчас указывает только Desktop Runtime. Основание: `Editor.Sandbox.csproj`, `EngineRuntimeBuilder.cs`, `.github/workflows/dotnet.yml`, `.github/workflows/build-distribution.yml`, audit 08. |
 | Стандартный desktop host и графический backend | `DesktopGameHost` выбирает graphics и platform providers через `DesktopGraphicsBackendRegistry` и `DesktopPlatformBackendRegistry`. `SilkNetDesktopHost` регистрирует OpenGL и Silk.NET как стандартные providers. Аудио создаётся напрямую через `AudioManager` и `OpenALAudioDevice`; отдельного audio backend registry в options нет. | Графическая и платформенная точки расширения существуют, но произвольная альтернативная конфигурация требует регистрации совместимых providers. Аудио в стандартном host жёстко связано с OpenAL. Основание: `Engine.Hosting.Desktop/DesktopGameHost.cs`, `DesktopGameHostOptions.cs`, `Engine.Graphics.OpenGL/OpenGLWindow.cs`. |
 | Указатель и UI | `DesktopGameHostContext.PointerInput` имеет nullable-контракт `IPointerInput?`, поэтому пользовательский код должен учитывать возможность `null`. При этом текущий стандартный host создаёт `SilkNetInputBackend`, который реализует `IPointerInput`. | Для стандартного desktop host указатель предоставляется текущей реализацией; `null` остаётся возможным для альтернативной реализации host, но не является заявленным ограничением текущей конфигурации. Основание: `DesktopGameHostContext.cs`, `OpenGLWindow.cs`, `SilkNetInputBackend.cs`. |
 | Привязки ввода | `InputActionMap.GetValue` выбирает среди привязок одно значение с наибольшим абсолютным значением; значения нескольких привязок не складываются. | Если игре нужно суммирование или другая стратегия объединения ввода, её необходимо реализовать отдельно. Основание: `Engine.Input/InputActionMap.cs`. |
@@ -209,3 +235,4 @@
 - [Аудит 2D Engine](audits/05-2D-ENGINE.md) — сквозные связи 2D подсистем, Editor, сериализации и Runtime.
 - [Аудит 3D Engine](audits/06-3D-ENGINE.md) — Mesh rendering, Camera3D, Physics 3D, import, serialization и Editor workflow.
 - [Аудит Developer Tools](audits/07-DEVELOPER-TOOLS.md) — diagnostics, console, ECS inspection, validation, profiling, debug visualization и benchmarks.
+- [Аудит Build и Platforms](audits/08-BUILD-AND-PLATFORMS.md) — Runtime Builder, создание и запуск проектов, distribution и платформы.

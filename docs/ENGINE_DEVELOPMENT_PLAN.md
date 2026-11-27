@@ -211,7 +211,7 @@ ECS остаётся основой существующей runtime-модел�
 - [x] **0.6. 2D Engine** — завершено; результат: [05-2D-ENGINE.md](audits/05-2D-ENGINE.md).
 - [x] **0.7. 3D Engine** — завершено; результат: [06-3D-ENGINE.md](audits/06-3D-ENGINE.md).
 - [x] **0.8. Developer Tools** — завершено; результат: [07-DEVELOPER-TOOLS.md](audits/07-DEVELOPER-TOOLS.md).
-- [ ] **0.9. Build и платформы** — следующая задача.
+- [x] **0.9. Build и платформы** — завершено; результат: [08-BUILD-AND-PLATFORMS.md](audits/08-BUILD-AND-PLATFORMS.md).
 
 ### 0.1. Общая архитектура
 
@@ -331,18 +331,22 @@ ECS остаётся основой существующей runtime-модел�
 
 ### 0.9. Build и платформы
 
-Проверить:
-- создание и конфигурацию проекта;
-- build и publish;
-- Runtime Builder и состав поставки;
-- разрешение зависимостей;
-- игровые ресурсы в output;
-- запуск вне репозитория движка;
-- работу Editor Play/Stop/Restart;
-- поддерживаемые и неподтверждённые платформы;
-- CI и воспроизводимость проверок.
+Завершено. Полный результат: [08-BUILD-AND-PLATFORMS.md](audits/08-BUILD-AND-PLATFORMS.md).
 
-Результат: матрица сборки и платформ с подтверждёнными конфигурациями и ограничениями.
+Подтверждено:
+- создание обычного C# проекта с локальной копией Engine DLL и правилами копирования Assets/native dependencies;
+- Runtime Builder для `win-x64` с проверкой обязательных сборок и сохранением предыдущего Runtime при неудачной установке;
+- Play/Stop/Restart через отдельный процесс .NET CLI и тестовые сценарии восстановления после ошибок сборки;
+- Windows x64 framework-dependent distribution pipeline.
+
+Ограничения:
+- Editor использует `net8.0-windows` и Windows Forms; Runtime Builder жёстко настроен на `win-x64`;
+- для Play/Hot Reload требуется .NET 8 SDK, тогда как инструкция готовой поставки сейчас указывает только Desktop Runtime;
+- успешные Actions runs существуют, но последние найденные проверки относятся к commits старше текущего состояния master;
+- Linux, macOS, ARM64 и self-contained deployment не подтверждены;
+- Startup Scene хранится в manifest, но не загружается стандартным Play workflow.
+
+Результат: зафиксирована матрица сборки и платформ, требования к среде, ограничения поставки и приоритеты следующей работы.
 
 ---
 

@@ -207,8 +207,9 @@ ECS остаётся основой существующей runtime-модел�
 - [x] **0.2. Editor** — завершено; результат: [01-EDITOR.md](audits/01-EDITOR.md).
 - [x] **0.3. Content Pipeline** — завершено; результат: [02-CONTENT-PIPELINE.md](audits/02-CONTENT-PIPELINE.md).
 - [x] **0.4. Scene и World** — завершено; результат: [03-SCENE-AND-WORLD.md](audits/03-SCENE-AND-WORLD.md).
-- [ ] **0.5. Runtime** — следующая задача.
-- [ ] 0.6–0.9 — запланированы, ещё не проводились.
+- [x] **0.5. Runtime** — завершено; результат: [04-RUNTIME.md](audits/04-RUNTIME.md).
+- [ ] **0.6. 2D Engine** — следующая задача.
+- [ ] 0.7–0.9 — запланированы, ещё не проводились.
 
 ### 0.1. Общая архитектура
 

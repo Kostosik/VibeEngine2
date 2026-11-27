@@ -61,6 +61,23 @@
 | Hot Reload | ContentHotReloadService обнаруживает новые/изменённые файлы по metadata и позволяет явно вызвать Reload<T> | Не подключён к стандартному Host, не возвращает отдельные deletion events и не обновляет автоматически зависимости/GPU resources |
 | Project output | Assets/**/* копируется в output и publish; стандартный Host читает Assets рядом с исполняемым приложением | Это доставка исходных файлов, а не import/asset compilation pipeline |
 
+## Результаты аудита Scene и World (2026-11-27)
+
+Статический аудит зафиксирован в [docs/audits/03-SCENE-AND-WORLD.md](audits/03-SCENE-AND-WORLD.md). Проверены ECS World, пространственный World и чанки, 2D/3D Transform, world/game save, Prefab, runtime SceneManager и связка startup scene с Play. Просмотрены исходники и тесты; сборка и тесты в рамках этого аудита не запускались.
+
+| Область | Подтверждённое состояние | Ограничение / граница |
+|---|---|---|
+| ECS World | Generational EntityId, component storage, state capture/restore и валидация состояния | EntityId не является постоянным глобальным ID; custom component data требует явного serializer registration |
+| Пространственный World | Составляет ECS World, ChunkRegistry, SpatialIndex, WorldPosition и chunk lifecycle | World не владеет временем жизни ECS World; default chunk persistence — MemoryChunkPersistence |
+| 2D Transform | EngineRuntime автоматически запускает TransformHierarchySystem перед Physics, затем синхронизирует physics transform и spatial position | Для самостоятельного SystemScheduler порядок/регистрация остаются обязанностью приложения; отсутствующие родители и циклы отклоняются исключением |
+| 3D Transform | Базовые 3D-компоненты и TransformHierarchy3DSystem присутствуют | Стандартный EngineRuntime не регистрирует 3D hierarchy system; RegisterEngineComponents не включает 3D transform serializers; полного 3D scene workflow это не подтверждает |
+| .world persistence | WorldSaveLoadService сериализует ECS state и chunk/tile state; Editor использует его для World documents | Это формат состояния World, а не runtime IScene и не механизм scene transitions; custom components требуют serializer registration |
+| Game save | GameSaveLoadService комбинирует World state с PersistentStateRegistry; есть GameSaveMigrationRegistry | Runtime не вызывает сервис автоматически; игра сама регистрирует persistent state и определяет момент сохранения/восстановления |
+| Prefab | Есть capture, бинарная сериализация, Content loader и instantiate с ремаппингом prefab-local entity IDs | Capture строит иерархию по TransformParent2D; произвольные entity links ремапятся только компонентами IPrefabEntityReferenceRemappable |
+| Chunk streaming | ChunkStreamingPolicy/Service, IChunkLoader, JobScheduler и IChunkPersistence реализованы | ChunkStreamingService не подключён стандартным EngineRuntime; стандартный persistence backend — память процесса |
+| Runtime SceneManager | Lifecycle API управляет активной и ожидающей IScene, инициализацией, переходом и Dispose | SceneManager не загружает .world и не интегрирован в EngineRuntime/EngineGame; отдельный SceneManager test suite не обнаружен |
+| Startup scene | Editor сохраняет относительный startupScene в .vibeproject и ограничивает путь каталогом проекта | Стандартный Editor Play не передаёт этот путь; generated GameMain не загружает сцену. Открытие manifest не проверяет существование ранее записанного startupScene |
+
 ## Документированные ограничения
 
 | Область | Поддерживаемое поведение / ограничение | Практическое следствие |

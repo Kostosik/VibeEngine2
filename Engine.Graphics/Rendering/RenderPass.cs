@@ -9,6 +9,12 @@ public readonly record struct RenderPass(
     bool ClearColor,
     RenderPassLayerRange Layers)
 {
+
+    /// <summary>
+    /// Controls depth-buffer clearing independently from color clearing.
+    /// Defaults to ClearColor to preserve existing behavior.
+    /// </summary>
+    public bool ClearDepth { get; init; } = ClearColor;
     public IRenderPassContextData? ContextData { get; init; }
     /// <summary>
     /// Indicates that this pass produces the image

@@ -156,6 +156,23 @@ public sealed class RenderGraphCompiler
                     $"Render graph contains an invalid pass handle for '{pass.Name}'.");
             }
 
+            if (pass.DepthAttachment.HasValue)
+            {
+                var colorOutput = pass.ResourceAccesses.Single(
+                    access =>
+                        access.Kind == RenderGraphResourceAccessKind.WriteColor);
+
+                var targetResource = graph.ResourceDefinitions[
+                    colorOutput.Resource.Index];
+
+                if (!targetResource.Descriptor.HasDepthAttachment)
+                {
+                    throw new InvalidOperationException(
+                        $"Pass '{pass.Name}' declares a depth attachment, " +
+                        $"but resource '{targetResource.Name}' does not have one.");
+                }
+            }
+
             foreach (var access in pass.ResourceAccesses)
             {
                 ValidateResourceHandle(graph, access.Resource, pass.Name);
@@ -392,6 +409,20 @@ public sealed class RenderGraphCompiler
                         access.Resource == resource.Handle &&
                         access.Kind == RenderGraphResourceAccessKind.WriteColor);
 
+                if (writeAccess.LoadAction == RenderGraphLoadAction.Load)
+                {
+                    throw new InvalidOperationException(
+                        $"Pass '{writer.Name}' loads transient resource '{resource.Name}' " +
+                        "before it has been initialized.");
+                }
+
+                if (writer.DepthAttachment?.LoadAction == RenderGraphLoadAction.Load)
+                {
+                    throw new InvalidOperationException(
+                        $"Pass '{writer.Name}' loads the depth attachment of transient resource '{resource.Name}' " +
+                        "before it has been initialized.");
+                }
+
                 if (writeAccess.StoreAction != RenderGraphStoreAction.DontCare)
                 {
                     continue;
@@ -415,9 +446,28 @@ public sealed class RenderGraphCompiler
             // Imported resources can have multiple writers.
             // Declaration order defines their resource versions.
             RenderGraphStoreAction? latestStoreAction = null;
-
+            RenderGraphStoreAction? latestDepthStoreAction = null;
             foreach (var pass in passes)
             {
+                var writesCurrentResource = pass.ResourceAccesses.Any(
+                    access =>
+                    access.Resource == resource.Handle &&
+                    access.Kind == RenderGraphResourceAccessKind.WriteColor);
+
+                if (writesCurrentResource &&
+                    pass.DepthAttachment is { } depthAttachment)
+                {
+                    if (depthAttachment.LoadAction == RenderGraphLoadAction.Load &&
+                        latestDepthStoreAction == RenderGraphStoreAction.DontCare)
+                    {
+                        throw new InvalidOperationException(
+                            $"Pass '{pass.Name}' loads depth attachment of resource " +
+                            $"'{resource.Name}' after its contents were discarded.");
+                    }
+
+                    latestDepthStoreAction = depthAttachment.StoreAction;
+                }
+
                 foreach (var access in pass.ResourceAccesses)
                 {
                     if (access.Resource != resource.Handle)

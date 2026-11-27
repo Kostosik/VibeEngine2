@@ -4,7 +4,10 @@ namespace Engine.Graphics.Rendering.RenderGraph;
 
 /// <summary>
 /// Holds externally visible graph outputs after execution.
-/// Transient output targets remain alive until this result is disposed.
+/// Transient output targets are leased from the executor-owned pool.
+/// Disposing this result releases its leases back to the pool.
+/// Disposing the executor destroys all targets owned by that pool,
+/// including targets still retained by execution results.
 /// Imported targets remain owned by their original owner.
 /// </summary>
 public sealed class RenderGraphExecutionResult : IDisposable

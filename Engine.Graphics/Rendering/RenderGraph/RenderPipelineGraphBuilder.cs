@@ -165,7 +165,7 @@ public sealed class RenderPipelineGraphBuilder
                     pass.SetRenderState(renderPass.State);
                     pass.SetLayerRange(renderPass.Layers);
                     pass.SetContextData(renderPass.ContextData);
-                    pass.SetClearDepth(renderPass.ClearColor);
+                    pass.SetClearDepth(renderPass.ClearDepth);
                     pass.SetSideEffect();
 
                     if (renderPass.IsPostProcessSource)

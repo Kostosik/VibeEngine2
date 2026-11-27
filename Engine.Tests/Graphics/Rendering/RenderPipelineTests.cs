@@ -9,6 +9,32 @@ namespace Engine.Tests.Graphics.Rendering;
 public sealed class RenderPipelineTests
 {
     [Fact]
+    public void Execute_RespectsExplicitDepthClearSetting()
+    {
+        var pipeline = new RenderPipeline();
+
+        pipeline.AddPass(
+            new RenderPass(
+                "ColorOnly",
+                RenderTargetHandle.Invalid,
+                RenderState.Default2D,
+                true,
+                RenderPassLayerRange.All)
+            {
+                ClearDepth = false
+            });
+
+        var executor = new TestExecutor();
+
+        pipeline.Execute(new RenderQueue(), executor);
+
+        var pass = Assert.Single(executor.BegunPasses);
+
+        Assert.True(pass.ClearColor);
+        Assert.False(pass.ClearDepth);
+    }
+
+    [Fact]
     public void Revision_ChangesWhenPassesAreAddedOrCleared()
     {
         var pipeline = new RenderPipeline();

@@ -8,6 +8,86 @@ namespace Engine.Tests.Graphics.Rendering.RenderGraph;
 public sealed class RenderGraphExecutorTests
 {
     [Fact]
+    public void Execute_RunsSideEffectPassWithoutColorOutput()
+    {
+        var targets = new TestRenderTargetManager();
+        var passExecutor = new TestRenderPassExecutor();
+
+        using var executor = new RenderGraphExecutor(
+            targets,
+            passExecutor);
+
+        var builder = new RenderGraphBuilder();
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer",
+            new RenderTargetDescription(64, 64));
+
+        var callbackExecuted = false;
+
+        builder.AddPass(
+            "SideEffect",
+            pass => pass
+                .SetSideEffect()
+                .SetExecute(context =>
+                {
+                    callbackExecuted = true;
+                    Assert.False(context.HasColorOutput);
+                }));
+
+        builder.SetOutput(backbuffer);
+
+        var plan = new RenderGraphCompiler()
+            .Compile(builder.Build());
+
+        using var result = executor.Execute(plan);
+
+        Assert.True(callbackExecuted);
+        Assert.Equal(0, passExecutor.BeginCount);
+        Assert.Equal(0, passExecutor.EndCount);
+    }
+
+    [Fact]
+    public void Execute_EndsPassWhenQueuedCommandThrows()
+    {
+        var targets = new TestRenderTargetManager();
+
+        var passExecutor = new TestRenderPassExecutor
+        {
+            ThrowOnExecute = true
+        };
+
+        using var executor = new RenderGraphExecutor(
+            targets,
+            passExecutor);
+
+        var builder = new RenderGraphBuilder();
+
+        var backbuffer = builder.ImportBackbuffer(
+            "Backbuffer",
+            new RenderTargetDescription(64, 64));
+
+        builder.AddPass(
+            "World",
+            pass => pass.WriteColor(backbuffer));
+
+        builder.SetOutput(backbuffer);
+
+        var plan = new RenderGraphCompiler()
+            .Compile(builder.Build());
+
+        var queue = new RenderQueue();
+        queue.Submit(new TestCommand(10));
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => executor.Execute(plan, queue));
+
+        Assert.Equal("Queued command failed.", exception.Message);
+        Assert.Equal(1, passExecutor.BeginCount);
+        Assert.Equal(1, passExecutor.EndCount);
+    }
+
+    [Fact]
     public void Execute_DestroysTargetsBeyondPerDescriptionCacheLimit()
     {
         var targets = new TestRenderTargetManager();
@@ -912,6 +992,7 @@ public sealed class RenderGraphExecutorTests
 
     private sealed class TestRenderPassExecutor : IRenderPassExecutor
     {
+        public bool ThrowOnExecute { get; set; }
         public List<RenderPassContext> BegunPasses { get; } = [];
         public List<IRenderCommand> ExecutedCommands { get; } = [];
         public int BeginCount { get; private set; }
@@ -925,6 +1006,11 @@ public sealed class RenderGraphExecutorTests
 
         public void Execute(IRenderCommand command)
         {
+            if (ThrowOnExecute)
+            {
+                throw new InvalidOperationException("Queued command failed.");
+            }
+
             ExecutedCommands.Add(command);
         }
 

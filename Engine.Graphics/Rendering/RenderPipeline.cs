@@ -74,7 +74,7 @@ public sealed class RenderPipeline
             {
                 IsPostProcessSource = pass.IsPostProcessSource,
                 ContextData = pass.ContextData,
-                ClearDepth = pass.ClearColor,
+                ClearDepth = pass.ClearDepth,
             };
 
             executor.Begin(context);

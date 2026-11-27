@@ -27,9 +27,11 @@ public sealed class RenderGraphExecutor : IDisposable
     }
 
     /// <summary>
-    /// Executes the supplied plan. Graph-owned transient resources are created
-    /// on first use and released after their last use. Transient outputs are
-    /// transferred to the returned result and remain alive until it is disposed.
+    /// Executes the supplied plan. Transient resources are acquired from the
+    /// executor-owned pool and released after their last use. Transient outputs
+    /// remain leased to the returned result while this executor is alive.
+    /// Disposing the executor destroys all targets owned by its pool, including
+    /// outputs still retained by execution results.
     /// </summary>
 
     public RenderGraphExecutionResult Execute(

@@ -7,6 +7,125 @@ namespace Engine.Tests.Graphics.Rendering.RenderGraph;
 public sealed class RenderGraphCompilerTests
 {
     [Fact]
+    public void Compile_RejectsLoadingImportedDepthAfterDontCareStore()
+    {
+        var builder = new RenderGraphBuilder();
+
+        var target = builder.ImportRenderTarget(
+            "External",
+            new RenderTargetHandle(1),
+            new RenderTargetDescription(
+                64,
+                64,
+                TextureFormat.Rgba8,
+                hasDepthAttachment: true));
+
+        builder.AddPass(
+            "DiscardDepth",
+            pass => pass
+                .WriteColor(
+                    target,
+                    RenderGraphLoadAction.Clear,
+                    RenderGraphStoreAction.Store)
+                .SetDepthAttachment(
+                    RenderGraphLoadAction.Clear,
+                    RenderGraphStoreAction.DontCare));
+
+        builder.AddPass(
+            "LoadDepth",
+            pass => pass
+                .WriteColor(
+                    target,
+                    RenderGraphLoadAction.Load)
+                .SetDepthAttachment(
+                    RenderGraphLoadAction.Load,
+                    RenderGraphStoreAction.Store));
+
+        builder.SetOutput(target);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => new RenderGraphCompiler().Compile(builder.Build()));
+
+        Assert.Contains("depth attachment", exception.Message);
+        Assert.Contains("discarded", exception.Message);
+    }
+
+    [Fact]
+    public void Compile_RejectsDepthAttachmentWhenTargetHasNoDepthBuffer()
+    {
+        var builder = new RenderGraphBuilder();
+
+        var target = builder.ImportBackbuffer(
+            "Backbuffer",
+            new RenderTargetDescription(
+                64,
+                64,
+                TextureFormat.Rgba8,
+                hasDepthAttachment: false));
+
+        builder.AddPass(
+            "DepthPass",
+            pass => pass
+                .WriteColor(target)
+                .SetDepthAttachment());
+
+        builder.SetOutput(target);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => new RenderGraphCompiler().Compile(builder.Build()));
+
+        Assert.Contains(
+            "does not have one",
+            exception.Message);
+    }
+
+    [Fact]
+    public void Compile_RejectsLoadingTransientResourceBeforeFirstWrite()
+    {
+        var builder = new RenderGraphBuilder();
+
+        var texture = builder.CreateTexture(
+            "Transient",
+            new RenderGraphResourceDescriptor(64, 64));
+
+        builder.AddPass(
+            "Load",
+            pass => pass.WriteColor(
+                texture,
+                RenderGraphLoadAction.Load));
+
+        builder.SetOutput(texture);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => new RenderGraphCompiler().Compile(builder.Build()));
+
+        Assert.Contains("cannot load transient resource", exception.Message);
+    }
+
+    [Fact]
+    public void Compile_RejectsLoadingTransientDepthBeforeFirstWrite()
+    {
+        var builder = new RenderGraphBuilder();
+
+        var texture = builder.CreateTexture(
+            "Transient",
+            new RenderGraphResourceDescriptor(64, 64));
+
+        builder.AddPass(
+            "Load",
+            pass => pass
+                .WriteColor(texture)
+                .SetDepthAttachment(RenderGraphLoadAction.Load));
+
+        builder.SetOutput(texture);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => new RenderGraphCompiler().Compile(builder.Build()));
+
+        Assert.Contains("depth attachment", exception.Message);
+    }
+
+    [Fact]
     public void Compile_OrdersLiveImportedWritersByDeclarationOrder()
     {
         var builder = new RenderGraphBuilder();

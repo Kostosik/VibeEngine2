@@ -9,6 +9,54 @@ namespace Engine.Tests.Graphics.Rendering.RenderGraph;
 public sealed class RenderPipelineGraphBuilderTests
 {
     [Fact]
+    public void Build_MapsDepthClearIndependentlyFromColorClear()
+    {
+        var targets = new TestRenderTargetManager();
+
+        var presentation = new TestFrameExecutor(
+            targets,
+            new RenderTargetDescription(
+                1280,
+                720,
+                TextureFormat.Rgba8,
+                hasDepthAttachment: true));
+
+        var pipeline = new RenderPipeline();
+
+        pipeline.AddPass(
+            new RenderPass(
+                "DepthOnly",
+                RenderTargetHandle.Invalid,
+                RenderState.Default2D,
+                false,
+                RenderPassLayerRange.All)
+            {
+                ClearDepth = true
+            });
+
+        var builder = new RenderPipelineGraphBuilder(
+            targets,
+            presentation,
+            presentationExecutor: presentation);
+
+        var plan = builder.Build(pipeline, 1280, 720);
+
+        var compiledPass = Assert.Single(
+            plan.Passes,
+            pass => pass.Name == "PipelinePass_0_DepthOnly");
+
+        Assert.True(compiledPass.ClearDepth);
+
+        var colorWrite = Assert.Single(
+            compiledPass.ResourceAccesses,
+            access => access.Kind == RenderGraphResourceAccessKind.WriteColor);
+
+        Assert.Equal(
+            RenderGraphLoadAction.Load,
+            colorWrite.LoadAction);
+    }
+
+    [Fact]
     public void Build_OrdersDefaultPipelineStagesAndPresentation()
     {
         var targets = new TestRenderTargetManager();

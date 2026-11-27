@@ -46,6 +46,21 @@
 | Viewport | Подтверждён 2D workflow: pan/zoom, hit test, Move/Rotate/Scale gizmos | 3D Scene View в проверенном Editor UI не обнаружен |
 | Workspace/session | Модели состояния, JSON persistence и тесты существуют | SaveWorkspace/LoadWorkspace и SaveSession/LoadSession не подключены к стандартному запуску Editor.Sandbox; стандартный Editor сохраняет путь к последнему игровому проекту |
 
+## Результаты аудита Content Pipeline (2026-11-27)
+
+Статический аудит зафиксирован в [docs/audits/02-CONTENT-PIPELINE.md](audits/02-CONTENT-PIPELINE.md). Проверены Editor Asset Browser, AssetPath, файловый источник, ContentCatalog, загрузчики, кэш и ownership, асинхронная загрузка, Hot Reload, TextureResourceManager, AudioResourceManager и доставка Assets в output/publish. Сборка и тесты не запускались.
+
+| Область | Подтверждённое состояние | Ограничение / граница |
+|---|---|---|
+| Asset Browser | Навигация, поиск, фильтры, сортировка, создание ресурсов и image preview | Это filesystem view, не ContentCatalog; категории шире runtime loader support; preview использует отдельное чтение и GPU texture |
+| FileAssetSource | Sync/async чтение, защита от выхода за корень и symbolic links/reparse points | AssetPath сам по себе не валидирует traversal; безопасность зависит от IAssetSource |
+| FileContentCatalog | Рекурсивный snapshot с extension, size и last-write metadata; неудачный Refresh сохраняет прошлый snapshot | Нет stable GUID, import settings, importer version, content hash или derived artifact database; Refresh вызывается явно |
+| ContentManager | Кэш по Type + AssetPath, external/dependency references, cycle detection, sync/async load, ownership-aware Unload и ограниченный Reload | Reload требует одной внешней ссылки и отсутствия dependencies; ClearCache — принудительная очистка всего кэша |
+| Default loaders | Desktop Host регистрирует TextureData, ParticleEffectDefinition, TileSetDefinition и TilemapDefinition; game template дополнительно регистрирует UiAsset | Prefab и Script Definition loaders существуют, но не регистрируются по умолчанию; custom loaders подключаются через ConfigureContentLoaders |
+| Resource lifetime | TextureResourceManager использует ContentManager для TextureData и отдельно владеет GPU handles | Content Reload не обновляет уже созданную GPU texture автоматически; AudioResourceManager работает через отдельный AudioLoader/cache |
+| Hot Reload | ContentHotReloadService обнаруживает новые/изменённые файлы по metadata и позволяет явно вызвать Reload<T> | Не подключён к стандартному Host, не возвращает отдельные deletion events и не обновляет автоматически зависимости/GPU resources |
+| Project output | Assets/**/* копируется в output и publish; стандартный Host читает Assets рядом с исполняемым приложением | Это доставка исходных файлов, а не import/asset compilation pipeline |
+
 ## Документированные ограничения
 
 | Область | Поддерживаемое поведение / ограничение | Практическое следствие |

@@ -69,6 +69,7 @@ dotnet test .\VibeEngine2.sln --configuration Release
 - [Отчёт о готовности](docs/READINESS_REPORT.md) — отдельная оценка Editor, Game.Sandbox и Engine с указанием имеющихся свидетельств.
 - [План развития движка](docs/ENGINE_DEVELOPMENT_PLAN.md) — долгосрочная стратегия и последовательность аудита.
 - [Аудиты](docs/audits/) — результаты проверок архитектуры и подсистем.
+- [Аудит Editor](docs/audits/01-EDITOR.md) — документы, Hierarchy, Inspector, Viewport и Undo/Redo.
 - [Диагностика и восстановление](docs/TROUBLESHOOTING.md) — действия при проблемах создания, сборки и запуска проекта.
 
 ## Границы первой версии

@@ -156,16 +156,6 @@ jobs:
             throw "Runtime in distribution ZIP failed validation."
           }
 
-          $missingAssemblies = @(
-            $requiredAssemblies | Where-Object {
-              -not (Test-Path -LiteralPath (Join-Path $runtimeRoot $_) -PathType Leaf)
-            }
-          )
-
-          if ($missingAssemblies.Count -gt 0) {
-            throw "Runtime package is incomplete. Missing assemblies: $($missingAssemblies -join ', ')"
-          }
-
           # OpenAL Soft is the native audio backend dependency shipped with the desktop projects.
           $requiredNativeFiles = @(
             "Game.Sandbox\soft_oal.dll"

@@ -71,6 +71,7 @@ dotnet test .\VibeEngine2.sln --configuration Release
 - [Аудиты](docs/audits/) — результаты проверок архитектуры и подсистем.
 - [Аудит Editor](docs/audits/01-EDITOR.md) — документы, Hierarchy, Inspector, Viewport и Undo/Redo.
 - [Аудит Content Pipeline](docs/audits/02-CONTENT-PIPELINE.md) — каталог ресурсов, loaders, кэширование, зависимости и Hot Reload.
+- [Аудит Scene и World](docs/audits/03-SCENE-AND-WORLD.md) — ECS/World, Transform, сериализация сцен, Prefab, chunk streaming и startup scene workflow.
 - [Диагностика и восстановление](docs/TROUBLESHOOTING.md) — действия при проблемах создания, сборки и запуска проекта.
 
 ## Границы первой версии

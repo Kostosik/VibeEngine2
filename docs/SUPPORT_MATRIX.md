@@ -78,6 +78,23 @@
 | Runtime SceneManager | Lifecycle API управляет активной и ожидающей IScene, инициализацией, переходом и Dispose | SceneManager не загружает .world и не интегрирован в EngineRuntime/EngineGame; отдельный SceneManager test suite не обнаружен |
 | Startup scene | Editor сохраняет относительный startupScene в .vibeproject и ограничивает путь каталогом проекта | Стандартный Editor Play не передаёт этот путь; generated GameMain не загружает сцену. Открытие manifest не проверяет существование ранее записанного startupScene |
 
+## Результаты аудита Runtime (2026-11-27)
+
+Статический аудит зафиксирован в [docs/audits/04-RUNTIME.md](audits/04-RUNTIME.md). Проверены EngineGame, EngineRuntime, GameLoop, SystemScheduler, Simulation, commands/events, diagnostics, ресурсное владение и Desktop Host. Также изучен тест отдельного опубликованного пользовательского проекта. Сборка, тесты и графический запуск Host в рамках аудита не выполнялись.
+
+| Область | Подтверждённое состояние | Ограничение / граница |
+|---|---|---|
+| EngineGame lifecycle | ConfigureRuntime → Runtime.Initialize → OnInitialize; Update, FixedUpdate, Render и Shutdown имеют определённые точки расширения | Повторная инициализация запрещена; пользовательские подписки/ресурсы должны освобождаться игровым кодом |
+| GameLoop | Fixed timestep, clamp delta, лимит fixed steps, interpolation, pause/resume и step | Стандартно 250 мс max frame delta и 8 fixed steps; остаток накопленного времени после лимита сбрасывается. Desktop Host использует эти значения по умолчанию |
+| SystemScheduler | Отдельные Update/FixedUpdate планы; Before/After, проверка типов фаз, циклов и отсутствующих зависимостей | После Build регистрации блокируются; один экземпляр каждого конкретного типа системы; стандартная strategy последовательная |
+| Параллельное исполнение | JobSystemExecutionStrategy умеет исполнять независимые batch через JobScheduler | EngineRuntime создаёт SystemScheduler с default sequential strategy и не предоставляет настройки стратегии через RuntimeOptions/Services |
+| User components/systems | Подтверждены ConfigureRuntime registration и исполнение системы из внешней игровой сборки | Для сохранения custom ECS-компонентов требуется отдельная регистрация serializer; это не требуется для обычного ECS в памяти |
+| Commands/Events | Команды обрабатываются перед fixed systems; события — после Update/FixedUpdate систем | Нет общей изоляции исключений handlers; пользователь владеет сроком жизни EventSubscription |
+| Ошибки | ScriptRuntime отключает ошибочный экземпляр скрипта и репортит fault; FatalError отправляет Critical diagnostic и выбрасывает exception | Исключения обычных систем и command handlers проходят наружу и прерывают текущий проход |
+| Runtime resources | Runtime освобождает собственные systems/caches и не уничтожает injected Audio/Content/Graphics services | Внешними сервисами владеет Host; игровым кодом — его собственные ресурсы и подписки |
+| Desktop Host | Создаёт window, backend, input, Audio, Content, Runtime и управляет GameLoop lifecycle | В просмотренном Engine.Tests нет отдельного полного графического Host integration suite; audio backend стандартного Host напрямую связан с OpenAL |
+| Независимый проект | Отдельный проект публикуется и запускается вне репозитория, использует custom dependency, Assets, custom component/system и вручную загружает .world | Тест не использует графический Desktop Host и не подтверждает автоматическую загрузку startup scene из manifest |
+
 ## Документированные ограничения
 
 | Область | Поддерживаемое поведение / ограничение | Практическое следствие |

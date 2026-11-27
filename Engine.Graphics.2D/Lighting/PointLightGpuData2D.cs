@@ -1,4 +1,5 @@
 ﻿using Engine.Core.Math;
+using Engine.Graphics2D.Rendering;
 
 namespace Engine.Graphics2D.Lighting;
 
@@ -12,8 +13,8 @@ public readonly record struct PointLightGpuData2D(
     float Intensity)
 {
     public static PointLightGpuData2D From(
-        in Light2D light,
-        in LightingContext2D context)
+    in Light2D light,
+    in LightingContext2D context)
     {
         if (!light.IsEnabled)
         {
@@ -22,28 +23,19 @@ public readonly record struct PointLightGpuData2D(
                 nameof(light));
         }
 
-        var camera = context.Camera;
-        var viewport = camera.ViewportSize;
+        var transform =
+            new CameraRenderTargetTransform2D(
+                context.Camera,
+                context.LogicalViewportWidth,
+                context.LogicalViewportHeight);
 
-        var scaleX =
-            context.LogicalViewportWidth / viewport.X;
+        var position =
+            transform.WorldToTargetBottomLeft(
+                light.Position);
 
-        var scaleY =
-            context.LogicalViewportHeight / viewport.Y;
-
-        var screenPosition = camera.WorldToScreen(
-            light.Position);
-
-        // Camera coordinates use a top-left origin.
-        // Fullscreen texture coordinates use a bottom-left origin.
-        var position = new Vector2(
-            screenPosition.X * scaleX,
-            context.LogicalViewportHeight -
-            screenPosition.Y * scaleY);
-
-        var radius = new Vector2(
-            light.Radius * camera.Zoom * scaleX,
-            light.Radius * camera.Zoom * scaleY);
+        var radius =
+            transform.WorldSizeToTarget(
+                new Vector2(light.Radius, light.Radius));
 
         if (!float.IsFinite(position.X) ||
             !float.IsFinite(position.Y) ||

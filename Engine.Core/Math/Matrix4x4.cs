@@ -14,6 +14,16 @@ public readonly record struct Matrix4x4(
 
     public bool IsIdentity => this == Identity;
 
+    public bool IsFinite =>
+    float.IsFinite(M11) && float.IsFinite(M12) &&
+    float.IsFinite(M13) && float.IsFinite(M14) &&
+    float.IsFinite(M21) && float.IsFinite(M22) &&
+    float.IsFinite(M23) && float.IsFinite(M24) &&
+    float.IsFinite(M31) && float.IsFinite(M32) &&
+    float.IsFinite(M33) && float.IsFinite(M34) &&
+    float.IsFinite(M41) && float.IsFinite(M42) &&
+    float.IsFinite(M43) && float.IsFinite(M44);
+
     public Vector3 Translation =>
         new(M41, M42, M43);
 
@@ -147,6 +157,150 @@ public readonly record struct Matrix4x4(
             GetNegatedDot(up, cameraPosition, nameof(cameraPosition)),
             GetNegatedDot(backward, cameraPosition, nameof(cameraPosition)),
             1);
+    }
+
+    public Matrix4x4 Transpose()
+    {
+        return new Matrix4x4(
+            M11, M21, M31, M41,
+            M12, M22, M32, M42,
+            M13, M23, M33, M43,
+            M14, M24, M34, M44);
+    }
+
+    public bool TryInvert(out Matrix4x4 inverse)
+    {
+        inverse = default;
+
+        if (!IsFinite)
+            return false;
+
+        Span<double> values = stackalloc double[32];
+        values.Clear();
+
+        // Исходная матрица слева.
+        values[0] = M11;
+        values[1] = M12;
+        values[2] = M13;
+        values[3] = M14;
+
+        values[8] = M21;
+        values[9] = M22;
+        values[10] = M23;
+        values[11] = M24;
+
+        values[16] = M31;
+        values[17] = M32;
+        values[18] = M33;
+        values[19] = M34;
+
+        values[24] = M41;
+        values[25] = M42;
+        values[26] = M43;
+        values[27] = M44;
+
+        // Единичная матрица справа.
+        values[4] = 1.0;
+        values[13] = 1.0;
+        values[22] = 1.0;
+        values[31] = 1.0;
+
+        for (var pivotColumn = 0; pivotColumn < 4; pivotColumn++)
+        {
+            var pivotRow = pivotColumn;
+            var largestPivot = System.Math.Abs(
+                values[pivotRow * 8 + pivotColumn]);
+
+            // Выбираем строку с максимальным элементом.
+            for (var row = pivotColumn + 1; row < 4; row++)
+            {
+                var candidate = System.Math.Abs(
+                    values[row * 8 + pivotColumn]);
+
+                if (candidate > largestPivot)
+                {
+                    largestPivot = candidate;
+                    pivotRow = row;
+                }
+            }
+
+            if (largestPivot == 0.0 ||
+                !double.IsFinite(largestPivot))
+            {
+                return false;
+            }
+
+            // Переставляем строки.
+            if (pivotRow != pivotColumn)
+            {
+                for (var column = 0; column < 8; column++)
+                {
+                    var first = pivotColumn * 8 + column;
+                    var second = pivotRow * 8 + column;
+
+                    (values[first], values[second]) =
+                        (values[second], values[first]);
+                }
+            }
+
+            var pivotIndex = pivotColumn * 8 + pivotColumn;
+            var pivot = values[pivotIndex];
+
+            // Нормализуем опорную строку.
+            for (var column = 0; column < 8; column++)
+            {
+                values[pivotColumn * 8 + column] /= pivot;
+            }
+
+            // Обнуляем остальные элементы столбца.
+            for (var row = 0; row < 4; row++)
+            {
+                if (row == pivotColumn)
+                    continue;
+
+                var factor = values[row * 8 + pivotColumn];
+
+                if (factor == 0.0)
+                    continue;
+
+                for (var column = 0; column < 8; column++)
+                {
+                    values[row * 8 + column] -=
+                        factor * values[pivotColumn * 8 + column];
+                }
+            }
+        }
+
+        // Правая половина содержит обратную матрицу.
+        var result = new Matrix4x4(
+            (float)values[4], (float)values[5],
+            (float)values[6], (float)values[7],
+
+            (float)values[12], (float)values[13],
+            (float)values[14], (float)values[15],
+
+            (float)values[20], (float)values[21],
+            (float)values[22], (float)values[23],
+
+            (float)values[28], (float)values[29],
+            (float)values[30], (float)values[31]);
+
+        if (!result.IsFinite)
+            return false;
+
+        inverse = result;
+        return true;
+    }
+
+    public Matrix4x4 Invert()
+    {
+        if (!TryInvert(out var inverse))
+        {
+            throw new InvalidOperationException(
+                "Matrix is singular or cannot be inverted.");
+        }
+
+        return inverse;
     }
 
     private static Vector3 NormalizeLookAtVector(
@@ -343,6 +497,22 @@ public readonly record struct Matrix4x4(
             direction.X * M13 +
             direction.Y * M23 +
             direction.Z * M33);
+    }
+
+    /// <summary>
+    /// Transforms a normal using the inverse-transpose matrix.
+    /// Intended for affine transformation matrices.
+    /// The returned vector is not normalized.
+    /// </summary>
+    public Vector3 TransformNormal(Vector3 normal)
+    {
+        if (!TryInvert(out var inverse))
+        {
+            throw new InvalidOperationException(
+                "Cannot transform normal using a singular matrix.");
+        }
+
+        return inverse.Transpose().TransformDirection(normal);
     }
 
     private static void ValidateClipPlanes(

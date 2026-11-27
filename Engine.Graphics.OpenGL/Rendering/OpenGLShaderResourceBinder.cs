@@ -207,7 +207,7 @@ internal sealed class OpenGLShaderResourceBinder :
             {
                 _gl.SamplerParameter(
                     sampler,
-                    SamplerParameterF.TextureMaxAnisotropy,
+                    SamplerParameterF.MaxAnisotropy,
                     MathF.Min(
                         description.Anisotropy,
                         _maxAnisotropy));

@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Text;
 
-namespace Engine.Editor.Projects;
+namespace BuildTools.Core.Runtime;
 
 public static class EngineRuntimeBuilder
 {

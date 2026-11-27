@@ -1,9 +1,10 @@
 ﻿using Engine.Camera;
 using Engine.Core.Math;
 using Engine.Graphics.Commands;
-using Engine.Graphics2D.Commands;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
+using Engine.Graphics2D.Commands;
+using Engine.Graphics2D.Rendering;
 using Silk.NET.OpenGL;
 
 namespace Engine.Graphics.OpenGL.Rendering;
@@ -461,34 +462,42 @@ internal sealed class OpenGLTextureRenderer : IDisposable
     }
 
     public void DrawWorld(
-        DrawWorldTextureData command)
+    DrawWorldTextureData command)
     {
         ThrowIfDisposed();
         EnsureFrameActive();
 
         if (!command.Texture.IsValid)
-        {
             return;
-        }
 
         // Position задаёт нижний левый угол в World Space.
-        // DrawQuad ожидает верхний левый угол в Screen Space.
         var worldTopLeft =
             command.Position +
             new Vector2(0.0f, command.Size.Y);
 
+        // Сначала получаем координаты камеры.
         var screenTopLeft =
             _camera.WorldToScreen(worldTopLeft);
 
         var screenSize =
             command.Size * _camera.Zoom;
 
-        DrawQuad(
-            command.Texture,
+        // Затем преобразуем геометрию в Render Target.
+        var transform =
+            new CameraRenderTargetTransform2D(
+                _camera,
+                (int)_width,
+                (int)_height);
+
+        var quad = transform.CameraScreenQuadToTarget(
             screenTopLeft,
             screenSize,
-            command.UV,
             command.RotationDegrees);
+
+        if (!PrepareTextureBatch(command.Texture))
+            return;
+
+        AddQuad(quad, command.UV);
     }
 
     private void DrawQuad(
@@ -588,24 +597,22 @@ internal sealed class OpenGLTextureRenderer : IDisposable
     }
 
     private void AddQuad(
-        float x,
-        float y,
-        float width,
-        float height,
-        Rectangle uv,
-        float rotationDegrees = 0.0f,
-        Vector2? rotationOrigin = null)
+    float x,
+    float y,
+    float width,
+    float height,
+    Rectangle uv,
+    float rotationDegrees = 0.0f,
+    Vector2? rotationOrigin = null)
     {
         var right = x + width;
         var bottom = y + height;
 
-        // По умолчанию вращаем вокруг центра прямоугольника.
         var origin = rotationOrigin ??
             new Vector2(
                 x + width * 0.5f,
                 y + height * 0.5f);
 
-        // Вычисляем координаты четырёх углов с учётом поворота.
         var topLeft = RotatePoint(
             new Vector2(x, y),
             origin,
@@ -626,43 +633,29 @@ internal sealed class OpenGLTextureRenderer : IDisposable
             origin,
             rotationDegrees);
 
-        // Первый треугольник.
-        AddVertex(
-            topLeft.X,
-            topLeft.Y,
-            uv.X,
-            uv.Y);
+        AddQuad(
+            new CameraRenderTargetQuad2D(
+                topLeft,
+                topRight,
+                bottomRight,
+                bottomLeft),
+            uv);
+    }
 
-        AddVertex(
-            topRight.X,
-            topRight.Y,
-            uv.X + uv.Width,
-            uv.Y);
+    private void AddQuad(
+        CameraRenderTargetQuad2D quad,
+        Rectangle uv)
+    {
+        for (var i = 0; i < CameraRenderTargetQuad2D.VertexCount; i++)
+        {
+            var vertex = quad.GetVertex(i, uv);
 
-        AddVertex(
-            bottomRight.X,
-            bottomRight.Y,
-            uv.X + uv.Width,
-            uv.Y + uv.Height);
-
-        // Второй треугольник.
-        AddVertex(
-            topLeft.X,
-            topLeft.Y,
-            uv.X,
-            uv.Y);
-
-        AddVertex(
-            bottomRight.X,
-            bottomRight.Y,
-            uv.X + uv.Width,
-            uv.Y + uv.Height);
-
-        AddVertex(
-            bottomLeft.X,
-            bottomLeft.Y,
-            uv.X,
-            uv.Y + uv.Height);
+            AddVertex(
+                vertex.Position.X,
+                vertex.Position.Y,
+                vertex.UV.X,
+                vertex.UV.Y);
+        }
     }
 
     private static Vector2 RotatePoint(

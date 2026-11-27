@@ -3,6 +3,7 @@ using System.Xml.Linq;
 using Engine.Core.Diagnostics;
 using Engine.Editor.Projects;
 using Engine.Tooling.Debugging;
+using BuildTools.Core.Runtime;
 
 namespace Engine.Editor.UI.Commands;
 

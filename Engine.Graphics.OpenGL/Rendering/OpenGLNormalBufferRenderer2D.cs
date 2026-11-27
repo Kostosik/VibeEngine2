@@ -2,8 +2,9 @@
 using Engine.Core.Math;
 using Engine.Graphics.Commands;
 using Engine.Graphics.OpenGL.Resources;
-using Engine.Graphics2D.Commands;
 using Engine.Graphics.Resources;
+using Engine.Graphics2D.Commands;
+using Engine.Graphics2D.Rendering;
 using Silk.NET.OpenGL;
 
 namespace Engine.Graphics.OpenGL.Rendering;
@@ -190,6 +191,17 @@ internal sealed class OpenGLNormalBufferRenderer2D : IDisposable
             return;
         }
 
+        var targetTransform =
+            new CameraRenderTargetTransform2D(
+                _camera,
+                (int)_width,
+                (int)_height);
+
+        var quad = targetTransform.CameraScreenQuadToTarget(
+            screenTopLeft,
+            screenSize,
+            command.RotationDegrees);
+
         _gl.ActiveTexture(TextureUnit.Texture0);
         _gl.BindTexture(
             TextureTarget.Texture2D,
@@ -224,11 +236,7 @@ internal sealed class OpenGLNormalBufferRenderer2D : IDisposable
             transform.M12,
             transform.M22);
 
-        AddQuad(
-            screenTopLeft,
-            screenSize,
-            command.UV,
-            command.RotationDegrees);
+        AddQuad(quad, command.UV);
 
         _gl.BindBuffer(
             BufferTargetARB.ArrayBuffer,
@@ -290,45 +298,18 @@ internal sealed class OpenGLNormalBufferRenderer2D : IDisposable
     }
 
     private void AddQuad(
-        Vector2 position,
-        Vector2 size,
-        Rectangle uv,
-        float rotationDegrees)
+        CameraRenderTargetQuad2D quad,
+        Rectangle uv)
     {
-        var right = position.X + size.X;
-        var bottom = position.Y + size.Y;
+        for (var i = 0; i < CameraRenderTargetQuad2D.VertexCount; i++)
+        {
+            var vertex = quad.GetVertex(i, uv);
 
-        var origin = new Vector2(
-            position.X + size.X * 0.5f,
-            position.Y + size.Y * 0.5f);
-
-        var topLeft = RotatePoint(
-            new Vector2(position.X, position.Y),
-            origin,
-            rotationDegrees);
-
-        var topRight = RotatePoint(
-            new Vector2(right, position.Y),
-            origin,
-            rotationDegrees);
-
-        var bottomRight = RotatePoint(
-            new Vector2(right, bottom),
-            origin,
-            rotationDegrees);
-
-        var bottomLeft = RotatePoint(
-            new Vector2(position.X, bottom),
-            origin,
-            rotationDegrees);
-
-        SetVertex(0, topLeft, new Vector2(uv.X, uv.Y));
-        SetVertex(1, topRight, new Vector2(uv.X + uv.Width, uv.Y));
-        SetVertex(2, bottomRight, new Vector2(uv.X + uv.Width, uv.Y + uv.Height));
-
-        SetVertex(3, topLeft, new Vector2(uv.X, uv.Y));
-        SetVertex(4, bottomRight, new Vector2(uv.X + uv.Width, uv.Y + uv.Height));
-        SetVertex(5, bottomLeft, new Vector2(uv.X, uv.Y + uv.Height));
+            SetVertex(
+                i,
+                vertex.Position,
+                vertex.UV);
+        }
     }
 
     private void SetVertex(

@@ -49,6 +49,7 @@
     <ProjectReference Include="..\Engine.Transform\Engine.Transform.csproj" />
     <ProjectReference Include="..\Engine.World\Engine.Worlds.csproj" />
     <ProjectReference Include="..\Game.Sandbox\Game.Sandbox.csproj" />
+    <ProjectReference Include="..\BuildTools\BuildTools.Core\BuildTools.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

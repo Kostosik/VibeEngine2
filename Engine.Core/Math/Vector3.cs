@@ -21,6 +21,11 @@ public readonly record struct Vector3(
     public static Vector3 UnitZ =>
         new(0.0f, 0.0f, 1.0f);
 
+    public bool IsFinite =>
+    float.IsFinite(X) &&
+    float.IsFinite(Y) &&
+    float.IsFinite(Z);
+
     public float LengthSquared()
     {
         return X * X + Y * Y + Z * Z;
@@ -76,6 +81,75 @@ public readonly record struct Vector3(
         float amount)
     {
         return start + (end - start) * amount;
+    }
+
+    public static float DistanceSquared(
+    Vector3 left,
+    Vector3 right)
+    {
+        return (right - left).LengthSquared();
+    }
+
+    public static Vector3 Min(Vector3 left, Vector3 right)
+    {
+        return new Vector3(
+            MathF.Min(left.X, right.X),
+            MathF.Min(left.Y, right.Y),
+            MathF.Min(left.Z, right.Z));
+    }
+
+    public static Vector3 Max(Vector3 left, Vector3 right)
+    {
+        return new Vector3(
+            MathF.Max(left.X, right.X),
+            MathF.Max(left.Y, right.Y),
+            MathF.Max(left.Z, right.Z));
+    }
+
+    public static Vector3 Clamp(
+        Vector3 value,
+        Vector3 min,
+        Vector3 max)
+    {
+        if (min.X > max.X ||
+            min.Y > max.Y ||
+            min.Z > max.Z)
+        {
+            throw new ArgumentException(
+                "Minimum components cannot exceed maximum components.");
+        }
+
+        return new Vector3(
+            System.Math.Clamp(value.X, min.X, max.X),
+            System.Math.Clamp(value.Y, min.Y, max.Y),
+            System.Math.Clamp(value.Z, min.Z, max.Z));
+    }
+
+    public static Vector3 MultiplyComponents(
+        Vector3 left,
+        Vector3 right)
+    {
+        return new Vector3(
+            left.X * right.X,
+            left.Y * right.Y,
+            left.Z * right.Z);
+    }
+
+    public static Vector3 DivideComponents(
+        Vector3 left,
+        Vector3 right)
+    {
+        if (right.X == 0 ||
+            right.Y == 0 ||
+            right.Z == 0)
+        {
+            throw new DivideByZeroException();
+        }
+
+        return new Vector3(
+            left.X / right.X,
+            left.Y / right.Y,
+            left.Z / right.Z);
     }
 
     public static Vector3 operator +(

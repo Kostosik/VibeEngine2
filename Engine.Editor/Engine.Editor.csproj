@@ -13,6 +13,7 @@
     <ProjectReference Include="..\Engine.Tooling\Engine.Tooling.csproj" />
     <ProjectReference Include="..\Engine.UI\Engine.UI.csproj" />
     <ProjectReference Include="..\Engine.World\Engine.Worlds.csproj" />
+    <ProjectReference Include="..\BuildTools\BuildTools.Core\BuildTools.Core.csproj" />
   </ItemGroup>
 
 </Project>

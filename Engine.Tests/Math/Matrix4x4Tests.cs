@@ -6,6 +6,75 @@ public sealed class Matrix4x4Tests
 {
 
     [Fact]
+    public void Invert_RestoresOriginalPoint()
+    {
+        var matrix =
+            Matrix4x4.CreateScale(new Vector3(2, 3, 4)) *
+            Matrix4x4.CreateRotation(
+                Quaternion.CreateFromAxisAngle(
+                    Vector3.UnitZ,
+                    0.7f)) *
+            Matrix4x4.CreateTranslation(new Vector3(10, -4, 5));
+
+        var point = new Vector3(5, 8, 2);
+
+        Assert.True(matrix.TryInvert(out var inverse));
+
+        var transformed = matrix.TransformPoint(point);
+        var restored = inverse.TransformPoint(transformed);
+
+        Assert.Equal(point.X, restored.X, 4);
+        Assert.Equal(point.Y, restored.Y, 4);
+        Assert.Equal(point.Z, restored.Z, 4);
+
+        Assert.Equal(matrix, matrix.Transpose().Transpose());
+    }
+
+    [Fact]
+    public void TransformNormal_UsesInverseTransposeForNonUniformScale()
+    {
+        var tangent = new Vector3(1, 1, 0);
+        var normal = new Vector3(1, -1, 0);
+
+        var transform =
+            Matrix4x4.CreateScale(new Vector3(2, 1, 1)) *
+            Matrix4x4.CreateTranslation(new Vector3(10, 20, 30));
+
+        var transformedTangent =
+            transform.TransformDirection(tangent);
+
+        var transformedNormal =
+            transform.TransformNormal(normal);
+
+        Assert.Equal(
+            0.0f,
+            Vector3.Dot(transformedTangent, transformedNormal),
+            5);
+
+        Assert.Equal(
+            new Vector3(0.5f, -1, 0),
+            transformedNormal);
+    }
+
+    [Fact]
+    public void TryInvert_RejectsInvalidMatrices()
+    {
+        var singular = Matrix4x4.CreateScale(
+            new Vector3(1, 0, 1));
+
+        Assert.False(singular.TryInvert(out _));
+
+        var invalid = new Matrix4x4(
+            float.NaN, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1);
+
+        Assert.False(invalid.IsFinite);
+        Assert.False(invalid.TryInvert(out _));
+    }
+
+    [Fact]
     public void LookAt_DefaultCameraOrientation_ProducesIdentity()
     {
         var result = Matrix4x4.CreateLookAt(

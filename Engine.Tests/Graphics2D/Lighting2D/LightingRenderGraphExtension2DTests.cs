@@ -54,14 +54,14 @@ public sealed class LightingRenderGraphExtension2DTests
         Assert.Equal(
             new[]
             {
-        "World",
-        "Lighting2D.Collect",
-        "Lighting2D.NormalBuffer",
-        "Lighting2D.DirectLighting",
-        "Lighting2D.AmbientLighting",
-        "Lighting2D.IndirectLighting",
-        "Lighting2D.Emission",
-        "Lighting2D.Composite"
+                "World",
+                "Lighting2D.Collect",
+                "Lighting2D.NormalBuffer",
+                "Lighting2D.DirectLighting",
+                "Lighting2D.AmbientLighting",
+                "Lighting2D.IndirectLighting",
+                "Lighting2D.Emission",
+                "Lighting2D.Composite"
             },
             plan.Passes.Select(pass => pass.Name));
 

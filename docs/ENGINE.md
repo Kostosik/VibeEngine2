@@ -401,15 +401,16 @@ Engine.Graphics2D
 
 # 13. Camera
 
-Camera является отдельной системой, а не частью Graphics. В текущей реализации основной публичный camera workflow — Camera2D; наличие отдельного Camera project само по себе не подтверждает завершённую Camera3D систему.
-
-Текущая архитектура:
+Camera является отдельной системой, а не частью Graphics. В `Engine.Camera` реализованы backend-independent `Camera2D` и `Camera3D`; для 3D также имеется `Camera3DController`.
 
 ```text
 Engine.Camera
     ├── Camera2D
-    └── future Camera3D
+    ├── Camera3D
+    └── Camera3DController
 ```
+
+`Camera3D` предоставляет view/projection matrices, FOV, near/far planes, LookAt и настройку viewport. При этом стандартный `EngineRuntimeServices` по-прежнему принимает и предоставляет только `Camera2D`; наличие Camera3D API не означает готовую стандартную runtime/editor интеграцию.
 
 Camera отвечает за преобразование между пространствами и camera-specific operations.
 
@@ -464,7 +465,7 @@ Transform не является исключительно graphics concept.
 
 Physics является отдельным механизмом simulation.
 
-В репозитории присутствует 2D Physics и отдельная область 3D physics types в Engine.Physics/3D. Наличие 3D-типов не означает подтверждённую полноту 3D physics workflow.
+В репозитории присутствует законченный по составу базовых механизмов 2D Physics. В `Engine.Physics/3D` также есть 3D bodies, colliders, primitive shapes, broad-phase proxy/bounds и pairwise `CollisionDetector3D`, но не обнаружены полный 3D stepping system, broad-phase implementation, contact solver/response, queries или joints. Наличие 3D-типов и detector не означает завершённую 3D physics workflow.
 
 Основные механизмы:
 

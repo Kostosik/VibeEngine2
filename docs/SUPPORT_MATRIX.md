@@ -115,6 +115,25 @@
 
 Наличие тестовых файлов по перечисленным областям не означает, что весь набор был запущен в рамках этого аудита. Детальные пути к исходникам и тестам, а также оставшиеся сквозные вопросы приведены в отчёте 05-2D-ENGINE.md.
 
+
+## Результаты аудита 3D Engine (2026-11-27)
+
+Статический аудит исходников, project references, полного дерева файлов и тестовых файлов; сборка, тесты и ручной запуск 3D preview в этом проходе не выполнялись. Полный отчёт: [06-3D-ENGINE.md](audits/06-3D-ENGINE.md).
+
+| Область | Фактическое состояние | Ограничения / границы |
+|---|---|---|
+| Mesh и 3D rendering | `MeshData`, базовые примитивы, `MeshRenderer3D`, `MeshRenderSystem3D`, `DrawMeshCommand`, OpenGL mesh manager/renderer и dispatch path присутствуют. `Game.Sandbox` вручную собирает 3D preview. | Нет model asset importer/loader; 3D renderer не подключён к стандартному EngineRuntime и вручную запускается в Sandbox. |
+| Material и lighting | `Material3D` передаёт BaseColor и ambient/diffuse strength; `SceneLighting3D` поддерживает directional light и до четырёх point lights. | Не обнаружены PBR параметры, material texture maps и shadow map workflow. |
+| Camera3D | Backend-independent `Camera3D` и `Camera3DController` реализованы и имеют unit tests. | `EngineRuntimeServices` предоставляет только `Camera2D`; стандартная runtime camera integration отсутствует. |
+| Transform 3D | Float/fixed components, parent links и обе hierarchy systems существуют; отдельные тесты покрывают иерархию и преобразования. | Standard Runtime запускает 2D hierarchy; 3D системы вызываются вручную. Built-in 3D transform serializers не обнаружены. |
+| Physics 3D | Есть bodies, colliders, Sphere/Box/Capsule/Plane shapes, bounds/proxy, settings и pairwise `CollisionDetector3D`. | Нет PhysicsSystem3D/solver/response, broad-phase implementation, queries, joints и Runtime FixedUpdate integration. Detector обрабатывает лишь часть shape pairs. |
+| Animation 3D | Generic AnimationClip/track/player/binding поддерживает применение типизированных значений через callback. | Нет skeleton/bones, skinning, inverse bind matrices и готового ECS binding workflow для skeletal animation. |
+| Model import и Content | В mesh API есть CPU geometry и GPU handles. | В текущем tree не обнаружены model formats/importer или model content loader; произвольная модель не проходит готовый Content workflow. |
+| Serialization | Стандартная сериализация содержит 2D-компоненты и 2D physics serializers. | Built-in serializers для 3D transforms, mesh renderer и PhysicsBody3D/Collider3D не обнаружены; scene round-trip 3D не обеспечен стандартным набором. |
+| Editor | Стандартный Editor имеет 2D viewport/authoring workflow. | Нет 3D Scene View, mesh/model/material authoring, 3D gizmos и прямой зависимости Editor проектов от Graphics3D. |
+
+Тестовые исходники найдены для Camera3D/controller, mesh data/primitives/resources, material, render pass, 3D Transform hierarchy, PhysicsBody3D и PhysicsShape3D. В просмотренном наборе не обнаружены интеграционные тесты полного OpenGL draw path, MeshRenderSystem3D, model import, 3D serialization, 3D Editor, Physics3D solver или CollisionDetector3D. Наличие файлов не означает запуск тестов в рамках этого аудита.
+
 ## Документированные ограничения
 
 | Область | Поддерживаемое поведение / ограничение | Практическое следствие |

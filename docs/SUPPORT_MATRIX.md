@@ -95,6 +95,26 @@
 | Desktop Host | Создаёт window, backend, input, Audio, Content, Runtime и управляет GameLoop lifecycle | В просмотренном Engine.Tests нет отдельного полного графического Host integration suite; audio backend стандартного Host напрямую связан с OpenAL |
 | Независимый проект | Отдельный проект публикуется и запускается вне репозитория, использует custom dependency, Assets, custom component/system и вручную загружает .world | Тест не использует графический Desktop Host и не подтверждает автоматическую загрузку startup scene из manifest |
 
+## Результаты аудита 2D Engine (2026-11-27)
+
+Статический аудит исходников и тестовых файлов; сборка и тесты в этом проходе не запускались. Полный отчёт: [05-2D-ENGINE.md](audits/05-2D-ENGINE.md).
+
+| Область | Фактическое состояние | Ограничения / границы |
+|---|---|---|
+| Sprite и Sprite Materials | EngineGame автоматически вызывает SpriteRenderSystem; renderer использует WorldTransform2D, Camera2D, texture resource manager и поддерживает Albedo/Normal/Emission каналы. | Для настройки всех параметров SpriteMaterialComponent отдельный специализированный Editor workflow в исходниках не найден; проверенные сценарии назначения albedo texture не доказывают полноту authoring материалов. |
+| TileSet / Tilemap | Есть версии JSON форматов, стандартные Content loaders, Editor documents/panels/preview, runtime rendering и ECS serializers. | Tilemap asset не интегрирован автоматически с chunk tile storage/streaming из Engine.World. Размер тайла стандартного runtime renderer сейчас фиксирован на 1.0 world unit. |
+| Camera2D | Стандартный Host передаёт Camera2D в Runtime; спрайты, Tilemap и Particles используют её. Реализованы zoom, bounds/culling, coordinate transforms, follow/dead zone, limits и shake. | Базовая runtime конфигурация использует одну общую host camera; это не ECS-система выбора активной камеры. |
+| Animation | AnimationClip, AnimationPlayer, SpriteAnimation, serializers/file service и Editor documents/panels существуют. | В стандартном EngineRuntime не обнаружена ECS animation system; игровые объекты и bindings должны обновляться пользовательским кодом. Стандартные content loaders для .animation.json и .sprite-animation.json не зарегистрированы. |
+| Lighting / Normal Mapping | Sprite material передаёт Normal/Emission и NormalTransform в графические команды; 2D lighting и normal-buffer код присутствует. | Внутренности Lighting/RenderGraph не проверялись повторно в 0.6; использовать результаты отдельного графического аудита и не выводить готовность только по наличию типов. |
+| Physics 2D | PhysicsSystem2D включён в FixedUpdate; существуют shapes, colliders, materials, joints, contact events, queries, serializers, validation и debug visualization. | Статический аудит не подтверждает каждый возможный стрессовый сценарий и все игровые масштабы. |
+| Particles | ParticleEffectComponent автоматически синхронизируется с ParticleRuntime; стандартный EngineGame обновляет и рендерит эффекты. Есть ручной emitter API, loader, serializer и Editor workflow. | Ограничения формата и доступных модификаторов остаются в таблице Particle effects ниже. |
+| UI | Есть retained UI, widgets/layout/input/focus/screens, бинарный UiAsset и мост Editor → UiAsset → runtime widgets/actions. | EngineGame/EngineRuntime/стандартный Desktop Host не создают и не обновляют UiSystem автоматически; интеграция выполняется игровым кодом. |
+| Audio | AudioEcsSystem автоматически обслуживает AudioSourceComponent/AudioListenerComponent в Runtime.Update; стандартный Desktop Host использует OpenAL. | Один активный listener; форматные ограничения WAV PCM перечислены ниже. |
+| Navigation / AI | Существуют grid/chunk maps, path queries и jobs, AISystem, scheduler, perception, memory, Behavior Trees и Utility AI. | Отсутствует стандартная связь с Tilemap/World и автоматическая регистрация AI в EngineRuntime. Текущий AStarPathfinder задаёт приоритет очереди как накопленную стоимость пути (Dijkstra-style), без heuristic term. |
+| Зависимости Engine.Runtime | Runtime исходники используют типы Engine.Graphics.2D и Engine.Particles. | В текущем Engine.Runtime.csproj явные ProjectReference на эти проекты не обнаружены. Это статическое несоответствие требует отдельной проверки сборкой; в рамках аудита build не запускался и build failure не объявляется подтверждённым. |
+
+Наличие тестовых файлов по перечисленным областям не означает, что весь набор был запущен в рамках этого аудита. Детальные пути к исходникам и тестам, а также оставшиеся сквозные вопросы приведены в отчёте 05-2D-ENGINE.md.
+
 ## Документированные ограничения
 
 | Область | Поддерживаемое поведение / ограничение | Практическое следствие |
@@ -150,3 +170,4 @@
 - [Руководство по API](API.md)
 - [Диагностика и решение типичных проблем](TROUBLESHOOTING.md)
 - [План развития движка](ENGINE_DEVELOPMENT_PLAN.md) — долгосрочная стратегия и аудит.
+- [Аудит 2D Engine](audits/05-2D-ENGINE.md) — сквозные связи 2D подсистем, Editor, сериализации и Runtime.

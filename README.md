@@ -75,6 +75,7 @@ dotnet test .\VibeEngine2.sln --configuration Release
 - [Аудит Runtime](docs/audits/04-RUNTIME.md) — EngineGame, GameLoop, SystemScheduler, commands/events, diagnostics, Host и запуск отдельной игры.
 - [Аудит 2D Engine](docs/audits/05-2D-ENGINE.md) — спрайты и материалы, TileSet/Tilemap, камера, анимация, физика, частицы, UI, аудио и навигация.
 - [Аудит 3D Engine](docs/audits/06-3D-ENGINE.md) — mesh rendering, Camera3D, Transform, Physics 3D, Animation, import, serialization и Editor workflow.
+- [Аудит Developer Tools](docs/audits/07-DEVELOPER-TOOLS.md) — console, diagnostics, profiling, validation, ECS inspection, debug visualization и benchmarks.
 - [Диагностика и восстановление](docs/TROUBLESHOOTING.md) — действия при проблемах создания, сборки и запуска проекта.
 
 ## Границы первой версии

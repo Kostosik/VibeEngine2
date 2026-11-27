@@ -134,6 +134,23 @@
 
 Тестовые исходники найдены для Camera3D/controller, mesh data/primitives/resources, material, render pass, 3D Transform hierarchy, PhysicsBody3D и PhysicsShape3D. В просмотренном наборе не обнаружены интеграционные тесты полного OpenGL draw path, MeshRenderSystem3D, model import, 3D serialization, 3D Editor, Physics3D solver или CollisionDetector3D. Наличие файлов не означает запуск тестов в рамках этого аудита.
 
+
+## Результаты аудита Developer Tools (2026-11-27)
+
+Статический аудит исходников, связей Runtime/Host/Editor, benchmark CLI и тестовых файлов; сборка, тесты и benchmark-сценарии в этом проходе не запускались. Полный отчёт: [07-DEVELOPER-TOOLS.md](audits/07-DEVELOPER-TOOLS.md).
+
+| Область | Фактическое состояние | Ограничения / границы |
+|---|---|---|
+| Diagnostics / Console | Structured diagnostics, console sinks, runtime commands, message history и Editor Console с фильтрами/поиском. Desktop Host подключает pause/resume/step. | Runtime overlay создаётся приложением вручную; DebugConsole держит до 5000 сообщений по умолчанию, DiagnosticCollector — обычный список без лимита. |
+| ECS Inspection | Есть ECS WorldInspector, runtime-команды `entities`/`inspect` и Editor Inspector. | Runtime-команды выводят текстовое описание, не предоставляют live watch или интерактивное редактирование значений. |
+| Validation | Standard Runtime регистрирует WorldValidator и PhysicsValidator; `validate` запускает ValidationService. | Команда выводит только итог/число проблем, не перечисляя issue details. ContentValidator существует, но не регистрируется стандартным Runtime; PhysicsValidator проверяет 2D. |
+| CPU Profiling | SchedulerProfiler измеряет ECS systems; FrameTimingProfiler собирает до 1024 samples, фазы Update/FixedUpdate/Render/EndFrame и статистику Avg/Min/Max/P95/P99. Команда `profile` управляет capture и отчётом. | EndFrame измеряет CPU-время вызова graphics device; GPU timestamp profiling не обнаружен. |
+| Debug Visualization | Есть 2D DebugDrawList/renderer и PhysicsDebugVisualizer для 2D bodies/colliders/velocity. | RenderDebugVisualization не вызывается базовым EngineGame автоматически; нет 3D physics visualization. |
+| Frame Debugger | — | Отдельный пользовательский per-frame capture/inspection инструмент не обнаружен. |
+| Benchmarks | Standalone CLI покрывает ECS/Runtime, 2D Physics, Graphics Window, Tilemap и Transform workloads; измеряет timing, allocations, GC и managed memory delta. | Нет встроенного baseline/regression workflow, Editor integration или найденных benchmark tests; отдельный 3D mesh benchmark не обнаружен. |
+
+Найденные тестовые исходники покрывают diagnostics/metrics, Profiler/FrameTimingProfiler, ValidationService/WorldValidator/PhysicsValidator, Runtime profiling lifecycle и Editor diagnostics/exception formatting. В просмотренном дереве не обнаружены отдельные тесты для DebugConsole/Overlay, DebugVisualization, ContentValidator или benchmark regression. Наличие файлов не означает запуск тестов в рамках этого аудита.
+
 ## Документированные ограничения
 
 | Область | Поддерживаемое поведение / ограничение | Практическое следствие |
@@ -190,3 +207,5 @@
 - [Диагностика и решение типичных проблем](TROUBLESHOOTING.md)
 - [План развития движка](ENGINE_DEVELOPMENT_PLAN.md) — долгосрочная стратегия и аудит.
 - [Аудит 2D Engine](audits/05-2D-ENGINE.md) — сквозные связи 2D подсистем, Editor, сериализации и Runtime.
+- [Аудит 3D Engine](audits/06-3D-ENGINE.md) — Mesh rendering, Camera3D, Physics 3D, import, serialization и Editor workflow.
+- [Аудит Developer Tools](audits/07-DEVELOPER-TOOLS.md) — diagnostics, console, ECS inspection, validation, profiling, debug visualization и benchmarks.

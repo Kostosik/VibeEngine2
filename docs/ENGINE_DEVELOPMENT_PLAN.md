@@ -210,8 +210,8 @@ ECS остаётся основой существующей runtime-модел�
 - [x] **0.5. Runtime** — завершено; результат: [04-RUNTIME.md](audits/04-RUNTIME.md).
 - [x] **0.6. 2D Engine** — завершено; результат: [05-2D-ENGINE.md](audits/05-2D-ENGINE.md).
 - [x] **0.7. 3D Engine** — завершено; результат: [06-3D-ENGINE.md](audits/06-3D-ENGINE.md).
-- [ ] **0.8. Developer Tools** — следующая задача.
-- [ ] **0.9. Build и платформы** — запланировано, ещё не проводилось.
+- [x] **0.8. Developer Tools** — завершено; результат: [07-DEVELOPER-TOOLS.md](audits/07-DEVELOPER-TOOLS.md).
+- [ ] **0.9. Build и платформы** — следующая задача.
 
 ### 0.1. Общая архитектура
 

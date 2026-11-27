@@ -68,6 +68,7 @@ dotnet test .\VibeEngine2.sln --configuration Release
 - [Матрица поддержки и ограничений](docs/SUPPORT_MATRIX.md) — подтверждённые сценарии, ограничения и непроверенные области.
 - [Отчёт о готовности](docs/READINESS_REPORT.md) — отдельная оценка Editor, Game.Sandbox и Engine с указанием имеющихся свидетельств.
 - [План развития движка](docs/ENGINE_DEVELOPMENT_PLAN.md) — долгосрочная стратегия и последовательность аудита.
+- [Roadmap реализации](docs/ROADMAP.md) — приоритетные этапы, зависимости и критерии готовности.
 - [Аудиты](docs/audits/) — результаты проверок архитектуры и подсистем.
 - [Аудит Editor](docs/audits/01-EDITOR.md) — документы, Hierarchy, Inspector, Viewport и Undo/Redo.
 - [Аудит Content Pipeline](docs/audits/02-CONTENT-PIPELINE.md) — каталог ресурсов, loaders, кэширование, зависимости и Hot Reload.

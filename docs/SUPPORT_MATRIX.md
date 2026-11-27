@@ -232,6 +232,7 @@
 - [Руководство по API](API.md)
 - [Диагностика и решение типичных проблем](TROUBLESHOOTING.md)
 - [План развития движка](ENGINE_DEVELOPMENT_PLAN.md) — долгосрочная стратегия и аудит.
+- [Roadmap реализации](ROADMAP.md) — последовательность практической реализации и критерии завершения этапов.
 - [Аудит 2D Engine](audits/05-2D-ENGINE.md) — сквозные связи 2D подсистем, Editor, сериализации и Runtime.
 - [Аудит 3D Engine](audits/06-3D-ENGINE.md) — Mesh rendering, Camera3D, Physics 3D, import, serialization и Editor workflow.
 - [Аудит Developer Tools](audits/07-DEVELOPER-TOOLS.md) — diagnostics, console, ECS inspection, validation, profiling, debug visualization и benchmarks.

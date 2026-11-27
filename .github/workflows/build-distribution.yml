@@ -55,137 +55,23 @@ jobs:
           $runtimeDestination = `
             ".\artifacts\distribution\Editor.Sandbox\EngineRuntime\win-x64"
 
-          New-Item `
-            -ItemType Directory `
-            -Path $runtimeDestination `
-            -Force | Out-Null
-
-          dotnet publish `
-            .\Engine.Hosting.Desktop\Engine.Hosting.Desktop.csproj `
+          dotnet run `
+            --project .\BuildTools\BuildTools.CLI\BuildTools.CLI.csproj `
             --configuration Release `
-            --runtime win-x64 `
-            --self-contained false `
-            "-p:CopyLocalLockFileAssemblies=true" `
-            --output $runtimeDestination
+            -- runtime build . $runtimeDestination Release
 
           if ($LASTEXITCODE -ne 0) {
-            throw "Failed to publish the engine runtime."
+            throw "BuildTools failed to build engine runtime."
           }
 
-          # Engine.Serialization and Engine.Input.SilkNet are used directly
-          # by generated game projects but are not both transitive dependencies
-          # of Engine.Hosting.Desktop. Publish them and merge their DLLs.
-          $extraPublishRoot = Join-Path $env:RUNNER_TEMP "VibeEngine2RuntimeExtra"
+          dotnet run `
+            --project .\BuildTools\BuildTools.CLI\BuildTools.CLI.csproj `
+            --configuration Release `
+            -- runtime verify $runtimeDestination
 
-          try {
-            New-Item `
-              -ItemType Directory `
-              -Path $extraPublishRoot `
-              -Force | Out-Null
-
-            $extraProjects = @(
-              ".\Engine.Graphics.OpenGL\Engine.Graphics.OpenGL.csproj"
-                ".\Engine.Serialization\Engine.Serialization.csproj"
-                ".\Engine.Input.SilkNet\Engine.Input.SilkNet.csproj"
-              ".\Engine.Networking.Replication\Engine.Networking.Replication.csproj"
-                ".\Engine.Hosting\Engine.Hosting.csproj"
-                ".\Engine.Localization\Engine.Localization.csproj"
-                ".\Engine.Navigation\Engine.Navigation.csproj"
-            )
-
-            foreach ($projectPath in $extraProjects) {
-              $projectName = [System.IO.Path]::GetFileNameWithoutExtension($projectPath)
-              $projectOutput = Join-Path $extraPublishRoot $projectName
-
-              New-Item `
-                -ItemType Directory `
-                -Path $projectOutput `
-                -Force | Out-Null
-
-              dotnet publish `
-                $projectPath `
-                --configuration Release `
-                --runtime win-x64 `
-                --self-contained false `
-                "-p:CopyLocalLockFileAssemblies=true" `
-                --output $projectOutput
-
-              if ($LASTEXITCODE -ne 0) {
-                throw "Failed to publish $projectName."
-              }
-
-              Get-ChildItem `
-                -LiteralPath $projectOutput `
-                -Filter "*.dll" `
-                -File |
-                ForEach-Object {
-                  Copy-Item `
-                    -LiteralPath $_.FullName `
-                    -Destination $runtimeDestination `
-                    -Force
-                }
-            }
+          if ($LASTEXITCODE -ne 0) {
+            throw "BuildTools runtime validation failed."
           }
-          finally {
-            if (Test-Path -LiteralPath $extraPublishRoot) {
-              Remove-Item `
-                -LiteralPath $extraPublishRoot `
-                -Recurse `
-                -Force
-            }
-          }
-
-          $requiredAssemblies = @(
-            "Engine.Animation.dll"
-            "Engine.Audio.OpenAL.dll"
-            "Engine.Audio.dll"
-            "Engine.Camera.dll"
-            "Engine.Content.dll"
-            "Engine.Core.dll"
-            "Engine.ECS.dll"
-            "Engine.Graphics2D.dll"
-            "Engine.Graphics.OpenGL.dll"
-            "Engine.Graphics.dll"
-            "Engine.Hosting.Desktop.dll"
-            "Engine.Hosting.dll"
-            "Engine.Input.SilkNet.dll"
-            "Engine.Input.dll"
-            "Engine.Jobs.dll"
-            "Engine.Localization.dll"
-            "Engine.Memory.dll"
-            "Engine.Navigation.dll"
-            "Engine.Networking.Replication.dll"
-            "Engine.Networking.dll"
-            "Engine.Particles.dll"
-            "Engine.Physics.dll"
-            "Engine.Runtime.dll"
-            "Engine.Scripting.dll"
-            "Engine.Serialization.dll"
-            "Engine.Simulations.dll"
-            "Engine.Tooling.dll"
-            "Engine.Transform.dll"
-            "Engine.UI.dll"
-            "Engine.Worlds.dll"
-          )
-
-          $missingAssemblies = @(
-            $requiredAssemblies | Where-Object {
-              -not (
-                Test-Path -LiteralPath (
-                  Join-Path $runtimeDestination $_
-                ) -PathType Leaf
-              )
-            }
-          )
-
-          if ($missingAssemblies.Count -gt 0) {
-            throw (
-              "Runtime package is incomplete: " +
-              ($missingAssemblies -join ", ")
-            )
-          }
-
-          Write-Host "Engine runtime package prepared successfully."
       - name: Публикация Game.Sandbox
         run: >-
           dotnet publish .\Game.Sandbox\Game.Sandbox.csproj
@@ -261,38 +147,14 @@ jobs:
             throw "Distribution ZIP is missing required files: $($missingFiles -join ', ')"
           }
 
-          $requiredAssemblies = @(
-            "Engine.Animation.dll"
-            "Engine.Audio.OpenAL.dll"
-            "Engine.Audio.dll"
-            "Engine.Camera.dll"
-            "Engine.Content.dll"
-            "Engine.Core.dll"
-            "Engine.ECS.dll"
-            "Engine.Graphics2D.dll"
-            "Engine.Graphics.OpenGL.dll"
-            "Engine.Graphics.dll"
-            "Engine.Hosting.Desktop.dll"
-            "Engine.Hosting.dll"
-            "Engine.Input.SilkNet.dll"
-            "Engine.Input.dll"
-            "Engine.Jobs.dll"
-            "Engine.Localization.dll"
-            "Engine.Memory.dll"
-            "Engine.Navigation.dll"
-            "Engine.Networking.Replication.dll"
-            "Engine.Networking.dll"
-            "Engine.Particles.dll"
-            "Engine.Physics.dll"
-            "Engine.Runtime.dll"
-            "Engine.Scripting.dll"
-            "Engine.Serialization.dll"
-            "Engine.Simulations.dll"
-            "Engine.Tooling.dll"
-            "Engine.Transform.dll"
-            "Engine.UI.dll"
-            "Engine.Worlds.dll"
-          )
+          dotnet run `
+            --project .\BuildTools\BuildTools.CLI\BuildTools.CLI.csproj `
+            --configuration Release `
+            -- runtime verify $runtimeRoot
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Runtime in distribution ZIP failed validation."
+          }
 
           $missingAssemblies = @(
             $requiredAssemblies | Where-Object {

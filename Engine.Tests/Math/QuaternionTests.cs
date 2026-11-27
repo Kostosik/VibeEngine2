@@ -15,6 +15,52 @@ public sealed class QuaternionTests
     }
 
     [Fact]
+    public void Normalize_LargeValuesReturnsUnitQuaternion()
+    {
+        var quaternion = new Quaternion(
+            float.MaxValue,
+            float.MaxValue,
+            0,
+            0);
+
+        var result = quaternion.Normalize();
+
+        Assert.Equal(1.0f, result.Length(), 5);
+    }
+
+    [Fact]
+    public void Inverse_SmallNonZeroQuaternionDoesNotUnderflow()
+    {
+        var quaternion = new Quaternion(
+            1e-30f,
+            0,
+            0,
+            0);
+
+        var result = quaternion * quaternion.Inverse();
+
+        Assert.Equal(1.0f, result.W, 5);
+    }
+
+    [Fact]
+    public void Lerp_NormalizesInputQuaternionsBeforeInterpolation()
+    {
+        var end = Quaternion.CreateFromAxisAngle(
+            Vector3.UnitZ,
+            MathF.PI / 2.0f) * 10.0f;
+
+        var result = Quaternion.Lerp(
+            Quaternion.Identity,
+            end,
+            0.5f);
+
+        var rotated = result.Transform(Vector3.UnitX);
+
+        Assert.Equal(0.7071f, rotated.X, 3);
+        Assert.Equal(0.7071f, rotated.Y, 3);
+    }
+
+    [Fact]
     public void CreateFromAxisAngle_RotatesAroundZ()
     {
         var rotation = Quaternion.CreateFromAxisAngle(

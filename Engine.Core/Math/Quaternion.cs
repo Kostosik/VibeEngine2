@@ -10,6 +10,12 @@ public readonly record struct Quaternion(
     public static Quaternion Identity =>
         new(0.0f, 0.0f, 0.0f, 1.0f);
 
+    public bool IsFinite =>
+    float.IsFinite(X) &&
+    float.IsFinite(Y) &&
+    float.IsFinite(Z) &&
+    float.IsFinite(W);
+
     public float LengthSquared()
     {
         return X * X + Y * Y + Z * Z + W * W;
@@ -22,14 +28,36 @@ public readonly record struct Quaternion(
 
     public Quaternion Normalize()
     {
-        var length = Length();
+        if (!IsFinite)
+        {
+            throw new InvalidOperationException(
+                "Cannot normalize a non-finite quaternion.");
+        }
 
-        if (length <= 0.0f)
+        var maxComponent = MathF.Max(
+            MathF.Abs(X),
+            MathF.Max(
+                MathF.Abs(Y),
+                MathF.Max(MathF.Abs(Z), MathF.Abs(W))));
+
+        if (maxComponent == 0.0f)
         {
             return Identity;
         }
 
-        return this / length;
+        var x = (double)X / maxComponent;
+        var y = (double)Y / maxComponent;
+        var z = (double)Z / maxComponent;
+        var w = (double)W / maxComponent;
+
+        var length = System.Math.Sqrt(
+            x * x + y * y + z * z + w * w);
+
+        return new Quaternion(
+            (float)(x / length),
+            (float)(y / length),
+            (float)(z / length),
+            (float)(w / length));
     }
 
     public Quaternion Conjugate()
@@ -39,15 +67,37 @@ public readonly record struct Quaternion(
 
     public Quaternion Inverse()
     {
-        var lengthSquared = LengthSquared();
+        if (!IsFinite)
+        {
+            throw new InvalidOperationException(
+                "Cannot invert a non-finite quaternion.");
+        }
 
-        if (lengthSquared <= 0.0f)
+        var lengthSquared =
+            (double)X * X +
+            (double)Y * Y +
+            (double)Z * Z +
+            (double)W * W;
+
+        if (lengthSquared == 0.0)
         {
             throw new InvalidOperationException(
                 "Cannot invert a zero quaternion.");
         }
 
-        return Conjugate() / lengthSquared;
+        var result = new Quaternion(
+            (float)(-(double)X / lengthSquared),
+            (float)(-(double)Y / lengthSquared),
+            (float)(-(double)Z / lengthSquared),
+            (float)((double)W / lengthSquared));
+
+        if (!result.IsFinite)
+        {
+            throw new OverflowException(
+                "Quaternion inverse cannot be represented as finite float values.");
+        }
+
+        return result;
     }
 
     public static float Dot(
@@ -104,6 +154,8 @@ public readonly record struct Quaternion(
         Quaternion end,
         float amount)
     {
+        start = start.Normalize();
+        end = end.Normalize();
         if (Dot(start, end) < 0.0f)
         {
             end = -end;

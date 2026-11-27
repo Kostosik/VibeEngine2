@@ -159,11 +159,17 @@ public static class EngineRuntimeBuilder
 
         try
         {
-            var workspace = Path.Combine(
-            Path.GetTempPath(),
-            $"VibeEngine2-RuntimeBuild-{Guid.NewGuid():N}");
+            var outputParentDirectory = Path.GetDirectoryName(outputDirectory)
+                ?? throw new InvalidOperationException(
+                    "Cannot determine the runtime output parent directory.");
 
-        var runtimeOutput = Path.Combine(
+            Directory.CreateDirectory(outputParentDirectory);
+
+            var workspace = Path.Combine(
+                outputParentDirectory,
+                $".VibeEngine2-RuntimeBuild-{Guid.NewGuid():N}");
+
+            var runtimeOutput = Path.Combine(
             workspace,
             "runtime");
 

@@ -73,6 +73,7 @@ dotnet test .\VibeEngine2.sln --configuration Release
 - [Аудит Content Pipeline](docs/audits/02-CONTENT-PIPELINE.md) — каталог ресурсов, loaders, кэширование, зависимости и Hot Reload.
 - [Аудит Scene и World](docs/audits/03-SCENE-AND-WORLD.md) — ECS/World, Transform, сериализация сцен, Prefab, chunk streaming и startup scene workflow.
 - [Аудит Runtime](docs/audits/04-RUNTIME.md) — EngineGame, GameLoop, SystemScheduler, commands/events, diagnostics, Host и запуск отдельной игры.
+- [Аудит 2D Engine](docs/audits/05-2D-ENGINE.md) — спрайты и материалы, TileSet/Tilemap, камера, анимация, физика, частицы, UI, аудио и навигация.
 - [Диагностика и восстановление](docs/TROUBLESHOOTING.md) — действия при проблемах создания, сборки и запуска проекта.
 
 ## Границы первой версии

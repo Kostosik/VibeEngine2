@@ -33,6 +33,19 @@
 
 В историческом отчёте о готовности записан baseline покрытия **47,96% строк и 39,17% ветвей** на момент измерения. Эти проценты не являются показателем готовности каждой функции: они не говорят, какие именно пользовательские сценарии проверены, а какие нет. При повторной оценке следует обновлять показатели с датой и конфигурацией запуска.
 
+## Результаты аудита Editor (2026-11-27)
+
+Статический аудит Editor зафиксирован в [docs/audits/01-EDITOR.md](audits/01-EDITOR.md). В рамках аудита были просмотрены исходники Engine.Editor, Engine.Editor.UI, Editor.Sandbox и тестовые файлы Engine.Tests/Editor. Сборка и тесты не запускались.
+
+| Область | Подтверждённое состояние | Ограничение / граница |
+|---|---|---|
+| Документы | Общий IEditorDocument; открытие и сохранение World, Prefab, UI, Tilemap, TileSet, Sprite Animation, Animation Clip, Particle Effect и Script Definition; dirty-close workflow обрабатывает AllDocuments | Сессия Editor, сохраняемая через EditorContext.CaptureSessionState, включает только World documents |
+| Undo / Redo | История команд подключена к World, UI Document, Tilemap и Prefab | В стандартном MainShell Undo/Redo не подключён к Sprite Animation, Animation Clip, TileSet, Particle Effect и Script Definition |
+| Hierarchy | ECS-иерархия использует EntityName и TransformParent2D; доступны Create/Rename/Delete и расширяемые hierarchy actions | Проверенный UI selection path выбирает одну сущность; Inspector также требует ровно одну выбранную сущность |
+| Inspector | Компоненты и property editors регистрируются; изменение поддерживаемого свойства World-компонента проходит через undoable command | Добавление компонента требует явной регистрации и factory; ECS reflection provider перечисляет public instance properties, а не произвольные поля |
+| Viewport | Подтверждён 2D workflow: pan/zoom, hit test, Move/Rotate/Scale gizmos | 3D Scene View в проверенном Editor UI не обнаружен |
+| Workspace/session | Модели состояния, JSON persistence и тесты существуют | SaveWorkspace/LoadWorkspace и SaveSession/LoadSession не подключены к стандартному запуску Editor.Sandbox; стандартный Editor сохраняет путь к последнему игровому проекту |
+
 ## Документированные ограничения
 
 | Область | Поддерживаемое поведение / ограничение | Практическое следствие |

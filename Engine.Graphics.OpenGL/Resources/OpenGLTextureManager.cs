@@ -91,7 +91,7 @@ public sealed class OpenGLTextureManager
                     null);
             }
 
-            var resourceHandle = CreateHandle();
+            resourceHandle = CreateHandle();
 
             _textures.Add(
                 resourceHandle,
@@ -202,14 +202,14 @@ public sealed class OpenGLTextureManager
             {
                 _gl.GenerateMipmap(TextureTarget.Texture2D);
             }
-            var resourceHandle = CreateHandle();
+            resourceHandle = CreateHandle();
 
             _textures.Add(
                 resourceHandle,
                 new Entry
                 {
                     NativeHandle = handle,
-                    Description = data.description
+                    Description = data.Description
                 });
 
             return resourceHandle;
@@ -297,9 +297,6 @@ public sealed class OpenGLTextureManager
         }
 
         _textures.Clear();
-
-        _textures.Clear();
-        _descriptions.Clear();
         _disposed = true;
 
         if (errors.Count > 0)

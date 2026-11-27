@@ -51,11 +51,12 @@ internal sealed class OpenGLTextureRenderer : IDisposable
         GL gl,
         int width,
         int height,
-        Camera2D camera)
+        Camera2D camera,
+        OpenGLTextureManager textures)
     {
         ArgumentNullException.ThrowIfNull(
             gl);
-
+        ArgumentNullException.ThrowIfNull(textures);
         ArgumentNullException.ThrowIfNull(
             camera);
 
@@ -69,7 +70,7 @@ internal sealed class OpenGLTextureRenderer : IDisposable
 
         _gl = gl;
         _camera = camera;
-
+        _textures = textures;
         _width = width;
         _height = height;
 

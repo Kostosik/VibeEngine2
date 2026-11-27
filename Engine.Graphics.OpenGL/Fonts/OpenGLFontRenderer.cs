@@ -42,6 +42,7 @@ internal sealed class OpenGLFontRenderer :
         int height,
         IFontManager fonts, OpenGLTextureManager textures)
     {
+        ArgumentNullException.ThrowIfNull(textures);
         ArgumentNullException.ThrowIfNull(gl);
         ArgumentNullException.ThrowIfNull(fonts);
 
@@ -59,7 +60,7 @@ internal sealed class OpenGLFontRenderer :
 
         _gl = gl;
         _fonts = fonts;
-
+        _textures = textures;
         _width = width;
         _height = height;
 

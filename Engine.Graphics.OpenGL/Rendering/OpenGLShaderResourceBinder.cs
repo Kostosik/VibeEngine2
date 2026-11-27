@@ -15,7 +15,7 @@ internal sealed class OpenGLShaderResourceBinder :
 {
     private const uint TextureMaxAnisotropyExt = 0x84FE;
     private const uint MaxTextureMaxAnisotropyExt = 0x84FF;
-    private OpenGLTextureManager _textures
+    private readonly OpenGLTextureManager _textures;
     private readonly GL _gl;
     private readonly int _maxTextureUnits;
 
@@ -39,7 +39,7 @@ internal sealed class OpenGLShaderResourceBinder :
     public OpenGLShaderResourceBinder(GL gl, OpenGLTextureManager textures)
     {
         ArgumentNullException.ThrowIfNull(gl);
-
+        ArgumentNullException.ThrowIfNull(textures);
         _gl = gl;
 
         _gl.GetInteger(

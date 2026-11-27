@@ -118,12 +118,12 @@ public sealed class OpenGLGraphicsDevice
             _shaderManager =
                 new OpenGLShaderManager(gl);
 
-            _textureRenderer =
-                new OpenGLTextureRenderer(
-                    gl,
-                    logicalWidth,
-                    logicalHeight,
-                    camera);
+            _textureRenderer = new OpenGLTextureRenderer(
+                gl,
+                logicalWidth,
+                logicalHeight,
+                camera,
+                _textureManager);
 
             _normalBufferRenderer =
                 new OpenGLNormalBufferRenderer2D(
@@ -144,20 +144,21 @@ public sealed class OpenGLGraphicsDevice
                 new OpenGLFontManager(
                     _textureManager);
 
-            _fontRenderer =
-                new OpenGLFontRenderer(
-                    gl,
-                    logicalWidth,
-                    logicalHeight,
-                    _fontManager);
+            _fontRenderer = new OpenGLFontRenderer(
+                gl,
+                logicalWidth,
+                logicalHeight,
+                _fontManager,
+                _textureManager);
 
             _renderTargetManager =
                 new OpenGLRenderTargetManager(
                     gl,
                     _textureManager);
 
-            _fullscreenRenderer =
-                new OpenGLFullscreenRenderer(gl);
+            _fullscreenRenderer = new OpenGLFullscreenRenderer(
+                gl,
+                _textureManager);
             _dispatcher =
                 new OpenGLRenderCommandDispatcher(
                     _textureManager,

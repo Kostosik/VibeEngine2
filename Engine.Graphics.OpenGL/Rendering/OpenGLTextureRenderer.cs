@@ -1,6 +1,7 @@
 ﻿using Engine.Camera;
 using Engine.Core.Math;
 using Engine.Graphics.Commands;
+using Engine.Graphics.OpenGL.Resources;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Engine.Graphics2D.Commands;
@@ -11,6 +12,7 @@ namespace Engine.Graphics.OpenGL.Rendering;
 
 internal sealed class OpenGLTextureRenderer : IDisposable
 {
+    private readonly OpenGLTextureManager _textures;
     private const int SpritesPerBatch = 1024;
     private const int MaxTexturesPerBatch = 16;
 
@@ -152,12 +154,10 @@ internal sealed class OpenGLTextureRenderer : IDisposable
     private bool PrepareTextureBatch(
     TextureHandle texture)
     {
-        if (!texture.IsValid)
+        if (!_textures.TryGetNativeHandle(texture, out var value))
         {
             return false;
         }
-
-        var value = texture.Value;
 
         // Если для следующего спрайта недостаточно места,
         // отправляем текущий пакет на отрисовку.

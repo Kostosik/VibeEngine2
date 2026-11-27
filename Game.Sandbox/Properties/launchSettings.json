@@ -3,13 +3,21 @@
     "Game.Sandbox": {
       "commandName": "Project"
     },
+    "3D Preview": {
+      "commandName": "Project",
+      "commandLineArgs": "--3d-preview"
+    },
+    "EngineGame Probe": {
+      "commandName": "Project",
+      "commandLineArgs": "--engine-game-probe"
+    },
     "Multiplayer Server": {
       "commandName": "Project",
-      "commandLineArgs": "--server --port 27015"
+      "commandLineArgs": "--server --bind 127.0.0.1 --port 27015"
     },
     "Multiplayer Client": {
       "commandName": "Project",
-      "commandLineArgs": "--client --host 127.0.0.1 --port 27015"
+      "commandLineArgs": "--client --host 127.0.0.1 --port 27015 --local-port 27016"
     }
   }
 }

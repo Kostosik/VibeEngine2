@@ -153,7 +153,7 @@ internal sealed class OpenGLRenderTargetManager :
                     FramebufferTarget.Framebuffer,
                     FramebufferAttachment.ColorAttachment0,
                     TextureTarget.Texture2D,
-                    colorTexture.Value,
+                    _textures.GetNativeHandle(colorTexture),
                     0);
 
                 if (description.HasDepthAttachment)
@@ -311,7 +311,7 @@ internal sealed class OpenGLRenderTargetManager :
                     FramebufferTarget.Framebuffer,
                     FramebufferAttachment.ColorAttachment0,
                     TextureTarget.Texture2D,
-                    newColorTexture.Value,
+                    _textures.GetNativeHandle(newColorTexture),
                     0);
 
                 if (description.HasDepthAttachment)

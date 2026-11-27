@@ -128,17 +128,18 @@ internal sealed class OpenGLRenderPassExecutor :
             var description = _renderTargets.GetDescription(
                 targetHandle);
 
-            if (targetHandle == _presentationTarget)
-            {
-                renderWidth = _backBufferRenderWidth;
-                renderHeight = _backBufferRenderHeight;
-            }
-
             viewportWidth = description.Width;
             viewportHeight = description.Height;
 
-            renderWidth = description.Width;
-            renderHeight = description.Height;
+            var renderSize = ResolveRenderDimensions(
+                targetHandle,
+                _presentationTarget,
+                description,
+                _backBufferRenderWidth,
+                _backBufferRenderHeight);
+
+            renderWidth = renderSize.Width;
+            renderHeight = renderSize.Height;
         }
 
         var frameStarted = false;
@@ -166,7 +167,10 @@ internal sealed class OpenGLRenderPassExecutor :
                 _dispatcher.ClearColorBuffer(
                     context.ClearColorValue);
             }
-
+            if (context.ClearDepth)
+            {
+                _dispatcher.ClearDepthBuffer();
+            }
             _dispatcher.SetLightingContext(
                 context.ContextData as SceneLighting3D);
             _dispatcher.SetNormalBufferPass(
@@ -204,6 +208,25 @@ internal sealed class OpenGLRenderPassExecutor :
 
             throw;
         }
+    }
+
+    internal static (int Width, int Height) ResolveRenderDimensions(
+    RenderTargetHandle target,
+    RenderTargetHandle presentationTarget,
+    RenderTargetDescription targetDescription,
+    int logicalWidth,
+    int logicalHeight)
+    {
+        if (target == presentationTarget)
+        {
+            return (
+                logicalWidth,
+                logicalHeight);
+        }
+
+        return (
+            targetDescription.Width,
+            targetDescription.Height);
     }
 
     public void ExecuteFullscreen(

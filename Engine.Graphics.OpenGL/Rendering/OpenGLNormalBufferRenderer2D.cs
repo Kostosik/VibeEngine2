@@ -205,12 +205,14 @@ internal sealed class OpenGLNormalBufferRenderer2D : IDisposable
         _gl.ActiveTexture(TextureUnit.Texture0);
         _gl.BindTexture(
             TextureTarget.Texture2D,
-            command.Texture.Value);
+            _textures.GetNativeHandle(command.Texture));
 
         _gl.ActiveTexture(TextureUnit.Texture1);
         _gl.BindTexture(
             TextureTarget.Texture2D,
-            hasNormalMap ? normalTexture.Value : 0);
+            hasNormalMap
+                ? _textures.GetNativeHandle(normalTexture)
+                : 0);
 
         _gl.ActiveTexture(TextureUnit.Texture0);
 

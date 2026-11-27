@@ -6,10 +6,19 @@ namespace Engine.Graphics.OpenGL.Resources;
 public sealed class OpenGLTextureManager
     : ITextureManager, IDisposable
 {
+    private sealed class Entry
+    {
+        public required uint NativeHandle { get; init; }
+
+        public required TextureDescription Description { get; init; }
+    }
+
+
     private readonly GL _gl;
     private bool _disposed;
-    private readonly HashSet<uint> _textures = new();
-    private readonly Dictionary<uint, TextureDescription> _descriptions = new();
+    private readonly Dictionary<TextureHandle, Entry> _textures = new();
+
+    private uint _nextHandle = 1;
     private const uint TextureMaxAnisotropyExt = 0x84FE;
     private const uint MaxTextureMaxAnisotropyExt = 0x84FF;
 
@@ -59,7 +68,7 @@ public sealed class OpenGLTextureManager
             throw new InvalidOperationException(
                 "OpenGL failed to create a texture.");
         }
-
+        TextureHandle resourceHandle = TextureHandle.Invalid;
         try
         {
             _gl.BindTexture(
@@ -82,15 +91,24 @@ public sealed class OpenGLTextureManager
                     null);
             }
 
-            _textures.Add(handle);
-            _descriptions.Add(handle, description);
+            var resourceHandle = CreateHandle();
 
-            return new TextureHandle(handle);
+            _textures.Add(
+                resourceHandle,
+                new Entry
+                {
+                    NativeHandle = handle,
+                    Description = description
+                });
+
+            return resourceHandle;
         }
         catch
         {
-            _textures.Remove(handle);
-            _descriptions.Remove(handle);
+            if (resourceHandle.IsValid)
+            {
+                _textures.Remove(resourceHandle);
+            }
 
             _gl.DeleteTexture(handle);
 
@@ -153,7 +171,7 @@ public sealed class OpenGLTextureManager
             throw new InvalidOperationException(
                 "OpenGL failed to create a texture.");
         }
-
+        TextureHandle resourceHandle = TextureHandle.Invalid;
         try
         {
             _gl.BindTexture(
@@ -184,18 +202,26 @@ public sealed class OpenGLTextureManager
             {
                 _gl.GenerateMipmap(TextureTarget.Texture2D);
             }
-            _textures.Add(handle);
-            _descriptions.Add(handle, data.Description);
+            var resourceHandle = CreateHandle();
 
-            return new TextureHandle(handle);
+            _textures.Add(
+                resourceHandle,
+                new Entry
+                {
+                    NativeHandle = handle,
+                    Description = data.description
+                });
+
+            return resourceHandle;
         }
         catch
         {
-            _textures.Remove(handle);
-            _descriptions.Remove(handle);
+            if (resourceHandle.IsValid)
+            {
+                _textures.Remove(resourceHandle);
+            }
 
             _gl.DeleteTexture(handle);
-
             throw;
         }
         finally
@@ -209,33 +235,35 @@ public sealed class OpenGLTextureManager
     public bool Exists(TextureHandle texture)
     {
         ThrowIfDisposed();
+
         return texture.IsValid &&
-               _textures.Contains(texture.Value);
+               _textures.ContainsKey(texture);
     }
 
-    public TextureDescription GetDescription(
-        TextureHandle texture)
+    public TextureDescription GetDescription(TextureHandle texture)
     {
         ThrowIfDisposed();
-        if (!Exists(texture))
+
+        if (!texture.IsValid ||
+            !_textures.TryGetValue(texture, out var entry))
         {
             throw new KeyNotFoundException(
                 $"Texture '{texture.Value}' does not exist.");
         }
 
-        return _descriptions[texture.Value];
+        return entry.Description;
     }
 
     public void Destroy(TextureHandle texture)
     {
         ThrowIfDisposed();
-        if (!Exists(texture))
+
+        if (!_textures.TryGetValue(texture, out var entry))
             return;
 
-        _gl.DeleteTexture(texture.Value);
+        _gl.DeleteTexture(entry.NativeHandle);
 
-        _textures.Remove(texture.Value);
-        _descriptions.Remove(texture.Value);
+        _textures.Remove(texture);
     }
 
     private void ThrowIfDisposed()
@@ -256,18 +284,19 @@ public sealed class OpenGLTextureManager
 
         var errors = new List<Exception>();
 
-        foreach (var texture in _textures)
+        foreach (var entry in _textures.Values)
         {
             try
             {
-                _gl.DeleteTexture(
-                    texture);
+                _gl.DeleteTexture(entry.NativeHandle);
             }
             catch (Exception exception)
             {
                 errors.Add(exception);
             }
         }
+
+        _textures.Clear();
 
         _textures.Clear();
         _descriptions.Clear();
@@ -279,6 +308,51 @@ public sealed class OpenGLTextureManager
                 "One or more OpenGL textures could not be released.",
                 errors);
         }
+    }
+
+    internal bool TryGetNativeHandle(
+    TextureHandle texture,
+    out uint nativeHandle)
+    {
+        ThrowIfDisposed();
+
+        if (texture.IsValid &&
+            _textures.TryGetValue(texture, out var entry))
+        {
+            nativeHandle = entry.NativeHandle;
+            return true;
+        }
+
+        nativeHandle = 0;
+        return false;
+    }
+
+    private TextureHandle CreateHandle()
+    {
+        if (_nextHandle == 0)
+        {
+            throw new InvalidOperationException(
+                "Texture handle space is exhausted.");
+        }
+
+        var value = _nextHandle;
+
+        _nextHandle = value == uint.MaxValue
+            ? 0
+            : value + 1;
+
+        return new TextureHandle(value);
+    }
+
+    internal uint GetNativeHandle(TextureHandle texture)
+    {
+        if (!TryGetNativeHandle(texture, out var nativeHandle))
+        {
+            throw new KeyNotFoundException(
+                $"Texture '{texture.Value}' does not exist.");
+        }
+
+        return nativeHandle;
     }
 
     private void ConfigureTexture(TextureSamplerDescription sampler)

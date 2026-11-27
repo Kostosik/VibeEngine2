@@ -1,5 +1,6 @@
 ﻿using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
+using Engine.Graphics.OpenGL.Resources;
 using Silk.NET.OpenGL;
 
 namespace Engine.Graphics.OpenGL.Rendering;
@@ -14,7 +15,7 @@ internal sealed class OpenGLShaderResourceBinder :
 {
     private const uint TextureMaxAnisotropyExt = 0x84FE;
     private const uint MaxTextureMaxAnisotropyExt = 0x84FF;
-
+    private OpenGLTextureManager _textures
     private readonly GL _gl;
     private readonly int _maxTextureUnits;
 
@@ -35,7 +36,7 @@ internal sealed class OpenGLShaderResourceBinder :
     private int _nextTextureUnit;
     private bool _disposed;
 
-    public OpenGLShaderResourceBinder(GL gl)
+    public OpenGLShaderResourceBinder(GL gl, OpenGLTextureManager textures)
     {
         ArgumentNullException.ThrowIfNull(gl);
 
@@ -67,6 +68,7 @@ internal sealed class OpenGLShaderResourceBinder :
         {
             _maxAnisotropy = 1.0f;
         }
+        _textures = textures;
     }
 
     public void Begin(OpenGLShaderProgram shader)
@@ -100,6 +102,14 @@ internal sealed class OpenGLShaderResourceBinder :
                 nameof(texture));
         }
 
+        if (!_textures.TryGetNativeHandle(
+        texture,
+        out var nativeTexture))
+        {
+            throw new KeyNotFoundException(
+                $"Texture '{texture.Value}' does not exist.");
+        }
+
         if (_textureUnits.ContainsKey(name))
         {
             throw new InvalidOperationException(
@@ -131,7 +141,7 @@ internal sealed class OpenGLShaderResourceBinder :
 
         _gl.BindTexture(
             TextureTarget.Texture2D,
-            texture.Value);
+            nativeTexture);
 
         _gl.Uniform1(location, unit);
     }

@@ -2,6 +2,7 @@
 using Engine.Graphics.Commands;
 using Engine.Graphics.Fonts;
 using Engine.Graphics.OpenGL.Rendering;
+using Engine.Graphics.OpenGL.Resources;
 using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Silk.NET.OpenGL;
@@ -12,6 +13,7 @@ namespace Engine.Graphics.OpenGL.Fonts;
 internal sealed class OpenGLFontRenderer :
     IDisposable
 {
+    private readonly OpenGLTextureManager _textures;
     private readonly GL _gl;
     private readonly IFontManager _fonts;
     private readonly OpenGLShaderProgram _shader;
@@ -38,7 +40,7 @@ internal sealed class OpenGLFontRenderer :
         GL gl,
         int width,
         int height,
-        IFontManager fonts)
+        IFontManager fonts, OpenGLTextureManager textures)
     {
         ArgumentNullException.ThrowIfNull(gl);
         ArgumentNullException.ThrowIfNull(fonts);
@@ -388,10 +390,11 @@ internal sealed class OpenGLFontRenderer :
 
             if (glyph.Texture.IsValid &&
                 glyph.Size.X > 0.0f &&
-                glyph.Size.Y > 0.0f)
+                glyph.Size.Y > 0.0f &&
+                _textures.TryGetNativeHandle(
+                    glyph.Texture,
+                    out var texture))
             {
-                var texture =
-                    glyph.Texture.Value;
 
                 if (_currentTexture != 0 &&
                     _currentTexture != texture)

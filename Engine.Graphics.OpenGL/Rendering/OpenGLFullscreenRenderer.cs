@@ -1,4 +1,5 @@
-﻿using Engine.Graphics.Rendering;
+﻿using Engine.Graphics.OpenGL.Resources;
+using Engine.Graphics.Rendering;
 using Engine.Graphics.Resources;
 using Silk.NET.OpenGL;
 
@@ -12,12 +13,14 @@ internal sealed class OpenGLFullscreenRenderer : IDisposable
     private readonly OpenGLShaderProgram _presentShader;
     private bool _disposed;
     private readonly OpenGLShaderResourceBinder _resourceBinder;
-    public OpenGLFullscreenRenderer(GL gl)
+    public OpenGLFullscreenRenderer(GL gl, OpenGLTextureManager textures)
     {
         ArgumentNullException.ThrowIfNull(gl);
 
         _gl = gl;
-        _resourceBinder = new OpenGLShaderResourceBinder(gl);
+        _resourceBinder = new OpenGLShaderResourceBinder(
+            gl,
+            textures);
         _vao = _gl.GenVertexArray();
 
         if (_vao == 0)
